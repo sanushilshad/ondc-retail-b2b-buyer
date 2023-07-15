@@ -1,3 +1,8 @@
 /target
 
 settings.json
+launch.json
+settings.json
+configuration/configuration.yaml
+configuration/env.sh
+dev_run.sh
