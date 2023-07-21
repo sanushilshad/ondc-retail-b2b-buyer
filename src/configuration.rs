@@ -2,6 +2,7 @@ use crate::errors::DatabaseError;
 use config::{self, ConfigError, Environment};
 use secrecy::{ExposeSecret, Secret};
 use serde::Deserialize;
+use sqlx::{postgres::PgConnectOptions, ConnectOptions};
 
 #[derive(Debug, Deserialize)]
 pub struct Settings {
@@ -18,24 +19,19 @@ pub struct DatabaseSettings {
 }
 
 impl DatabaseSettings {
-    pub fn connection_string(&self) -> Secret<String> {
-        Secret::new(format!(
-            "postgres://{}:{}@{}:{}/{}",
-            self.username,
-            self.password.expose_secret(),
-            self.host,
-            self.port,
-            self.name
-        ))
+    // Renamed from `connection_string_without_db`
+    pub fn without_db(&self) -> PgConnectOptions {
+        PgConnectOptions::new()
+            .host(&self.host)
+            .username(&self.username)
+            .password(&self.password.expose_secret())
+            .port(self.port)
     }
-    pub fn connection_string_without_db(&self) -> Secret<String> {
-        Secret::new(format!(
-            "postgres://{}:{}@{}:{}",
-            self.username,
-            self.password.expose_secret(),
-            self.host,
-            self.port
-        ))
+    // Renamed from `connection_string`
+    pub fn with_db(&self) -> PgConnectOptions {
+        let mut options = self.without_db().database(&self.name);
+        options.log_statements(tracing::log::LevelFilter::Trace);
+        options
     }
 }
 
@@ -196,4 +192,17 @@ pub fn get_configuration() -> Result<Settings, ConfigError> {
 
 // struct EnvVar {
 //     MASTER_DB_NAME:
+// }
+
+// pub enum Environment {
+//     Local,
+//     Production,
+// }
+// impl Environment {
+//     pub fn as_str(&self) -> &'static str {
+//         match self {
+//             Environment::Local => "local",
+//             Environment::Production => "production",
+//         }
+//     }
 // }

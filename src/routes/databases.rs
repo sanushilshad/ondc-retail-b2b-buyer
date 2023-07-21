@@ -4,6 +4,8 @@ use bigdecimal::BigDecimal;
 // use bigdecimal::BigDecimal;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
+use std::fmt;
+use std::fmt::{Debug, Display};
 // use tracing::Instrument;
 // use uuid::Uuid;
 #[allow(dead_code)]
@@ -11,21 +13,6 @@ use sqlx::PgPool;
 struct RapidorCustomer {
     domain: String,
     database: String,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct InventoryRequest {
-    username: String,
-    session_id: String,
-    product_codes: Vec<String>,
-}
-
-#[derive(sqlx::FromRow, Serialize, Deserialize)]
-struct ProductInventory {
-    #[sqlx(rename = "code")]
-    product_code: String,
-    #[sqlx(rename = "no_of_items")]
-    qty: BigDecimal,
 }
 
 #[tracing::instrument(name = "Fetching customer data from database.", skip(pool), fields())]
@@ -78,6 +65,37 @@ pub async fn get_customer_dbs_api(pool: web::Data<PgPool>) -> impl Responder {
 //             .expect("Something went wrong with the db connection");
 //     web::Json(rapidor_customers)
 // }
+
+fn fmt_json<T: Serialize>(value: &T, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "{}", serde_json::to_string(value).unwrap())
+}
+
+macro_rules! impl_serialize_format {
+    ($struct_name:ident, $trait_name:path) => {
+        impl $trait_name for $struct_name {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                fmt_json(self, f)
+            }
+        }
+    };
+}
+impl_serialize_format!(InventoryRequest, Debug);
+#[derive(Deserialize, Serialize)]
+pub struct InventoryRequest {
+    username: String,
+    session_id: String,
+    product_codes: Vec<String>,
+}
+
+impl_serialize_format!(InventoryRequest, Display);
+#[derive(sqlx::FromRow, Serialize, Deserialize)]
+struct ProductInventory {
+    #[sqlx(rename = "code")]
+    product_code: String,
+    #[sqlx(rename = "no_of_items")]
+    qty: BigDecimal,
+}
+impl_serialize_format!(MyResponse, Display);
 #[derive(Serialize, Deserialize)]
 struct MyResponse {
     status: bool,
@@ -85,8 +103,10 @@ struct MyResponse {
     success_code: String,
     data: Vec<ProductInventory>,
 }
+
+#[tracing::instrument(ret(Display), name = "Fetching Inventory List", skip(pool), fields())]
 pub async fn fetch_inventory(
-    _body: web::Json<InventoryRequest>,
+    body: web::Json<InventoryRequest>,
     pool: web::Data<PgPool>,
 ) -> impl Responder {
     let rapidor_invetory = sqlx::query_as::<_, ProductInventory>(

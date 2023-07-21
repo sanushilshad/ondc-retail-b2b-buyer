@@ -3,6 +3,7 @@ use rust_test::{
     configuration::{get_configuration, DatabaseSettings},
     telemetry::{get_subscriber, init_subscriber},
 };
+
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use std::net::TcpListener;
 // use uuid::Uuid;
@@ -10,6 +11,17 @@ pub struct TestApp {
     pub address: String,
     pub db_pool: PgPool,
 }
+
+// fn parse_bool_env_var(var_name: &str, default: bool) -> Option<bool> {
+//     match std::env::var(var_name) {
+//         Ok(val) => match val.to_lowercase().as_str() {
+//             "true" => Some(true),
+//             "false" => Some(false),
+//             _ => Some(default),
+//         },
+//         Err(_) => Some(default),
+//     }
+// }
 
 #[actix_web::test]
 async fn health_check_works() {
@@ -29,14 +41,17 @@ async fn health_check_works() {
 static TRACING: Lazy<()> = Lazy::new(|| {
     let default_filter_level = "info".to_string();
     let subscriber_name = "test".to_string();
-
-    if std::env::var("TEST_LOG").is_ok() {
-        let subscriber = get_subscriber(subscriber_name, default_filter_level, std::io::stdout);
-        init_subscriber(subscriber)
-    } else {
+    // let test_log = parse_bool_env_var("TEST_LOG", false);
+    let test_log = std::env::var("TEST_LOG")
+        .map(|value| value == "true")
+        .unwrap_or(false);
+    if test_log {
         let subscriber = get_subscriber(subscriber_name, default_filter_level, std::io::sink);
         init_subscriber(subscriber);
-    };
+    } else {
+        let subscriber = get_subscriber(subscriber_name, default_filter_level, std::io::stdout);
+        init_subscriber(subscriber);
+    }
 });
 
 // #[actix_web::test]
@@ -75,8 +90,7 @@ async fn spawn_app() -> TestApp {
 
 pub async fn configure_database(config: &DatabaseSettings) -> PgPool {
     // Create database
-    let mut connection = PgConnection::connect(&config.connection_string_without_db())
-        .expose_secret()
+    let mut connection = PgConnection::connect_with(&config.without_db())
         .await
         .expect("Failed to connect to Postgres");
     connection
@@ -84,8 +98,7 @@ pub async fn configure_database(config: &DatabaseSettings) -> PgPool {
         .await
         .expect("Failed to create database.");
     // Migrate database
-    let connection_pool = PgPool::connect(&config.connection_string())
-        .expose_secret()
+    let connection_pool = PgPool::connect_with(config.with_db())
         .await
         .expect("Failed to connect to Postgres.");
 

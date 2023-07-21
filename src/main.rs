@@ -4,7 +4,6 @@ use rust_test::{
     startup::run,
     telemetry::{get_subscriber, init_subscriber},
 };
-use secrecy::ExposeSecret;
 use sqlx::postgres;
 use std::net::TcpListener;
 
@@ -17,10 +16,9 @@ async fn main() -> std::io::Result<()> {
     let configuration = get_configuration().expect("Failed to read configuration.");
     let address = &format!("0.0.0.0:{}", configuration.application_port);
     let listener = TcpListener::bind(address)?;
-    let connection_pool =
-        postgres::PgPool::connect(configuration.database.connection_string().expose_secret())
-            .await
-            .expect("Failed to connect to Postgres.");
+    let connection_pool = postgres::PgPoolOptions::new()
+        .acquire_timeout(std::time::Duration::from_secs(2))
+        .connect_lazy_with(configuration.database.with_db());
     println!("Listening in {}", address);
     run(listener, connection_pool)?.await
 }
