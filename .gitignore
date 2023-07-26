@@ -6,3 +6,4 @@ settings.json
 configuration/configuration.yaml
 configuration/env.sh
 dev_run.sh
+Cargo.lock
