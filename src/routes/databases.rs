@@ -1,4 +1,4 @@
-use actix_web::{web, Responder};
+use actix_web::{web, HttpResponse, Responder};
 use bigdecimal::BigDecimal;
 // use log::{info, warn};
 // use bigdecimal::BigDecimal;
@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use std::fmt;
 use std::fmt::{Debug, Display};
+
+use crate::email_client::EmailClient;
 // use tracing::Instrument;
 // use uuid::Uuid;
 #[allow(dead_code)]
@@ -106,7 +108,7 @@ struct MyResponse {
 
 #[tracing::instrument(ret(Display), name = "Fetching Inventory List", skip(pool), fields())]
 pub async fn fetch_inventory(
-    body: web::Json<InventoryRequest>,
+    _body: web::Json<InventoryRequest>,
     pool: web::Data<PgPool>,
 ) -> impl Responder {
     let rapidor_invetory = sqlx::query_as::<_, ProductInventory>(
@@ -115,7 +117,6 @@ pub async fn fetch_inventory(
     .fetch_all(pool.get_ref())
     .await
     .expect("Something went wrong with the Inventory fetch");
-    println!("/inventory/fetch/");
 
     let response = MyResponse {
         status: true,
@@ -124,4 +125,15 @@ pub async fn fetch_inventory(
         success_code: "PYWS0000".to_string(),
     };
     web::Json(response)
+}
+pub async fn send_email(
+    _pool: web::Data<PgPool>,
+    email_client: web::Data<EmailClient>,
+) -> impl Responder {
+    println!("sdsd");
+    let _responsed = email_client
+        .send_email_smtp("sanu.shilshad@acelrtech.com", "SANU", "apple".to_owned())
+        .await;
+
+    HttpResponse::Ok().body("Successfully send data")
 }
