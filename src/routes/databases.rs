@@ -59,15 +59,6 @@ pub async fn get_customer_dbs_api(pool: web::Data<PgPool>) -> impl Responder {
     web::Json(db_domain_mapping)
 }
 
-// pub async fn fetch_inventory(pool: web::Data<PgPool>) -> impl Responder {
-//     let rapidor_customers =
-//         sqlx::query_as::<_, RapidorCustomer>("SELECT domain, database FROM customer_customer")
-//             .fetch_all(pool.get_ref())
-//             .await
-//             .expect("Something went wrong with the db connection");
-//     web::Json(rapidor_customers)
-// }
-
 fn fmt_json<T: Serialize>(value: &T, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     write!(f, "{}", serde_json::to_string(value).unwrap())
 }
@@ -126,11 +117,9 @@ pub async fn fetch_inventory(
     };
     web::Json(response)
 }
-pub async fn send_email(
-    _pool: web::Data<PgPool>,
-    email_client: web::Data<EmailClient>,
-) -> impl Responder {
-    println!("sdsd");
+
+#[tracing::instrument(name = "Sending Email", skip(email_client), fields())]
+pub async fn send_email(email_client: web::Data<EmailClient>) -> impl Responder {
     let _responsed = email_client
         .send_email_smtp("sanu.shilshad@acelrtech.com", "SANU", "apple".to_owned())
         .await;

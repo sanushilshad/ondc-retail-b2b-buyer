@@ -34,7 +34,7 @@ where
     let format_layer = fmt::Layer::default()
         .with_ansi(true)
         .with_writer(sink)
-        .with_filter(LevelFilter::DEBUG);
+        .with_filter(LevelFilter::INFO);
     Registry::default()
         .with(telemetry_layer)
         .with(env_filter)
