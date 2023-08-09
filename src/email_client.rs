@@ -10,8 +10,8 @@ pub struct EmailClient {
     sender: SubscriberEmail,
     pub mailer: AsyncSmtpTransport<Tokio1Executor>,
 }
-#[allow(unused)]
 impl EmailClient {
+    #[tracing::instrument]
     pub fn new(email_config: EmailClientSettings) -> Result<Self, Box<dyn std::error::Error>> {
         let sender = email_config
             .sender()
@@ -20,7 +20,7 @@ impl EmailClient {
             email_config.username,
             email_config.password.expose_secret().to_string(),
         );
-        println!("Making connection to SMTP");
+        tracing::info!("Establishing  connection to the SMTP server.");
         let mailer: AsyncSmtpTransport<Tokio1Executor> =
             AsyncSmtpTransport::<Tokio1Executor>::relay(&email_config.base_url)?
                 .credentials(smtp_credentials)
@@ -32,7 +32,7 @@ impl EmailClient {
                 )
                 .build();
 
-        println!("SMTP connection created succuessfully");
+        tracing::info!("SMTP connection created succuessfully");
         Ok(Self { sender, mailer })
     }
 
@@ -43,17 +43,16 @@ impl EmailClient {
         subject: &str,
         body: String,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        println!("sdsd{:?}", self.mailer);
-        let sender = self.sender.as_ref();
+        tracing::info!("SMTP Parameters: {:?}", self.mailer);
         let email = Message::builder()
             .from(self.sender.as_ref().parse()?)
             .to(to.parse()?)
             .subject(subject)
             .body(body.to_string())?;
 
-        println!("Sending Email");
+        tracing::info!("Sending Email");
         self.mailer.send(email).await?;
-        println!("Mail Send Successfully");
+        tracing::info!("Mail Send Successfully");
         Ok(())
     }
 }

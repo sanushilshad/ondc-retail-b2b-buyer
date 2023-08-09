@@ -36,6 +36,9 @@ claim = "0.5"
 validator = "0.16.1"
 reqwest = "0.11"
 lettre = { version = "0.10.4", default-features = false, features = ["smtp-transport", "tokio1-rustls-tls", "hostname", "builder", "pool", "tracing"] }
+thiserror = "1"
+anyhow = "1"
+clap = "2.33"
 [dev-dependencies]
 
 once_cell = "1.18.0"

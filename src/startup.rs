@@ -29,6 +29,7 @@ impl Application {
             "{}:{}",
             configuration.application.host, configuration.application.port
         );
+        println!("Lisetening {}", address);
         let listener = TcpListener::bind(&address)?;
         let port = listener.local_addr().unwrap().port();
         let server = run(listener, connection_pool, email_client)?;

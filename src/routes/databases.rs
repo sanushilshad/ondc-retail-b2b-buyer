@@ -1,13 +1,14 @@
-use actix_web::{web, HttpResponse, Responder};
+use actix_web::{web, HttpResponse, Responder, ResponseError};
+use anyhow::Context;
 use bigdecimal::BigDecimal;
 // use log::{info, warn};
 // use bigdecimal::BigDecimal;
+use crate::email_client::EmailClient;
+use actix_web::http::StatusCode;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use std::fmt;
 use std::fmt::{Debug, Display};
-
-use crate::email_client::EmailClient;
 // use tracing::Instrument;
 // use uuid::Uuid;
 #[allow(dead_code)]
@@ -96,32 +97,84 @@ struct MyResponse {
     success_code: String,
     data: Vec<ProductInventory>,
 }
+// #[derive(thiserror::Error)]
+// pub enum InventoryError {
+//     #[error("{0}")]
+//     ValidationError(String),
+//     #[error("Failed to acquire data from database")]
+//     DatabaseFetchError(#[source] sqlx::Error),
+//     #[error("Failed to acquire a Postgres connection from the pool")]
+//     PoolError(#[source] sqlx::Error),
+//     #[error("Failed to insert new subscriber in the database.")]
+//     InsertSubscriberError(#[source] sqlx::Error),
+//     #[error("Failed to commit SQL transaction to store a new subscriber.")]
+//     TransactionCommitError(#[source] sqlx::Error),
+//     #[error("Failed to send a confirmation email.")]
+//     SendEmailError(#[from] reqwest::Error),
+// }
 
-#[tracing::instrument(ret(Display), name = "Fetching Inventory List", skip(pool), fields())]
+#[derive(thiserror::Error)]
+pub enum InventoryError {
+    #[error("{0}")]
+    ValidationError(String),
+    #[error(transparent)]
+    UnexpectedError(#[from] anyhow::Error),
+}
+
+fn error_chain_fmt(
+    e: &impl std::error::Error,
+    f: &mut std::fmt::Formatter<'_>,
+) -> std::fmt::Result {
+    writeln!(f, "{}\n", e)?;
+    let mut current = e.source();
+    while let Some(cause) = current {
+        writeln!(f, "Caused by:\n\t{}", cause)?;
+        current = cause.source();
+    }
+    Ok(())
+}
+
+impl std::fmt::Debug for InventoryError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        error_chain_fmt(self, f)
+    }
+}
+
+impl ResponseError for InventoryError {
+    fn status_code(&self) -> StatusCode {
+        match self {
+            InventoryError::ValidationError(_) => StatusCode::BAD_REQUEST,
+            InventoryError::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+        }
+    }
+}
+
+#[tracing::instrument(ret(Debug), name = "Fetching Inventory List", skip(pool), fields())]
 pub async fn fetch_inventory(
     _body: web::Json<InventoryRequest>,
     pool: web::Data<PgPool>,
-) -> impl Responder {
+) -> Result<HttpResponse, InventoryError> {
     let rapidor_invetory = sqlx::query_as::<_, ProductInventory>(
-        "SELECT code, no_of_items FROM product_product limit 100",
+        "SELECTs code, no_of_items FROM product_product limit 100",
     )
     .fetch_all(pool.get_ref())
     .await
-    .expect("Something went wrong with the Inventory fetch");
+    .context("Failed to fetch data from database")?;
 
-    let response = MyResponse {
+    let _response = MyResponse {
         status: true,
         customer_message: "Inventory Fetched Sucessfully".to_string(),
         data: rapidor_invetory,
         success_code: "PYWS0000".to_string(),
     };
-    web::Json(response)
+    // web::Json(response)
+    Ok(HttpResponse::Ok().finish())
 }
 
 #[tracing::instrument(name = "Sending Email", skip(email_client), fields())]
 pub async fn send_email(email_client: web::Data<EmailClient>) -> impl Responder {
     let _responsed = email_client
-        .send_email_smtp("sanu.shilshad@acelrtech.com", "SANU", "apple".to_owned())
+        .send_email_smtp("kevin.norbert@acelrtech.com", "SANU", "apple".to_owned())
         .await;
 
     HttpResponse::Ok().body("Successfully send data")

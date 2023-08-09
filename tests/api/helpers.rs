@@ -1,10 +1,11 @@
 use once_cell::sync::Lazy;
 use rust_test::{
-    configuration::{get_configuration, DatabaseSettings},
+    configuration::get_configuration,
     startup::{get_connection_pool, Application},
     telemetry::{get_subscriber, init_subscriber},
+    utils::configure_database,
 };
-use sqlx::{Connection, Executor, PgConnection, PgPool};
+use sqlx::PgPool;
 pub struct TestApp {
     pub address: String,
     pub db_pool: PgPool,
@@ -49,25 +50,4 @@ pub async fn spawn_app() -> TestApp {
         db_pool: get_connection_pool(&configuration.database),
         port: application_port,
     }
-}
-
-async fn configure_database(config: &DatabaseSettings) -> PgPool {
-    // Create database
-    let mut connection = PgConnection::connect_with(&config.without_db())
-        .await
-        .expect("Failed to connect to Postgres");
-    connection
-        .execute(format!(r#"CREATE DATABASE "{}";"#, config.name).as_str())
-        .await
-        .expect("Failed to create database.");
-    // Migrate database
-    let connection_pool = PgPool::connect_with(config.with_db())
-        .await
-        .expect("Failed to connect to Postgres.");
-
-    sqlx::migrate!("./migrations")
-        .run(&connection_pool)
-        .await
-        .expect("Failed to migrate the database");
-    connection_pool
 }
