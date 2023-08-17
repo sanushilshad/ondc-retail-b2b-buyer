@@ -1,15 +1,10 @@
 use crate::configuration::DatabaseSettings;
 use sqlx::{Connection, Executor, PgConnection, PgPool};
-
-pub async fn configure_database(config: &DatabaseSettings) -> PgPool {
+use std::fs;
+use std::io;
+pub async fn configure_database_using_sqlx(config: &DatabaseSettings) -> PgPool {
     // Create database
-    let mut connection = PgConnection::connect_with(&config.without_db())
-        .await
-        .expect("Failed to connect to Postgres");
-    connection
-        .execute(format!(r#"CREATE DATABASE "{}";"#, config.name).as_str())
-        .await
-        .expect("Failed to create database.");
+    create_database(config).await;
     // Migrate database
     let connection_pool = PgPool::connect_with(config.with_db())
         .await
@@ -20,4 +15,69 @@ pub async fn configure_database(config: &DatabaseSettings) -> PgPool {
         .await
         .expect("Failed to migrate the database");
     connection_pool
+}
+
+pub async fn configure_database(config: &DatabaseSettings) -> PgPool {
+    let connection_pool = PgPool::connect_with(config.with_db())
+        .await
+        .expect("Failed to connect to Postgres.");
+    create_database(config).await;
+    match execute_query(&"./migrations", &connection_pool).await {
+        Ok(_) => {}
+        Err(_) => {}
+    }
+    connection_pool
+}
+
+pub async fn create_database(config: &DatabaseSettings) {
+    // Create database
+    let mut connection = PgConnection::connect_with(&config.without_db())
+        .await
+        .expect("Failed to connect to Postgres");
+
+    let db_count: Result<Option<i64>, sqlx::Error> =
+        sqlx::query_scalar::<_, i64>("SELECT count(*) FROM pg_database WHERE datname = $1")
+            .bind(&config.name)
+            .fetch_optional(&mut connection)
+            .await;
+    match db_count {
+        Ok(Some(count)) => {
+            if count > 0 {
+                println!("Database {} already exists.", &config.name);
+            } else {
+                connection
+                    .execute(format!(r#"CREATE DATABASE "{}";"#, config.name).as_str())
+                    .await
+                    .expect("Failed to create database.");
+                println!("Database created.");
+            }
+        }
+        Ok(_) => println!("No rows found."),
+        Err(err) => eprintln!("Error: {}", err),
+    }
+}
+
+async fn execute_query(path: &str, pool: &PgPool) -> io::Result<()> {
+    let migration_files = fs::read_dir(path)?;
+    for migration_file in migration_files {
+        let migration_file = migration_file?;
+        let migration_path = migration_file.path();
+        let migration_sql = fs::read_to_string(&migration_path)?;
+        let statements: String = migration_sql.replace("\n", "");
+        let new_statement: Vec<&str> = statements
+            .split(';')
+            .filter(|s| !s.trim().is_empty() & !s.starts_with("--"))
+            .collect();
+        for statement in new_statement {
+            if let Err(err) = sqlx::query(statement).execute(pool).await {
+                eprintln!("Error executing statement {:?}: {} ", statement, err);
+            } else {
+                println!("Migration applied: {:?}", statement);
+            }
+        }
+
+        println!("Migration applied: {:?}", migration_path);
+    }
+
+    Ok(())
 }
