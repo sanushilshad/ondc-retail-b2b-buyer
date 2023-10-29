@@ -1,14 +1,15 @@
 use once_cell::sync::Lazy;
 use rust_test::{
     configuration::get_configuration,
-    startup::{get_connection_pool, Application},
+    startup::{get_connection_connection, Application},
     telemetry::{get_subscriber, init_subscriber},
     utils::configure_database,
 };
-use sqlx::PgPool;
+use sea_orm::DatabaseConnection;
+// use sqlx::PgPool;
 pub struct TestApp {
     pub address: String,
-    pub db_pool: PgPool,
+    pub db_conn: DatabaseConnection,
     pub port: u16,
 }
 static TRACING: Lazy<()> = Lazy::new(|| {
@@ -47,7 +48,9 @@ pub async fn spawn_app() -> TestApp {
 
     TestApp {
         address: address,
-        db_pool: get_connection_pool(&configuration.database),
+        db_conn: get_connection_connection(&configuration.database)
+            .await
+            .unwrap(),
         port: application_port,
     }
 }

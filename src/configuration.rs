@@ -43,6 +43,26 @@ impl DatabaseSettings {
         options.log_statements(tracing::log::LevelFilter::Trace);
         options
     }
+    pub fn connection_string(&self) -> String {
+        format!(
+            "postgres://{}:{}@{}:{}/{}",
+            self.username,
+            self.password.expose_secret(),
+            self.host,
+            self.port,
+            self.name
+        )
+    }
+
+    pub fn connection_string_without_db(&self) -> String {
+        format!(
+            "postgres://{}:{}@{}:{}",
+            self.username,
+            self.password.expose_secret(),
+            self.host,
+            self.port
+        )
+    }
 
     // pub fn from_env() -> Result<Self, DatabaseError> {
     //     let username: String = "postgres".to_string();

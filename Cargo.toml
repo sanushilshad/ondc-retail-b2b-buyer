@@ -39,7 +39,8 @@ lettre = { version = "0.10.4", default-features = false, features = ["smtp-trans
 thiserror = "1"
 anyhow = "1"
 clap = "4.3"
-sea-orm = { version = "0.12", features = [ "sqlx-postgres", "tokio", "macros" ] }
+futures = "0.3.21"
+sea-orm = { version = "^0.12", features = [ "sqlx-postgres", "runtime-tokio-rustls", "macros" ] }
 [dev-dependencies]
 
 once_cell = "1.18.0"

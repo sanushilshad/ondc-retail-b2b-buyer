@@ -1,6 +1,7 @@
 use actix_web::{web, HttpResponse, Responder, ResponseError};
 use anyhow::Context;
 use bigdecimal::BigDecimal;
+use sea_orm::DatabaseConnection;
 // use log::{info, warn};
 // use bigdecimal::BigDecimal;
 use crate::email_client::EmailClient;
@@ -19,7 +20,9 @@ struct RapidorCustomer {
 }
 
 #[tracing::instrument(name = "Fetching customer data from database.", skip(pool), fields())]
-async fn get_customer_dbs(pool: web::Data<PgPool>) -> Result<Vec<RapidorCustomer>, sqlx::Error> {
+async fn get_customer_dbs(
+    pool: web::Data<DatabaseConnection>,
+) -> Result<Vec<RapidorCustomer>, sqlx::Error> {
     let rapidor_customers =
         sqlx::query_as::<_, RapidorCustomer>("SELECT domain, database FROM customer_customer")
             .fetch_all(pool.get_ref())
@@ -152,10 +155,10 @@ impl ResponseError for InventoryError {
 #[tracing::instrument(ret(Debug), name = "Fetching Inventory List", skip(pool), fields())]
 pub async fn fetch_inventory(
     _body: web::Json<InventoryRequest>,
-    pool: web::Data<PgPool>,
+    pool: web::Data<DatabaseConnection>,
 ) -> Result<HttpResponse, InventoryError> {
     let rapidor_invetory = sqlx::query_as::<_, ProductInventory>(
-        "SELECTs code, no_of_items FROM product_product limit 100",
+        "SELECT code, no_of_items FROM product_product limit 100",
     )
     .fetch_all(pool.get_ref())
     .await
