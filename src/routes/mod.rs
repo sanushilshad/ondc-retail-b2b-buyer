@@ -1,5 +1,8 @@
-mod databases;
-mod health_check;
-
-pub use databases::*;
-pub use health_check::*;
+mod notification;
+mod product;
+mod routes;
+mod utils;
+use notification::notification_route;
+use product::*;
+pub use routes::*;
+use utils::*;
