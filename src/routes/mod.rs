@@ -1,8 +1,10 @@
 mod notification;
 mod product;
 mod routes;
+mod user;
 mod utils;
 use notification::notification_route;
-use product::*;
+use product::product_route;
 pub use routes::*;
-use utils::*;
+use user::user_route;
+use utils::util_route;

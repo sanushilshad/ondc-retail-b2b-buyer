@@ -1,6 +1,8 @@
-use crate::routes::utils::get_customer_dbs;
+// use crate::routes::utils::get_customer_dbs;
+use super::utils::get_customer_dbs;
 use actix_web::{web, HttpResponse, Responder};
 use sqlx::PgPool;
+
 pub async fn health_check() -> impl Responder {
     println!("mango");
     HttpResponse::Ok().body("Running")

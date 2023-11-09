@@ -1,10 +1,11 @@
 use actix_web::http::StatusCode;
 use actix_web::ResponseError;
-
+#[allow(dead_code)]
 #[derive(thiserror::Error)]
 pub enum InventoryError {
     #[error("{0}")]
     ValidationError(String),
+
     #[error(transparent)]
     UnexpectedError(#[from] anyhow::Error),
 }

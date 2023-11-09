@@ -1,4 +1,3 @@
-// use crate::commands::migration;
 use rust_test::commands::migration;
 #[tokio::main]
 pub async fn main() {
