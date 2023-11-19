@@ -100,3 +100,14 @@ async fn execute_query(path: &str, pool: &PgPool) -> io::Result<()> {
 
     Ok(())
 }
+
+#[macro_export]
+macro_rules! impl_serialize_format {
+    ($struct_name:ident, $trait_name:path) => {
+        impl $trait_name for $struct_name {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                fmt_json(self, f)
+            }
+        }
+    };
+}

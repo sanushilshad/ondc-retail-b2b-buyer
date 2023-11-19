@@ -1,7 +1,5 @@
-use crate::utils::fmt_json;
-use secrecy::{ExposeSecret, Secret};
-use serde::{Deserialize, Serialize, Serializer};
-use std::fmt;
+use secrecy::Secret;
+use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 
 // macro_rules! impl_serialize_format {
@@ -28,10 +26,10 @@ enum AuthenticationScope {
 
 #[derive(Deserialize, Debug)]
 pub struct AuthenticateRequest {
-    scope: AuthenticationScope,
-    identifier: String,
+    _scope: AuthenticationScope,
+    _identifier: String,
     // #[serde(with = "SecretString")]
-    secret: Secret<String>,
+    _secret: Secret<String>,
 }
 
 // impl Serialize for SecretString {

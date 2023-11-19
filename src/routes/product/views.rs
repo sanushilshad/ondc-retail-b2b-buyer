@@ -1,11 +1,11 @@
 use actix_web::{web, HttpResponse};
 
+use anyhow::Context;
 use sqlx::PgPool;
 
 use crate::routes::product::errors::InventoryError;
 
 use crate::routes::product::schemas::{InventoryRequest, MyResponse, ProductInventory};
-use anyhow::Context;
 #[tracing::instrument(ret(Debug), name = "Fetching Inventory List", skip(pool), fields())]
 pub async fn fetch_inventory(
     _body: web::Json<InventoryRequest>,
