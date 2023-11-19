@@ -1,5 +1,7 @@
 use actix_web::http::StatusCode;
 use actix_web::ResponseError;
+
+use crate::utils::error_chain_fmt;
 #[allow(dead_code)]
 #[derive(thiserror::Error)]
 pub enum InventoryError {
@@ -8,19 +10,6 @@ pub enum InventoryError {
 
     #[error(transparent)]
     UnexpectedError(#[from] anyhow::Error),
-}
-
-fn error_chain_fmt(
-    e: &impl std::error::Error,
-    f: &mut std::fmt::Formatter<'_>,
-) -> std::fmt::Result {
-    writeln!(f, "{}\n", e)?;
-    let mut current = e.source();
-    while let Some(cause) = current {
-        writeln!(f, "Caused by:\n\t{}", cause)?;
-        current = cause.source();
-    }
-    Ok(())
 }
 
 impl std::fmt::Debug for InventoryError {

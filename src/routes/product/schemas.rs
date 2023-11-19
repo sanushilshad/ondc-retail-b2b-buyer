@@ -1,12 +1,8 @@
+use crate::utils::fmt_json;
 use bigdecimal::BigDecimal;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::fmt::{Debug, Display};
-
-fn fmt_json<T: Serialize>(value: &T, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "{}", serde_json::to_string(value).unwrap())
-}
-
 macro_rules! impl_serialize_format {
     ($struct_name:ident, $trait_name:path) => {
         impl $trait_name for $struct_name {

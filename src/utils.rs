@@ -1,7 +1,26 @@
 use crate::configuration::DatabaseSettings;
+use serde::Serialize;
 use sqlx::{Connection, Executor, PgConnection, PgPool};
+use std::fmt;
 use std::fs;
 use std::io;
+pub fn error_chain_fmt(
+    e: &impl std::error::Error,
+    f: &mut std::fmt::Formatter<'_>,
+) -> std::fmt::Result {
+    writeln!(f, "{}\n", e)?;
+    let mut current = e.source();
+    while let Some(cause) = current {
+        writeln!(f, "Caused by:\n\t{}", cause)?;
+        current = cause.source();
+    }
+    Ok(())
+}
+
+pub fn fmt_json<T: Serialize>(value: &T, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "{}", serde_json::to_string(value).unwrap())
+}
+
 pub async fn configure_database_using_sqlx(config: &DatabaseSettings) -> PgPool {
     // Create database
     create_database(config).await;
