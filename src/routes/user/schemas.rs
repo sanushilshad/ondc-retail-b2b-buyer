@@ -17,19 +17,21 @@ use std::fmt::Debug;
 
 // impl_serialize_format!(AuthenticateRequest, Debug);
 // #[strum(serialize_all = "snake_case")]
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(rename_all = "lowercase")]
-enum AuthenticationScope {
-    OTP,
-    Password,
-}
+// #[derive(Debug, Deserialize, Serialize)]
+// #[serde(rename_all = "lowercase")]
+
+// pub enum AuthenticationScope {
+//     OTP,
+//     Password,
+// }
 
 #[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct AuthenticateRequest {
-    _scope: AuthenticationScope,
-    _identifier: String,
+    pub scope: AuthenticationScope,
+    pub identifier: String,
     // #[serde(with = "SecretString")]
-    _secret: Secret<String>,
+    pub secret: Secret<String>,
 }
 
 // impl Serialize for SecretString {
@@ -37,3 +39,27 @@ pub struct AuthenticateRequest {
 //         serializer.serialize_str(&self.0.expose_secret())
 //     }
 // }
+
+// pub struct AuthData {
+//     token: String,
+// }
+
+// pub struct AuthResponse {
+//     data: AuthData,
+// }
+
+#[derive(Serialize, Deserialize, Debug, sqlx::Type)]
+#[sqlx(type_name = "user_auth_identifier_scope", rename_all = "lowercase")]
+#[serde(rename_all = "lowercase")]
+pub enum AuthenticationScope {
+    Otp,
+    Password,
+    Google,
+    Facebook,
+    Microsoft,
+    Apple,
+    Token,
+    AuthApp,
+    Qr,
+    Email,
+}

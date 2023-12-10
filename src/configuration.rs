@@ -1,10 +1,9 @@
+use crate::domain::SubscriberEmail;
 use config::{self, ConfigError, Environment};
+use dotenv::dotenv;
 use secrecy::{ExposeSecret, Secret};
 use serde::Deserialize;
 use sqlx::{postgres::PgConnectOptions, ConnectOptions};
-
-use crate::domain::SubscriberEmail;
-
 #[derive(Debug, Deserialize, Clone)]
 pub struct Settings {
     pub database: DatabaseSettings,
@@ -39,9 +38,9 @@ impl DatabaseSettings {
     }
     // Renamed from `connection_string`
     pub fn with_db(&self) -> PgConnectOptions {
-        let mut options = self.without_db().database(&self.name);
-        options.log_statements(tracing::log::LevelFilter::Trace);
-        options
+        self.without_db()
+            .database(&self.name)
+            .log_statements(tracing::log::LevelFilter::Trace)
     }
 
     // pub fn from_env() -> Result<Self, DatabaseError> {
@@ -90,11 +89,12 @@ impl EmailClientSettings {
 
 pub fn get_configuration() -> Result<Settings, ConfigError> {
     let base_path = std::env::current_dir().expect("Failed to determine the current directory");
-    let configuration_directory = base_path.join("configuration");
+    // let configuration_directory = base_path.join("configuration");
+    // configuration_directory.join("configuration.yaml")
+    // remove the below dotenv in production as .env is not recommended for production use.
+    dotenv().ok();
     let builder = config::Config::builder()
-        .add_source(config::File::from(
-            configuration_directory.join("configuration.yaml"),
-        ))
+        .add_source(config::File::from(base_path.join("configuration.yaml")))
         .add_source(Environment::default().separator("__"))
         .build()?;
     builder.try_deserialize::<Settings>()

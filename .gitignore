@@ -3,7 +3,8 @@
 settings.json
 launch.json
 settings.json
-configuration/configuration.yaml
-configuration/env.sh
+configuration.yaml
+env.sh
 dev_run.sh
 Cargo.lock
+.env

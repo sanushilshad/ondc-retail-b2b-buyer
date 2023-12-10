@@ -1,5 +1,5 @@
 #!/bin/bash
-source configuration/env.sh
+source env.sh
 PIDS=($(ps aux | grep 'dev2' | grep 'rust_test' | awk '{print $2}'))
 
 if [ ${#PIDS[@]} -gt 0 ];then
@@ -12,4 +12,4 @@ if [ ${#PIDS[@]} -gt 0 ];then
         done
 fi
 cargo build --release
-cargo run --release
+cargo run --bin rust_test --release

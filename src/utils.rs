@@ -1,4 +1,5 @@
 use crate::configuration::DatabaseSettings;
+use actix_web::rt::task::JoinHandle;
 use serde::Serialize;
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use std::fmt;
@@ -41,7 +42,7 @@ pub async fn configure_database(config: &DatabaseSettings) -> PgPool {
         .await
         .expect("Failed to connect to Postgres.");
     create_database(config).await;
-    match execute_query(&"./migrations", &connection_pool).await {
+    match execute_query("./migrations", &connection_pool).await {
         Ok(_) => {}
         Err(_) => {}
     }
@@ -82,7 +83,7 @@ async fn execute_query(path: &str, pool: &PgPool) -> io::Result<()> {
         let migration_file = migration_file?;
         let migration_path = migration_file.path();
         let migration_sql = fs::read_to_string(&migration_path)?;
-        let statements: String = migration_sql.replace("\n", "");
+        let statements: String = migration_sql.replace('\n', "");
         let new_statement: Vec<&str> = statements
             .split(';')
             .filter(|s| !s.trim().is_empty() & !s.starts_with("--"))
@@ -99,6 +100,15 @@ async fn execute_query(path: &str, pool: &PgPool) -> io::Result<()> {
     }
 
     Ok(())
+}
+
+pub fn spawn_blocking_with_tracing<F, R>(f: F) -> JoinHandle<R>
+where
+    F: FnOnce() -> R + Send + 'static,
+    R: Send + 'static,
+{
+    let current_span = tracing::Span::current();
+    actix_web::rt::task::spawn_blocking(move || current_span.in_scope(f))
 }
 
 #[macro_export]
