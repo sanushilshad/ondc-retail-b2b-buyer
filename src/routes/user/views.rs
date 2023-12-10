@@ -28,6 +28,11 @@ pub async fn authenticate(
                 }
             };
             tracing::error!("Failed to authenticate user: {:?}", e);
+            // return Ok(web::Json(GenericResponse::success(
+            //     &e.to_string(),
+            //     Some(()),
+            // )));
+            return Err(e);
         }
     }
     Ok(web::Json(GenericResponse::success("BRUHHH", Some(()))))
