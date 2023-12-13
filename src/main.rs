@@ -5,7 +5,7 @@ use rust_test::{
     telemetry::{get_subscriber, init_subscriber},
 };
 #[actix_web::main]
-async fn main() -> std::io::Result<()> {
+async fn main() -> anyhow::Result<()> {
     // env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();  // using logging crate
     let configuration = get_configuration().expect("Failed to read configuration.");
     let subscriber = get_subscriber("rust_test".into(), "info".into(), std::io::stdout); // set sink  to `std::io::stdout` to print trace in terminal

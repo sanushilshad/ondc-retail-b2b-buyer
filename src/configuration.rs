@@ -8,7 +8,7 @@ use sqlx::{postgres::PgConnectOptions, ConnectOptions};
 pub struct Settings {
     pub database: DatabaseSettings,
     pub application: ApplicationSettings,
-
+    pub redis: RedisSettings,
     pub email_client: EmailClientSettings,
 }
 
@@ -16,6 +16,25 @@ pub struct Settings {
 pub struct ApplicationSettings {
     pub port: u16,
     pub host: String,
+    pub hmac_secret: Secret<String>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct RedisSettings {
+    pub port: u16,
+    pub host: String,
+    pub password: Secret<String>,
+}
+
+impl RedisSettings {
+    pub fn get_string(&self) -> Secret<String> {
+        Secret::new(format!(
+            "redis://{}:{}/{}",
+            self.host,
+            self.port,
+            self.password.expose_secret()
+        ))
+    }
 }
 
 #[derive(Debug, Deserialize, Clone)]

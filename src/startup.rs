@@ -2,9 +2,13 @@ use crate::configuration::DatabaseSettings;
 use crate::email_client::EmailClient;
 use crate::routes::main_route;
 
+use actix_session::storage::RedisSessionStore;
+use actix_session::SessionMiddleware;
+use actix_web::cookie::Key;
 use actix_web::dev::Server;
 // use actix_web::middleware::Logger;
 use actix_web::{web, App, HttpServer};
+use secrecy::{ExposeSecret, Secret};
 use sqlx::postgres;
 use sqlx::postgres::PgPool;
 use std::net::TcpListener;
@@ -19,7 +23,7 @@ pub struct Application {
 impl Application {
     // We have converted the `build` function into a constructor for
     // `Application`.
-    pub async fn build(configuration: Settings) -> Result<Self, std::io::Error> {
+    pub async fn build(configuration: Settings) -> Result<Self, anyhow::Error> {
         let connection_pool = get_connection_pool(&configuration.database);
         let email_client =
             EmailClient::new(configuration.email_client).expect("SMTP connection Failed");
@@ -30,7 +34,15 @@ impl Application {
         println!("Lisetening {}", address);
         let listener = TcpListener::bind(&address)?;
         let port = listener.local_addr().unwrap().port();
-        let server = run(listener, connection_pool, email_client)?;
+        println!("{:?}", configuration.redis);
+        let server = run(
+            listener,
+            connection_pool,
+            email_client,
+            configuration.application.hmac_secret,
+            configuration.redis.get_string(),
+        )
+        .await?;
         // We "save" the bound port in one of `Application`'s fields
         Ok(Self { port, server })
     }
@@ -50,15 +62,25 @@ pub fn get_connection_pool(configuration: &DatabaseSettings) -> PgPool {
         .connect_lazy_with(configuration.with_db())
 }
 
-pub fn run(
+async fn run(
     listener: TcpListener,
     db_pool: PgPool,
     email_client: EmailClient,
-) -> Result<Server, std::io::Error> {
+    hmac_secret: Secret<String>,
+    redis_uri: Secret<String>,
+) -> Result<Server, anyhow::Error> {
     let db_pool = web::Data::new(db_pool);
     let email_pool = web::Data::new(email_client);
+    println!("{:?}", redis_uri);
+    let redis_store = RedisSessionStore::new(redis_uri.expose_secret()).await?;
+    println!("{}", redis_uri.expose_secret());
+    let secret_key = Key::from(hmac_secret.expose_secret().as_bytes());
     let server = HttpServer::new(move || {
         App::new()
+            // .wrap(SessionMiddleware::new(
+            //     redis_store.clone(),
+            //     secret_key.clone(),
+            // ))
             .wrap(TracingLogger::default())
             // .wrap(Logger::default())  // for minimal logs
             // Register the connection as part of the application state
