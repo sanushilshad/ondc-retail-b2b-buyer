@@ -3,6 +3,7 @@ pub mod configuration;
 pub mod domain;
 pub mod email_client;
 pub mod errors;
+pub mod middleware;
 pub mod routes;
 pub mod schemas;
 pub mod session_state;

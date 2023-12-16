@@ -1,4 +1,4 @@
-use crate::{configuration::EmailClientSettings, domain::SubscriberEmail};
+use crate::{configuration::EmailClientSettings, domain::EmailObject};
 use lettre::{
     transport::smtp::{authentication::Credentials, PoolConfig},
     AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
@@ -7,7 +7,7 @@ use secrecy::ExposeSecret;
 use std::time::Duration;
 #[derive(Clone)]
 pub struct EmailClient {
-    sender: SubscriberEmail,
+    sender: EmailObject,
     pub mailer: AsyncSmtpTransport<Tokio1Executor>,
 }
 impl EmailClient {

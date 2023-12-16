@@ -1,6 +1,8 @@
 use secrecy::Secret;
 use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
+use std::fmt::{self, Debug};
+
+use crate::domain::{subscriber_email::deserialize_subscriber_email, EmailObject};
 
 // macro_rules! impl_serialize_format {
 //     ($struct_name:ident, $trait_name:path) => {
@@ -24,7 +26,7 @@ use std::fmt::Debug;
 //     OTP,
 //     Password,
 // }
-
+// impl_serialize_format!(AuthenticateRequest, Display);
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct AuthenticateRequest {
@@ -62,4 +64,31 @@ pub enum AuthenticationScope {
     AuthApp,
     Qr,
     Email,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateUserAccount {
+    pub username: String,
+    pub mobile_no: i64,
+    pub international_dialing_code: String,
+    pub password: Secret<String>,
+    #[serde(deserialize_with = "deserialize_subscriber_email")]
+    pub email: EmailObject, //NOTE: email_address crate cah be used if needed
+}
+
+#[derive(Serialize, Deserialize, Debug, sqlx::Type)]
+#[sqlx(rename_all = "lowercase")]
+#[serde(rename_all = "lowercase")]
+pub enum MaskingType {
+    NA,
+    Encrypt,
+    PartialMask,
+    FullMask,
+}
+#[derive(Serialize, Deserialize, Debug, sqlx::Type)]
+pub struct UserVectors {
+    pub key: String,
+    pub value: String,
+    pub masking: MaskingType,
 }

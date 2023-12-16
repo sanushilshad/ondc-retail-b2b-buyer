@@ -1,3 +1,3 @@
 pub mod subscriber_email;
 
-pub use subscriber_email::SubscriberEmail;
+pub use subscriber_email::EmailObject;

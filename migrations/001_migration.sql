@@ -3,11 +3,12 @@ CREATE TABLE IF NOT EXISTS user_account(
     id uuid PRIMARY KEY,
     username TEXT NOT NULL UNIQUE,
     email TEXT NOT NULL,
-    created_by text,
+    created_by text not null,
     updated_by text,
     deleted_by text,
-    is_deleted boolean,
-    is_active boolean
+    is_deleted boolean not null DEFAULT false,
+    is_active boolean not null DEFAULT false,
+    vectors jsonb NOT NULL
 );
 CREATE TYPE "user_auth_identifier_scope" AS ENUM (
   'otp',

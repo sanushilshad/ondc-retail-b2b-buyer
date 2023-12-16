@@ -34,21 +34,59 @@ impl ResponseError for AuthError {
     fn error_response(&self) -> HttpResponse {
         let status_code = self.status_code();
         let status_code_str = status_code.as_str();
-        let response = match self {
-            AuthError::InvalidCredentials(inner_error) => {
-                GenericResponse::error(&inner_error.to_string(), status_code_str, None)
-            }
-            AuthError::UnexpectedError(inner_error) => {
-                GenericResponse::error(&inner_error.to_string(), status_code_str, None)
-            }
-            AuthError::ValidationError(inner_error) => {
-                GenericResponse::error(&inner_error.to_string(), status_code_str, None)
-            }
-            AuthError::ValidationStringError(message) => {
-                GenericResponse::error(message, status_code_str, Some(()))
-            }
+        let inner_error_msg = match self {
+            AuthError::InvalidCredentials(inner_error)
+            | AuthError::UnexpectedError(inner_error)
+            | AuthError::ValidationError(inner_error) => inner_error.to_string(),
+            AuthError::ValidationStringError(message) => message.to_string(),
         };
 
-        HttpResponse::build(self.status_code()).json(response)
+        HttpResponse::build(status_code).json(GenericResponse::error(
+            &inner_error_msg,
+            status_code_str,
+            Some(()),
+        ))
+    }
+}
+
+#[derive(thiserror::Error)]
+pub enum UserRegistrationError {
+    #[error("Duplicate email")]
+    DuplicateEmail(#[source] anyhow::Error),
+    #[error(transparent)]
+    UnexpectedError(#[from] anyhow::Error),
+    #[error("Duplicate mobile no")]
+    DuplicateMobileNo(#[source] anyhow::Error),
+}
+
+impl std::fmt::Debug for UserRegistrationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        error_chain_fmt(self, f)
+    }
+}
+
+impl ResponseError for UserRegistrationError {
+    fn status_code(&self) -> StatusCode {
+        match self {
+            UserRegistrationError::DuplicateEmail(_) => StatusCode::BAD_REQUEST,
+            UserRegistrationError::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            UserRegistrationError::DuplicateMobileNo(_) => StatusCode::BAD_REQUEST,
+        }
+    }
+
+    fn error_response(&self) -> HttpResponse {
+        let status_code = self.status_code();
+        let status_code_str = status_code.as_str();
+        let inner_error_msg = match self {
+            UserRegistrationError::DuplicateEmail(inner_error)
+            | UserRegistrationError::UnexpectedError(inner_error)
+            | UserRegistrationError::DuplicateMobileNo(inner_error) => inner_error.to_string(),
+        };
+
+        HttpResponse::build(status_code).json(GenericResponse::error(
+            &inner_error_msg,
+            status_code_str,
+            Some(()),
+        ))
     }
 }

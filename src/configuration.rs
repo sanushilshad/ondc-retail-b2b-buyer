@@ -1,4 +1,4 @@
-use crate::domain::SubscriberEmail;
+use crate::domain::EmailObject;
 use config::{self, ConfigError, Environment};
 use dotenv::dotenv;
 use secrecy::{ExposeSecret, Secret};
@@ -97,8 +97,8 @@ pub struct EmailClientSettings {
     pub timeout_milliseconds: u64,
 }
 impl EmailClientSettings {
-    pub fn sender(&self) -> Result<SubscriberEmail, String> {
-        SubscriberEmail::parse(self.sender_email.clone())
+    pub fn sender(&self) -> Result<EmailObject, String> {
+        EmailObject::parse(self.sender_email.clone())
     }
 
     pub fn timeout(&self) -> std::time::Duration {

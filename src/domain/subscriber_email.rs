@@ -1,28 +1,56 @@
+use serde::{
+    de::{self, Visitor},
+    Deserialize, Deserializer,
+};
 use validator::validate_email;
 
-#[derive(Debug, Clone)]
-pub struct SubscriberEmail(String);
+#[derive(Debug, Clone, Deserialize)]
+pub struct EmailObject(String);
 
-impl SubscriberEmail {
-    pub fn parse(s: String) -> Result<SubscriberEmail, String> {
+impl EmailObject {
+    pub fn parse(s: String) -> Result<EmailObject, String> {
         if validate_email(&s) {
             Ok(Self(s))
         } else {
-            Err(format!("{} is not a valid subscriber email.", s))
+            Err(format!("{} is not a valid email.", s))
         }
     }
 }
 
-impl AsRef<str> for SubscriberEmail {
+impl AsRef<str> for EmailObject {
     fn as_ref(&self) -> &str {
         &self.0
     }
 }
 
-impl std::fmt::Display for SubscriberEmail {
+impl std::fmt::Display for EmailObject {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.0.fmt(f)
     }
+}
+
+pub fn deserialize_subscriber_email<'de, D>(deserializer: D) -> Result<EmailObject, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    struct SubscriberEmailVisitor;
+
+    impl<'de> Visitor<'de> for SubscriberEmailVisitor {
+        type Value = EmailObject;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("a valid subscriber email string")
+        }
+
+        fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            EmailObject::parse(value.to_string()).map_err(de::Error::custom)
+        }
+    }
+
+    deserializer.deserialize_str(SubscriberEmailVisitor)
 }
 
 #[cfg(test)]
@@ -34,7 +62,7 @@ mod tests {
     use rand::rngs::StdRng;
     use rand::SeedableRng;
 
-    use crate::domain::SubscriberEmail;
+    use crate::domain::EmailObject;
 
     #[derive(Debug, Clone)]
     struct ValidEmailFixture(pub String);
@@ -50,6 +78,6 @@ mod tests {
     #[quickcheck]
     fn valid_emails_are_parsed_successfully(valid_email: ValidEmailFixture) -> bool {
         dbg!(&valid_email.0); // `use cargo test valid_emails -- --nocapture` to print the emails on console
-        SubscriberEmail::parse(valid_email.0).is_ok()
+        EmailObject::parse(valid_email.0).is_ok()
     }
 }

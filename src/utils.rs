@@ -18,10 +18,6 @@ pub fn error_chain_fmt(
     Ok(())
 }
 
-pub fn fmt_json<T: Serialize>(value: &T, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "{}", serde_json::to_string(value).unwrap())
-}
-
 pub async fn configure_database_using_sqlx(config: &DatabaseSettings) -> PgPool {
     // Create database
     create_database(config).await;
@@ -109,6 +105,10 @@ where
 {
     let current_span = tracing::Span::current();
     actix_web::rt::task::spawn_blocking(move || current_span.in_scope(f))
+}
+
+pub fn fmt_json<T: Serialize>(value: &T, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "{}", serde_json::to_string(value).unwrap())
 }
 
 #[macro_export]

@@ -1,12 +1,13 @@
 use anyhow::Context;
 use secrecy::{ExposeSecret, Secret};
 use sqlx::PgPool;
+use uuid::Uuid;
 use super::errors::AuthError;
-use super::models::AuthMechanism;
-use super::schemas::{AuthenticateRequest, AuthenticationScope};
+use super::models::{AuthMechanism, UserAccount};
+use super::schemas::{AuthenticateRequest, AuthenticationScope, CreateUserAccount};
 use crate::utils::spawn_blocking_with_tracing;
 use argon2::{Argon2, PasswordHash, PasswordVerifier};
-
+use super::schemas::{ UserVectors};
 #[tracing::instrument(
     name = "Validate credentials",
     skip(expected_password_hash, password_candidate)
@@ -45,10 +46,6 @@ async fn get_stored_credentials(
     .await?;
 
     Ok(row)
-
-    // let secret_tuple: (uuid::Uuid, Secret<String>) =
-    //     (Uuid::new_v4(), Secret::new("asxa".to_string()));
-    // Ok(Some(secret_tuple))
 }
 
 #[tracing::instrument(name = "Validate credentials", skip(credentials, pool))]
@@ -81,3 +78,33 @@ pub async fn validate_credentials(
         .ok_or_else(|| anyhow::anyhow!("Unknown username."))
         .map_err(AuthError::InvalidCredentials)
 }
+
+
+
+#[tracing::instrument(name = "Get stored credentials", skip(pool))]
+async fn  fetch_user_by_values(
+    value_list: Vec<String>,
+    pool: &PgPool,
+) -> Result<Option<UserAccount>, anyhow::Error> {
+    let row = sqlx::query_as!(
+        UserAccount,
+        r#"SELECT id, username, email, is_active, vectors as "vectors!:sqlx::types::Json<UserVectors>" from user_account"#,
+        
+    )
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(row)
+}
+
+
+
+#[tracing::instrument(name = "register user", skip(pool))]
+pub async fn register_user(
+    user_account: CreateUserAccount,
+    pool: &PgPool,
+) -> Result<uuid::Uuid, super::errors::UserRegistrationError> {
+    Ok(Uuid::new_v4())
+}
+
+
