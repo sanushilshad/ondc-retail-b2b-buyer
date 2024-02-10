@@ -6,25 +6,28 @@ use uuid::Uuid;
 use super::schemas::{AuthenticationScope, UserVectors};
 
 #[derive(Serialize, FromRow)]
-pub struct RapidorCustomer {
+pub struct RapidorCustomerModel {
     domain: String,
     database: String,
 }
 
 #[derive(Debug, FromRow)]
-pub struct AuthMechanism {
+pub struct AuthMechanismModel {
     pub user_id: Uuid,
     pub auth_scope: AuthenticationScope,
     pub auth_identifier: String,
-    pub secret: Secret<String>,
+    pub secret: Option<Secret<String>>,
 }
+
 #[derive(Debug, FromRow)]
-pub struct UserAccount {
+pub struct UserAccountModel {
     pub id: Uuid,
     pub username: String,
+    pub mobile_no: String,
     pub email: String,
     pub is_active: bool,
-    pub vectors: Json<UserVectors>,
+
+    pub vectors: Json<Option<Vec<UserVectors>>>,
 }
 
 // impl FromRow<'_, PgRow> for UserAccount {

@@ -7,12 +7,16 @@ use actix_web::{HttpResponse, ResponseError};
 pub enum AuthError {
     #[error("Invalid credentials.")]
     InvalidCredentials(#[source] anyhow::Error),
+    #[error("{0}")]
+    InvalidStringCredentials(String),
     #[error(transparent)]
     UnexpectedError(#[from] anyhow::Error),
     #[error("{0}")]
     ValidationStringError(String),
     #[error("Authentication failed")]
     ValidationError(#[source] anyhow::Error),
+    #[error("{0}")]
+    UnexpectedStringError(String),
 }
 
 impl std::fmt::Debug for AuthError {
@@ -25,9 +29,11 @@ impl ResponseError for AuthError {
     fn status_code(&self) -> StatusCode {
         match self {
             AuthError::InvalidCredentials(_) => StatusCode::BAD_REQUEST,
+            AuthError::InvalidStringCredentials(_) => StatusCode::BAD_REQUEST,
             AuthError::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             AuthError::ValidationError(_) => StatusCode::BAD_REQUEST,
             AuthError::ValidationStringError(_) => StatusCode::BAD_REQUEST,
+            AuthError::UnexpectedStringError(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 
@@ -39,6 +45,8 @@ impl ResponseError for AuthError {
             | AuthError::UnexpectedError(inner_error)
             | AuthError::ValidationError(inner_error) => inner_error.to_string(),
             AuthError::ValidationStringError(message) => message.to_string(),
+            AuthError::UnexpectedStringError(message) => message.to_string(),
+            AuthError::InvalidStringCredentials(message) => message.to_string(),
         };
 
         HttpResponse::build(status_code).json(GenericResponse::error(
@@ -57,6 +65,8 @@ pub enum UserRegistrationError {
     UnexpectedError(#[from] anyhow::Error),
     #[error("Duplicate mobile no")]
     DuplicateMobileNo(#[source] anyhow::Error),
+    #[error("{0}")]
+    DatabaseError(String),
 }
 
 impl std::fmt::Debug for UserRegistrationError {
@@ -69,8 +79,9 @@ impl ResponseError for UserRegistrationError {
     fn status_code(&self) -> StatusCode {
         match self {
             UserRegistrationError::DuplicateEmail(_) => StatusCode::BAD_REQUEST,
-            UserRegistrationError::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             UserRegistrationError::DuplicateMobileNo(_) => StatusCode::BAD_REQUEST,
+            UserRegistrationError::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            UserRegistrationError::DatabaseError(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 
@@ -79,8 +90,9 @@ impl ResponseError for UserRegistrationError {
         let status_code_str = status_code.as_str();
         let inner_error_msg = match self {
             UserRegistrationError::DuplicateEmail(inner_error)
-            | UserRegistrationError::UnexpectedError(inner_error)
-            | UserRegistrationError::DuplicateMobileNo(inner_error) => inner_error.to_string(),
+            | UserRegistrationError::DuplicateMobileNo(inner_error)
+            | UserRegistrationError::UnexpectedError(inner_error) => inner_error.to_string(),
+            UserRegistrationError::DatabaseError(error_msg) => error_msg.clone(),
         };
 
         HttpResponse::build(status_code).json(GenericResponse::error(

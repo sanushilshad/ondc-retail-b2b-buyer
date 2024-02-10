@@ -1,13 +1,19 @@
-use anyhow::Context;
-use secrecy::{ExposeSecret, Secret};
-use sqlx::PgPool;
-use uuid::Uuid;
-use super::errors::AuthError;
-use super::models::{AuthMechanism, UserAccount};
-use super::schemas::{AuthenticateRequest, AuthenticationScope, CreateUserAccount};
+use super::errors::{AuthError, UserRegistrationError};
+use super::models::{AuthMechanismModel, UserAccountModel};
+use super::schemas::{
+    AuthenticateRequest, AuthenticationScope, CreateUserAccount, JWTClaims, UserVectors,
+};
 use crate::utils::spawn_blocking_with_tracing;
-use argon2::{Argon2, PasswordHash, PasswordVerifier};
-use super::schemas::{ UserVectors};
+use anyhow::{anyhow, Context};
+use argon2::password_hash::SaltString;
+use argon2::{Algorithm, Argon2, Params, PasswordHash, PasswordHasher, PasswordVerifier, Version};
+use chrono::Utc;
+use jsonwebtoken::{encode, EncodingKey, Header};
+use secrecy::{ExposeSecret, Secret};
+use sqlx::types::chrono;
+use sqlx::types::chrono::DateTime;
+use sqlx::{Executor, PgPool, Postgres, Transaction};
+use uuid::Uuid;
 #[tracing::instrument(
     name = "Validate credentials",
     skip(expected_password_hash, password_candidate)
@@ -26,26 +32,105 @@ fn verify_password_hash(
         )
         .context("Invalid password.")
         .map_err(AuthError::InvalidCredentials)
+    // println!("{:?}", a);
+    // Ok(())
+    // match Argon2::default().verify_password(
+    //     password_candidate.expose_secret().as_bytes(),
+    //     &expected_password_hash,
+    // ) {
+    //     Ok(_) => Ok(()),
+
+    //     Err(err) => Err(AuthError::UnexpectedStringError(format!(
+    //         "Password verification error: {}",
+    //         err
+    //     ))),
+    // }
 }
+
+// #[tracing::instrument(name = "Get stored credentials", skip(username, pool))]
+// async fn get_stored_credentials(
+//     username: &str,
+//     scope: &AuthenticationScope,
+//     pool: &PgPool,
+// ) -> Result<Option<AuthMechanism>, anyhow::Error> {
+//     let row = sqlx::query_as!(
+//         AuthMechanism,
+//         r#"SELECT user_id, auth_identifier, secret as "secret: Option<Secret<String>>",  auth_scope as "auth_scope: AuthenticationScope" from auth_mechanism
+//         as a inner join user_account as b on a.user_id = b.id where b.username = $1 AND auth_scope = $2"#,
+//         username,
+//         scope as &AuthenticationScope
+
+//     )
+//     .fetch_optional(pool)
+//     .await?;
+
+//     Ok(row)
+// }
 
 #[tracing::instrument(name = "Get stored credentials", skip(username, pool))]
 async fn get_stored_credentials(
     username: &str,
     scope: &AuthenticationScope,
     pool: &PgPool,
-) -> Result<Option<AuthMechanism>, anyhow::Error> {
-    let row = sqlx::query_as!(
-        AuthMechanism,
+) -> Result<Option<AuthMechanismModel>, anyhow::Error> {
+    let row = sqlx::query!(
         r#"SELECT user_id, auth_identifier, secret,  auth_scope as "auth_scope: AuthenticationScope" from auth_mechanism
         as a inner join user_account as b on a.user_id = b.id where b.username = $1 AND auth_scope = $2"#,
         username,
         scope as &AuthenticationScope
-        
     )
     .fetch_optional(pool)
     .await?;
 
-    Ok(row)
+    if let Some(row) = row {
+        let secret_string: Option<String> = row.secret;
+        let secret = secret_string.map(Secret::new);
+
+        Ok(Some(AuthMechanismModel {
+            user_id: row.user_id,
+            auth_scope: row.auth_scope,
+            auth_identifier: row.auth_identifier,
+            secret,
+        }))
+    } else {
+        Ok(None)
+    }
+}
+
+pub async fn verify_password(
+    password: Secret<String>,
+    auth_mechanism: AuthMechanismModel,
+) -> Result<(), AuthError> {
+    let mut expected_password_hash = Secret::new(
+        "$argon2id$v=19$m=15000,t=2,p=1$\
+        gZiV/M1gPc22ElAH/Jh1Hw$\
+        CWOrkoo7oJBQ/iyh7uJ0LO2aLEfrHwTWllSAxT0zRno"
+            .to_string(),
+    );
+    if auth_mechanism.secret.is_some() {
+        expected_password_hash = auth_mechanism.secret.unwrap_or(expected_password_hash);
+    }
+
+    spawn_blocking_with_tracing(move || verify_password_hash(expected_password_hash, password))
+        .await
+        .context("Failed to spawn blocking task.")?
+}
+
+pub async fn verify_otp(
+    secret: Secret<String>,
+    auth_mechanism: AuthMechanismModel,
+) -> Result<(), AuthError> {
+    let otp = auth_mechanism
+        .secret
+        .ok_or_else(|| AuthError::UnexpectedStringError("Invalid Otp".to_string()))?;
+
+    if otp.expose_secret() != secret.expose_secret() {
+        return Err(AuthError::InvalidStringCredentials(
+            "Invalid OTP".to_string(),
+        ))?;
+    }
+
+    Ok(())
 }
 
 #[tracing::instrument(name = "Validate credentials", skip(credentials, pool))]
@@ -54,42 +139,42 @@ pub async fn validate_credentials(
     pool: &PgPool,
 ) -> Result<uuid::Uuid, AuthError> {
     let mut user_id = None;
-    let mut expected_password_hash = Secret::new(
-        "$argon2id$v=19$m=15000,t=2,p=1$\
-        gZiV/M1gPc22ElAH/Jh1Hw$\
-        CWOrkoo7oJBQ/iyh7uJ0LO2aLEfrHwTWllSAxT0zRno"
-            .to_string(),
-    );
 
     if let Some(auth_mechanism) =
         get_stored_credentials(&credentials.identifier, &credentials.scope, pool).await?
     {
         user_id = Some(auth_mechanism.user_id);
-        expected_password_hash = auth_mechanism.secret;
+        match credentials.scope {
+            AuthenticationScope::Password => {
+                verify_password(credentials.secret, auth_mechanism).await?;
+            }
+            AuthenticationScope::Otp => {
+                verify_otp(credentials.secret, auth_mechanism).await?;
+            }
+            _ => {
+                // Handle other cases if needed
+            }
+        }
     }
 
-    spawn_blocking_with_tracing(move || {
-        verify_password_hash(expected_password_hash, credentials.secret)
-    })
-    .await
-    .context("Failed to spawn blocking task.")??;
-
     user_id
-        .ok_or_else(|| anyhow::anyhow!("Unknown username."))
+        .ok_or_else(|| anyhow::anyhow!("Unknown username"))
         .map_err(AuthError::InvalidCredentials)
 }
 
-
-
 #[tracing::instrument(name = "Get stored credentials", skip(pool))]
-async fn  fetch_user_by_values(
-    value_list: Vec<String>,
+async fn fetch_user_by_mobile_no_or_email(
+    value_list: Vec<&str>,
     pool: &PgPool,
-) -> Result<Option<UserAccount>, anyhow::Error> {
-    let row = sqlx::query_as!(
-        UserAccount,
-        r#"SELECT id, username, email, is_active, vectors as "vectors!:sqlx::types::Json<UserVectors>" from user_account"#,
-        
+) -> Result<Option<UserAccountModel>, anyhow::Error> {
+    println!("('{}')", value_list.join("','"));
+    let val_list: Vec<String> = value_list.iter().map(|&s| s.to_string()).collect();
+
+    // let value_list_str =  format!("'{}'", value_list.join("','")) ;
+    let row: Option<UserAccountModel> = sqlx::query_as!(
+        UserAccountModel,
+        r#"SELECT id, username, mobile_no, email, is_active, vectors as "vectors!:sqlx::types::Json<Option<Vec<UserVectors>>>" from user_account where email  = ANY($1) OR mobile_no  = ANY($1)"#,
+        &val_list
     )
     .fetch_optional(pool)
     .await?;
@@ -97,14 +182,202 @@ async fn  fetch_user_by_values(
     Ok(row)
 }
 
+#[tracing::instrument(name = "create user account", skip(transaction))]
+pub async fn save_user(
+    transaction: &mut Transaction<'_, Postgres>,
+    user_account: &CreateUserAccount,
+) -> Result<Uuid, anyhow::Error> {
+    let user_id = Uuid::new_v4();
+    let query = sqlx::query!(
+        r#"
+        INSERT INTO user_account (id, username, email, mobile_no, created_by, created_on, display_name, vectors)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        "#,
+        user_id,
+        user_account.username,
+        user_account.email.get(),
+        user_account.mobile_no,
+        user_id,
+        Utc::now(),
+        user_account.display_name,
+        serde_json::Value::Array(vec![])
+    );
 
+    transaction.execute(query).await.map_err(|e| {
+        tracing::error!("Failed to execute query: {:?}", e);
+        UserRegistrationError::DatabaseError(
+            "A database failure was encountered while saving user account".to_string(),
+        )
+    })?;
+    Ok(user_id)
+}
 
-#[tracing::instrument(name = "register user", skip(pool))]
+// async fn generate_jwt_token_for_user(user_id: Uuid) -> String{
+
+//     let secret = b"your_secret_key";
+//     let claims: JWTClaims = JWTClaims {
+//         sub: user_id,
+//         exp: 1_000_000_000,
+//     };
+//     let header = Header::new(Algorithm::HS256);
+//     let encoding_key = EncodingKey::from_secret(secret);
+//     let token = encode(&header, &claims, &encoding_key).expect("Failed to generate token");
+//     return token
+// }
+
+// #[tracing::instrument(name = "register user", skip(pool))]
+// pub async fn register_user(
+//     user_account: CreateUserAccount,
+//     pool: &PgPool,
+// ) -> Result<uuid::Uuid, super::errors::UserRegistrationError> {
+//     let mut transaction = pool
+//         .begin()
+//         .await
+//         .context("Failed to acquire a Postgres connection from the pool")?;
+//     match fetch_user_by_mobile_no_or_email(vec![user_account.email.get(),  &user_account.mobile_no],  pool).await{
+//         Ok(Some(existing_user_obj)) => {
+//             if user_account.mobile_no == existing_user_obj.mobile_no{
+//                 tracing::error!("User Already exists with the given mobile number: {:?}", user_account.mobile_no);
+//                 return Err(anyhow!("User Already exists with the given  mobile number")).map_err(UserRegistrationError::DuplicateMobileNo)?;
+//             }
+
+//             else {
+//                 tracing::error!("User Already exists with the given  email: {:?}", user_account.email);
+//                 return Err(anyhow!("User Already exists with given email")).map_err(UserRegistrationError::DuplicateEmail)?;
+//             }
+
+//         }
+//         Ok(None) => {
+//             tracing::info!("Successfully validated Email");
+//             match save_user(&mut transaction, user_account).await{
+//                 Ok(uuid) =>{
+//                     tracing::info!("Successfully created user account {}", uuid);
+//                     transaction
+//                     .commit()
+//                     .await
+//                     .context("Failed to commit SQL transaction to store a new subscriber.")?;
+//                     return  Ok(uuid);
+//                 }
+//                 Err(e)=>{
+//                     let error = anyhow::Error::from(e);
+//                     tracing::error!("Something went wrong while registering user: {:?}", error);
+//                     return Err(anyhow!("Internal Server Error")).map_err(UserRegistrationError::UnexpectedError)?;
+//                 }
+
+//             }
+//         }
+//         Err(e) => {
+//             tracing::error!("Something went wrong while validating user id: {:?}", e);
+//             return Err(e).map_err(UserRegistrationError::UnexpectedError)?;
+//         }
+//     }
+// }
+
+fn compute_password_hash(password: Secret<String>) -> Result<Secret<String>, anyhow::Error> {
+    let salt = SaltString::generate(&mut rand::thread_rng());
+    let password_hash = Argon2::new(
+        Algorithm::Argon2id,
+        Version::V0x13,
+        Params::new(15000, 2, 1, None).unwrap(),
+    )
+    .hash_password(password.expose_secret().as_bytes(), &salt)?
+    .to_string();
+    Ok(Secret::new(password_hash))
+}
+
+#[tracing::instrument(name = "save auth mechanism", skip(transaction))]
+pub async fn save_auth_mechanism(
+    transaction: &mut Transaction<'_, Postgres>,
+    user_id: Uuid,
+    user_account: CreateUserAccount,
+) -> Result<(), anyhow::Error> {
+    let current_utc = Utc::now();
+    let password_hash =
+        spawn_blocking_with_tracing(move || compute_password_hash(user_account.password))
+            .await?
+            .context("Failed to hash password")?;
+    // let password_hash = compute_password_hash(user_account.password)?;
+    let id = vec![Uuid::new_v4(), Uuid::new_v4()];
+    let user_id_list = vec![user_id, user_id];
+    let auth_scope = vec![AuthenticationScope::Password, AuthenticationScope::Otp];
+    let auth_identifier = vec![
+        user_account.username.clone(),
+        user_account.mobile_no.clone(),
+    ];
+    let secret = vec![password_hash.expose_secret().to_string()];
+    let verified = vec![true, false];
+    let created_on = vec![current_utc, current_utc];
+    let created_by = vec![user_id, user_id];
+    let query = sqlx::query!(
+        r#"
+        INSERT INTO auth_mechanism (id, user_id, auth_scope, auth_identifier, secret, verified, created_at, created_by)
+        SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::user_auth_identifier_scope[], $4::text[], $5::text[], $6::bool[], $7::TIMESTAMP[], $8::text[])
+        "#,
+        &id[..] as &[Uuid],
+        &user_id_list[..] as &[Uuid],
+        &auth_scope[..] as &[AuthenticationScope],
+        &auth_identifier[..],
+        &secret[..],
+        &verified[..],
+        &created_on[..] as &[DateTime<Utc>],
+        &created_by[..] as &[Uuid]
+    );
+
+    transaction.execute(query).await.map_err(|e| {
+        tracing::error!("Failed to execute query: {:?}", e);
+        UserRegistrationError::DatabaseError(
+            "A database failure was encountered while saving auth mechanisms".to_string(),
+        )
+    })?;
+    Ok(())
+}
+
+#[tracing::instrument(name = "register users", skip(pool))]
 pub async fn register_user(
     user_account: CreateUserAccount,
     pool: &PgPool,
 ) -> Result<uuid::Uuid, super::errors::UserRegistrationError> {
-    Ok(Uuid::new_v4())
+    let mut transaction = pool
+        .begin()
+        .await
+        .context("Failed to acquire a Postgres connection from the pool")?;
+
+    // Early return if user already exists
+    if let Some(existing_user_obj) = fetch_user_by_mobile_no_or_email(
+        vec![user_account.email.get(), &user_account.mobile_no],
+        pool,
+    )
+    .await?
+    {
+        if user_account.mobile_no == existing_user_obj.mobile_no {
+            let message = format!(
+                "User Already exists with the given mobile number: {}",
+                user_account.mobile_no
+            );
+            tracing::error!(message);
+            return Err(anyhow!(message)).map_err(UserRegistrationError::DuplicateMobileNo);
+        } else {
+            let message = format!(
+                "User Already exists with the given email: {}",
+                user_account.email
+            );
+            tracing::error!(message);
+            return Err(anyhow!(message)).map_err(UserRegistrationError::DuplicateEmail);
+        }
+    }
+    let uuid = save_user(&mut transaction, &user_account).await?;
+    save_auth_mechanism(&mut transaction, uuid, user_account).await?;
+    tracing::info!("Successfully created user account {}", uuid);
+
+    transaction
+        .commit()
+        .await
+        .context("Failed to commit SQL transaction to store a new subscriber.")?;
+
+    Ok(uuid)
+
+    // return Err(
+    //     anyhow!("Duplicate mobile number")
+    // ).map_err(UserRegistrationError::DuplicateEmail)?;
+    // Ok(Uuid::new_v4())
 }
-
-

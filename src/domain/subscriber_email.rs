@@ -4,7 +4,7 @@ use serde::{
 };
 use validator::validate_email;
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, PartialEq)]
 pub struct EmailObject(String);
 
 impl EmailObject {
@@ -14,6 +14,10 @@ impl EmailObject {
         } else {
             Err(format!("{} is not a valid email.", s))
         }
+    }
+
+    pub fn get<'a>(&'a self) -> &'a str {
+        &self.0
     }
 }
 

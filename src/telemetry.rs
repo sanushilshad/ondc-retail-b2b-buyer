@@ -20,7 +20,7 @@ where
 {
     // let tracer = opentelemetry_jaeger::new_agent_pipeline()
     //     .with_endpoint(std::env::var("JAEGER_ENDPOINT").unwrap_or("localhost:4318".to_string()))
-    //     .with_service_name("SANU".to_string())
+    //     .with_service_name("rust_test".to_string())
     //     .install_batch(opentelemetry::runtime::Tokio)
     //     .expect("Failed to install OpenTelemetry tracer.");
     let tracer = opentelemetry_otlp::new_pipeline()
@@ -28,7 +28,10 @@ where
         .with_exporter(opentelemetry_otlp::new_exporter().tonic())
         .install_batch(opentelemetry::runtime::Tokio)
         .expect("Couldn't create OTLP tracer");
-    let telemetry_layer = tracing_opentelemetry::layer().with_tracer(tracer);
+    let telemetry_layer: tracing_opentelemetry::OpenTelemetryLayer<
+        Registry,
+        opentelemetry::sdk::trace::Tracer,
+    > = tracing_opentelemetry::layer().with_tracer(tracer);
     let env_filter =
         EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(env_filter));
     let format_layer = fmt::Layer::default()

@@ -1,16 +1,13 @@
 use crate::configuration::DatabaseSettings;
 use crate::email_client::EmailClient;
-use crate::middleware::add_error_header;
 use crate::routes::main_route;
 
 // use actix_session::storage::RedisSessionStore;
 // use actix_session::SessionMiddleware;
-use actix_web::cookie::Key;
+// use actix_web::cookie::Key;
 use actix_web::dev::Server;
-use actix_web::middleware::ErrorHandlers;
 // use actix_web::middleware::Logger;
 use actix_web::{web, App, HttpServer};
-use reqwest::StatusCode;
 use secrecy::{ExposeSecret, Secret};
 use sqlx::postgres;
 use sqlx::postgres::PgPool;
@@ -69,12 +66,12 @@ async fn run(
     listener: TcpListener,
     db_pool: PgPool,
     email_client: EmailClient,
-    hmac_secret: Secret<String>,
+    _hmac_secret: Secret<String>,
     _redis_uri: Secret<String>,
 ) -> Result<Server, anyhow::Error> {
     let db_pool = web::Data::new(db_pool);
     let email_pool = web::Data::new(email_client);
-    let _secret_key = Key::from(hmac_secret.expose_secret().as_bytes());
+    // let _secret_key = Key::from(hmac_secret.expose_secret().as_bytes());
     let server = HttpServer::new(move || {
         App::new()
             .wrap(TracingLogger::default())

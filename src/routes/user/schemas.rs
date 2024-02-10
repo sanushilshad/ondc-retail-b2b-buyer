@@ -1,6 +1,8 @@
 use secrecy::Secret;
 use serde::{Deserialize, Serialize};
-use std::fmt::{self, Debug};
+use sqlx::postgres::PgHasArrayType;
+use std::fmt::Debug;
+use uuid::Uuid;
 
 use crate::domain::{subscriber_email::deserialize_subscriber_email, EmailObject};
 
@@ -66,15 +68,22 @@ pub enum AuthenticationScope {
     Email,
 }
 
+impl PgHasArrayType for AuthenticationScope {
+    fn array_type_info() -> sqlx::postgres::PgTypeInfo {
+        sqlx::postgres::PgTypeInfo::with_name("_user_auth_identifier_scope")
+    }
+}
+
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateUserAccount {
     pub username: String,
-    pub mobile_no: i64,
+    pub mobile_no: String,
     pub international_dialing_code: String,
     pub password: Secret<String>,
     #[serde(deserialize_with = "deserialize_subscriber_email")]
-    pub email: EmailObject, //NOTE: email_address crate cah be used if needed
+    pub email: EmailObject, //NOTE: email_address crate cah be used if needed,
+    pub display_name: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, sqlx::Type)]
@@ -87,8 +96,21 @@ pub enum MaskingType {
     FullMask,
 }
 #[derive(Serialize, Deserialize, Debug, sqlx::Type)]
+#[sqlx(type_name = "header_pair")]
 pub struct UserVectors {
     pub key: String,
     pub value: String,
     pub masking: MaskingType,
+}
+
+// impl PgHasArrayType for UserVectors {
+//     fn array_type_info() -> sqlx::postgres::PgTypeInfo {
+//         sqlx::postgres::PgTypeInfo::with_name("_header_pair")
+//     }
+// }
+
+#[derive(Debug, serde::Deserialize, serde::Serialize)]
+pub struct JWTClaims {
+    pub sub: Uuid,
+    pub exp: usize,
 }
