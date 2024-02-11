@@ -4,12 +4,24 @@ use dotenv::dotenv;
 use secrecy::{ExposeSecret, Secret};
 use serde::Deserialize;
 use sqlx::{postgres::PgConnectOptions, ConnectOptions};
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct JWT {
+    pub secret: Secret<String>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct SecretSetting {
+    pub jwt: JWT,
+}
+
 #[derive(Debug, Deserialize, Clone)]
 pub struct Settings {
     pub database: DatabaseSettings,
     pub application: ApplicationSettings,
     pub redis: RedisSettings,
     pub email_client: EmailClientSettings,
+    pub secret: SecretSetting,
 }
 
 #[derive(Debug, Deserialize, Clone)]

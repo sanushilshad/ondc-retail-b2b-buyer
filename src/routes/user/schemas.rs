@@ -1,4 +1,4 @@
-use secrecy::Secret;
+use secrecy::{ExposeSecret, Secret, SerializableSecret};
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgHasArrayType;
 use std::fmt::Debug;
@@ -109,8 +109,32 @@ pub struct UserVectors {
 //     }
 // }
 
-#[derive(Debug, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct JWTClaims {
     pub sub: Uuid,
     pub exp: usize,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct UserAccount {
+    pub id: Uuid,
+    pub username: String,
+    pub mobile_no: String,
+    pub email: String,
+    pub is_active: bool,
+    pub vectors: Option<Vec<UserVectors>>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AuthData {
+    pub user: UserAccount,
+    #[serde(serialize_with = "round_serialize")]
+    pub token: Secret<String>,
+}
+
+fn round_serialize<S>(x: &Secret<String>, s: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    s.serialize_str(x.expose_secret())
 }

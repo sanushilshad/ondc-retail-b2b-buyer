@@ -1,5 +1,4 @@
 use serde::Serialize;
-
 #[derive(Serialize, Debug)]
 pub struct GenericResponse<D> {
     pub status: bool,

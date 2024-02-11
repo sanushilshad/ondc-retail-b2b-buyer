@@ -1,19 +1,20 @@
 use super::errors::{AuthError, UserRegistrationError};
 use super::models::{AuthMechanismModel, UserAccountModel};
 use super::schemas::{
-    AuthenticateRequest, AuthenticationScope, CreateUserAccount, JWTClaims, UserVectors,
+    AuthData, AuthenticateRequest, AuthenticationScope, CreateUserAccount, JWTClaims, UserAccount,
+    UserVectors,
 };
 use crate::utils::spawn_blocking_with_tracing;
 use anyhow::{anyhow, Context};
 use argon2::password_hash::SaltString;
 use argon2::{Algorithm, Argon2, Params, PasswordHash, PasswordHasher, PasswordVerifier, Version};
-use chrono::Utc;
-use jsonwebtoken::{encode, EncodingKey, Header};
+use chrono::{Duration, Utc};
+use jsonwebtoken::{encode, Algorithm as JWTAlgorithm, EncodingKey, Header};
 use secrecy::{ExposeSecret, Secret};
-use sqlx::types::chrono;
 use sqlx::types::chrono::DateTime;
 use sqlx::{Executor, PgPool, Postgres, Transaction};
 use uuid::Uuid;
+
 #[tracing::instrument(
     name = "Validate credentials",
     skip(expected_password_hash, password_candidate)
@@ -162,8 +163,20 @@ pub async fn validate_credentials(
         .map_err(AuthError::InvalidCredentials)
 }
 
-#[tracing::instrument(name = "Get stored credentials", skip(pool))]
-async fn fetch_user_by_mobile_no_or_email(
+fn get_user_account_from_model(user_model: UserAccountModel) -> Result<UserAccount, anyhow::Error> {
+    let vectors_option: Option<Vec<UserVectors>> = user_model.vectors.0; // Extract the inner Option<Vec<UserVectors>>
+    return Ok(UserAccount {
+        id: user_model.id,
+        mobile_no: user_model.mobile_no,
+        username: user_model.username,
+        email: user_model.email,
+        is_active: user_model.is_active,
+        vectors: vectors_option,
+    });
+}
+
+#[tracing::instrument(name = "Get user Account", skip(pool))]
+pub async fn fetch_user_by_mobile_no_or_email(
     value_list: Vec<&str>,
     pool: &PgPool,
 ) -> Result<Option<UserAccountModel>, anyhow::Error> {
@@ -173,7 +186,7 @@ async fn fetch_user_by_mobile_no_or_email(
     // let value_list_str =  format!("'{}'", value_list.join("','")) ;
     let row: Option<UserAccountModel> = sqlx::query_as!(
         UserAccountModel,
-        r#"SELECT id, username, mobile_no, email, is_active, vectors as "vectors!:sqlx::types::Json<Option<Vec<UserVectors>>>" from user_account where email  = ANY($1) OR mobile_no  = ANY($1)"#,
+        r#"SELECT id, username, mobile_no, email, is_active, vectors as "vectors!:sqlx::types::Json<Option<Vec<UserVectors>>>" from user_account where email  = ANY($1) OR mobile_no  = ANY($1) OR id::text  = ANY($1)"#,
         &val_list
     )
     .fetch_optional(pool)
@@ -181,6 +194,40 @@ async fn fetch_user_by_mobile_no_or_email(
 
     Ok(row)
 }
+
+pub fn get_auth_data(
+    user_model: UserAccountModel,
+    jwt_secret: &Secret<String>,
+) -> Result<AuthData, anyhow::Error> {
+    let user_account = get_user_account_from_model(user_model)?;
+
+    let user_id = user_account.id;
+    let token = generate_jwt_token_for_user(user_id, None, jwt_secret)?;
+
+    Ok(AuthData {
+        user: user_account,
+        token: token,
+    })
+}
+
+// #[tracing::instrument(name = "Get stored credentials", skip(pool))]
+// async fn fetch_user_by_uuid(
+//     uuid: Uuid,
+//     pool: &PgPool,
+// ) -> Result<Option<UserAccountModel>, anyhow::Error> {
+//     println!("('{}')", value_list.join("','"));
+
+//     // let value_list_str =  format!("'{}'", value_list.join("','")) ;
+//     let row: Option<UserAccountModel> = sqlx::query_as!(
+//         UserAccountModel,
+//         r#"SELECT id, username, mobile_no, email, is_active, vectors as "vectors!:sqlx::types::Json<Option<Vec<UserVectors>>>" from user_account where email  = ANY($1) OR mobile_no  = ANY($1)"#,
+//         &val_list
+//     )
+//     .fetch_optional(pool)
+//     .await?;
+
+//     Ok(row)
+// }
 
 #[tracing::instrument(name = "create user account", skip(transaction))]
 pub async fn save_user(
@@ -212,18 +259,27 @@ pub async fn save_user(
     Ok(user_id)
 }
 
-// async fn generate_jwt_token_for_user(user_id: Uuid) -> String{
-
-//     let secret = b"your_secret_key";
-//     let claims: JWTClaims = JWTClaims {
-//         sub: user_id,
-//         exp: 1_000_000_000,
-//     };
-//     let header = Header::new(Algorithm::HS256);
-//     let encoding_key = EncodingKey::from_secret(secret);
-//     let token = encode(&header, &claims, &encoding_key).expect("Failed to generate token");
-//     return token
-// }
+fn generate_jwt_token_for_user(
+    user_id: Uuid,
+    expiry_date: Option<DateTime<Utc>>,
+    secret: &Secret<String>,
+) -> Result<Secret<String>, anyhow::Error> {
+    let expiration = match expiry_date {
+        Some(expiry) => expiry.timestamp() as usize,
+        None => Utc::now()
+            .checked_add_signed(Duration::minutes(60))
+            .expect("valid timestamp")
+            .timestamp() as usize,
+    };
+    let claims: JWTClaims = JWTClaims {
+        sub: user_id,
+        exp: expiration as usize,
+    };
+    let header = Header::new(JWTAlgorithm::HS256);
+    let encoding_key = EncodingKey::from_secret(secret.expose_secret().as_bytes());
+    let token: String = encode(&header, &claims, &encoding_key).expect("Failed to generate token");
+    return Ok(Secret::new(token));
+}
 
 // #[tracing::instrument(name = "register user", skip(pool))]
 // pub async fn register_user(

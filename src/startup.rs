@@ -1,4 +1,4 @@
-use crate::configuration::DatabaseSettings;
+use crate::configuration::{DatabaseSettings, SecretSetting};
 use crate::email_client::EmailClient;
 use crate::routes::main_route;
 
@@ -8,7 +8,7 @@ use crate::routes::main_route;
 use actix_web::dev::Server;
 // use actix_web::middleware::Logger;
 use actix_web::{web, App, HttpServer};
-use secrecy::{ExposeSecret, Secret};
+use secrecy::Secret;
 use sqlx::postgres;
 use sqlx::postgres::PgPool;
 use std::net::TcpListener;
@@ -39,7 +39,7 @@ impl Application {
             listener,
             connection_pool,
             email_client,
-            configuration.application.hmac_secret,
+            configuration.secret,
             configuration.redis.get_string(),
         )
         .await?;
@@ -66,11 +66,12 @@ async fn run(
     listener: TcpListener,
     db_pool: PgPool,
     email_client: EmailClient,
-    _hmac_secret: Secret<String>,
+    secret: SecretSetting,
     _redis_uri: Secret<String>,
 ) -> Result<Server, anyhow::Error> {
     let db_pool = web::Data::new(db_pool);
     let email_pool = web::Data::new(email_client);
+    let secret_pool = web::Data::new(secret);
     // let _secret_key = Key::from(hmac_secret.expose_secret().as_bytes());
     let server = HttpServer::new(move || {
         App::new()
@@ -80,6 +81,7 @@ async fn run(
             // Register the connection as part of the application state
             .app_data(db_pool.clone())
             .app_data(email_pool.clone())
+            .app_data(secret_pool.clone())
             .configure(main_route)
     })
     .workers(4)

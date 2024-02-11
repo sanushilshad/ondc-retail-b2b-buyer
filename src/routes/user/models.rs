@@ -1,6 +1,6 @@
 use secrecy::Secret;
-use serde::{Deserialize, Serialize};
-use sqlx::{postgres::PgRow, types::Json, FromRow};
+use serde::Serialize;
+use sqlx::{types::Json, FromRow};
 use uuid::Uuid;
 
 use super::schemas::{AuthenticationScope, UserVectors};
