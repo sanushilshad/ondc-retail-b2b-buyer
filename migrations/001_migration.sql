@@ -1,16 +1,3 @@
--- Add migration script here
-
-
-
--- CREATE TYPE masking_type AS ENUM ('na', 'encrypt', 'partialM_mask', 'full_mask');
--- CREATE TYPE vectors AS (
---     key VARCHAR(255),
---     value VARCHAR(255),
---     masking masking_type
--- );
-
-
-
 CREATE TABLE IF NOT EXISTS user_account(
     id uuid PRIMARY KEY,
     username TEXT NOT NULL UNIQUE,
@@ -24,8 +11,9 @@ CREATE TABLE IF NOT EXISTS user_account(
     updated_on timestamptz,
     deleted_on timestamptz,
     is_deleted boolean not null DEFAULT false,
-    is_active boolean not null DEFAULT false,
+    is_active boolean not null DEFAULT true,
     vectors jsonb not null
+
 );
 CREATE TYPE "user_auth_identifier_scope" AS ENUM (
   'otp',
@@ -45,9 +33,9 @@ CREATE TABLE IF NOT EXISTS auth_mechanism (
   user_id uuid NOT NULL,
   auth_scope user_auth_identifier_scope NOT NULL,
   auth_identifier text NOT NULL,
-  secret text NOT NULL,
+  secret text,
   valid_upto timestamptz,
-  verified boolean,
+  is_active boolean not null DEFAULT false,
   created_at timestamptz,
   updated_at timestamptz,
   deleted_at timestamptz,

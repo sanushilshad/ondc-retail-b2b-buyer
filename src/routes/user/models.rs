@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use secrecy::Secret;
 use serde::Serialize;
 use sqlx::{types::Json, FromRow};
@@ -13,10 +14,13 @@ pub struct RapidorCustomerModel {
 
 #[derive(Debug, FromRow)]
 pub struct AuthMechanismModel {
+    pub id: Uuid,
     pub user_id: Uuid,
     pub auth_scope: AuthenticationScope,
     pub auth_identifier: String,
-    pub secret: Option<Secret<String>>,
+    pub secret: Option<String>,
+    pub is_active: bool,
+    pub valid_upto: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, FromRow)]
@@ -26,8 +30,9 @@ pub struct UserAccountModel {
     pub mobile_no: String,
     pub email: String,
     pub is_active: bool,
+    pub display_name: String,
 
-    pub vectors: Json<Option<Vec<UserVectors>>>,
+    pub vectors: Json<Vec<Option<UserVectors>>>,
 }
 
 // impl FromRow<'_, PgRow> for UserAccount {

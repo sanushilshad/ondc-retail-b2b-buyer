@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use secrecy::{ExposeSecret, Secret, SerializableSecret};
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgHasArrayType;
@@ -101,6 +102,7 @@ pub struct UserVectors {
     pub key: String,
     pub value: String,
     pub masking: MaskingType,
+    pub verified: bool,
 }
 
 // impl PgHasArrayType for UserVectors {
@@ -122,7 +124,8 @@ pub struct UserAccount {
     pub mobile_no: String,
     pub email: String,
     pub is_active: bool,
-    pub vectors: Option<Vec<UserVectors>>,
+    pub display_name: String,
+    pub vectors: Vec<Option<UserVectors>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -137,4 +140,15 @@ where
     S: serde::Serializer,
 {
     s.serialize_str(x.expose_secret())
+}
+
+#[derive(Debug)]
+pub struct AuthMechanism {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub auth_scope: AuthenticationScope,
+    pub auth_identifier: String,
+    pub secret: Option<Secret<String>>,
+    pub is_active: bool,
+    pub valid_upto: Option<DateTime<Utc>>,
 }

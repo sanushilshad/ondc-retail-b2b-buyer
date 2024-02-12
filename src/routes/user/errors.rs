@@ -17,6 +17,8 @@ pub enum AuthError {
     ValidationError(#[source] anyhow::Error),
     #[error("{0}")]
     UnexpectedStringError(String),
+    #[error("{0}")]
+    DatabaseError(String),
 }
 
 impl std::fmt::Debug for AuthError {
@@ -34,6 +36,7 @@ impl ResponseError for AuthError {
             AuthError::ValidationError(_) => StatusCode::BAD_REQUEST,
             AuthError::ValidationStringError(_) => StatusCode::BAD_REQUEST,
             AuthError::UnexpectedStringError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            AuthError::DatabaseError(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 
@@ -46,6 +49,7 @@ impl ResponseError for AuthError {
             | AuthError::ValidationError(inner_error) => inner_error.to_string(),
             AuthError::ValidationStringError(message) => message.to_string(),
             AuthError::UnexpectedStringError(message) => message.to_string(),
+            AuthError::DatabaseError(message) => message.to_string(),
             AuthError::InvalidStringCredentials(message) => message.to_string(),
         };
 
