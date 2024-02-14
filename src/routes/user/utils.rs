@@ -2,8 +2,9 @@ use super::errors::{AuthError, UserRegistrationError};
 use super::models::{AuthMechanismModel, UserAccountModel};
 use super::schemas::{
     AuthData, AuthMechanism, AuthenticateRequest, AuthenticationScope, CreateUserAccount,
-    JWTClaims, MaskingType, UserAccount, UserVectors,
+    JWTClaims, MaskingType, UserAccount, UserType, UserVectors,
 };
+use crate::schemas::Status;
 use crate::utils::spawn_blocking_with_tracing;
 use anyhow::{anyhow, Context};
 use argon2::password_hash::SaltString;
@@ -177,6 +178,7 @@ fn get_user_account_from_model(user_model: UserAccountModel) -> Result<UserAccou
         is_active: user_model.is_active,
         display_name: user_model.display_name,
         vectors: vectors_option,
+        user_type: user_model.user_type,
     });
 }
 
@@ -189,7 +191,7 @@ pub async fn fetch_user(
 
     let row: Option<UserAccountModel> = sqlx::query_as!(
         UserAccountModel,
-        r#"SELECT id, username, mobile_no, email, is_active, vectors as "vectors!:sqlx::types::Json<Vec<Option<UserVectors>>>", display_name from user_account where email  = ANY($1) OR mobile_no  = ANY($1) OR id::text  = ANY($1)"#,
+        r#"SELECT id, username, mobile_no, email, is_active as "is_active!:Status", user_type as "user_type!:UserType", vectors as "vectors!:sqlx::types::Json<Vec<Option<UserVectors>>>", display_name from user_account where email  = ANY($1) OR mobile_no  = ANY($1) OR id::text  = ANY($1)"#,
         &val_list
     )
     .fetch_optional(pool)
@@ -259,11 +261,12 @@ pub async fn save_user(
     user_account: &CreateUserAccount,
 ) -> Result<Uuid, anyhow::Error> {
     let user_id = Uuid::new_v4();
+    let user_account_number = user_account.display_name.replace(" '", "-").to_lowercase();
     let vector_list = create_vector_from_create_account(user_account)?;
     let query = sqlx::query!(
         r#"
-        INSERT INTO user_account (id, username, email, mobile_no, created_by, created_on, display_name, vectors, is_active)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        INSERT INTO user_account (id, username, email, mobile_no, created_by, created_on, display_name, vectors, is_active, is_test_user, user_account_number, alt_user_account_number, user_type)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         "#,
         user_id,
         user_account.username,
@@ -273,7 +276,11 @@ pub async fn save_user(
         Utc::now(),
         user_account.display_name,
         sqlx::types::Json(vector_list) as sqlx::types::Json<Vec<UserVectors>>,
-        true
+        Status::Active as Status,
+        user_account.is_test_user,
+        user_account_number,
+        user_account_number,
+        &user_account.user_type as &UserType
     );
 
     transaction.execute(query).await.map_err(|e| {

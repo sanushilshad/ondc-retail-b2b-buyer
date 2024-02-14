@@ -1,5 +1,6 @@
 use crate::configuration::{DatabaseSettings, SecretSetting};
 use crate::email_client::EmailClient;
+// use crate::middleware::tracing_middleware;
 use crate::routes::main_route;
 
 // use actix_session::storage::RedisSessionStore;
@@ -79,6 +80,7 @@ async fn run(
             // .wrap(ErrorHandlers::new().handler(StatusCode::BAD_REQUEST, add_error_header))
             // .wrap(Logger::default())  // for minimal logs
             // Register the connection as part of the application state
+            // .wrap_fn(tracing_middleware)
             .app_data(db_pool.clone())
             .app_data(email_pool.clone())
             .app_data(secret_pool.clone())

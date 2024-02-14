@@ -5,6 +5,5 @@ launch.json
 settings.json
 configuration.yaml
 env.sh
-dev_run.sh
 Cargo.lock
 .env

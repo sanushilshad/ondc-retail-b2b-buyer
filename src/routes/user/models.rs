@@ -4,7 +4,9 @@ use serde::Serialize;
 use sqlx::{types::Json, FromRow};
 use uuid::Uuid;
 
-use super::schemas::{AuthenticationScope, UserVectors};
+use crate::schemas::Status;
+
+use super::schemas::{AuthenticationScope, UserType, UserVectors};
 
 #[derive(Serialize, FromRow)]
 pub struct RapidorCustomerModel {
@@ -29,9 +31,9 @@ pub struct UserAccountModel {
     pub username: String,
     pub mobile_no: String,
     pub email: String,
-    pub is_active: bool,
+    pub is_active: Status,
     pub display_name: String,
-
+    pub user_type: UserType,
     pub vectors: Json<Vec<Option<UserVectors>>>,
 }
 

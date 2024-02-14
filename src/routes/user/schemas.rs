@@ -5,7 +5,10 @@ use sqlx::postgres::PgHasArrayType;
 use std::fmt::Debug;
 use uuid::Uuid;
 
-use crate::domain::{subscriber_email::deserialize_subscriber_email, EmailObject};
+use crate::{
+    domain::{subscriber_email::deserialize_subscriber_email, EmailObject},
+    schemas::Status,
+};
 
 // macro_rules! impl_serialize_format {
 //     ($struct_name:ident, $trait_name:path) => {
@@ -54,6 +57,18 @@ pub struct AuthenticateRequest {
 // }
 
 #[derive(Serialize, Deserialize, Debug, sqlx::Type)]
+#[sqlx(type_name = "user_type", rename_all = "lowercase")]
+#[serde(rename_all = "lowercase")]
+pub enum UserType {
+    Guest,
+    User,
+    Member,
+    Agent,
+    Superadmin,
+    Admin,
+}
+
+#[derive(Serialize, Deserialize, Debug, sqlx::Type)]
 #[sqlx(type_name = "user_auth_identifier_scope", rename_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
 pub enum AuthenticationScope {
@@ -85,6 +100,8 @@ pub struct CreateUserAccount {
     #[serde(deserialize_with = "deserialize_subscriber_email")]
     pub email: EmailObject, //NOTE: email_address crate cah be used if needed,
     pub display_name: String,
+    pub user_type: UserType,
+    pub is_test_user: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, sqlx::Type)]
@@ -96,8 +113,9 @@ pub enum MaskingType {
     PartialMask,
     FullMask,
 }
+
 #[derive(Serialize, Deserialize, Debug, sqlx::Type)]
-#[sqlx(type_name = "header_pair")]
+#[sqlx(type_name = "vectors")]
 pub struct UserVectors {
     pub key: String,
     pub value: String,
@@ -123,8 +141,9 @@ pub struct UserAccount {
     pub username: String,
     pub mobile_no: String,
     pub email: String,
-    pub is_active: bool,
+    pub is_active: Status,
     pub display_name: String,
+    pub user_type: UserType,
     pub vectors: Vec<Option<UserVectors>>,
 }
 

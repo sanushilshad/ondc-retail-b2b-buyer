@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 #[derive(Serialize, Debug)]
 pub struct GenericResponse<D> {
     pub status: bool,
@@ -33,4 +33,15 @@ impl<D> GenericResponse<D> {
             data: data,
         }
     }
+}
+
+#[derive(Serialize, Deserialize, Debug, sqlx::Type)]
+#[sqlx(rename_all = "lowercase")]
+#[serde(rename_all = "lowercase")]
+#[sqlx(type_name = "status")]
+pub enum Status {
+    Active,
+    Inactive,
+    Pending,
+    Archived,
 }
