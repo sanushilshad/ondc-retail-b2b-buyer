@@ -145,6 +145,10 @@ pub struct UserAccount {
     pub display_name: String,
     pub user_type: UserType,
     pub vectors: Vec<Option<UserVectors>>,
+    pub international_dialing_code: String,
+    pub user_account_number: String,
+    pub alt_user_account_number: String,
+    pub is_test_user: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -152,6 +156,7 @@ pub struct AuthData {
     pub user: UserAccount,
     #[serde(serialize_with = "round_serialize")]
     pub token: Secret<String>,
+    pub business_account_list: Vec<Option<String>>,
 }
 
 fn round_serialize<S>(x: &Secret<String>, s: S) -> Result<S::Ok, S::Error>

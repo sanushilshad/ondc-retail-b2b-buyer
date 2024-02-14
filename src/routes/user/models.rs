@@ -35,6 +35,10 @@ pub struct UserAccountModel {
     pub display_name: String,
     pub user_type: UserType,
     pub vectors: Json<Vec<Option<UserVectors>>>,
+    pub international_dialing_code: String,
+    pub user_account_number: String,
+    pub alt_user_account_number: String,
+    pub is_test_user: bool,
 }
 
 // impl FromRow<'_, PgRow> for UserAccount {

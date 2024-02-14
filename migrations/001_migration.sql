@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS user_account(
     is_test_user boolean NOT NULL DEFAULT false,
     username TEXT NOT NULL UNIQUE,
     user_type user_type DEFAULT 'user'::user_type,
+    international_dialing_code TEXT NOT NULL,
     mobile_no TEXT NOT NULL,
     email TEXT NOT NULL,
     display_name TEXT NOT NULL,
