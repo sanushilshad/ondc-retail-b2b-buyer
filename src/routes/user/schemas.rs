@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use secrecy::{ExposeSecret, Secret, SerializableSecret};
+use secrecy::{ExposeSecret, Secret};
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgHasArrayType;
 use std::fmt::Debug;
@@ -100,7 +100,6 @@ pub struct CreateUserAccount {
     #[serde(deserialize_with = "deserialize_subscriber_email")]
     pub email: EmailObject, //NOTE: email_address crate cah be used if needed,
     pub display_name: String,
-    pub user_type: UserType,
     pub is_test_user: bool,
 }
 
@@ -130,12 +129,6 @@ pub struct UserVectors {
 // }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct JWTClaims {
-    pub sub: Uuid,
-    pub exp: usize,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
 pub struct UserAccount {
     pub id: Uuid,
     pub username: String,
@@ -143,7 +136,6 @@ pub struct UserAccount {
     pub email: String,
     pub is_active: Status,
     pub display_name: String,
-    pub user_type: UserType,
     pub vectors: Vec<Option<UserVectors>>,
     pub international_dialing_code: String,
     pub user_account_number: String,

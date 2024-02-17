@@ -18,7 +18,7 @@ pub enum AuthError {
     #[error("{0}")]
     UnexpectedStringError(String),
     #[error("{0}")]
-    DatabaseError(String),
+    DatabaseError(String, anyhow::Error),
 }
 
 impl std::fmt::Debug for AuthError {
@@ -36,7 +36,7 @@ impl ResponseError for AuthError {
             AuthError::ValidationError(_) => StatusCode::BAD_REQUEST,
             AuthError::ValidationStringError(_) => StatusCode::BAD_REQUEST,
             AuthError::UnexpectedStringError(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            AuthError::DatabaseError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            AuthError::DatabaseError(_, _) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 
@@ -49,7 +49,7 @@ impl ResponseError for AuthError {
             | AuthError::ValidationError(inner_error) => inner_error.to_string(),
             AuthError::ValidationStringError(message) => message.to_string(),
             AuthError::UnexpectedStringError(message) => message.to_string(),
-            AuthError::DatabaseError(message) => message.to_string(),
+            AuthError::DatabaseError(message, _err) => message.to_string(),
             AuthError::InvalidStringCredentials(message) => message.to_string(),
         };
 
@@ -70,7 +70,7 @@ pub enum UserRegistrationError {
     #[error("Duplicate mobile no")]
     DuplicateMobileNo(#[source] anyhow::Error),
     #[error("{0}")]
-    DatabaseError(String),
+    DatabaseError(String, anyhow::Error),
 }
 
 impl std::fmt::Debug for UserRegistrationError {
@@ -85,7 +85,7 @@ impl ResponseError for UserRegistrationError {
             UserRegistrationError::DuplicateEmail(_) => StatusCode::BAD_REQUEST,
             UserRegistrationError::DuplicateMobileNo(_) => StatusCode::BAD_REQUEST,
             UserRegistrationError::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            UserRegistrationError::DatabaseError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            UserRegistrationError::DatabaseError(_, _) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 
@@ -96,7 +96,7 @@ impl ResponseError for UserRegistrationError {
             UserRegistrationError::DuplicateEmail(inner_error)
             | UserRegistrationError::DuplicateMobileNo(inner_error)
             | UserRegistrationError::UnexpectedError(inner_error) => inner_error.to_string(),
-            UserRegistrationError::DatabaseError(error_msg) => error_msg.clone(),
+            UserRegistrationError::DatabaseError(error_msg, _err) => error_msg.clone(),
         };
 
         HttpResponse::build(status_code).json(GenericResponse::error(

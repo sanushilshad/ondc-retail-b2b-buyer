@@ -1,7 +1,9 @@
 use crate::configuration::{DatabaseSettings, SecretSetting};
-use crate::email_client::EmailClient;
+use crate::email_client::GenericEmailService;
 // use crate::middleware::tracing_middleware;
 use crate::routes::main_route;
+use crate::schemas::CommunicationType;
+use crate::utils::create_email_type_pool;
 
 // use actix_session::storage::RedisSessionStore;
 // use actix_session::SessionMiddleware;
@@ -12,7 +14,9 @@ use actix_web::{web, App, HttpServer};
 use secrecy::Secret;
 use sqlx::postgres;
 use sqlx::postgres::PgPool;
+use std::collections::HashMap;
 use std::net::TcpListener;
+use std::sync::Arc;
 use tracing_actix_web::TracingLogger;
 
 use crate::configuration::Settings;
@@ -26,8 +30,9 @@ impl Application {
     // `Application`.
     pub async fn build(configuration: Settings) -> Result<Self, anyhow::Error> {
         let connection_pool = get_connection_pool(&configuration.database);
-        let email_client =
-            EmailClient::new(configuration.email_client).expect("SMTP connection Failed");
+        // let email_client =
+        //     SmtpEmailClient::new(configuration.email_client).expect("SMTP connection Failed");
+        let email_type_pool = create_email_type_pool(configuration.email_client);
         let address = format!(
             "{}:{}",
             configuration.application.host, configuration.application.port
@@ -35,11 +40,10 @@ impl Application {
         println!("Lisetening {}", address);
         let listener = TcpListener::bind(&address)?;
         let port = listener.local_addr().unwrap().port();
-        println!("{:?}", configuration.redis);
         let server = run(
             listener,
             connection_pool,
-            email_client,
+            email_type_pool,
             configuration.secret,
             configuration.redis.get_string(),
         )
@@ -66,13 +70,13 @@ pub fn get_connection_pool(configuration: &DatabaseSettings) -> PgPool {
 async fn run(
     listener: TcpListener,
     db_pool: PgPool,
-    email_client: EmailClient,
+    email_type_pool: HashMap<CommunicationType, Arc<dyn GenericEmailService>>,
     secret: SecretSetting,
     _redis_uri: Secret<String>,
 ) -> Result<Server, anyhow::Error> {
     let db_pool = web::Data::new(db_pool);
-    let email_pool = web::Data::new(email_client);
-    let secret_pool = web::Data::new(secret);
+    let email_client = web::Data::new(email_type_pool);
+    let secret_obj = web::Data::new(secret);
     // let _secret_key = Key::from(hmac_secret.expose_secret().as_bytes());
     let server = HttpServer::new(move || {
         App::new()
@@ -82,8 +86,8 @@ async fn run(
             // Register the connection as part of the application state
             // .wrap_fn(tracing_middleware)
             .app_data(db_pool.clone())
-            .app_data(email_pool.clone())
-            .app_data(secret_pool.clone())
+            .app_data(email_client.clone())
+            .app_data(secret_obj.clone())
             .configure(main_route)
     })
     .workers(4)

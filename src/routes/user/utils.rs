@@ -1,16 +1,19 @@
 use super::errors::{AuthError, UserRegistrationError};
-use super::models::{AuthMechanismModel, UserAccountModel};
+use super::models::UserAccountModel;
 use super::schemas::{
     AuthData, AuthMechanism, AuthenticateRequest, AuthenticationScope, CreateUserAccount,
-    JWTClaims, MaskingType, UserAccount, UserType, UserVectors,
+    MaskingType, UserAccount, UserVectors,
 };
 use crate::schemas::Status;
-use crate::utils::spawn_blocking_with_tracing;
+use crate::utils::{generate_jwt_token_for_user, spawn_blocking_with_tracing};
+use actix_web::error::HttpError;
 use anyhow::{anyhow, Context};
 use argon2::password_hash::SaltString;
 use argon2::{Algorithm, Argon2, Params, PasswordHash, PasswordHasher, PasswordVerifier, Version};
 use chrono::{Duration, Utc};
-use jsonwebtoken::{encode, Algorithm as JWTAlgorithm, EncodingKey, Header};
+use jsonwebtoken::{
+    decode, encode, Algorithm as JWTAlgorithm, DecodingKey, EncodingKey, Header, Validation,
+};
 use secrecy::{ExposeSecret, Secret};
 use sqlx::types::chrono::DateTime;
 use sqlx::{Executor, PgPool, Postgres, Transaction};
@@ -128,7 +131,11 @@ pub async fn verify_otp(
         ))?;
     }
     reset_otp(pool, &auth_mechanism).await.map_err(|e| {
-        AuthError::DatabaseError("Something went wrong while resetting OTP".to_string())
+        tracing::error!("Failed to execute verify_otp database query: {:?}", e);
+        AuthError::DatabaseError(
+            "Something went wrong while resetting OTP".to_string(),
+            e.into(),
+        )
     })?;
     Ok(())
 }
@@ -178,7 +185,6 @@ fn get_user_account_from_model(user_model: UserAccountModel) -> Result<UserAccou
         is_active: user_model.is_active,
         display_name: user_model.display_name,
         vectors: vectors_option,
-        user_type: user_model.user_type,
         international_dialing_code: user_model.international_dialing_code,
         user_account_number: user_model.user_account_number,
         alt_user_account_number: user_model.alt_user_account_number,
@@ -195,7 +201,7 @@ pub async fn fetch_user(
 
     let row: Option<UserAccountModel> = sqlx::query_as!(
         UserAccountModel,
-        r#"SELECT id, username, is_test_user, mobile_no, email, is_active as "is_active!:Status", user_type as "user_type!:UserType", vectors as "vectors!:sqlx::types::Json<Vec<Option<UserVectors>>>", display_name, international_dialing_code, user_account_number, alt_user_account_number from user_account where email  = ANY($1) OR mobile_no  = ANY($1) OR id::text  = ANY($1)"#,
+        r#"SELECT id, username, is_test_user, mobile_no, email, is_active as "is_active!:Status",  vectors as "vectors!:sqlx::types::Json<Vec<Option<UserVectors>>>", display_name, international_dialing_code, user_account_number, alt_user_account_number from user_account where email  = ANY($1) OR mobile_no  = ANY($1) OR id::text  = ANY($1)"#,
         &val_list
     )
     .fetch_optional(pool)
@@ -270,8 +276,8 @@ pub async fn save_user(
     let vector_list = create_vector_from_create_account(user_account)?;
     let query = sqlx::query!(
         r#"
-        INSERT INTO user_account (id, username, email, mobile_no, created_by, created_on, display_name, vectors, is_active, is_test_user, user_account_number, alt_user_account_number, user_type, international_dialing_code)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        INSERT INTO user_account (id, username, email, mobile_no, created_by, created_on, display_name, vectors, is_active, is_test_user, user_account_number, alt_user_account_number, international_dialing_code)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         "#,
         user_id,
         user_account.username,
@@ -285,7 +291,6 @@ pub async fn save_user(
         user_account.is_test_user,
         user_account_number,
         user_account_number,
-        &user_account.user_type as &UserType,
         user_account.international_dialing_code
     );
 
@@ -293,31 +298,10 @@ pub async fn save_user(
         tracing::error!("Failed to execute query: {:?}", e);
         UserRegistrationError::DatabaseError(
             "A database failure occured while saving user account".to_string(),
+            e.into(),
         )
     })?;
     Ok(user_id)
-}
-
-fn generate_jwt_token_for_user(
-    user_id: Uuid,
-    expiry_date: Option<DateTime<Utc>>,
-    secret: &Secret<String>,
-) -> Result<Secret<String>, anyhow::Error> {
-    let expiration = match expiry_date {
-        Some(expiry) => expiry.timestamp() as usize,
-        None => Utc::now()
-            .checked_add_signed(Duration::minutes(60))
-            .expect("valid timestamp")
-            .timestamp() as usize,
-    };
-    let claims: JWTClaims = JWTClaims {
-        sub: user_id,
-        exp: expiration as usize,
-    };
-    let header = Header::new(JWTAlgorithm::HS256);
-    let encoding_key = EncodingKey::from_secret(secret.expose_secret().as_bytes());
-    let token: String = encode(&header, &claims, &encoding_key).expect("Failed to generate token");
-    return Ok(Secret::new(token));
 }
 
 // #[tracing::instrument(name = "register user", skip(pool))]
@@ -427,6 +411,7 @@ pub async fn save_auth_mechanism(
         tracing::error!("Failed to execute query: {:?}", e);
         UserRegistrationError::DatabaseError(
             "A database failure was encountered while saving auth mechanisms".to_string(),
+            e.into(),
         )
     })?;
     Ok(())

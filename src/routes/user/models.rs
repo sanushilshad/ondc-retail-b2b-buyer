@@ -1,12 +1,11 @@
 use chrono::{DateTime, Utc};
-use secrecy::Secret;
 use serde::Serialize;
 use sqlx::{types::Json, FromRow};
 use uuid::Uuid;
 
 use crate::schemas::Status;
 
-use super::schemas::{AuthenticationScope, UserType, UserVectors};
+use super::schemas::{AuthenticationScope, UserVectors};
 
 #[derive(Serialize, FromRow)]
 pub struct RapidorCustomerModel {
@@ -33,7 +32,6 @@ pub struct UserAccountModel {
     pub email: String,
     pub is_active: Status,
     pub display_name: String,
-    pub user_type: UserType,
     pub vectors: Json<Vec<Option<UserVectors>>>,
     pub international_dialing_code: String,
     pub user_account_number: String,

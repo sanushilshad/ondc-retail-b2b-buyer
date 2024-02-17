@@ -20,33 +20,33 @@
 //         req.set_payload(payload.into());
 //         // ----------------------------------------
 
-use std::cell::RefCell;
-use std::future::{ready, Future, Ready};
-use std::pin::Pin;
-use std::rc::Rc;
+// use std::cell::RefCell;
+// use std::future::{ready, Future, Ready};
+// use std::pin::Pin;
+// use std::rc::Rc;
 
-use actix_web::body::{EitherBody, MessageBody};
-use actix_web::dev::{Payload, Transform};
-//         let res = svc.call(req).await?;
-//         Ok(res)
-//     })
-use actix_web::middleware::ErrorHandlerResponse;
-use actix_web::web::{Bytes, BytesMut};
-use actix_web::HttpResponseBuilder;
-use actix_web::{dev, http::header, Result};
-use actix_web::{
-    dev::{Service, ServiceRequest, ServiceResponse},
-    Error,
-};
-use tracing::{span, Instrument, Level};
-pub fn add_error_header<B>(mut res: dev::ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
-    res.response_mut().headers_mut().insert(
-        header::CONTENT_TYPE,
-        header::HeaderValue::from_static("Error"),
-    );
+// use actix_web::body::{EitherBody, MessageBody};
+// use actix_web::dev::{Payload, Transform};
+// //         let res = svc.call(req).await?;
+// //         Ok(res)
+// //     })
+// use actix_web::middleware::ErrorHandlerResponse;
+// use actix_web::web::{Bytes, BytesMut};
+// use actix_web::HttpResponseBuilder;
+// use actix_web::{dev, http::header, Result};
+// use actix_web::{
+//     dev::{Service, ServiceRequest, ServiceResponse},
+//     Error,
+// };
+// use tracing::{span, Instrument, Level};
+// pub fn add_error_header<B>(mut res: dev::ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
+//     res.response_mut().headers_mut().insert(
+//         header::CONTENT_TYPE,
+//         header::HeaderValue::from_static("Error"),
+//     );
 
-    Ok(ErrorHandlerResponse::Response(res.map_into_left_body()))
-}
+//     Ok(ErrorHandlerResponse::Response(res.map_into_left_body()))
+// }
 
 // async fn tracing_middleware<S>(req: ServiceRequest, srv: &S) -> Result<ServiceResponse, Error>
 // where
@@ -366,3 +366,71 @@ pub fn add_error_header<B>(mut res: dev::ServiceResponse<B>) -> Result<ErrorHand
 //         Box::pin(fut)
 //     }
 // }
+
+use core::fmt;
+use std::future::{ready, Ready};
+
+use actix_web::error::ErrorUnauthorized;
+use actix_web::{dev::Payload, Error as ActixWebError};
+use actix_web::{http, web, FromRequest, HttpMessage, HttpRequest};
+use secrecy::ExposeSecret;
+use serde::Serialize;
+
+use crate::configuration::SecretSetting;
+use crate::utils::decode_token;
+
+pub struct AuthMiddleware {
+    pub user_id: uuid::Uuid,
+}
+#[derive(Debug, Serialize)]
+struct ErrorResponse {
+    status: String,
+    message: String,
+}
+
+impl fmt::Display for ErrorResponse {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", serde_json::to_string(&self).unwrap())
+    }
+}
+impl FromRequest for AuthMiddleware {
+    type Error = ActixWebError;
+    type Future = Ready<Result<Self, Self::Error>>;
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+        let data = req.app_data::<web::Data<SecretSetting>>().unwrap();
+
+        let token = req
+            .cookie("token")
+            .map(|c| c.value().to_string())
+            .or_else(|| {
+                req.headers()
+                    .get(http::header::AUTHORIZATION)
+                    .map(|h| h.to_str().unwrap().split_at(7).1.to_string())
+            });
+
+        if token.is_none() {
+            let json_error = ErrorResponse {
+                status: "fail".to_string(),
+                message: "You are not logged in, please provide token".to_string(),
+            };
+            return ready(Err(ErrorUnauthorized(json_error)));
+        }
+
+        let user_id =
+            match decode_token(&token.unwrap(), data.jwt.secret.expose_secret().as_bytes()) {
+                Ok(id) => id,
+                Err(e) => {
+                    return ready(Err(ErrorUnauthorized(ErrorResponse {
+                        status: "fail".to_string(),
+                        message: e.to_string(),
+                    })))
+                }
+            };
+
+        // let user_id = uuid::Uuid::parse_str(user_id.as_str()).unwrap();
+        req.extensions_mut()
+            .insert::<uuid::Uuid>(user_id.to_owned());
+
+        ready(Ok(AuthMiddleware { user_id }))
+    }
+}

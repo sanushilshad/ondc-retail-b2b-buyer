@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 #[derive(Serialize, Debug)]
 pub struct GenericResponse<D> {
     pub status: bool,
@@ -44,4 +45,16 @@ pub enum Status {
     Inactive,
     Pending,
     Archived,
+}
+
+#[derive(Debug, Eq, PartialEq, Hash, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CommunicationType {
+    Type1,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct JWTClaims {
+    pub sub: Uuid,
+    pub exp: usize,
 }

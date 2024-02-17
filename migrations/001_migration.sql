@@ -1,4 +1,5 @@
 
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TYPE user_type AS ENUM (
   'guest',
   'user',
@@ -17,9 +18,8 @@ CREATE TYPE status AS ENUM (
 
 CREATE TABLE IF NOT EXISTS user_account(
     id uuid PRIMARY KEY,
-    is_test_user boolean NOT NULL DEFAULT false,
+    is_test_user BOOLEAN NOT NULL DEFAULT false,
     username TEXT NOT NULL UNIQUE,
-    user_type user_type DEFAULT 'user'::user_type,
     international_dialing_code TEXT NOT NULL,
     mobile_no TEXT NOT NULL,
     email TEXT NOT NULL,
@@ -27,14 +27,14 @@ CREATE TABLE IF NOT EXISTS user_account(
     user_account_number TEXT NOT NULL,
     alt_user_account_number TEXT NOT NULL,
     is_active status DEFAULT 'active'::status,
-    created_by uuid not null,
-    vectors jsonb not null,
+    created_by uuid NOT NULL,
+    vectors jsonb NOT NULL,
     updated_by uuid,
     deleted_by uuid,
-    created_on timestamptz NOT NULL,
-    updated_on timestamptz,
-    deleted_on timestamptz,
-    is_deleted boolean not null DEFAULT false
+    created_on TIMESTAMPTZ NOT NULL,
+    updated_on TIMESTAMPTZ,
+    deleted_on TIMESTAMPTZ,
+    is_deleted BOOLEAN NOT NULL DEFAULT false
 );
 
 CREATE TYPE "user_auth_identifier_scope" AS ENUM (
@@ -55,16 +55,16 @@ CREATE TABLE IF NOT EXISTS auth_mechanism (
   user_id uuid NOT NULL,
   auth_scope user_auth_identifier_scope NOT NULL,
   auth_identifier text NOT NULL,
-  secret text,
-  valid_upto timestamptz,
-  is_active boolean not null DEFAULT false,
-  created_at timestamptz,
-  updated_at timestamptz,
-  deleted_at timestamptz,
-  created_by text,
-  updated_by text,
-  deleted_by text,
-  is_deleted boolean DEFAULT false
+  secret TEXT,
+  valid_upto TIMESTAMPTZ,
+  is_active BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ,
+  deleted_at TIMESTAMPTZ,
+  created_by TEXT,
+  updated_by TEXT,
+  deleted_by TEXT,
+  is_deleted BOOLEAN DEFAULT false
 );
 
 ALTER TABLE auth_mechanism ADD CONSTRAINT fk_auth_user FOREIGN KEY (user_id) REFERENCES user_account (id) ON DELETE CASCADE;
@@ -87,13 +87,64 @@ CREATE TYPE customer_type AS ENUM (
 
 CREATE TABLE role (
   id uuid PRIMARY KEY,
-  role_name text NOT NULL,
+  role_name TEXT NOT NULL,
   role_status status,
-  created_at timestamptz,
-  updated_at timestamptz,
-  deleted_at timestamptz,
-  created_by text not null,
-  updated_by text,
-  deleted_by text,
-  is_deleted boolean DEFAULT false
+  created_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ,
+  deleted_at TIMESTAMPTZ,
+  created_by TEXT NOT NULL,
+  updated_by TEXT,
+  deleted_by TEXT,
+  is_deleted BOOLEAN DEFAULT false
 );
+
+ALTER TABLE role ADD CONSTRAINT unique_role_name UNIQUE (role_name);
+
+CREATE TABLE user_role (
+  id uuid PRIMARY KEY,
+  user_id uuid NOT NULL,
+  role_id uuid NOT NULL,
+  created_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ,
+  deleted_at TIMESTAMPTZ,
+  created_by TEXT NOT NULL,
+  updated_by TEXT,
+  deleted_by TEXT,
+  is_deleted BOOLEAN
+);
+
+ALTER TABLE user_role ADD CONSTRAINT fk_role_id FOREIGN KEY ("role_id") REFERENCES role ("id") ON DELETE CASCADE;
+ALTER TABLE user_role ADD CONSTRAINT fk_user_id FOREIGN KEY ("user_id") REFERENCES user_account ("id") ON DELETE CASCADE;
+
+
+CREATE TABLE permission (
+  id uuid PRIMARY KEY,
+  permission_name TEXT,
+  permission_description TEXT,
+  created_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ,
+  deleted_at TIMESTAMPTZ,
+  created_by TEXT,
+  updated_by TEXT,
+  deleted_by TEXT,
+  is_deleted BOOLEAN
+);
+
+CREATE TABLE role_permission (
+  id uuid PRIMARY KEY,
+  role_id uuid,
+  permission_id uuid,
+  created_at TEXT,
+  updated_at TIMESTAMPTZ,
+  deleted_at TIMESTAMPTZ,
+  created_by TEXT,
+  updated_by TEXT,
+  deleted_by TEXT,
+  is_deleted BOOLEAN
+);
+
+
+ALTER TABLE role_permission ADD CONSTRAINT "fk_permission_id" FOREIGN KEY ("permission_id") REFERENCES permission ("id") ON DELETE CASCADE;
+ALTER TABLE role_permission ADD CONSTRAINT "fk_role_id" FOREIGN KEY ("role_id") REFERENCES role ("id") ON DELETE CASCADE;
+ALTER TABLE permission ADD CONSTRAINT permission_name UNIQUE (permission_name);
+ALTER TABLE role_permission ADD CONSTRAINT permission_role_id UNIQUE (permission_id, role_id);

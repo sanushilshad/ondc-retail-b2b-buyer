@@ -1,10 +1,26 @@
 use crate::configuration::DatabaseSettings;
+use crate::configuration::EmailClientSettings;
+use crate::email_client::GenericEmailService;
+use crate::email_client::SmtpEmailClient;
+use crate::schemas::CommunicationType;
+use crate::schemas::JWTClaims;
 use actix_web::rt::task::JoinHandle;
+use chrono::DateTime;
+use chrono::Duration;
+use chrono::Utc;
+use jsonwebtoken::{
+    decode, encode, Algorithm as JWTAlgorithm, DecodingKey, EncodingKey, Header, Validation,
+};
+use secrecy::ExposeSecret;
+use secrecy::Secret;
 use serde::Serialize;
 use sqlx::{Connection, Executor, PgConnection, PgPool};
+use std::collections::HashMap;
 use std::fmt;
 use std::fs;
 use std::io;
+use std::sync::Arc;
+use uuid::Uuid;
 pub fn error_chain_fmt(
     e: &impl std::error::Error,
     f: &mut std::fmt::Formatter<'_>,
@@ -120,4 +136,54 @@ macro_rules! impl_serialize_format {
             }
         }
     };
+}
+
+pub struct EmailTypeMapping {
+    pub type_1: HashMap<CommunicationType, Arc<dyn GenericEmailService>>,
+}
+pub fn create_email_type_pool(
+    email_config: EmailClientSettings,
+) -> HashMap<CommunicationType, Arc<dyn GenericEmailService>> {
+    let smtp_client =
+        Arc::new(SmtpEmailClient::new(email_config).expect("Failed to create SmtpEmailClient"))
+            as Arc<dyn GenericEmailService>;
+
+    let mut email_services = HashMap::new();
+    email_services.insert(CommunicationType::Type1, smtp_client.clone());
+
+    email_services
+}
+
+pub fn generate_jwt_token_for_user(
+    user_id: Uuid,
+    expiry_date: Option<DateTime<Utc>>,
+    secret: &Secret<String>,
+) -> Result<Secret<String>, anyhow::Error> {
+    let expiration = match expiry_date {
+        Some(expiry) => expiry.timestamp() as usize,
+        None => Utc::now()
+            .checked_add_signed(Duration::minutes(60))
+            .expect("valid timestamp")
+            .timestamp() as usize,
+    };
+    let claims: JWTClaims = JWTClaims {
+        sub: user_id,
+        exp: expiration as usize,
+    };
+    let header = Header::new(JWTAlgorithm::HS256);
+    let encoding_key = EncodingKey::from_secret(secret.expose_secret().as_bytes());
+    let token: String = encode(&header, &claims, &encoding_key).expect("Failed to generate token");
+    return Ok(Secret::new(token));
+}
+
+pub fn decode_token<T: Into<String>>(token: T, secret: &[u8]) -> Result<Uuid, anyhow::Error> {
+    let decoded = decode::<JWTClaims>(
+        &token.into(),
+        &DecodingKey::from_secret(secret),
+        &Validation::new(JWTAlgorithm::HS256),
+    );
+    match decoded {
+        Ok(token) => Ok(token.claims.sub),
+        Err(e) => Err(e.into()),
+    }
 }
