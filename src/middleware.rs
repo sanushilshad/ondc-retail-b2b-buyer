@@ -367,38 +367,195 @@
 //     }
 // }
 
-use core::fmt;
 use std::future::{ready, Ready};
+use std::rc::Rc;
+use std::task::{Context, Poll};
 
+use actix_web::dev::{Service, ServiceRequest, ServiceResponse, Transform};
 use actix_web::error::ErrorUnauthorized;
-use actix_web::{dev::Payload, Error as ActixWebError};
-use actix_web::{http, web, FromRequest, HttpMessage, HttpRequest};
-use secrecy::ExposeSecret;
-use serde::Serialize;
+use actix_web::{http, web, HttpMessage, HttpResponse};
+use futures::future::LocalBoxFuture;
+use futures::FutureExt;
+use sqlx::PgPool;
 
 use crate::configuration::SecretSetting;
+use crate::routes::user::errors::AuthError;
+use crate::routes::user::utils::get_user;
+use crate::schemas::GenericResponse;
 use crate::utils::decode_token;
 
-pub struct AuthMiddleware {
-    pub user_id: uuid::Uuid,
-}
-#[derive(Debug, Serialize)]
-struct ErrorResponse {
-    status: String,
-    message: String,
-}
+// pub struct AuthMiddleware {
+//     pub user_id: uuid::Uuid,
+// }
 
-impl fmt::Display for ErrorResponse {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", serde_json::to_string(&self).unwrap())
+// pub struct AuthMiddleware<S> {
+//     service: Rc<S>,
+// }
+// impl FromRequest for AuthMiddleware {
+//     type Error = ActixWebError;
+//     type Future = Ready<Result<Self, Self::Error>>;
+//     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+//         let data = req.app_data::<web::Data<SecretSetting>>().unwrap();
+
+//         let token = req
+//             .cookie("token")
+//             .map(|c| c.value().to_string())
+//             .or_else(|| {
+//                 req.headers()
+//                     .get(http::header::AUTHORIZATION)
+//                     .map(|h| h.to_str().unwrap().split_at(7).1.to_string())
+//             });
+
+//         if token.is_none() {
+//             let json_error = ErrorResponse {
+//                 status: "fail".to_string(),
+//                 message: "You are not logged in, please provide token".to_string(),
+//             };
+//             return ready(Err(ErrorUnauthorized(json_error)));
+//         }
+
+//         let user_id =
+//             match decode_token(&token.unwrap(), data.jwt.secret.expose_secret().as_bytes()) {
+//                 Ok(id) => id,
+//                 Err(e) => {
+//                     return ready(Err(ErrorUnauthorized(ErrorResponse {
+//                         status: "fail".to_string(),
+//                         message: e.to_string(),
+//                     })))
+//                 }
+//             };
+
+//         // let user_id = uuid::Uuid::parse_str(user_id.as_str()).unwrap();
+//         req.extensions_mut()
+//             .insert::<uuid::Uuid>(user_id.to_owned());
+
+//         ready(Ok(AuthMiddleware { user_id }))
+//     }
+// }
+
+// pub struct AuthMiddleware<S> {
+//     service: Rc<S>,
+// }
+// use crate::routes::user::schemas::UserAccount;
+// impl<S> Service<ServiceRequest> for AuthMiddleware<S>
+// where
+//     S: Service<
+//             ServiceRequest,
+//             Response = ServiceResponse<actix_web::body::BoxBody>,
+//             Error = actix_web::Error,
+//         > + 'static,
+// {
+//     type Response = ServiceResponse<actix_web::body::BoxBody>;
+//     type Error = actix_web::Error;
+//     type Future = LocalBoxFuture<'static, Result<Self::Response, actix_web::Error>>;
+
+//     /// Polls the readiness of the wrapped service.
+//     fn poll_ready(&self, ctx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+//         self.service.poll_ready(ctx)
+//     }
+
+//     /// Handles incoming requests.
+//     fn call(&self, req: ServiceRequest) -> Self::Future {
+//         // Attempt to extract token from cookie or authorization header
+//         let token = req
+//             .cookie("token")
+//             .map(|c| c.value().to_string())
+//             .or_else(|| {
+//                 req.headers()
+//                     .get(http::header::AUTHORIZATION)
+//                     .map(|h| h.to_str().unwrap().split_at(7).1.to_string())
+//             });
+
+//         // If token is missing, return unauthorized error
+//         if token.is_none() {
+//             let json_error =
+//                 AuthError::ValidationStringError("Authorization token is missing".to_string());
+//             return Box::pin((ready(Err(ErrorUnauthorized(json_error)))));
+//         }
+
+//         let secret_state = req.app_data::<web::Data<SecretSetting>>().unwrap();
+
+//         // Decode token and handle errors
+//         let user_id = match decode_token(&token.unwrap(), &secret_state.jwt.secret) {
+//             Ok(id) => id,
+//             Err(e) => {
+//                 return Box::pin(ready(Err(ErrorUnauthorized(
+//                     AuthError::InvalidCredentials(e),
+//                 ))))
+//             }
+//         };
+
+//         // let cloned_app_state = secret_state.clone();
+//         let srv = Rc::clone(&self.service);
+
+//         // Handle user extraction and request processing
+//         async move {
+//             let db_pool = &req.app_data::<web::Data<PgPool>>().unwrap();
+//             let user = get_user(vec![&user_id.to_string()], &db_pool)
+//                 .await
+//                 .map_err(|e| AuthError::InvalidCredentials(e))?;
+
+//             // Insert user information into request extensions
+//             req.extensions_mut().insert::<UserAccount>(user);
+
+//             // Call the wrapped service to handle the request
+//             let res = srv.call(req).await?;
+//             Ok(res)
+//         }
+//         .boxed_local()
+//     }
+// }
+
+// /// Middleware factory for requiring authentication.
+// pub struct RequireAuth;
+
+// impl<S> Transform<S, ServiceRequest> for RequireAuth
+// where
+//     S: Service<
+//             ServiceRequest,
+//             Response = ServiceResponse<actix_web::body::BoxBody>,
+//             Error = actix_web::Error,
+//         > + 'static,
+// {
+//     type Response = ServiceResponse<actix_web::body::BoxBody>;
+//     type Error = actix_web::Error;
+//     type Transform = AuthMiddleware<S>;
+//     type InitError = ();
+//     type Future = Ready<Result<Self::Transform, Self::InitError>>;
+
+//     /// Creates and returns a new AuthMiddleware wrapped in a Result.
+//     fn new_transform(&self, service: S) -> Self::Future {
+//         // Wrap the AuthMiddleware instance in a Result and return it.
+//         ready(Ok(AuthMiddleware {
+//             service: Rc::new(service),
+//         }))
+//     }
+// }
+
+pub struct AuthMiddleware<S> {
+    service: Rc<S>,
+}
+use crate::routes::user::schemas::UserAccount;
+impl<S> Service<ServiceRequest> for AuthMiddleware<S>
+where
+    S: Service<
+            ServiceRequest,
+            Response = ServiceResponse<actix_web::body::BoxBody>,
+            Error = actix_web::Error,
+        > + 'static,
+{
+    type Response = ServiceResponse<actix_web::body::BoxBody>;
+    type Error = actix_web::Error;
+    type Future = LocalBoxFuture<'static, Result<Self::Response, actix_web::Error>>;
+
+    /// Polls the readiness of the wrapped service.
+    fn poll_ready(&self, ctx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.service.poll_ready(ctx)
     }
-}
-impl FromRequest for AuthMiddleware {
-    type Error = ActixWebError;
-    type Future = Ready<Result<Self, Self::Error>>;
-    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        let data = req.app_data::<web::Data<SecretSetting>>().unwrap();
 
+    /// Handles incoming requests.
+    fn call(&self, req: ServiceRequest) -> Self::Future {
+        // Attempt to extract token from cookie or authorization header
         let token = req
             .cookie("token")
             .map(|c| c.value().to_string())
@@ -408,29 +565,75 @@ impl FromRequest for AuthMiddleware {
                     .map(|h| h.to_str().unwrap().split_at(7).1.to_string())
             });
 
+        // If token is missing, return unauthorized error
+
         if token.is_none() {
-            let json_error = ErrorResponse {
-                status: "fail".to_string(),
-                message: "You are not logged in, please provide token".to_string(),
-            };
-            return ready(Err(ErrorUnauthorized(json_error)));
+            let (request, _pl) = req.into_parts();
+            // let json_error =
+            //     AuthError::ValidationStringError("Authorization token is missing".to_string());
+            let generic_error =
+                GenericResponse::error(&"Authorization token is missing", &"400", Some(()));
+            let response = HttpResponse::Unauthorized()
+                .json(generic_error)
+                .map_into_right_body();
+            return Box::pin(async { Ok(ServiceResponse::new(request, response)) });
         }
 
-        let user_id =
-            match decode_token(&token.unwrap(), data.jwt.secret.expose_secret().as_bytes()) {
-                Ok(id) => id,
-                Err(e) => {
-                    return ready(Err(ErrorUnauthorized(ErrorResponse {
-                        status: "fail".to_string(),
-                        message: e.to_string(),
-                    })))
-                }
-            };
+        let secret_state = req.app_data::<web::Data<SecretSetting>>().unwrap();
 
-        // let user_id = uuid::Uuid::parse_str(user_id.as_str()).unwrap();
-        req.extensions_mut()
-            .insert::<uuid::Uuid>(user_id.to_owned());
+        // Decode token and handle errors
+        let user_id = match decode_token(&token.unwrap(), &secret_state.jwt.secret) {
+            Ok(id) => id,
+            Err(e) => {
+                return Box::pin(ready(Err(ErrorUnauthorized(
+                    AuthError::InvalidCredentials(e),
+                ))))
+            }
+        };
 
-        ready(Ok(AuthMiddleware { user_id }))
+        // let cloned_app_state = secret_state.clone();
+        let srv = Rc::clone(&self.service);
+
+        // Handle user extraction and request processing
+        async move {
+            let db_pool = &req.app_data::<web::Data<PgPool>>().unwrap();
+            let user = get_user(vec![&user_id.to_string()], &db_pool)
+                .await
+                .map_err(|e| AuthError::InvalidCredentials(e))?;
+
+            // Insert user information into request extensions
+            req.extensions_mut().insert::<UserAccount>(user);
+
+            // Call the wrapped service to handle the request
+            let res = srv.call(req).await?;
+            Ok(res)
+        }
+        .boxed_local()
+    }
+}
+
+/// Middleware factory for requiring authentication.
+pub struct RequireAuth;
+
+impl<S> Transform<S, ServiceRequest> for RequireAuth
+where
+    S: Service<
+            ServiceRequest,
+            Response = ServiceResponse<actix_web::body::BoxBody>,
+            Error = actix_web::Error,
+        > + 'static,
+{
+    type Response = ServiceResponse<actix_web::body::BoxBody>;
+    type Error = actix_web::Error;
+    type Transform = AuthMiddleware<S>;
+    type InitError = ();
+    type Future = Ready<Result<Self::Transform, Self::InitError>>;
+
+    /// Creates and returns a new AuthMiddleware wrapped in a Result.
+    fn new_transform(&self, service: S) -> Self::Future {
+        // Wrap the AuthMiddleware instance in a Result and return it.
+        ready(Ok(AuthMiddleware {
+            service: Rc::new(service),
+        }))
     }
 }

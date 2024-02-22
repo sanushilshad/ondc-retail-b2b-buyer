@@ -1,8 +1,7 @@
 use super::errors::{AuthError, UserRegistrationError};
-use super::models::UserAccountModel;
+use super::models::{UserRoleModel, UserAccountModel};
 use super::schemas::{
-    AuthData, AuthMechanism, AuthenticateRequest, AuthenticationScope, CreateUserAccount,
-    MaskingType, UserAccount, UserVectors,
+    AuthData, AuthMechanism, AuthenticateRequest, AuthenticationScope, CreateUserAccount, MaskingType, UserAccount, UserRole, UserType, UserVectors
 };
 use crate::schemas::Status;
 use crate::utils::{generate_jwt_token_for_user, spawn_blocking_with_tracing};
@@ -210,6 +209,16 @@ pub async fn fetch_user(
     Ok(row)
 }
 
+pub async fn get_user(value_list: Vec<&str>, pool: &PgPool) -> Result<UserAccount, anyhow::Error> {
+    match fetch_user(value_list, &pool).await {
+        Ok(Some(user_obj)) => {
+            let user_account = get_user_account_from_model(user_obj)?;
+            Ok(user_account)
+        }
+        Ok(None) | Err(_) => Err(anyhow!("Internal Server Error")),
+    }
+}
+
 pub fn get_auth_data(
     user_model: UserAccountModel,
     jwt_secret: &Secret<String>,
@@ -304,6 +313,79 @@ pub async fn save_user(
     Ok(user_id)
 }
 
+
+#[tracing::instrument(name = "get_role_model", skip(pool))]
+pub async fn get_role_model(pool: &PgPool, role_type: &UserType) -> Result<UserRoleModel, anyhow::Error> {
+    let row: UserRoleModel = sqlx::query_as!(
+        UserRoleModel,
+        r#"SELECT id, role_name, role_status as "role_status!:Status", created_at, created_by, is_deleted from role where role_name  = $1"#,
+        role_type.to_string()    
+    )
+    .fetch_one(pool)
+    .await?;
+
+    Ok(row)
+}
+#[tracing::instrument(name = "get_role", skip(pool))]
+pub async fn get_role(pool: &PgPool, role_type: &UserType) -> Result<UserRole, anyhow::Error> {
+    let role_model = get_role_model(&pool, &role_type).await?;
+    Ok(
+        UserRole{
+            id: role_model.id,
+            role_name: role_model.role_name,
+            role_status: role_model.role_status,
+        }
+    )
+}
+
+#[tracing::instrument(name = "save user account role", skip(transaction))]
+pub async fn save_user_role(
+    transaction: &mut Transaction<'_, Postgres>,
+    user_id: Uuid,
+    role_id: Uuid,
+) -> Result<Uuid, anyhow::Error> {
+    let user_role_id = Uuid::new_v4();
+    let query = sqlx::query!(
+        r#"
+        INSERT INTO user_role (id, user_id, role_id, created_at, created_by)
+        VALUES ($1, $2, $3, $4, $5)
+        "#,
+        user_role_id,
+        user_id,
+        role_id,
+        Utc::now(),
+        user_id
+    );
+
+    transaction.execute(query).await.map_err(|e| {
+        tracing::error!("Failed to execute query: {:?}", e);
+        UserRegistrationError::DatabaseError(
+            "A database failure occured while saving user account".to_string(),
+            e.into(),
+        )
+    })?;
+    Ok(user_role_id)
+}
+
+
+
+// #[tracing::instrument(name = "Get user Account", skip(pool))]
+// pub async fn fetch_user(
+//     value_list: Vec<&str>,
+//     pool: &PgPool,
+// ) -> Result<Option<UserAccountModel>, anyhow::Error> {
+//     let val_list: Vec<String> = value_list.iter().map(|&s| s.to_string()).collect();
+
+//     let row: Option<UserAccountModel> = sqlx::query_as!(
+//         UserAccountModel,
+//         r#"SELECT id, username, is_test_user, mobile_no, email, is_active as "is_active!:Status",  vectors as "vectors!:sqlx::types::Json<Vec<Option<UserVectors>>>", display_name, international_dialing_code, user_account_number, alt_user_account_number from user_account where email  = ANY($1) OR mobile_no  = ANY($1) OR id::text  = ANY($1)"#,
+//         &val_list
+//     )
+//     .fetch_optional(pool)
+//     .await?;
+
+//     Ok(row)
+// }
 // #[tracing::instrument(name = "register user", skip(pool))]
 // pub async fn register_user(
 //     user_account: CreateUserAccount,
@@ -368,11 +450,15 @@ fn compute_password_hash(password: Secret<String>) -> Result<Secret<String>, any
 pub async fn save_auth_mechanism(
     transaction: &mut Transaction<'_, Postgres>,
     user_id: Uuid,
-    user_account: CreateUserAccount,
+    user_account: &CreateUserAccount,
 ) -> Result<(), anyhow::Error> {
     let current_utc = Utc::now();
+    let password = user_account.password.clone();
     let password_hash =
-        spawn_blocking_with_tracing(move || compute_password_hash(user_account.password))
+        spawn_blocking_with_tracing(move || {
+
+            compute_password_hash(password)
+        })
             .await?
             .context("Failed to hash password")?;
     // let password_hash = compute_password_hash(user_account.password)?;
@@ -451,7 +537,9 @@ pub async fn register_user(
         }
     }
     let uuid = save_user(&mut transaction, &user_account).await?;
-    save_auth_mechanism(&mut transaction, uuid, user_account).await?;
+    save_auth_mechanism(&mut transaction, uuid, &user_account).await?;
+    let role_obj = get_role(pool, &user_account.user_type.into()).await?;
+    save_user_role(&mut transaction, uuid, role_obj.id).await?;
     tracing::info!("Successfully created user account {}", uuid);
 
     transaction

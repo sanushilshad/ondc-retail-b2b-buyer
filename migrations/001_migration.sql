@@ -92,9 +92,9 @@ CREATE TABLE role (
   created_at TIMESTAMPTZ,
   updated_at TIMESTAMPTZ,
   deleted_at TIMESTAMPTZ,
-  created_by TEXT NOT NULL,
-  updated_by TEXT,
-  deleted_by TEXT,
+  created_by uuid NOT NULL,
+  updated_by uuid,
+  deleted_by uuid,
   is_deleted BOOLEAN DEFAULT false
 );
 
@@ -104,18 +104,18 @@ CREATE TABLE user_role (
   id uuid PRIMARY KEY,
   user_id uuid NOT NULL,
   role_id uuid NOT NULL,
-  created_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL,
   updated_at TIMESTAMPTZ,
   deleted_at TIMESTAMPTZ,
-  created_by TEXT NOT NULL,
-  updated_by TEXT,
-  deleted_by TEXT,
-  is_deleted BOOLEAN
+  created_by uuid NOT NULL,
+  updated_by uuid,
+  deleted_by uuid,
+  is_deleted BOOLEAN NOT NULL
 );
 
 ALTER TABLE user_role ADD CONSTRAINT fk_role_id FOREIGN KEY ("role_id") REFERENCES role ("id") ON DELETE CASCADE;
 ALTER TABLE user_role ADD CONSTRAINT fk_user_id FOREIGN KEY ("user_id") REFERENCES user_account ("id") ON DELETE CASCADE;
-
+ALTER TABLE user_role ADD CONSTRAINT user_role_pk UNIQUE (user_id, role_id);
 
 CREATE TABLE permission (
   id uuid PRIMARY KEY,
@@ -124,9 +124,9 @@ CREATE TABLE permission (
   created_at TIMESTAMPTZ,
   updated_at TIMESTAMPTZ,
   deleted_at TIMESTAMPTZ,
-  created_by TEXT,
-  updated_by TEXT,
-  deleted_by TEXT,
+  created_by uuid,
+  updated_by uuid,
+  deleted_by uuid,
   is_deleted BOOLEAN
 );
 
@@ -134,12 +134,12 @@ CREATE TABLE role_permission (
   id uuid PRIMARY KEY,
   role_id uuid,
   permission_id uuid,
-  created_at TEXT,
+  created_at TIMESTAMPTZ,
   updated_at TIMESTAMPTZ,
   deleted_at TIMESTAMPTZ,
-  created_by TEXT,
-  updated_by TEXT,
-  deleted_by TEXT,
+  created_by uuid,
+  updated_by uuid,
+  deleted_by uuid,
   is_deleted BOOLEAN
 );
 

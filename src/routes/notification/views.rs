@@ -2,6 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use actix_web::web;
 
+use crate::routes::user::schemas::UserAccount;
 use crate::{
     email_client::GenericEmailService,
     schemas::{CommunicationType, GenericResponse},
@@ -22,6 +23,7 @@ use super::{errors::OTPError, schemas::OTPRequestBody, utils::send_email_backgro
 pub async fn send_email_otp(
     email_client: web::Data<HashMap<CommunicationType, Arc<dyn GenericEmailService>>>,
     req_body: web::Json<OTPRequestBody>,
+    user: UserAccount,
 ) -> Result<web::Json<GenericResponse<()>>, OTPError> {
     if let Some(email_service) = email_client.get(&CommunicationType::Type1) {
         tokio::spawn(send_email_background(

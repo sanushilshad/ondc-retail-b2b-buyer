@@ -1,10 +1,11 @@
 mod notification;
 mod product;
 mod routes;
-mod user;
+pub(crate) mod user;
 mod utils;
 use notification::notification_route;
 use product::product_route;
 pub use routes::*;
-use user::user_route;
+use user::*;
+
 use utils::util_route;

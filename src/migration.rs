@@ -1,5 +1,8 @@
-use crate::configuration::get_configuration;
-use crate::utils::{configure_database, configure_database_using_sqlx};
+use crate::{
+    configuration::get_configuration,
+    utils::{configure_database, configure_database_using_sqlx},
+};
+
 // use rust_test::configuration::get_configuration;
 pub async fn run_migrations() {
     let configuration = get_configuration().expect("Failed to read configuration.");

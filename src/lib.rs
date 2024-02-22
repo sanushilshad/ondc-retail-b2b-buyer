@@ -4,6 +4,7 @@ pub mod domain;
 pub mod email_client;
 pub mod errors;
 pub mod middleware;
+pub mod migration;
 pub mod routes;
 pub mod schemas;
 pub mod session_state;

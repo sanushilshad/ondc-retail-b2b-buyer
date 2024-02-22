@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use serde_json::to_string;
 use uuid::Uuid;
 #[derive(Serialize, Debug)]
 pub struct GenericResponse<D> {
@@ -13,7 +14,11 @@ pub struct GenericResponse<D> {
 //         HttpResponse::Ok().json(self)
 //     }
 // }
-
+// impl<D: Serialize> std::fmt::Display for GenericResponse<D> {
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         write!(f, "{}", serde_json::json!(&self))
+//     }
+// }
 impl<D> GenericResponse<D> {
     // Associated function for creating a success response
     pub fn success(message: &str, data: Option<D>) -> Self {
@@ -36,7 +41,7 @@ impl<D> GenericResponse<D> {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, sqlx::Type)]
+#[derive(Serialize, Deserialize, Debug, sqlx::Type, Clone)]
 #[sqlx(rename_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
 #[sqlx(type_name = "status")]

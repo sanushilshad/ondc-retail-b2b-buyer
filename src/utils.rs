@@ -2,6 +2,7 @@ use crate::configuration::DatabaseSettings;
 use crate::configuration::EmailClientSettings;
 use crate::email_client::GenericEmailService;
 use crate::email_client::SmtpEmailClient;
+use crate::migration;
 use crate::schemas::CommunicationType;
 use crate::schemas::JWTClaims;
 use actix_web::rt::task::JoinHandle;
@@ -15,6 +16,7 @@ use secrecy::ExposeSecret;
 use secrecy::Secret;
 use serde::Serialize;
 use sqlx::{Connection, Executor, PgConnection, PgPool};
+use std::any::Any;
 use std::collections::HashMap;
 use std::fmt;
 use std::fs;
@@ -176,14 +178,34 @@ pub fn generate_jwt_token_for_user(
     return Ok(Secret::new(token));
 }
 
-pub fn decode_token<T: Into<String>>(token: T, secret: &[u8]) -> Result<Uuid, anyhow::Error> {
+pub fn decode_token<T: Into<String>>(
+    token: T,
+    secret: &Secret<String>,
+) -> Result<Uuid, anyhow::Error> {
+    let decoding_key = DecodingKey::from_secret(secret.expose_secret().as_bytes());
     let decoded = decode::<JWTClaims>(
         &token.into(),
-        &DecodingKey::from_secret(secret),
+        &decoding_key,
         &Validation::new(JWTAlgorithm::HS256),
     );
     match decoded {
         Ok(token) => Ok(token.claims.sub),
         Err(e) => Err(e.into()),
     }
+}
+
+pub async fn run_custom_commands(args: Vec<String>) -> Result<(), anyhow::Error> {
+    if args.len() > 1 {
+        if args[1] == "migrate" {
+            migration::run_migrations().await;
+        }
+
+        if args[1] == "sqlx_migrate" {
+            migration::migrate_using_sqlx().await;
+        }
+    } else {
+        println!("Invalid command. Use Enter a valid command");
+    }
+
+    Ok(())
 }
