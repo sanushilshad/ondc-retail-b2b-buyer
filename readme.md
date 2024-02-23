@@ -53,7 +53,7 @@ application:
 
 ```
 
-- In order to SQL queries at compile time, set the below config in `.env` file:
+- In order to verify SQL queries at compile time, set the below config in `.env` file:
 ```
 export DATABASE_URL="postgres://postgres:{password}@{host}:{port}/{db_name}"
 
