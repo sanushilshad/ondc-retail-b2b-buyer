@@ -41,7 +41,7 @@ impl<D> GenericResponse<D> {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, sqlx::Type, Clone)]
+#[derive(Serialize, Deserialize, Debug, sqlx::Type, Clone, PartialEq)]
 #[sqlx(rename_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
 #[sqlx(type_name = "status")]

@@ -37,6 +37,8 @@ pub struct UserAccountModel {
     pub user_account_number: String,
     pub alt_user_account_number: String,
     pub is_test_user: bool,
+    pub is_deleted: bool,
+    pub role_name: String,
 }
 
 // impl FromRow<'_, PgRow> for UserAccount {

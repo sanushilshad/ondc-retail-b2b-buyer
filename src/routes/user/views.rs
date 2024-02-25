@@ -1,8 +1,8 @@
 use super::errors::UserRegistrationError;
-use super::schemas::{AuthData, AuthenticateRequest, CreateUserAccount};
+use super::schemas::{AuthData, AuthenticateRequest, CreateUserAccount, UserType};
 use super::utils::{fetch_user, get_auth_data, register_user};
 use super::{errors::AuthError, utils::validate_credentials};
-use crate::configuration::SecretSetting;
+use crate::configuration::{SecretSetting, UserSettings};
 use crate::schemas::GenericResponse;
 // use crate::session_state::TypedSession;
 use actix_web::{web, Result};
@@ -43,18 +43,27 @@ pub async fn authenticate(
 pub async fn register(
     body: web::Json<CreateUserAccount>,
     pool: web::Data<PgPool>,
+    user: web::Data<UserSettings>,
 ) -> Result<web::Json<GenericResponse<()>>, UserRegistrationError> {
-    match register_user(body.0, &pool).await {
-        Ok(uuid) => {
-            tracing::Span::current().record("user_id", &tracing::field::display(&uuid));
-            Ok(web::Json(GenericResponse::success(
-                "Sucessfully Registered User",
-                Some(()),
-            )))
-        }
-        Err(e) => {
-            tracing::error!("Failed to register user: {:?}", e);
-            return Err(e);
+    // if let UserType::Admin | UserType::Superadmin = body.user_type {
+    let admin_role = vec![UserType::Admin, UserType::Superadmin];
+    if admin_role.contains(&body.user_type) && !user.admin_list.contains(&body.mobile_no) {
+        return Err(UserRegistrationError::InsufficientPrevilegeError(
+            "Insufficient previlege to register Admin/Superadmin".to_string(),
+        ));
+    } else {
+        match register_user(body.0, &pool).await {
+            Ok(uuid) => {
+                tracing::Span::current().record("user_id", &tracing::field::display(&uuid));
+                Ok(web::Json(GenericResponse::success(
+                    "Sucessfully Registered User",
+                    Some(()),
+                )))
+            }
+            Err(e) => {
+                tracing::error!("Failed to register user: {:?}", e);
+                return Err(e);
+            }
         }
     }
 }

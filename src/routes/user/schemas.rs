@@ -62,7 +62,7 @@ pub struct AuthenticateRequest {
 //     data: AuthData,
 // }
 
-#[derive(Serialize, Deserialize, Debug, sqlx::Type)]
+#[derive(Serialize, Deserialize, Debug, sqlx::Type, PartialEq)]
 #[sqlx(type_name = "user_type", rename_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
 pub enum UserType {
@@ -79,6 +79,12 @@ impl fmt::Display for UserType {
         write!(f, "{:?}", self)
         // or, alternatively:
         // fmt::Debug::fmt(self, f)
+    }
+}
+
+impl UserType {
+    pub fn to_lowercase_string(&self) -> String {
+        format!("{:?}", self).to_lowercase()
     }
 }
 
@@ -133,7 +139,7 @@ pub struct CreateUserAccount {
     pub email: EmailObject, //NOTE: email_address crate can be used if needed,
     pub display_name: String,
     pub is_test_user: bool,
-    pub user_type: CreateUserType,
+    pub user_type: UserType,
 }
 
 #[derive(Serialize, Deserialize, Debug, sqlx::Type, Clone)]
@@ -174,6 +180,8 @@ pub struct UserAccount {
     pub user_account_number: String,
     pub alt_user_account_number: String,
     pub is_test_user: bool,
+    pub is_deleted: bool,
+    pub user_role: String,
 }
 
 impl FromRequest for UserAccount {
@@ -192,7 +200,7 @@ impl FromRequest for UserAccount {
         let result = match value {
             Some(user) => Ok(user),
             None => Err(ErrorInternalServerError(AuthError::UnexpectedStringError(
-                ("Somrthing went wrong".to_string()),
+                "Somrthing went wrong".to_string(),
             ))),
         };
 
@@ -231,4 +239,5 @@ pub struct UserRole {
     pub id: Uuid,
     pub role_name: String,
     pub role_status: Status,
+    pub is_deleted: bool,
 }

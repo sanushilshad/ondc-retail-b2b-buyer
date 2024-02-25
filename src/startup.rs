@@ -1,7 +1,8 @@
-use crate::configuration::{DatabaseSettings, SecretSetting};
+use crate::configuration::{DatabaseSettings, SecretSetting, UserSettings};
 use crate::email_client::GenericEmailService;
+use crate::middleware::SaveRequestResponse;
 // use crate::middleware::tracing_middleware;
-use crate::routes::main_route;
+use crate::routes::{main_route, user};
 use crate::schemas::CommunicationType;
 use crate::utils::create_email_type_pool;
 
@@ -45,7 +46,7 @@ impl Application {
             connection_pool,
             email_type_pool,
             configuration.secret,
-            configuration.redis.get_string(),
+            configuration.user,
         )
         .await?;
         // We "save" the bound port in one of `Application`'s fields
@@ -72,11 +73,12 @@ async fn run(
     db_pool: PgPool,
     email_type_pool: HashMap<CommunicationType, Arc<dyn GenericEmailService>>,
     secret: SecretSetting,
-    _redis_uri: Secret<String>,
+    user_setting: UserSettings,
 ) -> Result<Server, anyhow::Error> {
     let db_pool = web::Data::new(db_pool);
     let email_client = web::Data::new(email_type_pool);
     let secret_obj = web::Data::new(secret);
+    let user_setting_obj = web::Data::new(user_setting);
     // let _secret_key = Key::from(hmac_secret.expose_secret().as_bytes());
     let server = HttpServer::new(move || {
         App::new()
@@ -88,7 +90,9 @@ async fn run(
             .app_data(db_pool.clone())
             .app_data(email_client.clone())
             .app_data(secret_obj.clone())
+            .app_data(user_setting_obj.clone())
             .configure(main_route)
+            .wrap(SaveRequestResponse)
     })
     .workers(4)
     .listen(listener)?

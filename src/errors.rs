@@ -1,3 +1,5 @@
+use crate::utils::error_chain_fmt;
+
 #[derive(Debug)]
 pub enum DatabaseError {
     MissingDatabasePassword,
@@ -29,3 +31,18 @@ impl std::fmt::Display for DatabaseError {
 }
 
 impl std::error::Error for DatabaseError {}
+
+#[derive(thiserror::Error)]
+
+pub enum CustomJWTTokenError {
+    #[error("Token expired")]
+    Expired,
+    #[error("{0}")]
+    Invalid(String),
+}
+
+impl std::fmt::Debug for CustomJWTTokenError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        error_chain_fmt(self, f)
+    }
+}

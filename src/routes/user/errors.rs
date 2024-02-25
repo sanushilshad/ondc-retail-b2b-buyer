@@ -19,6 +19,8 @@ pub enum AuthError {
     UnexpectedStringError(String),
     #[error("{0}")]
     DatabaseError(String, anyhow::Error),
+    #[error("{0}")]
+    InvalidJWT(String),
 }
 
 impl std::fmt::Debug for AuthError {
@@ -37,6 +39,7 @@ impl ResponseError for AuthError {
             AuthError::ValidationStringError(_) => StatusCode::BAD_REQUEST,
             AuthError::UnexpectedStringError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             AuthError::DatabaseError(_, _) => StatusCode::INTERNAL_SERVER_ERROR,
+            AuthError::InvalidJWT(_) => StatusCode::UNAUTHORIZED,
         }
     }
 
@@ -51,6 +54,7 @@ impl ResponseError for AuthError {
             AuthError::UnexpectedStringError(message) => message.to_string(),
             AuthError::DatabaseError(message, _err) => message.to_string(),
             AuthError::InvalidStringCredentials(message) => message.to_string(),
+            AuthError::InvalidJWT(message) => message.clone(),
         };
 
         HttpResponse::build(status_code).json(GenericResponse::error(
@@ -71,6 +75,10 @@ pub enum UserRegistrationError {
     DuplicateMobileNo(#[source] anyhow::Error),
     #[error("{0}")]
     DatabaseError(String, anyhow::Error),
+    #[error("Insufficient previlege to register Admin/Superadmin")]
+    InsufficientPrevilegeError(String),
+    #[error("Invalid Role")]
+    InvalidRoleError(String),
 }
 
 impl std::fmt::Debug for UserRegistrationError {
@@ -86,6 +94,8 @@ impl ResponseError for UserRegistrationError {
             UserRegistrationError::DuplicateMobileNo(_) => StatusCode::BAD_REQUEST,
             UserRegistrationError::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             UserRegistrationError::DatabaseError(_, _) => StatusCode::INTERNAL_SERVER_ERROR,
+            UserRegistrationError::InsufficientPrevilegeError(_) => StatusCode::UNAUTHORIZED,
+            UserRegistrationError::InvalidRoleError(_) => StatusCode::UNAUTHORIZED,
         }
     }
 
@@ -97,6 +107,8 @@ impl ResponseError for UserRegistrationError {
             | UserRegistrationError::DuplicateMobileNo(inner_error)
             | UserRegistrationError::UnexpectedError(inner_error) => inner_error.to_string(),
             UserRegistrationError::DatabaseError(error_msg, _err) => error_msg.clone(),
+            UserRegistrationError::InsufficientPrevilegeError(error_msg) => error_msg.to_string(),
+            UserRegistrationError::InvalidRoleError(error_msg) => error_msg.to_string(),
         };
 
         HttpResponse::build(status_code).json(GenericResponse::error(

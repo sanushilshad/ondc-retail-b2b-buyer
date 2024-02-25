@@ -188,6 +188,8 @@ fn get_user_account_from_model(user_model: UserAccountModel) -> Result<UserAccou
         user_account_number: user_model.user_account_number,
         alt_user_account_number: user_model.alt_user_account_number,
         is_test_user: user_model.is_test_user,
+        is_deleted: user_model.is_deleted,
+        user_role: user_model.role_name
     });
 }
 
@@ -200,7 +202,14 @@ pub async fn fetch_user(
 
     let row: Option<UserAccountModel> = sqlx::query_as!(
         UserAccountModel,
-        r#"SELECT id, username, is_test_user, mobile_no, email, is_active as "is_active!:Status",  vectors as "vectors!:sqlx::types::Json<Vec<Option<UserVectors>>>", display_name, international_dialing_code, user_account_number, alt_user_account_number from user_account where email  = ANY($1) OR mobile_no  = ANY($1) OR id::text  = ANY($1)"#,
+        r#"SELECT 
+            ua.id, username, is_test_user, mobile_no, email, is_active as "is_active!:Status", 
+            vectors as "vectors!:sqlx::types::Json<Vec<Option<UserVectors>>>", display_name, 
+            international_dialing_code, user_account_number, alt_user_account_number, ua.is_deleted, r.role_name FROM user_account as ua
+            INNER JOIN user_role ur ON ua.id = ur.user_id
+            INNER JOIN role r ON ur.role_id = r.id
+        WHERE ua.email = ANY($1) OR ua.mobile_no = ANY($1) OR ua.id::text = ANY($1)
+        "#,
         &val_list
     )
     .fetch_optional(pool)
@@ -208,6 +217,32 @@ pub async fn fetch_user(
 
     Ok(row)
 }
+
+
+// #[tracing::instrument(name = "Get user Account by role realation", skip(pool))]
+// pub async fn fetch_user_by_role(
+//     value_list: Vec<&str>,
+//     pool: &PgPool,
+// ) -> Result<Option<UserAccountModel>, anyhow::Error> {
+//     let val_list: Vec<String> = value_list.iter().map(|&s| s.to_string()).collect();
+
+//     let row: Option<UserAccountModel> = sqlx::query_as!(
+//         UserAccountModel,
+//         r#"SELECT 
+//             ua.id, username, is_test_user, mobile_no, email, is_active as "is_active!:Status", 
+//             vectors as "vectors!:sqlx::types::Json<Vec<Option<UserVectors>>>", display_name, 
+//             international_dialing_code, user_account_number, alt_user_account_number, ua.is_deleted, r.role_name FROM  user_role ur 
+//             INNER JOIN user_account as ua ON ua.id = ur.user_id
+//             INNER JOIN role r ON ur.role_id = r.id
+//         WHERE ua.email = ANY($1) OR ua.mobile_no = ANY($1) OR ua.id::text = ANY($1)
+//         "#,
+//         &val_list
+//     )
+//     .fetch_optional(pool)
+//     .await?;
+
+//     Ok(row)
+// }
 
 pub async fn get_user(value_list: Vec<&str>, pool: &PgPool) -> Result<UserAccount, anyhow::Error> {
     match fetch_user(value_list, &pool).await {
@@ -315,27 +350,33 @@ pub async fn save_user(
 
 
 #[tracing::instrument(name = "get_role_model", skip(pool))]
-pub async fn get_role_model(pool: &PgPool, role_type: &UserType) -> Result<UserRoleModel, anyhow::Error> {
-    let row: UserRoleModel = sqlx::query_as!(
+pub async fn get_role_model(pool: &PgPool, role_type: &UserType) -> Result<Option<UserRoleModel>, anyhow::Error> {
+    // let  a = role_type.to_string();
+    let row: Option<UserRoleModel> = sqlx::query_as!(
         UserRoleModel,
         r#"SELECT id, role_name, role_status as "role_status!:Status", created_at, created_by, is_deleted from role where role_name  = $1"#,
-        role_type.to_string()    
+        role_type.to_lowercase_string()    
     )
-    .fetch_one(pool)
+    .fetch_optional(pool)
     .await?;
 
     Ok(row)
 }
 #[tracing::instrument(name = "get_role", skip(pool))]
-pub async fn get_role(pool: &PgPool, role_type: &UserType) -> Result<UserRole, anyhow::Error> {
+pub async fn get_role(pool: &PgPool, role_type: &UserType) -> Result<Option<UserRole>, anyhow::Error> {
     let role_model = get_role_model(&pool, &role_type).await?;
-    Ok(
-        UserRole{
-            id: role_model.id,
-            role_name: role_model.role_name,
-            role_status: role_model.role_status,
+    match role_model {
+        Some(role) => {
+            Ok(Some(UserRole {
+                id: role.id,
+                role_name: role.role_name,
+                role_status: role.role_status,
+                is_deleted: role.is_deleted
+
+            }))
         }
-    )
+        None => Ok(None),
+    }
 }
 
 #[tracing::instrument(name = "save user account role", skip(transaction))]
@@ -538,9 +579,16 @@ pub async fn register_user(
     }
     let uuid = save_user(&mut transaction, &user_account).await?;
     save_auth_mechanism(&mut transaction, uuid, &user_account).await?;
-    let role_obj = get_role(pool, &user_account.user_type.into()).await?;
-    save_user_role(&mut transaction, uuid, role_obj.id).await?;
-    tracing::info!("Successfully created user account {}", uuid);
+    if  let Some(role_obj) = get_role(pool, &user_account.user_type.into()).await?{
+        if !role_obj.is_deleted || role_obj.role_status == Status::Inactive{
+            return Err(UserRegistrationError::InvalidRoleError("Role is deleted/Inactive".to_string()))
+        }
+        save_user_role(&mut transaction, uuid, role_obj.id).await?;
+    }
+    else{
+        tracing::info!("Invalid Role for user account {}", uuid);
+        
+    }
 
     transaction
         .commit()

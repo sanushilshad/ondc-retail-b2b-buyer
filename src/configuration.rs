@@ -1,4 +1,4 @@
-use crate::domain::EmailObject;
+use crate::{domain::EmailObject, utils::deserialize_config_list};
 use config::{self, ConfigError, Environment};
 use dotenv::dotenv;
 use secrecy::{ExposeSecret, Secret};
@@ -14,7 +14,10 @@ pub struct JWT {
 pub struct SecretSetting {
     pub jwt: JWT,
 }
-
+#[derive(Debug, Deserialize, Clone)]
+pub struct UserSettings {
+    pub admin_list: Vec<String>,
+}
 #[derive(Debug, Deserialize, Clone)]
 pub struct Settings {
     pub database: DatabaseSettings,
@@ -22,6 +25,7 @@ pub struct Settings {
     pub redis: RedisSettings,
     pub email_client: EmailClientSettings,
     pub secret: SecretSetting,
+    pub user: UserSettings,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -127,6 +131,13 @@ pub fn get_configuration() -> Result<Settings, ConfigError> {
     let builder = config::Config::builder()
         .add_source(config::File::from(base_path.join("configuration.yaml")))
         .add_source(Environment::default().separator("__"))
+        .add_source(
+            Environment::with_prefix("LIST")
+                .try_parsing(true)
+                .separator("__")
+                .keep_prefix(false)
+                .list_separator(","),
+        )
         .build()?;
     builder.try_deserialize::<Settings>()
 }

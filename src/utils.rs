@@ -2,6 +2,7 @@ use crate::configuration::DatabaseSettings;
 use crate::configuration::EmailClientSettings;
 use crate::email_client::GenericEmailService;
 use crate::email_client::SmtpEmailClient;
+use crate::errors::CustomJWTTokenError;
 use crate::migration;
 use crate::schemas::CommunicationType;
 use crate::schemas::JWTClaims;
@@ -14,9 +15,9 @@ use jsonwebtoken::{
 };
 use secrecy::ExposeSecret;
 use secrecy::Secret;
+use serde::Deserialize;
 use serde::Serialize;
 use sqlx::{Connection, Executor, PgConnection, PgPool};
-use std::any::Any;
 use std::collections::HashMap;
 use std::fmt;
 use std::fs;
@@ -181,7 +182,7 @@ pub fn generate_jwt_token_for_user(
 pub fn decode_token<T: Into<String>>(
     token: T,
     secret: &Secret<String>,
-) -> Result<Uuid, anyhow::Error> {
+) -> Result<Uuid, CustomJWTTokenError> {
     let decoding_key = DecodingKey::from_secret(secret.expose_secret().as_bytes());
     let decoded = decode::<JWTClaims>(
         &token.into(),
@@ -190,7 +191,15 @@ pub fn decode_token<T: Into<String>>(
     );
     match decoded {
         Ok(token) => Ok(token.claims.sub),
-        Err(e) => Err(e.into()),
+        Err(e) => {
+            // Map jsonwebtoken errors to custom AuthTokenError
+            match e.kind() {
+                jsonwebtoken::errors::ErrorKind::ExpiredSignature => {
+                    Err(CustomJWTTokenError::Expired.into())
+                }
+                _ => Err(CustomJWTTokenError::Invalid("Invalid Token".to_string())),
+            }
+        }
     }
 }
 
@@ -208,4 +217,15 @@ pub async fn run_custom_commands(args: Vec<String>) -> Result<(), anyhow::Error>
     }
 
     Ok(())
+}
+
+pub fn deserialize_config_list<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    // Deserialize the value as a String
+    let config_str = String::deserialize(deserializer)?;
+
+    // Parse the string as JSON array and extract Vec<String>
+    serde_json::from_str::<Vec<String>>(&config_str).map_err(serde::de::Error::custom)
 }

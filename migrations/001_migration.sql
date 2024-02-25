@@ -88,21 +88,21 @@ CREATE TYPE customer_type AS ENUM (
 CREATE TABLE role (
   id uuid PRIMARY KEY,
   role_name TEXT NOT NULL,
-  role_status status,
-  created_at TIMESTAMPTZ,
+  role_status status  NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL,
   updated_at TIMESTAMPTZ,
   deleted_at TIMESTAMPTZ,
   created_by uuid NOT NULL,
   updated_by uuid,
   deleted_by uuid,
-  is_deleted BOOLEAN DEFAULT false
+  is_deleted BOOLEAN  NOT NULL DEFAULT false
 );
 
 ALTER TABLE role ADD CONSTRAINT unique_role_name UNIQUE (role_name);
 
 CREATE TABLE user_role (
   id uuid PRIMARY KEY,
-  user_id uuid NOT NULL,
+  user_id uuid NOT NULL ON DELETE CASCADE,
   role_id uuid NOT NULL,
   created_at TIMESTAMPTZ NOT NULL,
   updated_at TIMESTAMPTZ,
