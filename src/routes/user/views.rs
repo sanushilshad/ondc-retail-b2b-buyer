@@ -8,7 +8,7 @@ use crate::schemas::GenericResponse;
 use actix_web::{web, Result};
 use sqlx::PgPool;
 
-#[tracing::instrument(ret(Debug), err, name = "Authenticate User", skip(pool), fields())]
+#[tracing::instrument(err, name = "Authenticate User", skip(pool, body), fields())]
 pub async fn authenticate(
     body: web::Json<AuthenticateRequest>,
     pool: web::Data<PgPool>,
@@ -39,7 +39,7 @@ pub async fn authenticate(
     }
 }
 
-#[tracing::instrument(ret(Debug), err, name = "Register User", skip(pool), fields())]
+#[tracing::instrument(err, name = "Register User API", skip(pool, body), fields())]
 pub async fn register(
     body: web::Json<CreateUserAccount>,
     pool: web::Data<PgPool>,

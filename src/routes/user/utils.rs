@@ -5,14 +5,10 @@ use super::schemas::{
 };
 use crate::schemas::Status;
 use crate::utils::{generate_jwt_token_for_user, spawn_blocking_with_tracing};
-use actix_web::error::HttpError;
 use anyhow::{anyhow, Context};
 use argon2::password_hash::SaltString;
 use argon2::{Algorithm, Argon2, Params, PasswordHash, PasswordHasher, PasswordVerifier, Version};
-use chrono::{Duration, Utc};
-use jsonwebtoken::{
-    decode, encode, Algorithm as JWTAlgorithm, DecodingKey, EncodingKey, Header, Validation,
-};
+use chrono::Utc;
 use secrecy::{ExposeSecret, Secret};
 use sqlx::types::chrono::DateTime;
 use sqlx::{Executor, PgPool, Postgres, Transaction};
@@ -544,7 +540,7 @@ pub async fn save_auth_mechanism(
     Ok(())
 }
 
-#[tracing::instrument(name = "register users", skip(pool))]
+#[tracing::instrument(name = "register user", skip(pool))]
 pub async fn register_user(
     user_account: CreateUserAccount,
     pool: &PgPool,

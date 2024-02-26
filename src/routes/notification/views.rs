@@ -19,7 +19,11 @@ use super::{errors::OTPError, schemas::OTPRequestBody, utils::send_email_backgro
 //     HttpResponse::Ok().body("Successfully send data")
 // }
 
-#[tracing::instrument(name = "Sending OTP", skip(email_client), fields(email_client))]
+#[tracing::instrument(
+    name = "Sending OTP",
+    skip(email_client, req_body),
+    fields(email_client)
+)]
 pub async fn send_email_otp(
     email_client: web::Data<HashMap<CommunicationType, Arc<dyn GenericEmailService>>>,
     req_body: web::Json<OTPRequestBody>,

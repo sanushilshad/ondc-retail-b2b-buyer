@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use crate::schemas::Status;
 
-use super::schemas::{AuthenticationScope, UserType, UserVectors};
+use super::schemas::{AuthenticationScope, UserVectors};
 
 #[derive(Serialize, FromRow)]
 pub struct RapidorCustomerModel {

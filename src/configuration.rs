@@ -1,4 +1,4 @@
-use crate::{domain::EmailObject, utils::deserialize_config_list};
+use crate::domain::EmailObject;
 use config::{self, ConfigError, Environment};
 use dotenv::dotenv;
 use secrecy::{ExposeSecret, Secret};

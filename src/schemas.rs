@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use serde_json::to_string;
 use uuid::Uuid;
 #[derive(Serialize, Debug)]
 pub struct GenericResponse<D> {

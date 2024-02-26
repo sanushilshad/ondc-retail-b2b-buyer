@@ -2,7 +2,7 @@ use crate::configuration::{DatabaseSettings, SecretSetting, UserSettings};
 use crate::email_client::GenericEmailService;
 use crate::middleware::SaveRequestResponse;
 // use crate::middleware::tracing_middleware;
-use crate::routes::{main_route, user};
+use crate::routes::main_route;
 use crate::schemas::CommunicationType;
 use crate::utils::create_email_type_pool;
 
@@ -12,7 +12,6 @@ use crate::utils::create_email_type_pool;
 use actix_web::dev::Server;
 // use actix_web::middleware::Logger;
 use actix_web::{web, App, HttpServer};
-use secrecy::Secret;
 use sqlx::postgres;
 use sqlx::postgres::PgPool;
 use std::collections::HashMap;
@@ -38,7 +37,7 @@ impl Application {
             "{}:{}",
             configuration.application.host, configuration.application.port
         );
-        println!("Lisetening {}", address);
+        println!("Listening {}", address);
         let listener = TcpListener::bind(&address)?;
         let port = listener.local_addr().unwrap().port();
         let server = run(
@@ -83,6 +82,7 @@ async fn run(
     let server = HttpServer::new(move || {
         App::new()
             .wrap(TracingLogger::default())
+            .wrap(SaveRequestResponse)
             // .wrap(ErrorHandlers::new().handler(StatusCode::BAD_REQUEST, add_error_header))
             // .wrap(Logger::default())  // for minimal logs
             // Register the connection as part of the application state
@@ -92,7 +92,6 @@ async fn run(
             .app_data(secret_obj.clone())
             .app_data(user_setting_obj.clone())
             .configure(main_route)
-            .wrap(SaveRequestResponse)
     })
     .workers(4)
     .listen(listener)?
