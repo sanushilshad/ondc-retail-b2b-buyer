@@ -148,3 +148,52 @@ ALTER TABLE role_permission ADD CONSTRAINT "fk_permission_id" FOREIGN KEY ("perm
 ALTER TABLE role_permission ADD CONSTRAINT "fk_role_id" FOREIGN KEY ("role_id") REFERENCES role ("id") ON DELETE CASCADE;
 ALTER TABLE permission ADD CONSTRAINT permission_name UNIQUE (permission_name);
 ALTER TABLE role_permission ADD CONSTRAINT permission_role_id UNIQUE (permission_id, role_id);
+
+
+CREATE TABLE communication (
+  id uuid PRIMARY KEY,
+  message TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL,
+  created_by TEXT NOT NULL,
+  media_list TEXT[]
+);
+
+CREATE TYPE kyc_status AS ENUM (
+  'pending',
+  'on-hold',
+  'rejected',
+  'completed'
+);
+
+CREATE TYPE "buyer_seller_source" AS ENUM (
+  'placeorder',
+  'ondc',
+  'rapidor'
+);
+
+CREATE TABLE "business_account" (
+  id uuid PRIMARY KEY,
+  business_account_number TEXT NOT NULL,
+  alt_business_account_number TEXT NOT NULL,
+  company_name TEXT NOT NULL,
+  vectors jsonb NOT NULL,
+  proofs jsonb NOT NULL,
+  customer_type customer_type,
+  merchant_type TEXT,
+  trade TEXT,
+  tags TEXT[],
+  source buyer_seller_source,
+  opening_time TIME,
+  closing_time TIME,
+  kyc_status kyc_status DEFAULT 'pending'::kyc_status,
+  kyc_completed_by uuid,
+  metadata_json jsonb,
+  created_by  uuid NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL,
+  updated_by uuid,
+  updated_at TIMESTAMPTZ,
+  deleted_by uuid,
+  deleted_at TIMESTAMPTZ,
+  is_test_user BOOLEAN NOT NULL DEFAULT false
+
+);

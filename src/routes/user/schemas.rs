@@ -241,3 +241,36 @@ pub struct UserRole {
     pub role_status: Status,
     pub is_deleted: bool,
 }
+
+#[derive(Serialize, Deserialize, Debug, sqlx::Type, PartialEq)]
+#[sqlx(type_name = "customer_type", rename_all = "lowercase")]
+#[serde(rename_all = "lowercase")]
+pub enum CustomerType {
+    NA,
+    Buyer,
+    Seller,
+    Brand,
+    LogisticPartner,
+    PaymentAggregator,
+    VirtualOperator,
+    ExternalPartner,
+}
+
+#[derive(Serialize, Deserialize, Debug, sqlx::Type, PartialEq)]
+#[sqlx(type_name = "buyer_seller_source", rename_all = "lowercase")]
+#[serde(rename_all = "lowercase")]
+pub enum BuyerSellerSource {
+    PlaceOrder,
+    Ondc,
+    Rapidor,
+}
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateBusinessAccount {
+    pub company_name: String,
+    pub is_test_business: bool,
+    pub customer_type: CustomerType,
+    pub source: BuyerSellerSource,
+}
+
+// pub enum AuthMechanismPoint {}

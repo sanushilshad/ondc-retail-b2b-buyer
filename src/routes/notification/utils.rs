@@ -18,3 +18,6 @@ pub async fn send_email_background(
         Err(err) => tracing::error!("Failed to send email in the background: {:?}", err),
     }
 }
+
+#[tracing::instrument(name = "Get Message Template", skip(), fields())]
+pub async fn get_message_template() {}
