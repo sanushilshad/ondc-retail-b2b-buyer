@@ -4,7 +4,6 @@ use actix_web::web::{Bytes, BytesMut};
 use actix_web::{body, http, web, Error, HttpMessage, HttpResponseBuilder, ResponseError};
 use futures::future::LocalBoxFuture;
 use futures::{Stream, StreamExt};
-use serde_json::Value;
 use sqlx::PgPool;
 use std::cell::RefCell;
 use std::future::{self, ready, Ready};
@@ -168,7 +167,7 @@ where
     fn call(&self, mut req: ServiceRequest) -> Self::Future {
         let svc = self.service.clone();
         // let fut = self.service.call(req);
-        let path = req.path().to_owned();
+        // let path = req.path().to_owned();
         Box::pin(async move {
             // let route = req.path().to_owned();
             let mut request_body = BytesMut::new();

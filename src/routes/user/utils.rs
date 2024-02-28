@@ -1,8 +1,9 @@
-use super::errors::{AuthError, UserRegistrationError};
-use super::models::{AuthMechanismModel, UserAccountModel, UserRoleModel};
+use super::errors::{AuthError, BusinessRegistrationError, UserRegistrationError};
+use super::models::{AuthMechanismModel, BusinessAccountModel, UserAccountModel, UserRoleModel};
 use super::schemas::{
-    AuthContextType, AuthData, AuthMechanism, AuthenticateRequest, AuthenticationScope, BulkAuthMechanismInsert, CreateUserAccount, MaskingType, UserAccount, UserRole, UserType, UserVectors, VectorType
+    AccountRole, AuthContextType, AuthData, AuthMechanism, AuthenticateRequest, AuthenticationScope, BasicBusinessAccount, BulkAuthMechanismInsert, BusinessAccount, CreateBusinessAccount, CreateUserAccount, DataSource, KYCProof, MaskingType, UserAccount, UserType, UserVectors, VectorType
 };
+use crate::routes::schemas::{CustomerType, MerchantType, TradeType};
 use crate::schemas::Status;
 use crate::utils::{generate_jwt_token_for_user, spawn_blocking_with_tracing};
 use anyhow::{anyhow, Context};
@@ -41,7 +42,7 @@ async fn get_auth_mechanism_model(username: &str,
     auth_context: AuthContextType
 ) -> Result<Option<AuthMechanismModel>, anyhow::Error> {
     let row: Option<AuthMechanismModel> = sqlx::query_as!(AuthMechanismModel, 
-        r#"SELECT a.id as id, user_id, auth_identifier, secret, a.is_active as is_active, auth_scope as "auth_scope: AuthenticationScope", auth_context as "auth_context: AuthContextType", valid_upto from auth_mechanism
+        r#"SELECT a.id as id, user_id, auth_identifier, secret, a.is_active as "is_active: Status", auth_scope as "auth_scope: AuthenticationScope", auth_context as "auth_context: AuthContextType", valid_upto from auth_mechanism
         as a inner join user_account as b on a.user_id = b.id where (b.username = $1 OR b.mobile_no = $1 OR  b.email = $1)  AND auth_scope = $2 AND auth_context = $3"#,
         username,
         scope as &AuthenticationScope,
@@ -159,7 +160,7 @@ pub async fn validate_user_credentials(
     if let Some(auth_mechanism) =
         get_stored_credentials(&credentials.identifier, &credentials.scope, pool, AuthContextType::UserAccount).await?
     {
-        if !auth_mechanism.is_active {
+        if auth_mechanism.is_active == Status::Inactive{
             return Err(AuthError::InvalidStringCredentials(format!(
                 "{:?} is not enabled for {}",
                 credentials.scope, credentials.identifier
@@ -229,6 +230,9 @@ pub async fn fetch_user(
 }
 
 
+
+
+
 // #[tracing::instrument(name = "Get user Account by role realation", skip(pool))]
 // pub async fn fetch_user_by_role(
 //     value_list: Vec<&str>,
@@ -264,21 +268,7 @@ pub async fn get_user(value_list: Vec<&str>, pool: &PgPool) -> Result<UserAccoun
     }
 }
 
-pub fn get_auth_data(
-    user_model: UserAccountModel,
-    jwt_secret: &Secret<String>,
-) -> Result<AuthData, anyhow::Error> {
-    let user_account = get_user_account_from_model(user_model)?;
 
-    let user_id = user_account.id;
-    let token = generate_jwt_token_for_user(user_id, None, jwt_secret)?;
-
-    Ok(AuthData {
-        user: user_account,
-        token: token,
-        business_account_list: vec![],
-    })
-}
 
 // #[tracing::instrument(name = "Get stored credentials", skip(pool))]
 // async fn fetch_user_by_uuid(
@@ -330,22 +320,23 @@ pub async fn save_user(
     let vector_list = create_vector_from_create_account(user_account)?;
     let query = sqlx::query!(
         r#"
-        INSERT INTO user_account (id, username, email, mobile_no, created_by, created_on, display_name, vectors, is_active, is_test_user, user_account_number, alt_user_account_number, international_dialing_code)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        INSERT INTO user_account (id, username, email, mobile_no, created_by, created_on, display_name, vectors, is_active, is_test_user, user_account_number, alt_user_account_number, international_dialing_code, source)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         "#,
         user_id,
-        user_account.username,
-        user_account.email.get(),
-        user_account.mobile_no,
+        &user_account.username,
+        &user_account.email.get(),
+        &user_account.mobile_no,
         user_id,
         Utc::now(),
-        user_account.display_name,
+        &user_account.display_name,
         sqlx::types::Json(vector_list) as sqlx::types::Json<Vec<UserVectors>>,
         Status::Active as Status,
-        user_account.is_test_user,
-        user_account_number,
-        user_account_number,
-        user_account.international_dialing_code
+        &user_account.is_test_user,
+        &user_account_number,
+        &user_account_number,
+        &user_account.international_dialing_code,
+        &user_account.source as &DataSource
     );
 
     transaction.execute(query).await.map_err(|e| {
@@ -373,11 +364,11 @@ pub async fn get_role_model(pool: &PgPool, role_type: &UserType) -> Result<Optio
     Ok(row)
 }
 #[tracing::instrument(name = "get_role", skip(pool))]
-pub async fn get_role(pool: &PgPool, role_type: &UserType) -> Result<Option<UserRole>, anyhow::Error> {
+pub async fn get_role(pool: &PgPool, role_type: &UserType) -> Result<Option<AccountRole>, anyhow::Error> {
     let role_model = get_role_model(&pool, &role_type).await?;
     match role_model {
         Some(role) => {
-            Ok(Some(UserRole {
+            Ok(Some(AccountRole {
                 id: role.id,
                 role_name: role.role_name,
                 role_status: role.role_status,
@@ -419,72 +410,6 @@ pub async fn save_user_role(
 }
 
 
-
-// #[tracing::instrument(name = "Get user Account", skip(pool))]
-// pub async fn fetch_user(
-//     value_list: Vec<&str>,
-//     pool: &PgPool,
-// ) -> Result<Option<UserAccountModel>, anyhow::Error> {
-//     let val_list: Vec<String> = value_list.iter().map(|&s| s.to_string()).collect();
-
-//     let row: Option<UserAccountModel> = sqlx::query_as!(
-//         UserAccountModel,
-//         r#"SELECT id, username, is_test_user, mobile_no, email, is_active as "is_active!:Status",  vectors as "vectors!:sqlx::types::Json<Vec<Option<UserVectors>>>", display_name, international_dialing_code, user_account_number, alt_user_account_number from user_account where email  = ANY($1) OR mobile_no  = ANY($1) OR id::text  = ANY($1)"#,
-//         &val_list
-//     )
-//     .fetch_optional(pool)
-//     .await?;
-
-//     Ok(row)
-// }
-// #[tracing::instrument(name = "register user", skip(pool))]
-// pub async fn register_user(
-//     user_account: CreateUserAccount,
-//     pool: &PgPool,
-// ) -> Result<uuid::Uuid, super::errors::UserRegistrationError> {
-//     let mut transaction = pool
-//         .begin()
-//         .await
-//         .context("Failed to acquire a Postgres connection from the pool")?;
-//     match fetch_user(vec![user_account.email.get(),  &user_account.mobile_no],  pool).await{
-//         Ok(Some(existing_user_obj)) => {
-//             if user_account.mobile_no == existing_user_obj.mobile_no{
-//                 tracing::error!("User Already exists with the given mobile number: {:?}", user_account.mobile_no);
-//                 return Err(anyhow!("User Already exists with the given  mobile number")).map_err(UserRegistrationError::DuplicateMobileNo)?;
-//             }
-
-//             else {
-//                 tracing::error!("User Already exists with the given  email: {:?}", user_account.email);
-//                 return Err(anyhow!("User Already exists with given email")).map_err(UserRegistrationError::DuplicateEmail)?;
-//             }
-
-//         }
-//         Ok(None) => {
-//             tracing::info!("Successfully validated Email");
-//             match save_user(&mut transaction, user_account).await{
-//                 Ok(uuid) =>{
-//                     tracing::info!("Successfully created user account {}", uuid);
-//                     transaction
-//                     .commit()
-//                     .await
-//                     .context("Failed to commit SQL transaction to store a new subscriber.")?;
-//                     return  Ok(uuid);
-//                 }
-//                 Err(e)=>{
-//                     let error = anyhow::Error::from(e);
-//                     tracing::error!("Something went wrong while registering user: {:?}", error);
-//                     return Err(anyhow!("Internal Server Error")).map_err(UserRegistrationError::UnexpectedError)?;
-//                 }
-
-//             }
-//         }
-//         Err(e) => {
-//             tracing::error!("Something went wrong while validating user id: {:?}", e);
-//             return Err(e).map_err(UserRegistrationError::UnexpectedError)?;
-//         }
-//     }
-// }
-
 fn compute_password_hash(password: Secret<String>) -> Result<Secret<String>, anyhow::Error> {
     let salt = SaltString::generate(&mut rand::thread_rng());
     let password_hash = Argon2::new(
@@ -499,7 +424,7 @@ fn compute_password_hash(password: Secret<String>) -> Result<Secret<String>, any
 
 
 #[tracing::instrument(name = "prepare auth mechanism data", skip(user_id, user_account))]
-pub async fn prepare_auth_mechanism_data(
+pub async fn prepare_auth_mechanism_data_for_user_account(
     user_id: Uuid,
     user_account: &CreateUserAccount,
 ) -> Result<BulkAuthMechanismInsert, anyhow::Error> {
@@ -525,7 +450,7 @@ pub async fn prepare_auth_mechanism_data(
         user_account.email.get().to_string(),
     ];
     let secret = vec![password_hash.expose_secret().to_string()];
-    let is_active = vec![true, true, true];
+    let is_active = vec![Status::Active, Status::Active, Status::Active];
     let created_on = vec![current_utc, current_utc, current_utc];
     let created_by = vec![user_id, user_id, user_id];
     let auth_context = vec![
@@ -556,7 +481,7 @@ pub async fn save_auth_mechanism(
     let query = sqlx::query!(
         r#"
         INSERT INTO auth_mechanism (id, user_id, auth_scope, auth_identifier, secret, auth_context, is_active, created_at, created_by)
-        SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::user_auth_identifier_scope[], $4::text[], $5::text[], $6::auth_context_type[], $7::bool[], $8::TIMESTAMP[], $9::text[])
+        SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::user_auth_identifier_scope[], $4::text[], $5::text[], $6::auth_context_type[], $7::status[], $8::TIMESTAMP[], $9::text[])
         "#,
         &auth_data.id[..] as &[Uuid],
         &auth_data.user_id_list[..] as &[Uuid],
@@ -564,7 +489,7 @@ pub async fn save_auth_mechanism(
         &auth_data.auth_identifier[..],
         &auth_data.secret[..],
         &auth_data.auth_context[..] as &[AuthContextType],
-        &auth_data.is_active[..],
+        &auth_data.is_active[..] as &[Status],
         &auth_data.created_on[..] as &[DateTime<Utc>],
         &auth_data.created_by[..] as &[Uuid]
     );
@@ -584,7 +509,7 @@ pub async fn save_auth_mechanism(
 pub async fn register_user(
     user_account: CreateUserAccount,
     pool: &PgPool,
-) -> Result<uuid::Uuid, super::errors::UserRegistrationError> {
+) -> Result<uuid::Uuid, UserRegistrationError> {
     let mut transaction = pool
         .begin()
         .await
@@ -614,9 +539,9 @@ pub async fn register_user(
         }
     }
     let uuid = save_user(&mut transaction, &user_account).await?;
-    let bulk_auth_data = prepare_auth_mechanism_data(uuid, &user_account).await?;
+    let bulk_auth_data = prepare_auth_mechanism_data_for_user_account(uuid, &user_account).await?;
     save_auth_mechanism(&mut transaction, bulk_auth_data).await?;
-    if  let Some(role_obj) = get_role(pool, &user_account.user_type.into()).await?{
+    if  let Some(role_obj) = get_role(pool, &user_account.user_type).await?{
         if role_obj.is_deleted || role_obj.role_status == Status::Inactive {
             return Err(UserRegistrationError::InvalidRoleError("Role is deleted / Inactive".to_string()))
         }
@@ -630,7 +555,7 @@ pub async fn register_user(
     transaction
         .commit()
         .await
-        .context("Failed to commit SQL transaction to store a new subscriber.")?;
+        .context("Failed to commit SQL transaction to store a new user account.")?;
 
     Ok(uuid)
 
@@ -640,10 +565,248 @@ pub async fn register_user(
     // Ok(Uuid::new_v4())
 }
 
+#[tracing::instrument(name = "create user account")]
+pub fn create_vector_from_business_account(
+    business_account: &CreateBusinessAccount,
+) -> Result<Vec<UserVectors>, BusinessRegistrationError> {
+    let mut vector_list = vec![
+        UserVectors {
+            key: VectorType::Email,
+            value: business_account.email.get().to_string(),
+            masking: MaskingType::NA,
+            verified: false,
+        },
+        UserVectors {
+            key: VectorType::MobileNo,
+            value: business_account.mobile_no.to_string(),
+            masking: MaskingType::NA,
+            verified: false,
+        }
+    ];
+    for proof in business_account.proofs.iter(){
+        vector_list.push(
+            UserVectors {
+                key: proof.key.clone(),
+                value: proof.kyc_id.to_string(),
+                masking: MaskingType::NA,
+                verified: false,
+            }
+        )
+    }
+    return Ok(vector_list)
+}
 
-pub fn create_business_account(){
+#[tracing::instrument(name = "create user business relation", skip(transaction))]
+pub async fn save_business_account(transaction: &mut Transaction<'_, Postgres>, user_account: &UserAccount,  create_business_obj: &CreateBusinessAccount) -> Result<uuid::Uuid,  BusinessRegistrationError>{
+    let business_account_id = Uuid::new_v4();
+    let business_account_number = create_business_obj.company_name.replace(" ", "-").to_lowercase();
+    let vector_list = create_vector_from_business_account(&create_business_obj)?;
+    // let proofs = vec![];
+    let query = sqlx::query!(
+        r#"
+        INSERT INTO business_account (id, business_account_number, alt_business_account_number, company_name, vectors, proofs, customer_type, merchant_type, trade, source, created_by,  created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        "#,
+        business_account_id,
+        business_account_number,
+        business_account_number,
+        create_business_obj.company_name,
+        sqlx::types::Json(vector_list) as sqlx::types::Json<Vec<UserVectors>>,
+        sqlx::types::Json(&create_business_obj.proofs) as sqlx::types::Json<&Vec<KYCProof>>,
+        &create_business_obj.customer_type as &CustomerType,
+        &create_business_obj.merchant_type as &MerchantType,
+        &create_business_obj.trade_type as &Vec<TradeType>,
+        &create_business_obj.source as &DataSource,
+        user_account.id,
+        Utc::now(),
+    );
+
+    transaction.execute(query).await.map_err(|e| {
+        tracing::error!("Failed to execute query: {:?}", e);
+        BusinessRegistrationError::DatabaseError(
+            "A database failure occured while saving business account".to_string(),
+            e.into(),
+        )
+    })?;
+    Ok(business_account_id)
+
+    // Ok(Uuid::new_v4())
+}
+#[tracing::instrument(name = "create user business relation", skip(transaction))]
+pub async fn save_user_business_relation(transaction: &mut Transaction<'_, Postgres>, user_id: Uuid, business_id: Uuid, role_id: Uuid)-> Result<uuid::Uuid,  BusinessRegistrationError>{
+    let user_role_id = Uuid::new_v4();
+    let query = sqlx::query!(
+        r#"
+        INSERT INTO business_user_relationship (id, user_id, business_id, role_id, created_by, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        "#,
+        user_role_id,
+        user_id,
+        business_id,
+        role_id,
+        user_id,
+        Utc::now(),
+    );
+
+    transaction.execute(query).await.map_err(|e| {
+        tracing::error!("Failed to execute query: {:?}", e);
+        BusinessRegistrationError::DatabaseError(
+            "A database failure occured while saving user business relation".to_string(),
+            e.into(),
+        )
+    })?;
+    Ok(user_role_id)
+}
+
+pub async fn prepare_auth_mechanism_data_for_business_account(
+    user_id: Uuid,
+    user_account: &CreateBusinessAccount,
+) -> Result<BulkAuthMechanismInsert, anyhow::Error> {
+    let current_utc = Utc::now();
+
+    // Prepare data for auth mechanism
+    let id = vec![Uuid::new_v4(), Uuid::new_v4()];
+    let user_id_list = vec![user_id, user_id];
+    let auth_scope = vec![
+        AuthenticationScope::Otp,
+        AuthenticationScope::Email,
+    ];
+    let auth_identifier = vec![
+        user_account.mobile_no.clone(),
+        user_account.email.get().to_string(),
+    ];
+    let secret =vec![];
+    let is_active = vec![Status::Active, Status::Active];
+    let created_on = vec![current_utc, current_utc];
+    let created_by = vec![user_id, user_id];
+    let auth_context = vec![
+        AuthContextType::BusinessAccount,
+        AuthContextType::BusinessAccount
+    ];
+
+    Ok(BulkAuthMechanismInsert {
+        id,
+        user_id_list,
+        auth_scope,
+        auth_identifier,
+        secret,
+        is_active,
+        created_on,
+        created_by,
+        auth_context,
+    })
+}
+#[tracing::instrument(name = "create business account", skip(pool))]
+pub async fn create_business_account( pool: &PgPool, user_account: &UserAccount, create_business_obj: &CreateBusinessAccount) -> Result<uuid::Uuid, BusinessRegistrationError>{
     //  NOTE: Save business account in table
     // associate the user and business
     // save auth for email and mobile in auth mechanism
     // when authenticating fettch the business account list.
+    let mut transaction = pool
+        .begin()
+        .await
+        .context("Failed to acquire a Postgres connection from the pool")?;
+    let business_account_id = save_business_account(&mut transaction, user_account, &create_business_obj).await?;
+    if  let Some(role_obj) = get_role(pool, &UserType::Admin).await?{
+        if role_obj.is_deleted || role_obj.role_status == Status::Inactive {
+            return Err(BusinessRegistrationError::InvalidRoleError("Role is deleted / Inactive".to_string()))
+        }
+        save_user_business_relation(&mut transaction, user_account.id, business_account_id, role_obj.id).await?;
+    }
+    else{
+        tracing::info!("Invalid role for business account");
+        
+    }
+    // if let Ok(None) = get_auth_mechanism_model(&user_account.username, AuthenticationScope::Mobile, pool, AuthContextType::BusinessAccount).await? {
+        let bulk_auth_data = prepare_auth_mechanism_data_for_business_account(user_account.id, &create_business_obj).await?;
+        save_auth_mechanism(&mut transaction, bulk_auth_data).await?;
+    // }
+
+
+    transaction
+        .commit()
+        .await
+        .context("Failed to commit SQL transaction to store a new business account.")?;
+    Ok(Uuid::new_v4())
+
+}
+
+
+#[tracing::instrument(name = "Get Business Account By User id", skip(pool))]
+pub async fn fetch_business_account_model_by_user_account(
+    user_id: Uuid,
+    pool: &PgPool,
+) -> Result<Vec<BusinessAccountModel>, anyhow::Error> {
+
+    let row: Vec<BusinessAccountModel> = sqlx::query_as!(
+        BusinessAccountModel,
+        r#"SELECT 
+        ba.id, ba.company_name FROM business_user_relationship as bur
+            INNER JOIN business_account ba ON bur.business_id = ba.id
+        WHERE bur.user_id = $1
+        "#,
+        user_id
+    ).fetch_all(pool)
+    .await?;
+
+    Ok(row)
+}
+
+fn _get_business_account_from_model(business_model: &BusinessAccountModel) -> Result<BusinessAccount, anyhow::Error> {
+    return Ok(BusinessAccount {
+        id: business_model.id,
+        company_name: business_model.company_name.to_string()
+    });
+}
+
+
+pub async fn _get_business_account_by_user_id(user_id: Uuid, pool: &PgPool) -> Result<Vec<BusinessAccount>, anyhow::Error> {
+    let  business_account_models = fetch_business_account_model_by_user_account(user_id, &pool).await?;
+        // Ok(Some(business_account_models)) => {
+    let mut business_account_list = Vec::new();
+    for business_account_model in business_account_models.iter(){
+        let business_account = _get_business_account_from_model(business_account_model)?;
+        business_account_list.push(business_account)
+    }
+
+    Ok(business_account_list)
+}
+
+
+pub fn get_basic_business_account_from_model(business_model: &BusinessAccountModel) -> Result<BasicBusinessAccount, anyhow::Error> {
+    return Ok(BasicBusinessAccount {
+        id: business_model.id,
+        company_name: business_model.company_name.to_string()
+    });
+}
+
+
+pub async fn get_basic_business_account_by_user_id(user_id: Uuid, pool: &PgPool) -> Result<Vec<BasicBusinessAccount>, anyhow::Error> {
+    let business_account_models =  fetch_business_account_model_by_user_account(user_id, &pool).await?;
+    let mut business_account_list = Vec::new();
+    for business_account_model in business_account_models.iter(){
+        let business_account = get_basic_business_account_from_model(business_account_model)?;
+        business_account_list.push(business_account)
+    }
+
+    Ok(business_account_list)
+
+}
+
+
+pub async fn get_auth_data(
+    pool: &PgPool,
+    user_model: UserAccountModel,
+    jwt_secret: &Secret<String>,
+) -> Result<AuthData, anyhow::Error> {
+    let user_account = get_user_account_from_model(user_model)?;
+    let business_obj = get_basic_business_account_by_user_id(user_account.id, pool).await?;
+    let user_id = user_account.id;
+    let token = generate_jwt_token_for_user(user_id, None, jwt_secret)?;
+
+    Ok(AuthData {
+        user: user_account,
+        token: token,
+        business_account_list: business_obj,
+    })
 }

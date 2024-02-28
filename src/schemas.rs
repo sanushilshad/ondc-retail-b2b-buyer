@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use sqlx::postgres::PgHasArrayType;
 use uuid::Uuid;
 #[derive(Serialize, Debug)]
 pub struct GenericResponse<D> {
@@ -49,6 +50,12 @@ pub enum Status {
     Inactive,
     Pending,
     Archived,
+}
+
+impl PgHasArrayType for Status {
+    fn array_type_info() -> sqlx::postgres::PgTypeInfo {
+        sqlx::postgres::PgTypeInfo::with_name("_status")
+    }
 }
 
 #[derive(Debug, Eq, PartialEq, Hash, Deserialize)]

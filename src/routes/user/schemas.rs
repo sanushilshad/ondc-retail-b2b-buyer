@@ -140,6 +140,7 @@ pub struct CreateUserAccount {
     pub display_name: String,
     pub is_test_user: bool,
     pub user_type: UserType,
+    pub source: DataSource,
 }
 
 #[derive(Serialize, Deserialize, Debug, sqlx::Type, Clone)]
@@ -189,6 +190,12 @@ pub struct UserVectors {
     pub verified: bool,
 }
 
+impl PgHasArrayType for UserVectors {
+    fn array_type_info() -> sqlx::postgres::PgTypeInfo {
+        sqlx::postgres::PgTypeInfo::with_name("_vectors")
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct UserAccount {
     pub id: Uuid,
@@ -232,11 +239,17 @@ impl FromRequest for UserAccount {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct BasicBusinessAccount {
+    pub company_name: String,
+    pub id: Uuid,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct AuthData {
     pub user: UserAccount,
     #[serde(serialize_with = "round_serialize")]
     pub token: Secret<String>,
-    pub business_account_list: Vec<Option<String>>,
+    pub business_account_list: Vec<BasicBusinessAccount>,
 }
 
 fn round_serialize<S>(x: &Secret<String>, s: S) -> Result<S::Ok, S::Error>
@@ -267,12 +280,12 @@ pub struct AuthMechanism {
     pub auth_scope: AuthenticationScope,
     pub auth_identifier: String,
     pub secret: Option<Secret<String>>,
-    pub is_active: bool,
+    pub is_active: Status,
     pub valid_upto: Option<DateTime<Utc>>,
     pub auth_context: AuthContextType,
 }
 
-pub struct UserRole {
+pub struct AccountRole {
     pub id: Uuid,
     pub role_name: String,
     pub role_status: Status,
@@ -280,8 +293,8 @@ pub struct UserRole {
 }
 
 #[derive(Serialize, Deserialize, Debug, sqlx::Type, PartialEq)]
-#[sqlx(type_name = "customer_type", rename_all = "lowercase")]
-#[serde(rename_all = "lowercase")]
+#[sqlx(type_name = "customer_type", rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
 pub enum CustomerType {
     NA,
     Buyer,
@@ -294,9 +307,9 @@ pub enum CustomerType {
 }
 
 #[derive(Serialize, Deserialize, Debug, sqlx::Type, PartialEq)]
-#[sqlx(type_name = "buyer_seller_source", rename_all = "lowercase")]
+#[sqlx(type_name = "data_source", rename_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
-pub enum BuyerSellerSource {
+pub enum DataSource {
     PlaceOrder,
     Ondc,
     Rapidor,
@@ -310,6 +323,11 @@ pub enum TradeType {
     Export,
 }
 
+impl PgHasArrayType for TradeType {
+    fn array_type_info() -> sqlx::postgres::PgTypeInfo {
+        sqlx::postgres::PgTypeInfo::with_name("_trade_type")
+    }
+}
 #[derive(Serialize, Deserialize, Debug, sqlx::Type, PartialEq)]
 #[sqlx(type_name = "merchant_type", rename_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
@@ -331,13 +349,13 @@ pub struct BulkAuthMechanismInsert {
     pub auth_scope: Vec<AuthenticationScope>,
     pub auth_identifier: Vec<String>,
     pub secret: Vec<String>,
-    pub is_active: Vec<bool>,
+    pub is_active: Vec<Status>,
     pub created_on: Vec<DateTime<Utc>>,
     pub created_by: Vec<Uuid>,
     pub auth_context: Vec<AuthContextType>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, sqlx::Type)]
 pub struct KYCProof {
     pub key: VectorType,
     pub kyc_id: String,
@@ -350,7 +368,7 @@ pub struct CreateBusinessAccount {
     pub company_name: String,
     pub is_test_account: bool,
     pub customer_type: CustomerType,
-    pub source: BuyerSellerSource,
+    pub source: DataSource,
     pub mobile_no: String,
     pub email: EmailObject,
     pub trade_type: Vec<TradeType>,
@@ -358,4 +376,11 @@ pub struct CreateBusinessAccount {
     pub opening_time: Option<NaiveTime>,
     pub closing_time: Option<NaiveTime>,
     pub proofs: Vec<KYCProof>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BusinessAccount {
+    pub id: Uuid,
+    pub company_name: String,
 }

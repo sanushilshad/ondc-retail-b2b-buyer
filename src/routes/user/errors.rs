@@ -13,8 +13,8 @@ pub enum AuthError {
     UnexpectedError(#[from] anyhow::Error),
     #[error("{0}")]
     ValidationStringError(String),
-    #[error("Authentication failed")]
-    ValidationError(#[source] anyhow::Error),
+    // #[error("Authentication failed")]
+    // ValidationError(#[source] anyhow::Error),
     #[error("{0}")]
     UnexpectedStringError(String),
     #[error("{0}")]
@@ -35,7 +35,7 @@ impl ResponseError for AuthError {
             AuthError::InvalidCredentials(_) => StatusCode::BAD_REQUEST,
             AuthError::InvalidStringCredentials(_) => StatusCode::BAD_REQUEST,
             AuthError::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            AuthError::ValidationError(_) => StatusCode::BAD_REQUEST,
+            // AuthError::ValidationError(_) => StatusCode::BAD_REQUEST,
             AuthError::ValidationStringError(_) => StatusCode::BAD_REQUEST,
             AuthError::UnexpectedStringError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             AuthError::DatabaseError(_, _) => StatusCode::INTERNAL_SERVER_ERROR,
@@ -48,8 +48,8 @@ impl ResponseError for AuthError {
         let status_code_str = status_code.as_str();
         let inner_error_msg = match self {
             AuthError::InvalidCredentials(inner_error)
-            | AuthError::UnexpectedError(inner_error)
-            | AuthError::ValidationError(inner_error) => inner_error.to_string(),
+            | AuthError::UnexpectedError(inner_error) => inner_error.to_string(),
+            // | AuthError::ValidationError(inner_error) => inner_error.to_string(),
             AuthError::ValidationStringError(message) => message.to_string(),
             AuthError::UnexpectedStringError(message) => message.to_string(),
             AuthError::DatabaseError(message, _err) => message.to_string(),
@@ -121,8 +121,14 @@ impl ResponseError for UserRegistrationError {
 
 #[derive(thiserror::Error)]
 pub enum BusinessRegistrationError {
-    #[error("Insufficient previlege to register Admin/Superadmin")]
-    InsufficientPrevilegeError(String),
+    // #[error("Insufficient previlege to register Admin/Superadmin")]
+    // InsufficientPrevilegeError(String),
+    #[error("{0}, {1}")]
+    DatabaseError(String, anyhow::Error),
+    #[error("Invalid Role")]
+    InvalidRoleError(String),
+    #[error(transparent)]
+    UnexpectedError(#[from] anyhow::Error),
 }
 
 impl std::fmt::Debug for BusinessRegistrationError {
@@ -134,7 +140,10 @@ impl std::fmt::Debug for BusinessRegistrationError {
 impl ResponseError for BusinessRegistrationError {
     fn status_code(&self) -> StatusCode {
         match self {
-            BusinessRegistrationError::InsufficientPrevilegeError(_) => StatusCode::UNAUTHORIZED,
+            // BusinessRegistrationError::InsufficientPrevilegeError(_) => StatusCode::UNAUTHORIZED,
+            BusinessRegistrationError::DatabaseError(_, _) => StatusCode::INTERNAL_SERVER_ERROR,
+            BusinessRegistrationError::InvalidRoleError(_) => StatusCode::UNAUTHORIZED,
+            BusinessRegistrationError::UnexpectedError(_) => StatusCode::UNAUTHORIZED,
         }
     }
 
@@ -142,9 +151,12 @@ impl ResponseError for BusinessRegistrationError {
         let status_code = self.status_code();
         let status_code_str = status_code.as_str();
         let inner_error_msg = match self {
-            BusinessRegistrationError::InsufficientPrevilegeError(error_msg) => {
-                error_msg.to_string()
-            }
+            BusinessRegistrationError::DatabaseError(message, _err) => message.to_string(),
+            BusinessRegistrationError::InvalidRoleError(error_msg) => error_msg.to_string(),
+            // BusinessRegistrationError::InsufficientPrevilegeError(error_msg) => {
+            //     error_msg.to_string()
+            // }
+            BusinessRegistrationError::UnexpectedError(error_msg) => error_msg.to_string(),
         };
 
         HttpResponse::build(status_code).json(GenericResponse::error(

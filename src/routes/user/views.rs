@@ -2,7 +2,7 @@ use super::errors::{BusinessRegistrationError, UserRegistrationError};
 use super::schemas::{
     AuthData, AuthenticateRequest, CreateBusinessAccount, CreateUserAccount, UserAccount, UserType,
 };
-use super::utils::{fetch_user, get_auth_data, register_user};
+use super::utils::{create_business_account, fetch_user, get_auth_data, register_user};
 use super::{errors::AuthError, utils::validate_user_credentials};
 use crate::configuration::{SecretSetting, UserSettings};
 use crate::schemas::GenericResponse;
@@ -23,7 +23,7 @@ pub async fn authenticate(
             tracing::Span::current().record("user_id", &tracing::field::display(&user_id));
             match fetch_user(vec![&user_id.to_string()], &pool).await {
                 Ok(Some(user_obj)) => {
-                    let auth_obj = get_auth_data(user_obj, &secret.jwt.secret)?;
+                    let auth_obj = get_auth_data(&pool, user_obj, &secret.jwt.secret).await?;
                     Ok(web::Json(GenericResponse::success(
                         "Successfully Authenticated User",
                         Some(auth_obj),
@@ -87,6 +87,7 @@ pub async fn register_business_account(
     user: UserAccount,
 ) -> Result<web::Json<GenericResponse<()>>, BusinessRegistrationError> {
     // if let UserType::Admin | UserType::Superadmin = body.user_type {
+    create_business_account(&pool, &user, &body).await?;
     Ok(web::Json(GenericResponse::success(
         "Sucessfully Registered Business Account",
         Some(()),

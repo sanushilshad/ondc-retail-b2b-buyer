@@ -20,7 +20,7 @@ pub struct AuthMechanismModel {
     pub auth_scope: AuthenticationScope,
     pub auth_identifier: String,
     pub secret: Option<String>,
-    pub is_active: bool,
+    pub is_active: Status,
     pub valid_upto: Option<DateTime<Utc>>,
     pub auth_context: AuthContextType,
 }
@@ -62,4 +62,10 @@ pub struct UserRoleModel {
     pub created_at: DateTime<Utc>,
     pub created_by: String,
     pub is_deleted: bool,
+}
+
+#[derive(Debug, FromRow)]
+pub struct BusinessAccountModel {
+    pub id: Uuid,
+    pub company_name: String,
 }
