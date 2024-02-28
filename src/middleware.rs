@@ -178,11 +178,17 @@ where
             let body = request_body.freeze();
             match str::from_utf8(&body) {
                 Ok(request_str) => {
-                    let request_json: Value = serde_json::from_str(request_str)
-                        .expect("Failed to parsing response JSON string in middleware");
-                    // tracing::span!(tracing::Level::INFO, "HTTP Response");
-                    tracing::info!({%request_json}, "HTTP Request");
-                    // tracing::Span::current().record("Request body", &tracing::field::display("Apple"));
+                    if let Ok(request_json) =
+                        // tracing::Span::current().record("Request body", &tracing::field::display("Apple"));
+                        serde_json::from_str::<serde_json::Value>(request_str)
+                    {
+                        // Successfully parsed as JSON
+                        tracing::info!({%request_json}, "HTTP Response");
+                    } else {
+                        // Not JSON, log as a string
+                        tracing::info!("Non-JSON response: {}", request_str);
+                        request_str.to_string();
+                    }
                 }
 
                 Err(_) => {
@@ -205,11 +211,21 @@ where
             let body_bytes = body::to_bytes(fut.into_body()).await?;
             match str::from_utf8(&body_bytes) {
                 Ok(response_str) => {
-                    let response_json: Value = serde_json::from_str(response_str)
-                        .expect("Failed to parsing response JSON string in middleware");
-                    tracing::info!({%response_json}, "HTTP Response");
-                    // tracing::Span::current().record("Response body", &tracing::field::display(&response_json));
-                    response_str
+                    if let Ok(response_json) =
+                        serde_json::from_str::<serde_json::Value>(response_str)
+                    {
+                        // Successfully parsed as JSON
+                        tracing::info!({%response_json}, "HTTP Response");
+                        // Record the response JSON in the current span
+                        tracing::Span::current()
+                            .record("Response body", &tracing::field::display(&response_json));
+
+                        response_str.to_string()
+                    } else {
+                        // Not JSON, log as a string
+                        tracing::info!("Non-JSON response: {}", response_str);
+                        response_str.to_string()
+                    }
                 }
                 Err(_) => {
                     tracing::error!("Somrthing went wrong in response body parsing middleware");

@@ -1,7 +1,9 @@
-use super::errors::UserRegistrationError;
-use super::schemas::{AuthData, AuthenticateRequest, CreateUserAccount, UserType};
+use super::errors::{BusinessRegistrationError, UserRegistrationError};
+use super::schemas::{
+    AuthData, AuthenticateRequest, CreateBusinessAccount, CreateUserAccount, UserAccount, UserType,
+};
 use super::utils::{fetch_user, get_auth_data, register_user};
-use super::{errors::AuthError, utils::validate_credentials};
+use super::{errors::AuthError, utils::validate_user_credentials};
 use crate::configuration::{SecretSetting, UserSettings};
 use crate::schemas::GenericResponse;
 // use crate::session_state::TypedSession;
@@ -16,7 +18,7 @@ pub async fn authenticate(
 ) -> Result<web::Json<GenericResponse<AuthData>>, AuthError> {
     tracing::Span::current().record("request_body", &tracing::field::debug(&body));
     tracing::Span::current().record("identifier", &tracing::field::display(&body.identifier));
-    match validate_credentials(body.0, &pool).await {
+    match validate_user_credentials(body.0, &pool).await {
         Ok(user_id) => {
             tracing::Span::current().record("user_id", &tracing::field::display(&user_id));
             match fetch_user(vec![&user_id.to_string()], &pool).await {
@@ -48,11 +50,11 @@ pub async fn authenticate(
 pub async fn register_user_account(
     body: web::Json<CreateUserAccount>,
     pool: web::Data<PgPool>,
-    user: web::Data<UserSettings>,
+    user_settings: web::Data<UserSettings>,
 ) -> Result<web::Json<GenericResponse<()>>, UserRegistrationError> {
     // if let UserType::Admin | UserType::Superadmin = body.user_type {
     let admin_role = vec![UserType::Admin, UserType::Superadmin];
-    if admin_role.contains(&body.user_type) && !user.admin_list.contains(&body.mobile_no) {
+    if admin_role.contains(&body.user_type) && !user_settings.admin_list.contains(&body.mobile_no) {
         return Err(UserRegistrationError::InsufficientPrevilegeError(
             "Insufficient previlege to register Admin/Superadmin".to_string(),
         ));
@@ -80,29 +82,13 @@ pub async fn register_user_account(
     fields()
 )]
 pub async fn register_business_account(
-    body: web::Json<CreateUserAccount>,
+    body: web::Json<CreateBusinessAccount>,
     pool: web::Data<PgPool>,
-    user: web::Data<UserSettings>,
-) -> Result<web::Json<GenericResponse<()>>, UserRegistrationError> {
+    user: UserAccount,
+) -> Result<web::Json<GenericResponse<()>>, BusinessRegistrationError> {
     // if let UserType::Admin | UserType::Superadmin = body.user_type {
-    let admin_role = vec![UserType::Admin, UserType::Superadmin];
-    if admin_role.contains(&body.user_type) && !user.admin_list.contains(&body.mobile_no) {
-        return Err(UserRegistrationError::InsufficientPrevilegeError(
-            "Insufficient previlege to register Admin/Superadmin".to_string(),
-        ));
-    } else {
-        match register_user(body.0, &pool).await {
-            Ok(uuid) => {
-                tracing::Span::current().record("user_id", &tracing::field::display(&uuid));
-                Ok(web::Json(GenericResponse::success(
-                    "Sucessfully Registered User",
-                    Some(()),
-                )))
-            }
-            Err(e) => {
-                tracing::error!("Failed to register user: {:?}", e);
-                return Err(e);
-            }
-        }
-    }
+    Ok(web::Json(GenericResponse::success(
+        "Sucessfully Registered Business Account",
+        Some(()),
+    )))
 }

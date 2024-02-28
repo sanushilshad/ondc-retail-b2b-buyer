@@ -50,11 +50,17 @@ CREATE TYPE "user_auth_identifier_scope" AS ENUM (
   'email'
 );
 
+CREATE TYPE auth_context_type AS ENUM (
+  'user_account',
+  'business_account'
+)
+
 CREATE TABLE IF NOT EXISTS auth_mechanism (
   id uuid PRIMARY KEY,
   user_id uuid NOT NULL,
   auth_scope user_auth_identifier_scope NOT NULL,
   auth_identifier text NOT NULL,
+  auth_context auth_context_type NOT NULL, 
   secret TEXT,
   valid_upto TIMESTAMPTZ,
   is_active BOOLEAN NOT NULL DEFAULT false,
@@ -68,7 +74,7 @@ CREATE TABLE IF NOT EXISTS auth_mechanism (
 );
 
 ALTER TABLE auth_mechanism ADD CONSTRAINT fk_auth_user FOREIGN KEY (user_id) REFERENCES user_account (id) ON DELETE CASCADE;
-ALTER TABLE auth_mechanism ADD CONSTRAINT fk_auth_user_id_auth_scope UNIQUE (user_id, auth_scope);
+ALTER TABLE auth_mechanism ADD CONSTRAINT fk_auth_user_id_auth_scope UNIQUE (user_id, auth_scope, auth_context);
 
 
 
@@ -171,6 +177,23 @@ CREATE TYPE "buyer_seller_source" AS ENUM (
   'rapidor'
 );
 
+CREATE TYPE trade_type as ENUM (
+  'domestic',
+  'export'
+);
+
+CREATE TYPE merchant_type as ENUM (
+  'FPO',
+  'Manufacturer',
+  'Restaurant',
+  'Grocery',
+  'Mall',
+  'Supermart',
+  'Store',
+  'Other',
+  'merchant_type'
+);
+
 CREATE TABLE "business_account" (
   id uuid PRIMARY KEY,
   business_account_number TEXT NOT NULL,
@@ -178,9 +201,9 @@ CREATE TABLE "business_account" (
   company_name TEXT NOT NULL,
   vectors jsonb NOT NULL,
   proofs jsonb NOT NULL,
-  customer_type customer_type,
-  merchant_type TEXT,
-  trade TEXT,
+  customer_type customer_type NOT NULL,
+  merchant_type merchant_type NOT NULL,
+  trade trade_type[],
   tags TEXT[],
   source buyer_seller_source,
   opening_time TIME,
@@ -194,6 +217,6 @@ CREATE TABLE "business_account" (
   updated_at TIMESTAMPTZ,
   deleted_by uuid,
   deleted_at TIMESTAMPTZ,
-  is_test_user BOOLEAN NOT NULL DEFAULT false
+  is_test_account BOOLEAN NOT NULL DEFAULT false
 
 );

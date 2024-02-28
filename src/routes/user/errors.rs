@@ -118,3 +118,39 @@ impl ResponseError for UserRegistrationError {
         ))
     }
 }
+
+#[derive(thiserror::Error)]
+pub enum BusinessRegistrationError {
+    #[error("Insufficient previlege to register Admin/Superadmin")]
+    InsufficientPrevilegeError(String),
+}
+
+impl std::fmt::Debug for BusinessRegistrationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        error_chain_fmt(self, f)
+    }
+}
+
+impl ResponseError for BusinessRegistrationError {
+    fn status_code(&self) -> StatusCode {
+        match self {
+            BusinessRegistrationError::InsufficientPrevilegeError(_) => StatusCode::UNAUTHORIZED,
+        }
+    }
+
+    fn error_response(&self) -> HttpResponse {
+        let status_code = self.status_code();
+        let status_code_str = status_code.as_str();
+        let inner_error_msg = match self {
+            BusinessRegistrationError::InsufficientPrevilegeError(error_msg) => {
+                error_msg.to_string()
+            }
+        };
+
+        HttpResponse::build(status_code).json(GenericResponse::error(
+            &inner_error_msg,
+            status_code_str,
+            Some(()),
+        ))
+    }
+}

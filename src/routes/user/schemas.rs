@@ -1,5 +1,5 @@
 use actix_web::{error::ErrorInternalServerError, FromRequest, HttpMessage};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveTime, Utc};
 use secrecy::{ExposeSecret, Secret};
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgHasArrayType;
@@ -158,10 +158,32 @@ pub enum MaskingType {
 //     }
 // }
 
+#[derive(Serialize, Deserialize, Debug, sqlx::Type, PartialEq, Clone)]
+#[sqlx(type_name = "vector_type", rename_all = "lowercase")]
+#[serde(rename_all = "lowercase")]
+pub enum VectorType {
+    PanCardNo,
+    Gstin,
+    AadhaarCardNo,
+    MobileNo,
+    Email,
+    InternationalDialingCode,
+    UpiId,
+    BankAccountNumber,
+    IfscCode,
+    LicenseNumber,
+    PassportNo,
+    VoterIdNo,
+    Ssn,
+    Tin,
+    ExportLicenseNo,
+    FssaiLicenseNumber,
+}
+
 #[derive(Serialize, Deserialize, Debug, sqlx::Type, Clone)]
 #[sqlx(type_name = "vectors")]
 pub struct UserVectors {
-    pub key: String,
+    pub key: VectorType,
     pub value: String,
     pub masking: MaskingType,
     pub verified: bool,
@@ -224,6 +246,20 @@ where
     s.serialize_str(x.expose_secret())
 }
 
+#[derive(Serialize, Deserialize, Debug, sqlx::Type)]
+#[sqlx(type_name = "auth_context_type", rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
+pub enum AuthContextType {
+    UserAccount,
+    BusinessAccount,
+}
+
+impl PgHasArrayType for AuthContextType {
+    fn array_type_info() -> sqlx::postgres::PgTypeInfo {
+        sqlx::postgres::PgTypeInfo::with_name("_auth_context_type")
+    }
+}
+
 #[derive(Debug)]
 pub struct AuthMechanism {
     pub id: Uuid,
@@ -233,6 +269,7 @@ pub struct AuthMechanism {
     pub secret: Option<Secret<String>>,
     pub is_active: bool,
     pub valid_upto: Option<DateTime<Utc>>,
+    pub auth_context: AuthContextType,
 }
 
 pub struct UserRole {
@@ -264,13 +301,61 @@ pub enum BuyerSellerSource {
     Ondc,
     Rapidor,
 }
+
+#[derive(Serialize, Deserialize, Debug, sqlx::Type, PartialEq)]
+#[sqlx(type_name = "trade_type", rename_all = "lowercase")]
+#[serde(rename_all = "lowercase")]
+pub enum TradeType {
+    Domestic,
+    Export,
+}
+
+#[derive(Serialize, Deserialize, Debug, sqlx::Type, PartialEq)]
+#[sqlx(type_name = "merchant_type", rename_all = "lowercase")]
+#[serde(rename_all = "lowercase")]
+pub enum MerchantType {
+    FPO,
+    Manufacturer,
+    Restaurant,
+    Grocery,
+    Mall,
+    Supermart,
+    Store,
+    Other,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct BulkAuthMechanismInsert {
+    pub id: Vec<Uuid>,
+    pub user_id_list: Vec<Uuid>,
+    pub auth_scope: Vec<AuthenticationScope>,
+    pub auth_identifier: Vec<String>,
+    pub secret: Vec<String>,
+    pub is_active: Vec<bool>,
+    pub created_on: Vec<DateTime<Utc>>,
+    pub created_by: Vec<Uuid>,
+    pub auth_context: Vec<AuthContextType>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct KYCProof {
+    pub key: VectorType,
+    pub kyc_id: String,
+    pub value: Vec<String>,
+}
+
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateBusinessAccount {
     pub company_name: String,
-    pub is_test_business: bool,
+    pub is_test_account: bool,
     pub customer_type: CustomerType,
     pub source: BuyerSellerSource,
+    pub mobile_no: String,
+    pub email: EmailObject,
+    pub trade_type: Vec<TradeType>,
+    pub merchant_type: MerchantType,
+    pub opening_time: Option<NaiveTime>,
+    pub closing_time: Option<NaiveTime>,
+    pub proofs: Vec<KYCProof>,
 }
-
-// pub enum AuthMechanismPoint {}

@@ -1,7 +1,7 @@
 use super::errors::{AuthError, UserRegistrationError};
-use super::models::{UserRoleModel, UserAccountModel};
+use super::models::{AuthMechanismModel, UserAccountModel, UserRoleModel};
 use super::schemas::{
-    AuthData, AuthMechanism, AuthenticateRequest, AuthenticationScope, CreateUserAccount, MaskingType, UserAccount, UserRole, UserType, UserVectors
+    AuthContextType, AuthData, AuthMechanism, AuthenticateRequest, AuthenticationScope, BulkAuthMechanismInsert, CreateUserAccount, MaskingType, UserAccount, UserRole, UserType, UserVectors, VectorType
 };
 use crate::schemas::Status;
 use crate::utils::{generate_jwt_token_for_user, spawn_blocking_with_tracing};
@@ -34,22 +34,35 @@ fn verify_password_hash(
         .map_err(AuthError::InvalidCredentials)
 }
 
+#[tracing::instrument(name = "Get Auth Mechanism model", skip(username, pool))]
+async fn get_auth_mechanism_model(username: &str,
+    scope: &AuthenticationScope,
+    pool: &PgPool,
+    auth_context: AuthContextType
+) -> Result<Option<AuthMechanismModel>, anyhow::Error> {
+    let row: Option<AuthMechanismModel> = sqlx::query_as!(AuthMechanismModel, 
+        r#"SELECT a.id as id, user_id, auth_identifier, secret, a.is_active as is_active, auth_scope as "auth_scope: AuthenticationScope", auth_context as "auth_context: AuthContextType", valid_upto from auth_mechanism
+        as a inner join user_account as b on a.user_id = b.id where (b.username = $1 OR b.mobile_no = $1 OR  b.email = $1)  AND auth_scope = $2 AND auth_context = $3"#,
+        username,
+        scope as &AuthenticationScope,
+        &auth_context as &AuthContextType
+    )
+    .fetch_optional(pool)
+    .await?;
+    Ok(row)
+}
+
+
 #[tracing::instrument(name = "Get stored credentials", skip(username, pool))]
 async fn get_stored_credentials(
     username: &str,
     scope: &AuthenticationScope,
     pool: &PgPool,
+    auth_context: AuthContextType
 ) -> Result<Option<AuthMechanism>, anyhow::Error> {
-    let row: Option<_> = sqlx::query!(
-        r#"SELECT a.id as id, user_id, auth_identifier, secret, a.is_active as is_active, auth_scope as "auth_scope: AuthenticationScope", valid_upto from auth_mechanism
-        as a inner join user_account as b on a.user_id = b.id where (b.username = $1 OR b.mobile_no = $1 OR  b.email = $1)  AND auth_scope = $2"#,
-        username,
-        scope as &AuthenticationScope
-    )
-    .fetch_optional(pool)
-    .await?;
 
-    if let Some(row) = row {
+
+    if let Some(row) = get_auth_mechanism_model(username, scope, pool, auth_context).await? {
         let secret_string: Option<String> = row.secret;
         let secret = secret_string.map(Secret::new);
 
@@ -61,6 +74,7 @@ async fn get_stored_credentials(
             secret,
             is_active: row.is_active,
             valid_upto: row.valid_upto,
+            auth_context: row.auth_context
         }))
     } else {
         Ok(None)
@@ -136,14 +150,14 @@ pub async fn verify_otp(
 }
 
 #[tracing::instrument(name = "Validate credentials", skip(credentials, pool))]
-pub async fn validate_credentials(
+pub async fn validate_user_credentials(
     credentials: AuthenticateRequest,
     pool: &PgPool,
 ) -> Result<uuid::Uuid, AuthError> {
     let mut user_id = None;
 
     if let Some(auth_mechanism) =
-        get_stored_credentials(&credentials.identifier, &credentials.scope, pool).await?
+        get_stored_credentials(&credentials.identifier, &credentials.scope, pool, AuthContextType::UserAccount).await?
     {
         if !auth_mechanism.is_active {
             return Err(AuthError::InvalidStringCredentials(format!(
@@ -291,13 +305,13 @@ pub fn create_vector_from_create_account(
 ) -> Result<Vec<UserVectors>, anyhow::Error> {
     let vector_list = vec![
         UserVectors {
-            key: "email".to_string(),
+            key: VectorType::Email,
             value: user_account.email.get().to_string(),
             masking: MaskingType::NA,
             verified: false,
         },
         UserVectors {
-            key: "mobile_no".to_string(),
+            key: VectorType::MobileNo,
             value: user_account.mobile_no.to_string(),
             masking: MaskingType::NA,
             verified: false,
@@ -483,22 +497,21 @@ fn compute_password_hash(password: Secret<String>) -> Result<Secret<String>, any
     Ok(Secret::new(password_hash))
 }
 
-#[tracing::instrument(name = "save auth mechanism", skip(transaction))]
-pub async fn save_auth_mechanism(
-    transaction: &mut Transaction<'_, Postgres>,
+
+#[tracing::instrument(name = "prepare auth mechanism data", skip(user_id, user_account))]
+pub async fn prepare_auth_mechanism_data(
     user_id: Uuid,
     user_account: &CreateUserAccount,
-) -> Result<(), anyhow::Error> {
+) -> Result<BulkAuthMechanismInsert, anyhow::Error> {
     let current_utc = Utc::now();
     let password = user_account.password.clone();
-    let password_hash =
-        spawn_blocking_with_tracing(move || {
+    let password_hash = spawn_blocking_with_tracing(move || {
+        compute_password_hash(password)
+    })
+    .await?
+    .context("Failed to hash password")?;
 
-            compute_password_hash(password)
-        })
-            .await?
-            .context("Failed to hash password")?;
-    // let password_hash = compute_password_hash(user_account.password)?;
+    // Prepare data for auth mechanism
     let id = vec![Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4()];
     let user_id_list = vec![user_id, user_id, user_id];
     let auth_scope = vec![
@@ -515,19 +528,45 @@ pub async fn save_auth_mechanism(
     let is_active = vec![true, true, true];
     let created_on = vec![current_utc, current_utc, current_utc];
     let created_by = vec![user_id, user_id, user_id];
+    let auth_context = vec![
+        AuthContextType::UserAccount,
+        AuthContextType::UserAccount,
+        AuthContextType::UserAccount,
+    ];
+
+    Ok(BulkAuthMechanismInsert {
+        id,
+        user_id_list,
+        auth_scope,
+        auth_identifier,
+        secret,
+        is_active,
+        created_on,
+        created_by,
+        auth_context,
+    })
+}
+
+#[tracing::instrument(name = "save auth mechanism", skip(transaction, auth_data))]
+pub async fn save_auth_mechanism(
+    transaction: &mut Transaction<'_, Postgres>,
+    auth_data: BulkAuthMechanismInsert,
+) -> Result<(), anyhow::Error> {
+    // Save data to auth mechanism table
     let query = sqlx::query!(
         r#"
-        INSERT INTO auth_mechanism (id, user_id, auth_scope, auth_identifier, secret, is_active, created_at, created_by)
-        SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::user_auth_identifier_scope[], $4::text[], $5::text[], $6::bool[], $7::TIMESTAMP[], $8::text[])
+        INSERT INTO auth_mechanism (id, user_id, auth_scope, auth_identifier, secret, auth_context, is_active, created_at, created_by)
+        SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::user_auth_identifier_scope[], $4::text[], $5::text[], $6::auth_context_type[], $7::bool[], $8::TIMESTAMP[], $9::text[])
         "#,
-        &id[..] as &[Uuid],
-        &user_id_list[..] as &[Uuid],
-        &auth_scope[..] as &[AuthenticationScope],
-        &auth_identifier[..],
-        &secret[..],
-        &is_active[..],
-        &created_on[..] as &[DateTime<Utc>],
-        &created_by[..] as &[Uuid]
+        &auth_data.id[..] as &[Uuid],
+        &auth_data.user_id_list[..] as &[Uuid],
+        &auth_data.auth_scope[..] as &[AuthenticationScope],
+        &auth_data.auth_identifier[..],
+        &auth_data.secret[..],
+        &auth_data.auth_context[..] as &[AuthContextType],
+        &auth_data.is_active[..],
+        &auth_data.created_on[..] as &[DateTime<Utc>],
+        &auth_data.created_by[..] as &[Uuid]
     );
 
     transaction.execute(query).await.map_err(|e| {
@@ -537,6 +576,7 @@ pub async fn save_auth_mechanism(
             e.into(),
         )
     })?;
+
     Ok(())
 }
 
@@ -574,10 +614,11 @@ pub async fn register_user(
         }
     }
     let uuid = save_user(&mut transaction, &user_account).await?;
-    save_auth_mechanism(&mut transaction, uuid, &user_account).await?;
+    let bulk_auth_data = prepare_auth_mechanism_data(uuid, &user_account).await?;
+    save_auth_mechanism(&mut transaction, bulk_auth_data).await?;
     if  let Some(role_obj) = get_role(pool, &user_account.user_type.into()).await?{
-        if !role_obj.is_deleted || role_obj.role_status == Status::Inactive{
-            return Err(UserRegistrationError::InvalidRoleError("Role is deleted/Inactive".to_string()))
+        if role_obj.is_deleted || role_obj.role_status == Status::Inactive {
+            return Err(UserRegistrationError::InvalidRoleError("Role is deleted / Inactive".to_string()))
         }
         save_user_role(&mut transaction, uuid, role_obj.id).await?;
     }
@@ -597,4 +638,12 @@ pub async fn register_user(
     //     anyhow!("Duplicate mobile number")
     // ).map_err(UserRegistrationError::DuplicateEmail)?;
     // Ok(Uuid::new_v4())
+}
+
+
+pub fn create_business_account(){
+    //  NOTE: Save business account in table
+    // associate the user and business
+    // save auth for email and mobile in auth mechanism
+    // when authenticating fettch the business account list.
 }

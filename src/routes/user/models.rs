@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use crate::schemas::Status;
 
-use super::schemas::{AuthenticationScope, UserVectors};
+use super::schemas::{AuthContextType, AuthenticationScope, UserVectors};
 
 #[derive(Serialize, FromRow)]
 pub struct RapidorCustomerModel {
@@ -22,6 +22,7 @@ pub struct AuthMechanismModel {
     pub secret: Option<String>,
     pub is_active: bool,
     pub valid_upto: Option<DateTime<Utc>>,
+    pub auth_context: AuthContextType,
 }
 
 #[derive(Debug, FromRow)]
