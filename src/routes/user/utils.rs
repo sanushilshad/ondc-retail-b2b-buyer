@@ -482,6 +482,7 @@ pub async fn save_auth_mechanism(
         r#"
         INSERT INTO auth_mechanism (id, user_id, auth_scope, auth_identifier, secret, auth_context, is_active, created_at, created_by)
         SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::user_auth_identifier_scope[], $4::text[], $5::text[], $6::auth_context_type[], $7::status[], $8::TIMESTAMP[], $9::text[])
+        ON CONFLICT (user_id, auth_scope, auth_context) DO NOTHING;
         "#,
         &auth_data.id[..] as &[Uuid],
         &auth_data.user_id_list[..] as &[Uuid],
