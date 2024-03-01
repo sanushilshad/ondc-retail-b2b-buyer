@@ -26,19 +26,3 @@ impl ResponseError for ProductSearchError {
         }
     }
 }
-
-// #[derive(thiserror::Error)]
-// pub enum InventoryError {
-//     #[error("{0}")]
-//     ValidationError(String),
-//     #[error("Failed to acquire data from database")]
-//     DatabaseFetchError(#[source] sqlx::Error),
-//     #[error("Failed to acquire a Postgres connection from the pool")]
-//     PoolError(#[source] sqlx::Error),
-//     #[error("Failed to insert new subscriber in the database.")]
-//     InsertSubscriberError(#[source] sqlx::Error),
-//     #[error("Failed to commit SQL transaction to store a new subscriber.")]
-//     TransactionCommitError(#[source] sqlx::Error),
-//     #[error("Failed to send a confirmation email.")]
-//     SendEmailError(#[from] reqwest::Error),
-// }

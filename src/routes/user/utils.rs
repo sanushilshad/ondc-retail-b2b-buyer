@@ -742,7 +742,7 @@ pub async fn fetch_business_account_model_by_user_account(
     let row: Vec<BusinessAccountModel> = sqlx::query_as!(
         BusinessAccountModel,
         r#"SELECT 
-        ba.id, ba.company_name FROM business_user_relationship as bur
+        ba.id, ba.company_name, ba.customer_type as "customer_type: CustomerType" FROM business_user_relationship as bur
             INNER JOIN business_account ba ON bur.business_id = ba.id
         WHERE bur.user_id = $1
         "#,
@@ -777,7 +777,8 @@ pub async fn _get_business_account_by_user_id(user_id: Uuid, pool: &PgPool) -> R
 pub fn get_basic_business_account_from_model(business_model: &BusinessAccountModel) -> Result<BasicBusinessAccount, anyhow::Error> {
     return Ok(BasicBusinessAccount {
         id: business_model.id,
-        company_name: business_model.company_name.to_string()
+        company_name: business_model.company_name.to_string(),
+        customer_type: business_model.customer_type
     });
 }
 

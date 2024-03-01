@@ -242,6 +242,7 @@ impl FromRequest for UserAccount {
 pub struct BasicBusinessAccount {
     pub company_name: String,
     pub id: Uuid,
+    pub customer_type: CustomerType,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -292,7 +293,7 @@ pub struct AccountRole {
     pub is_deleted: bool,
 }
 
-#[derive(Serialize, Deserialize, Debug, sqlx::Type, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, sqlx::Type, PartialEq, Copy, Clone)]
 #[sqlx(type_name = "customer_type", rename_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
 pub enum CustomerType {
@@ -356,6 +357,7 @@ pub struct BulkAuthMechanismInsert {
 }
 
 #[derive(Serialize, Deserialize, Debug, sqlx::Type)]
+#[serde(rename_all = "camelCase")]
 pub struct KYCProof {
     pub key: VectorType,
     pub kyc_id: String,

@@ -141,3 +141,7 @@ pub fn get_configuration() -> Result<Settings, ConfigError> {
         .build()?;
     builder.try_deserialize::<Settings>()
 }
+
+pub fn get_configuration_2() -> Result<Settings, ConfigError> {
+    todo!()
+}

@@ -1,7 +1,7 @@
 mod errors;
 mod routes;
-pub(crate) mod schemas;
+mod schemas;
 mod utils;
 mod views;
-pub use routes::product_route;
+pub use routes::ondc_seller_route;
 // use views::*;

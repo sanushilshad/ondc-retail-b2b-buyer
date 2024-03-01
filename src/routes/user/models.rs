@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use crate::schemas::Status;
 
-use super::schemas::{AuthContextType, AuthenticationScope, UserVectors};
+use super::schemas::{AuthContextType, AuthenticationScope, CustomerType, UserVectors};
 
 #[derive(Serialize, FromRow)]
 pub struct RapidorCustomerModel {
@@ -68,4 +68,5 @@ pub struct UserRoleModel {
 pub struct BusinessAccountModel {
     pub id: Uuid,
     pub company_name: String,
+    pub customer_type: CustomerType,
 }

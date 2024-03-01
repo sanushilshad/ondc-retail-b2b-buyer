@@ -5,7 +5,7 @@ cargo run --bin custom_commands -- sqlx_migrate
 ```
 
 ## ENVIRON VARIABLE 
-- Set the environ variables in  files called `env.sh` and `configuration.yaml`.
+- Set the following environ variables in files called `env.sh` and `configuration.yaml`.
 - The value in `env.sh` are:
 ```
 

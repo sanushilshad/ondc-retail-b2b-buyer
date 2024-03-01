@@ -165,7 +165,7 @@ pub fn generate_jwt_token_for_user(
     let expiration = match expiry_date {
         Some(expiry) => expiry.timestamp() as usize,
         None => Utc::now()
-            .checked_add_signed(Duration::minutes(60))
+            .checked_add_signed(Duration::hours(24))
             .expect("valid timestamp")
             .timestamp() as usize,
     };
