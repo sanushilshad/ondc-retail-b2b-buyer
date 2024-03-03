@@ -110,7 +110,7 @@ impl SmtpEmailClient {
                     PoolConfig::new()
                         .min_idle(3)
                         .max_size(10)
-                        .idle_timeout(Duration::new(300, 0)),
+                        .idle_timeout(Duration::new(30000, 0)),
                 )
                 .build();
 
