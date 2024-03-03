@@ -3,13 +3,14 @@ use super::models::{AuthMechanismModel, BusinessAccountModel, UserAccountModel, 
 use super::schemas::{
     AccountRole, AuthContextType, AuthData, AuthMechanism, AuthenticateRequest, AuthenticationScope, BasicBusinessAccount, BulkAuthMechanismInsert, BusinessAccount, CreateBusinessAccount, CreateUserAccount, DataSource, KYCProof, MaskingType, UserAccount, UserType, UserVectors, VectorType
 };
+use crate::configuration::JWT;
 use crate::routes::schemas::{CustomerType, MerchantType, TradeType};
 use crate::schemas::Status;
 use crate::utils::{generate_jwt_token_for_user, spawn_blocking_with_tracing};
 use anyhow::{anyhow, Context};
 use argon2::password_hash::SaltString;
 use argon2::{Algorithm, Argon2, Params, PasswordHash, PasswordHasher, PasswordVerifier, Version};
-use chrono::Utc;
+use chrono::{Utc};
 use secrecy::{ExposeSecret, Secret};
 use sqlx::types::chrono::DateTime;
 use sqlx::{Executor, PgPool, Postgres, Transaction};
@@ -444,10 +445,10 @@ pub async fn prepare_auth_mechanism_data_for_user_account(
         AuthenticationScope::Otp,
         AuthenticationScope::Email,
     ];
-    let auth_identifier = vec![
-        user_account.username.clone(),
-        user_account.mobile_no.clone(),
-        user_account.email.get().to_string(),
+    let auth_identifier: Vec<&str> = vec![
+        &user_account.username,
+        &user_account.mobile_no,
+        user_account.email.get(),
     ];
     let secret = vec![password_hash.expose_secret().to_string()];
     let is_active = vec![Status::Active, Status::Active, Status::Active];
@@ -475,7 +476,7 @@ pub async fn prepare_auth_mechanism_data_for_user_account(
 #[tracing::instrument(name = "save auth mechanism", skip(transaction, auth_data))]
 pub async fn save_auth_mechanism(
     transaction: &mut Transaction<'_, Postgres>,
-    auth_data: BulkAuthMechanismInsert,
+    auth_data: BulkAuthMechanismInsert<'_>,
 ) -> Result<(), anyhow::Error> {
     // Save data to auth mechanism table
     let query = sqlx::query!(
@@ -487,7 +488,7 @@ pub async fn save_auth_mechanism(
         &auth_data.id[..] as &[Uuid],
         &auth_data.user_id_list[..] as &[Uuid],
         &auth_data.auth_scope[..] as &[AuthenticationScope],
-        &auth_data.auth_identifier[..],
+        &auth_data.auth_identifier[..] as &[&str],
         &auth_data.secret[..],
         &auth_data.auth_context[..] as &[AuthContextType],
         &auth_data.is_active[..] as &[Status],
@@ -662,7 +663,7 @@ pub async fn save_user_business_relation(transaction: &mut Transaction<'_, Postg
 pub async fn prepare_auth_mechanism_data_for_business_account(
     user_id: Uuid,
     user_account: &CreateBusinessAccount,
-) -> Result<BulkAuthMechanismInsert, anyhow::Error> {
+) -> Result<BulkAuthMechanismInsert<'_>, anyhow::Error> {
     let current_utc = Utc::now();
 
     // Prepare data for auth mechanism
@@ -672,9 +673,9 @@ pub async fn prepare_auth_mechanism_data_for_business_account(
         AuthenticationScope::Otp,
         AuthenticationScope::Email,
     ];
-    let auth_identifier = vec![
-        user_account.mobile_no.clone(),
-        user_account.email.get().to_string(),
+    let auth_identifier: Vec<&str> = vec![
+        &user_account.mobile_no,
+        user_account.email.get(),
     ];
     let secret =vec![];
     let is_active = vec![Status::Active, Status::Active];
@@ -799,12 +800,12 @@ pub async fn get_basic_business_account_by_user_id(user_id: Uuid, pool: &PgPool)
 pub async fn get_auth_data(
     pool: &PgPool,
     user_model: UserAccountModel,
-    jwt_secret: &Secret<String>,
+    jwt_obj: &JWT,
 ) -> Result<AuthData, anyhow::Error> {
     let user_account = get_user_account_from_model(user_model)?;
     let business_obj = get_basic_business_account_by_user_id(user_account.id, pool).await?;
     let user_id = user_account.id;
-    let token = generate_jwt_token_for_user(user_id, None, jwt_secret)?;
+    let token = generate_jwt_token_for_user(user_id, jwt_obj.expiry, &jwt_obj.secret)?;
 
     Ok(AuthData {
         user: user_account,

@@ -41,7 +41,7 @@ pub async fn product_search(
     _pool: web::Data<PgPool>,
     user_account: UserAccount,
 ) -> Result<web::Json<GenericResponse<()>>, ProductSearchError> {
-    let ondc_search_payload = get_ondc_search_payload(user_account, body.0)?;
+    let _ondc_search_payload = get_ondc_search_payload(user_account, body.0)?;
     Ok(web::Json(GenericResponse::success(
         "Successfully Send Product Search Request",
         Some(()),

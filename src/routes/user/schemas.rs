@@ -344,11 +344,12 @@ pub enum MerchantType {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct BulkAuthMechanismInsert {
+pub struct BulkAuthMechanismInsert<'a> {
     pub id: Vec<Uuid>,
     pub user_id_list: Vec<Uuid>,
     pub auth_scope: Vec<AuthenticationScope>,
-    pub auth_identifier: Vec<String>,
+    #[serde(borrow)]
+    pub auth_identifier: Vec<&'a str>,
     pub secret: Vec<String>,
     pub is_active: Vec<Status>,
     pub created_on: Vec<DateTime<Utc>>,
