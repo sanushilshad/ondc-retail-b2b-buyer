@@ -14,7 +14,7 @@ use sqlx::PgPool;
 pub async fn authenticate(
     body: web::Json<AuthenticateRequest>,
     pool: web::Data<PgPool>,
-    secret: web::Data<SecretSetting>,
+    secret_obj: web::Data<SecretSetting>,
 ) -> Result<web::Json<GenericResponse<AuthData>>, AuthError> {
     tracing::Span::current().record("request_body", &tracing::field::debug(&body));
     tracing::Span::current().record("identifier", &tracing::field::display(&body.identifier));
@@ -23,7 +23,7 @@ pub async fn authenticate(
             tracing::Span::current().record("user_id", &tracing::field::display(&user_id));
             match fetch_user(vec![&user_id.to_string()], &pool).await {
                 Ok(Some(user_obj)) => {
-                    let auth_obj = get_auth_data(&pool, user_obj, &secret.jwt.secret).await?;
+                    let auth_obj = get_auth_data(&pool, user_obj, &secret_obj.jwt).await?;
                     Ok(web::Json(GenericResponse::success(
                         "Successfully Authenticated User",
                         Some(auth_obj),

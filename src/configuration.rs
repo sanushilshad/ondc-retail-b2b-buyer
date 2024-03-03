@@ -8,6 +8,7 @@ use sqlx::{postgres::PgConnectOptions, ConnectOptions};
 #[derive(Debug, Deserialize, Clone)]
 pub struct JWT {
     pub secret: Secret<String>,
+    pub expiry: i64,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -77,31 +78,6 @@ impl DatabaseSettings {
             .database(&self.name)
             .log_statements(tracing::log::LevelFilter::Trace)
     }
-
-    // pub fn from_env() -> Result<Self, DatabaseError> {
-    //     let username: String = "postgres".to_string();
-
-    //     let database_name = "rapidor_master".to_string();
-
-    //     let password: String = std::env::var("RAPIDOR_DB_PASSWORD")
-    //         .map_err(|_| DatabaseError::MissingDatabasePassword)?;
-    //     println!("{:?}", &password);
-    //     let port: u16 = std::env::var("RAPIDOR_DB_PORT")
-    //         .map_err(|_| DatabaseError::MissingDatabasePort)?
-    //         .parse()
-    //         .map_err(|_| DatabaseError::DatabasePortMustbeNumber)?;
-
-    //     let host: String =
-    //         std::env::var("RAPIDOR_DB_IP").map_err(|_| DatabaseError::MissingDatabaseIP)?;
-    //     let password_secret = Secret::new(password);
-    //     Ok(DatabaseSettings {
-    //         username,
-    //         password: password_secret,
-    //         port,
-    //         host,
-    //         name: database_name,
-    //     })
-    // }
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -124,9 +100,6 @@ impl EmailClientSettings {
 
 pub fn get_configuration() -> Result<Settings, ConfigError> {
     let base_path = std::env::current_dir().expect("Failed to determine the current directory");
-    // let configuration_directory = base_path.join("configuration");
-    // configuration_directory.join("configuration.yaml")
-    // remove the below dotenv in production as .env is not recommended for production use.
     dotenv().ok();
     let builder = config::Config::builder()
         .add_source(config::File::from(base_path.join("configuration.yaml")))
@@ -142,6 +115,55 @@ pub fn get_configuration() -> Result<Settings, ConfigError> {
     builder.try_deserialize::<Settings>()
 }
 
-pub fn get_configuration_2() -> Result<Settings, ConfigError> {
-    todo!()
-}
+// pub fn get_configuration_by_custom() -> Result<Settings, ConfigError> {
+//     // todo!()
+//     let base_path = std::env::current_dir().expect("Failed to determine the current directory");
+//     dotenv().ok();
+//     let builder = config::Config::builder()
+//         .add_source(config::File::from(base_path.join("configuration.yaml")))
+//         .add_source(Environment::default().separator("_"))
+//         .add_source(
+//             Environment::with_prefix("LIST")
+//                 .try_parsing(true)
+//                 .separator("_")
+//                 .keep_prefix(false)
+//                 .list_separator(","),
+//         )
+//         .build()?;
+//     let database = DatabaseSettings {
+//         username: todo!(),
+//         password: todo!(),
+//         port: todo!(),
+//         host: todo!(),
+//         name: todo!(),
+//     };
+//     let application = ApplicationSettings {
+//         port: todo!(),
+//         host: todo!(),
+//         hmac_secret: todo!(),
+//     };
+//     let redis = RedisSettings {
+//         port: todo!(),
+//         host: todo!(),
+//         password: todo!(),
+//     };
+//     let email_client = EmailClientSettings {
+//         base_url: todo!(),
+//         username: todo!(),
+//         password: todo!(),
+//         sender_email: todo!(),
+//         timeout_milliseconds: todo!(),
+//     };
+//     let secret = SecretSetting { jwt: todo!() };
+//     let user = UserSettings {
+//         admin_list: todo!(),
+//     };
+//     Ok(Settings {
+//         database,
+//         application,
+//         redis,
+//         email_client,
+//         secret,
+//         user,
+//     })
+// }

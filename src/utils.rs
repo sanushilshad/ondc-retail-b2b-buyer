@@ -1,28 +1,18 @@
-use crate::configuration::DatabaseSettings;
-use crate::configuration::EmailClientSettings;
-use crate::email_client::GenericEmailService;
-use crate::email_client::SmtpEmailClient;
+use crate::configuration::{DatabaseSettings, EmailClientSettings};
+use crate::email_client::{GenericEmailService, SmtpEmailClient};
 use crate::errors::CustomJWTTokenError;
 use crate::migration;
-use crate::schemas::CommunicationType;
-use crate::schemas::JWTClaims;
+use crate::schemas::{CommunicationType, JWTClaims};
 use actix_web::rt::task::JoinHandle;
-use chrono::DateTime;
-use chrono::Duration;
-use chrono::Utc;
+use chrono::{Duration, Utc};
 use jsonwebtoken::{
     decode, encode, Algorithm as JWTAlgorithm, DecodingKey, EncodingKey, Header, Validation,
 };
-use secrecy::ExposeSecret;
-use secrecy::Secret;
-use serde::Deserialize;
-use serde::Serialize;
+use secrecy::{ExposeSecret, Secret};
+use serde::{Deserialize, Serialize};
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use std::collections::HashMap;
-use std::fmt;
-use std::fs;
-use std::io;
-use std::sync::Arc;
+use std::{fmt, fs, io, sync::Arc};
 use uuid::Uuid;
 pub fn error_chain_fmt(
     e: &impl std::error::Error,
@@ -159,16 +149,13 @@ pub fn create_email_type_pool(
 
 pub fn generate_jwt_token_for_user(
     user_id: Uuid,
-    expiry_date: Option<DateTime<Utc>>,
+    expiry_time: i64,
     secret: &Secret<String>,
 ) -> Result<Secret<String>, anyhow::Error> {
-    let expiration = match expiry_date {
-        Some(expiry) => expiry.timestamp() as usize,
-        None => Utc::now()
-            .checked_add_signed(Duration::hours(24))
-            .expect("valid timestamp")
-            .timestamp() as usize,
-    };
+    let expiration = Utc::now()
+        .checked_add_signed(Duration::hours(expiry_time))
+        .expect("valid timestamp")
+        .timestamp() as usize;
     let claims: JWTClaims = JWTClaims {
         sub: user_id,
         exp: expiration as usize,
