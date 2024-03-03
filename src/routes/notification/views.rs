@@ -19,26 +19,48 @@ use super::{errors::OTPError, schemas::OTPRequestBody, utils::send_email_backgro
 //     HttpResponse::Ok().body("Successfully send data")
 // }
 
+// #[tracing::instrument(
+//     name = "Sending OTP",
+//     skip(email_client, req_body),
+//     fields(email_client)
+// )]
+// pub async fn send_email_otp(
+//     email_client: web::Data<HashMap<CommunicationType, Arc<dyn GenericEmailService>>>,
+//     req_body: web::Json<OTPRequestBody>,
+//     user: UserAccount,
+// ) -> Result<web::Json<GenericResponse<()>>, OTPError> {
+//     if let Some(email_service) = email_client.get(&CommunicationType::Type1) {
+//         tokio::spawn(send_email_background(
+//             email_service.clone(),
+//             req_body.identifier.get().to_string(),
+//         ));
+//     } else {
+//         return Err(OTPError::UnexpectedStringError(
+//             "Internal Server Error".to_string(),
+//         ));
+//     }
+
+//     Ok(web::Json(GenericResponse::success(
+//         "Successfully Send OTP",
+//         Some(()),
+//     )))
+// }
+
 #[tracing::instrument(
     name = "Sending OTP",
     skip(email_client, req_body),
     fields(email_client)
 )]
 pub async fn send_email_otp(
-    email_client: web::Data<HashMap<CommunicationType, Arc<dyn GenericEmailService>>>,
+    email_client: web::Data<Arc<dyn GenericEmailService>>,
     req_body: web::Json<OTPRequestBody>,
     user: UserAccount,
 ) -> Result<web::Json<GenericResponse<()>>, OTPError> {
-    if let Some(email_service) = email_client.get(&CommunicationType::Type1) {
-        tokio::spawn(send_email_background(
-            email_service.clone(),
-            req_body.identifier.get().to_string(),
-        ));
-    } else {
-        return Err(OTPError::UnexpectedStringError(
-            "Internal Server Error".to_string(),
-        ));
-    }
+    let email_client_arc: Arc<dyn GenericEmailService> = email_client.get_ref().clone();
+    tokio::spawn(send_email_background(
+        email_client_arc,
+        req_body.identifier.get().to_string(),
+    ));
 
     Ok(web::Json(GenericResponse::success(
         "Successfully Send OTP",

@@ -1,5 +1,5 @@
 use crate::configuration::{DatabaseSettings, SecretSetting, UserSettings};
-use crate::email_client::GenericEmailService;
+use crate::email_client::{GenericEmailService, SmtpEmailClient};
 use crate::middleware::SaveRequestResponse;
 // use crate::middleware::tracing_middleware;
 use crate::routes::main_route;
@@ -32,7 +32,11 @@ impl Application {
         let connection_pool = get_connection_pool(&configuration.database);
         // let email_client =
         //     SmtpEmailClient::new(configuration.email_client).expect("SMTP connection Failed");
-        let email_type_pool = create_email_type_pool(configuration.email_client);
+        // let email_type_pool = create_email_type_pool(configuration.email_client);
+        let email_pool = Arc::new(
+            SmtpEmailClient::new(configuration.email_client)
+                .expect("Failed to create SmtpEmailClient"),
+        );
         let address = format!(
             "{}:{}",
             configuration.application.host, configuration.application.port
@@ -43,7 +47,7 @@ impl Application {
         let server = run(
             listener,
             connection_pool,
-            email_type_pool,
+            email_pool,
             configuration.secret,
             configuration.user,
         )
@@ -70,7 +74,8 @@ pub fn get_connection_pool(configuration: &DatabaseSettings) -> PgPool {
 async fn run(
     listener: TcpListener,
     db_pool: PgPool,
-    email_type_pool: HashMap<CommunicationType, Arc<dyn GenericEmailService>>,
+    // email_type_pool: HashMap<CommunicationType, Arc<dyn GenericEmailService>>,
+    email_type_pool: Arc<dyn GenericEmailService>,
     secret: SecretSetting,
     user_setting: UserSettings,
 ) -> Result<Server, anyhow::Error> {

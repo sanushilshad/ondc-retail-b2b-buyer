@@ -54,7 +54,7 @@ impl ResponseError for AuthError {
             AuthError::UnexpectedStringError(message) => message.to_string(),
             AuthError::DatabaseError(message, _err) => message.to_string(),
             AuthError::InvalidStringCredentials(message) => message.to_string(),
-            AuthError::InvalidJWT(message) => message.clone(),
+            AuthError::InvalidJWT(message) => message.to_string(),
         };
 
         HttpResponse::build(status_code).json(GenericResponse::error(

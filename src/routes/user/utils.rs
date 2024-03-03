@@ -588,7 +588,7 @@ pub fn create_vector_from_business_account(
     for proof in business_account.proofs.iter(){
         vector_list.push(
             UserVectors {
-                key: proof.key.clone(),
+                key: proof.key.to_owned(),
                 value: proof.kyc_id.to_string(),
                 masking: MaskingType::NA,
                 verified: false,

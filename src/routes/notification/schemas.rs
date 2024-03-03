@@ -17,5 +17,5 @@ pub enum OTPScope {
 pub struct OTPRequestBody {
     #[serde(deserialize_with = "deserialize_subscriber_email")]
     pub identifier: EmailObject,
-    pub service_type: CommunicationType,
+    // pub service_type: CommunicationType,
 }
