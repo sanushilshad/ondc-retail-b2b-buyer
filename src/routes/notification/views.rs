@@ -52,13 +52,12 @@ use super::{errors::OTPError, schemas::OTPRequestBody, utils::send_email_backgro
     fields(email_client)
 )]
 pub async fn send_email_otp(
-    email_client: web::Data<Arc<dyn GenericEmailService>>,
+    email_client: web::Data<dyn GenericEmailService>,
     req_body: web::Json<OTPRequestBody>,
     user: UserAccount,
 ) -> Result<web::Json<GenericResponse<()>>, OTPError> {
-    let email_client_arc: Arc<dyn GenericEmailService> = email_client.get_ref().clone();
     tokio::spawn(send_email_background(
-        email_client_arc,
+        email_client,
         req_body.identifier.get().to_string(),
     ));
 

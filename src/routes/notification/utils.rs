@@ -1,10 +1,12 @@
 use std::sync::Arc;
 
+use actix_web::web;
+
 use crate::email_client::GenericEmailService;
 
 #[tracing::instrument(name = "Sending OTP", skip(email_service), fields(email_service))]
 pub async fn send_email_background(
-    email_service: Arc<dyn GenericEmailService>,
+    email_service: web::Data<dyn GenericEmailService>,
     identifier: String,
 ) {
     // Perform the email sending in the background

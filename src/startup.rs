@@ -75,12 +75,13 @@ async fn run(
     listener: TcpListener,
     db_pool: PgPool,
     // email_type_pool: HashMap<CommunicationType, Arc<dyn GenericEmailService>>,
-    email_type_pool: Arc<dyn GenericEmailService>,
+    email_obj: Arc<dyn GenericEmailService>,
     secret: SecretSetting,
     user_setting: UserSettings,
 ) -> Result<Server, anyhow::Error> {
     let db_pool = web::Data::new(db_pool);
-    let email_client = web::Data::new(email_type_pool);
+    // let email_client = web::Data::new(email_type_pool);
+    let email_client: web::Data<dyn GenericEmailService> = web::Data::from(email_obj);
     let secret_obj = web::Data::new(secret);
     let user_setting_obj = web::Data::new(user_setting);
     // let _secret_key = Key::from(hmac_secret.expose_secret().as_bytes());
