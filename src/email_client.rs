@@ -162,3 +162,34 @@ impl GenericEmailService for SmtpEmailClient {
         Ok(())
     }
 }
+
+pub struct DummyEmailClient {}
+
+impl DummyEmailClient {
+    pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
+        tracing::info!("Establishing dummy connection to the SMTP server.");
+        tracing::info!("Dummy SMTP connection created succuessfully");
+        Ok(Self {})
+    }
+}
+
+#[async_trait]
+impl GenericEmailService for DummyEmailClient {
+    async fn send_text_email(
+        &self,
+        _to: &str,
+        _subject: &str,
+        _body: String,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        Ok(())
+    }
+
+    async fn send_html_email(
+        &self,
+        _to: &str,
+        _subject: &str,
+        _body: String,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        Ok(())
+    }
+}

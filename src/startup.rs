@@ -1,5 +1,5 @@
 use crate::configuration::{DatabaseSettings, SecretSetting, UserSettings};
-use crate::email_client::{GenericEmailService, SmtpEmailClient};
+use crate::email_client::{DummyEmailClient, GenericEmailService, SmtpEmailClient};
 use crate::middleware::SaveRequestResponse;
 // use crate::middleware::tracing_middleware;
 use crate::routes::main_route;
@@ -14,7 +14,6 @@ use actix_web::dev::Server;
 use actix_web::{web, App, HttpServer};
 use sqlx::postgres;
 use sqlx::postgres::PgPool;
-use std::collections::HashMap;
 use std::net::TcpListener;
 use std::sync::Arc;
 use tracing_actix_web::TracingLogger;
@@ -30,13 +29,13 @@ impl Application {
     // `Application`.
     pub async fn build(configuration: Settings) -> Result<Self, anyhow::Error> {
         let connection_pool = get_connection_pool(&configuration.database);
-        // let email_client =
-        //     SmtpEmailClient::new(configuration.email_client).expect("SMTP connection Failed");
-        // let email_type_pool = create_email_type_pool(configuration.email_client);
-        let email_pool = Arc::new(
-            SmtpEmailClient::new(configuration.email_client)
-                .expect("Failed to create SmtpEmailClient"),
-        );
+        // UNCOMMENT BELOW CODE TO ENABLE EMAIL SERVICE
+        // let email_pool = Arc::new(
+        //     SmtpEmailClient::new(configuration.email_client)
+        //         .expect("Failed to create SmtpEmailClient"),
+        // );
+        let email_pool =
+            Arc::new(DummyEmailClient::new().expect("Failed to create SmtpEmailClient"));
         let address = format!(
             "{}:{}",
             configuration.application.host, configuration.application.port
@@ -74,13 +73,11 @@ pub fn get_connection_pool(configuration: &DatabaseSettings) -> PgPool {
 async fn run(
     listener: TcpListener,
     db_pool: PgPool,
-    // email_type_pool: HashMap<CommunicationType, Arc<dyn GenericEmailService>>,
     email_obj: Arc<dyn GenericEmailService>,
     secret: SecretSetting,
     user_setting: UserSettings,
 ) -> Result<Server, anyhow::Error> {
     let db_pool = web::Data::new(db_pool);
-    // let email_client = web::Data::new(email_type_pool);
     let email_client: web::Data<dyn GenericEmailService> = web::Data::from(email_obj);
     let secret_obj = web::Data::new(secret);
     let user_setting_obj = web::Data::new(user_setting);
