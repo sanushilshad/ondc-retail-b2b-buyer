@@ -5,7 +5,7 @@ use super::schemas::{
 use super::utils::{create_business_account, fetch_user, get_auth_data, register_user};
 use super::{errors::AuthError, utils::validate_user_credentials};
 use crate::configuration::{SecretSetting, UserSettings};
-use crate::schemas::{GenericResponse, AuthResponse};
+use crate::schemas::{AuthResponse, GenericResponse};
 // use crate::session_state::TypedSession;
 use actix_web::{web, Result};
 use sqlx::PgPool;
@@ -100,7 +100,10 @@ pub async fn register_user_account(
     request_body(content = CreateBusinessAccount, description = "Request Body"),
     responses(
         (status=200, description= "Business Account created successfully", body= EmptyGenericResponse),
-    )
+    ),
+    params(
+        ("Authorization" = String, Header, description = "JWT token"),
+      )
 )]
 #[tracing::instrument(
     err,
