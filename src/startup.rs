@@ -43,6 +43,7 @@ impl Application {
             listener,
             connection_pool,
             email_pool,
+            configuration.application.workers,
             configuration.secret,
             configuration.user,
         )
@@ -70,6 +71,7 @@ async fn run(
     listener: TcpListener,
     db_pool: PgPool,
     email_obj: Arc<dyn GenericEmailService>,
+    workers: usize,
     secret: SecretSetting,
     user_setting: UserSettings,
 ) -> Result<Server, anyhow::Error> {
@@ -93,7 +95,7 @@ async fn run(
             .app_data(user_setting_obj.clone())
             .configure(main_route)
     })
-    .workers(1)
+    .workers(workers)
     .listen(listener)?
     .run();
 
