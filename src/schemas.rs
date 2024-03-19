@@ -1,7 +1,11 @@
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgHasArrayType;
+use utoipa::{openapi::Object, ToSchema};
 use uuid::Uuid;
-#[derive(Serialize, Debug)]
+use crate::routes::user::schemas::AuthData;
+
+#[derive(Serialize, Debug, ToSchema)]
+#[aliases(EmptyGenericResponse = GenericResponse<Object>, AuthResponse = GenericResponse<AuthData>)]
 pub struct GenericResponse<D> {
     pub status: bool,
     pub customer_message: String,
@@ -41,7 +45,7 @@ impl<D> GenericResponse<D> {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, sqlx::Type, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, sqlx::Type, Clone, PartialEq, ToSchema)]
 #[sqlx(rename_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
 #[sqlx(type_name = "status")]

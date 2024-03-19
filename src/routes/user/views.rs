@@ -5,11 +5,20 @@ use super::schemas::{
 use super::utils::{create_business_account, fetch_user, get_auth_data, register_user};
 use super::{errors::AuthError, utils::validate_user_credentials};
 use crate::configuration::{SecretSetting, UserSettings};
-use crate::schemas::GenericResponse;
+use crate::schemas::{GenericResponse, AuthResponse};
 // use crate::session_state::TypedSession;
 use actix_web::{web, Result};
 use sqlx::PgPool;
 
+#[utoipa::path(
+    post,
+    path = "/user/authenticate",
+    tag = "Authenticate User API",
+    request_body(content = AuthenticateRequest, description = "Request Body"),
+    responses(
+        (status=200, description= "Authenticate User", body= AuthResponse),
+    )
+)]
 #[tracing::instrument(err, name = "Authenticate User", skip(pool, body), fields())]
 pub async fn authenticate(
     body: web::Json<AuthenticateRequest>,
@@ -41,6 +50,15 @@ pub async fn authenticate(
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/user/register",
+    tag = "Register User Account API",
+    request_body(content = CreateUserAccount, description = "Request Body"),
+    responses(
+        (status=200, description= "Account created successfully", body= EmptyGenericResponse ),
+    )
+)]
 #[tracing::instrument(
     err,
     name = "User Account Registration API",
@@ -75,6 +93,15 @@ pub async fn register_user_account(
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/user/register/business",
+    tag = "Register Business Account API",
+    request_body(content = CreateBusinessAccount, description = "Request Body"),
+    responses(
+        (status=200, description= "Business Account created successfully", body= EmptyGenericResponse),
+    )
+)]
 #[tracing::instrument(
     err,
     name = "Business Account Registration API",

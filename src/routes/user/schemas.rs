@@ -7,6 +7,7 @@ use std::{
     fmt::{self, Debug},
     future::{ready, Ready},
 };
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::{
@@ -39,12 +40,13 @@ use super::errors::AuthError;
 //     Password,
 // }
 // impl_serialize_format!(AuthenticateRequest, Display);
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AuthenticateRequest {
     pub scope: AuthenticationScope,
     pub identifier: String,
     // #[serde(with = "SecretString")]
+    #[schema(value_type = String)]
     pub secret: Secret<String>,
 }
 
@@ -62,7 +64,7 @@ pub struct AuthenticateRequest {
 //     data: AuthData,
 // }
 
-#[derive(Serialize, Deserialize, Debug, sqlx::Type, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, sqlx::Type, PartialEq, ToSchema)]
 #[sqlx(type_name = "user_type", rename_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
 pub enum UserType {
@@ -106,8 +108,9 @@ impl From<CreateUserType> for UserType {
         }
     }
 }
-#[derive(Serialize, Deserialize, Debug, sqlx::Type)]
+
 #[sqlx(type_name = "user_auth_identifier_scope", rename_all = "lowercase")]
+#[derive(Serialize, Deserialize, Debug, sqlx::Type, ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum AuthenticationScope {
     Otp,
@@ -128,12 +131,13 @@ impl PgHasArrayType for AuthenticationScope {
     }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateUserAccount {
     pub username: String,
     pub mobile_no: String,
     pub international_dialing_code: String,
+    #[schema(value_type = String)]
     pub password: Secret<String>,
     #[serde(deserialize_with = "deserialize_subscriber_email")]
     pub email: EmailObject, //NOTE: email_address crate can be used if needed,
@@ -143,7 +147,7 @@ pub struct CreateUserAccount {
     pub source: DataSource,
 }
 
-#[derive(Serialize, Deserialize, Debug, sqlx::Type, Clone)]
+#[derive(Serialize, Deserialize, Debug, sqlx::Type, Clone, ToSchema)]
 #[sqlx(rename_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
 pub enum MaskingType {
@@ -159,7 +163,7 @@ pub enum MaskingType {
 //     }
 // }
 
-#[derive(Serialize, Deserialize, Debug, sqlx::Type, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, sqlx::Type, PartialEq, Clone, ToSchema)]
 #[sqlx(type_name = "vector_type", rename_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
 pub enum VectorType {
@@ -181,7 +185,7 @@ pub enum VectorType {
     FssaiLicenseNumber,
 }
 
-#[derive(Serialize, Deserialize, Debug, sqlx::Type, Clone)]
+#[derive(Serialize, Deserialize, Debug, sqlx::Type, Clone, ToSchema)]
 #[sqlx(type_name = "vectors")]
 pub struct UserVectors {
     pub key: VectorType,
@@ -196,8 +200,9 @@ impl PgHasArrayType for UserVectors {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, ToSchema)]
 pub struct UserAccount {
+    #[schema(value_type = String)]
     pub id: Uuid,
     pub username: String,
     pub mobile_no: String,
@@ -238,17 +243,19 @@ impl FromRequest for UserAccount {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct BasicBusinessAccount {
     pub company_name: String,
+    #[schema(value_type = String)]
     pub id: Uuid,
     pub customer_type: CustomerType,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct AuthData {
     pub user: UserAccount,
     #[serde(serialize_with = "round_serialize")]
+    #[schema(value_type = String)]
     pub token: Secret<String>,
     pub business_account_list: Vec<BasicBusinessAccount>,
 }
@@ -259,6 +266,28 @@ where
 {
     s.serialize_str(x.expose_secret())
 }
+
+// impl<'__s> utoipa::ToSchema<'__s> for Secret<String> {
+//     fn schema() -> (
+//         &'__s str,
+//         utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>,
+//     ) {
+//     }
+// }
+
+// impl ToSchema for Secret<String> {
+// fn json_schema(gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
+//     schema_for!(String)
+// }
+
+// fn schema_name() -> String {
+//     "Secret<String>".to_string()
+// }
+
+// fn json_schema(gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
+//     schema_for!(String)
+// }
+// }
 
 #[derive(Serialize, Deserialize, Debug, sqlx::Type)]
 #[sqlx(type_name = "auth_context_type", rename_all = "snake_case")]
@@ -293,7 +322,7 @@ pub struct AccountRole {
     pub is_deleted: bool,
 }
 
-#[derive(Serialize, Deserialize, Debug, sqlx::Type, PartialEq, Copy, Clone)]
+#[derive(Serialize, Deserialize, Debug, sqlx::Type, PartialEq, Copy, Clone, ToSchema)]
 #[sqlx(type_name = "customer_type", rename_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
 pub enum CustomerType {
@@ -307,7 +336,7 @@ pub enum CustomerType {
     ExternalPartner,
 }
 
-#[derive(Serialize, Deserialize, Debug, sqlx::Type, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, sqlx::Type, PartialEq, ToSchema)]
 #[sqlx(type_name = "data_source", rename_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
 pub enum DataSource {
@@ -316,7 +345,7 @@ pub enum DataSource {
     Rapidor,
 }
 
-#[derive(Serialize, Deserialize, Debug, sqlx::Type, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, sqlx::Type, PartialEq, ToSchema)]
 #[sqlx(type_name = "trade_type", rename_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
 pub enum TradeType {
@@ -329,7 +358,7 @@ impl PgHasArrayType for TradeType {
         sqlx::postgres::PgTypeInfo::with_name("_trade_type")
     }
 }
-#[derive(Serialize, Deserialize, Debug, sqlx::Type, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, sqlx::Type, PartialEq, ToSchema)]
 #[sqlx(type_name = "merchant_type", rename_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
 pub enum MerchantType {
@@ -357,7 +386,7 @@ pub struct BulkAuthMechanismInsert<'a> {
     pub auth_context: Vec<AuthContextType>,
 }
 
-#[derive(Serialize, Deserialize, Debug, sqlx::Type)]
+#[derive(Serialize, Deserialize, Debug, sqlx::Type, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct KYCProof {
     pub key: VectorType,
@@ -365,7 +394,7 @@ pub struct KYCProof {
     pub value: Vec<String>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateBusinessAccount {
     pub company_name: String,
