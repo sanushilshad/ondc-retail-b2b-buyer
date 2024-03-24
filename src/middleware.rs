@@ -1,7 +1,9 @@
 use actix_web::dev::{forward_ready, Payload, Service, ServiceRequest, ServiceResponse, Transform};
 use actix_web::error::PayloadError;
 use actix_web::web::{Bytes, BytesMut};
-use actix_web::{body, http, web, Error, HttpMessage, HttpResponseBuilder, ResponseError};
+use actix_web::{
+    body, http, web, Error, HttpMessage, HttpResponse, HttpResponseBuilder, ResponseError,
+};
 use futures::future::LocalBoxFuture;
 use futures::{Stream, StreamExt};
 use sqlx::PgPool;
@@ -123,6 +125,7 @@ where
     }
 }
 
+use actix_web::http::header::UPGRADE;
 use futures_util::stream;
 pub struct SaveRequestResponse;
 
@@ -166,80 +169,91 @@ where
     #[instrument(skip(self), name = "Request Response Payload", fields(path = %req.path()))]
     fn call(&self, mut req: ServiceRequest) -> Self::Future {
         let svc = self.service.clone();
-        // let fut = self.service.call(req);
-        // let path = req.path().to_owned();
-        Box::pin(async move {
-            // let route = req.path().to_owned();
-            let mut request_body = BytesMut::new();
-            while let Some(chunk) = req.take_payload().next().await {
-                request_body.extend_from_slice(&chunk?);
-            }
-            let body = request_body.freeze();
-            match str::from_utf8(&body) {
-                Ok(request_str) => {
-                    if let Ok(request_json) =
-                        // tracing::Span::current().record("Request body", &tracing::field::display("Apple"));
-                        serde_json::from_str::<serde_json::Value>(request_str)
-                    {
-                        // Successfully parsed as JSON
-                        tracing::info!({%request_json}, "HTTP Response");
-                    } else {
-                        // Not JSON, log as a string
-                        tracing::info!("Non-JSON response: {}", request_str);
-                        request_str.to_string();
+
+        if (req.headers().contains_key(UPGRADE)
+            && req.headers().get(UPGRADE).unwrap() == "websocket")
+        {
+            Box::pin(async move {
+                let fut: ServiceResponse<B> = svc.call(req).await?;
+                return Ok(fut.map_into_left_body());
+            })
+        } else {
+            Box::pin(async move {
+                // let route = req.path().to_owned();
+                let mut request_body = BytesMut::new();
+
+                while let Some(chunk) = req.take_payload().next().await {
+                    request_body.extend_from_slice(&chunk?);
+                }
+                let body = request_body.freeze();
+                match str::from_utf8(&body) {
+                    Ok(request_str) => {
+                        if let Ok(request_json) =
+                            // tracing::Span::current().record("Request body", &tracing::field::display("Apple"));
+                            serde_json::from_str::<serde_json::Value>(request_str)
+                        {
+                            // Successfully parsed as JSON
+                            tracing::info!({%request_json}, "HTTP Response");
+                        } else {
+                            // Not JSON, log as a string
+                            tracing::info!("Non-JSON response: {}", request_str);
+                            request_str.to_string();
+                        }
+                    }
+
+                    Err(_) => {
+                        tracing::error!("Somrthing went wrong in request body parsing middleware");
                     }
                 }
 
-                Err(_) => {
-                    tracing::error!("Somrthing went wrong in request body parsing middleware");
-                }
-            }
+                let single_part: Result<Bytes, PayloadError> = Ok(body);
+                let in_memory_stream = stream::once(future::ready(single_part));
+                let pinned_stream: Pin<Box<dyn Stream<Item = Result<Bytes, PayloadError>>>> =
+                    Box::pin(in_memory_stream);
+                let in_memory_payload: Payload = pinned_stream.into();
+                req.set_payload(in_memory_payload);
+                let fut = svc.call(req).await?;
 
-            let single_part: Result<Bytes, PayloadError> = Ok(body);
-            let in_memory_stream = stream::once(future::ready(single_part));
-            let pinned_stream: Pin<Box<dyn Stream<Item = Result<Bytes, PayloadError>>>> =
-                Box::pin(in_memory_stream);
-            let in_memory_payload: Payload = pinned_stream.into();
-            req.set_payload(in_memory_payload);
-            let fut = svc.call(req).await?;
+                let res_status = fut.status().clone();
+                let res_headers = fut.headers().clone();
+                let new_request = fut.request().clone();
+                let mut new_response = HttpResponseBuilder::new(res_status);
+                let body_bytes = body::to_bytes(fut.into_body()).await?;
+                match str::from_utf8(&body_bytes) {
+                    Ok(response_str) => {
+                        if let Ok(response_json) =
+                            serde_json::from_str::<serde_json::Value>(response_str)
+                        {
+                            // Successfully parsed as JSON
+                            tracing::info!({%response_json}, "HTTP Response");
+                            // Record the response JSON in the current span
+                            tracing::Span::current()
+                                .record("Response body", &tracing::field::display(&response_json));
 
-            let res_status = fut.status().clone();
-            let res_headers = fut.headers().clone();
-            let new_request = fut.request().clone();
-            let mut new_response = HttpResponseBuilder::new(res_status);
-            let body_bytes = body::to_bytes(fut.into_body()).await?;
-            match str::from_utf8(&body_bytes) {
-                Ok(response_str) => {
-                    if let Ok(response_json) =
-                        serde_json::from_str::<serde_json::Value>(response_str)
-                    {
-                        // Successfully parsed as JSON
-                        tracing::info!({%response_json}, "HTTP Response");
-                        // Record the response JSON in the current span
-                        tracing::Span::current()
-                            .record("Response body", &tracing::field::display(&response_json));
-
-                        response_str.to_string()
-                    } else {
-                        // Not JSON, log as a string
-                        tracing::info!("Non-JSON response: {}", response_str);
-                        response_str.to_string()
+                            response_str.to_string()
+                        } else {
+                            // Not JSON, log as a string
+                            tracing::info!("Non-JSON response: {}", response_str);
+                            response_str.to_string()
+                        }
                     }
+                    Err(_) => {
+                        tracing::error!("Somrthing went wrong in response body parsing middleware");
+                        "Somrthing went wrong in response response body parsing middleware".into()
+                    }
+                };
+                for (header_name, header_value) in res_headers {
+                    new_response.insert_header((header_name.as_str(), header_value));
                 }
-                Err(_) => {
-                    tracing::error!("Somrthing went wrong in response body parsing middleware");
-                    "Somrthing went wrong in response response body parsing middleware".into()
-                }
-            };
-            for (header_name, header_value) in res_headers {
-                new_response.insert_header((header_name.as_str(), header_value));
-            }
-            let new_response = new_response.body(body_bytes.to_vec());
-            // Create the new ServiceResponse
-            Ok(ServiceResponse::new(
-                new_request,
-                new_response.map_into_right_body(),
-            ))
-        })
+                let new_response = new_response.body(body_bytes.to_vec());
+                // Create the new ServiceResponse
+                Ok(ServiceResponse::new(
+                    new_request,
+                    new_response.map_into_right_body(),
+                ))
+
+                // }
+            })
+        }
     }
 }

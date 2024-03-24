@@ -1,6 +1,9 @@
+use crate::websocket::MyWs;
+
 // use crate::routes::utils::get_customer_dbs;
 use super::utils::get_customer_dbs;
-use actix_web::{web, HttpResponse, Responder};
+use actix_web::{web, Error, HttpRequest, HttpResponse, Responder};
+use actix_web_actors::ws;
 use sqlx::PgPool;
 
 pub async fn health_check() -> impl Responder {
@@ -32,4 +35,17 @@ pub async fn get_customer_dbs_api(pool: web::Data<PgPool>) -> impl Responder {
     // }
 
     web::Json(db_domain_mapping)
+}
+
+#[tracing::instrument(
+    name = "web_socket",
+    skip(stream),
+    fields(
+    // request_id = %Uuid::new_v4()
+    )
+    )]
+pub async fn web_socket(req: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
+    let resp: Result<HttpResponse, Error> = ws::start(MyWs {}, &req, stream);
+    println!("SANU {:?}", resp);
+    resp
 }

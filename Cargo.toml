@@ -41,6 +41,8 @@ dotenv = "0.15.0"
 async-trait = "0.1.74"
 futures ="0.3"
 futures-util = "0.3"
+actix = "0.13.1"
+actix-web-actors = "4"
 
 [dev-dependencies]
 claim = "0.5"
