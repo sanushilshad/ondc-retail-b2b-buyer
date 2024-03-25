@@ -109,9 +109,9 @@ impl From<CreateUserType> for UserType {
     }
 }
 
-#[sqlx(type_name = "user_auth_identifier_scope", rename_all = "lowercase")]
 #[derive(Serialize, Deserialize, Debug, sqlx::Type, ToSchema)]
 #[serde(rename_all = "lowercase")]
+#[sqlx(type_name = "user_auth_identifier_scope", rename_all = "lowercase")]
 pub enum AuthenticationScope {
     Otp,
     Password,
@@ -200,7 +200,7 @@ impl PgHasArrayType for UserVectors {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, ToSchema)]
+#[derive(Debug, Serialize, Clone, ToSchema)]
 pub struct UserAccount {
     #[schema(value_type = String)]
     pub id: Uuid,
@@ -243,7 +243,7 @@ impl FromRequest for UserAccount {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct BasicBusinessAccount {
     pub company_name: String,
     #[schema(value_type = String)]
@@ -251,7 +251,7 @@ pub struct BasicBusinessAccount {
     pub customer_type: CustomerType,
 }
 
-#[derive(Debug, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct AuthData {
     pub user: UserAccount,
     #[serde(serialize_with = "round_serialize")]
@@ -372,7 +372,7 @@ pub enum MerchantType {
     Other,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 pub struct BulkAuthMechanismInsert<'a> {
     pub id: Vec<Uuid>,
     pub user_id_list: Vec<Uuid>,

@@ -43,22 +43,24 @@ struct ONDCContextCountry {
     code: String,
 }
 
-
 #[derive(Debug, Serialize, Deserialize)]
 struct ONDCContextCity {
     code: String,
 }
 
-
 impl ONDCContextCity {
-    fn default() -> Self {
-        ONDCContextCity { code: "std:080".to_string() }
+    fn _default() -> Self {
+        ONDCContextCity {
+            code: "std:080".to_string(),
+        }
     }
 }
 
 impl ONDCContextCountry {
-    fn default() -> Self {
-        ONDCContextCountry { code: "IND".to_string() }
+    fn _default() -> Self {
+        ONDCContextCountry {
+            code: "IND".to_string(),
+        }
     }
 }
 

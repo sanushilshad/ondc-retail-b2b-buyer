@@ -1,9 +1,6 @@
 use serde::Deserialize;
 
-use crate::{
-    domain::{subscriber_email::deserialize_subscriber_email, EmailObject},
-    schemas::CommunicationType,
-};
+use crate::domain::{subscriber_email::deserialize_subscriber_email, EmailObject};
 
 #[derive(Deserialize, Debug, sqlx::Type)]
 #[serde(rename_all = "lowercase")]

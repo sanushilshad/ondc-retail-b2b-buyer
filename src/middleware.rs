@@ -1,9 +1,7 @@
 use actix_web::dev::{forward_ready, Payload, Service, ServiceRequest, ServiceResponse, Transform};
 use actix_web::error::PayloadError;
 use actix_web::web::{Bytes, BytesMut};
-use actix_web::{
-    body, http, web, Error, HttpMessage, HttpResponse, HttpResponseBuilder, ResponseError,
-};
+use actix_web::{body, http, web, Error, HttpMessage, HttpResponseBuilder, ResponseError};
 use futures::future::LocalBoxFuture;
 use futures::{Stream, StreamExt};
 use sqlx::PgPool;
@@ -170,8 +168,7 @@ where
     fn call(&self, mut req: ServiceRequest) -> Self::Future {
         let svc = self.service.clone();
 
-        if (req.headers().contains_key(UPGRADE)
-            && req.headers().get(UPGRADE).unwrap() == "websocket")
+        if req.headers().contains_key(UPGRADE) && req.headers().get(UPGRADE).unwrap() == "websocket"
         {
             Box::pin(async move {
                 let fut: ServiceResponse<B> = svc.call(req).await?;
@@ -196,7 +193,7 @@ where
                             tracing::info!({%request_json}, "HTTP Response");
                         } else {
                             // Not JSON, log as a string
-                            tracing::info!("Non-JSON response: {}", request_str);
+                            tracing::info!("Non-JSON request: {}", request_str);
                             request_str.to_string();
                         }
                     }

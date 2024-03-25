@@ -1,12 +1,7 @@
-use std::{collections::HashMap, sync::Arc};
-
 use actix_web::web;
 
 use crate::routes::user::schemas::UserAccount;
-use crate::{
-    email_client::GenericEmailService,
-    schemas::{CommunicationType, GenericResponse},
-};
+use crate::{email_client::GenericEmailService, schemas::GenericResponse};
 
 use super::{errors::OTPError, schemas::OTPRequestBody, utils::send_email_background};
 

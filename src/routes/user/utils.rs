@@ -10,7 +10,7 @@ use crate::utils::{generate_jwt_token_for_user, spawn_blocking_with_tracing};
 use anyhow::{anyhow, Context};
 use argon2::password_hash::SaltString;
 use argon2::{Algorithm, Argon2, Params, PasswordHash, PasswordHasher, PasswordVerifier, Version};
-use chrono::{Utc};
+use chrono::Utc;
 use secrecy::{ExposeSecret, Secret};
 use sqlx::types::chrono::DateTime;
 use sqlx::{Executor, PgPool, Postgres, Transaction};
