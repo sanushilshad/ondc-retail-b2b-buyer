@@ -1,6 +1,7 @@
-use crate::configuration::{DatabaseSettings, SecretSetting, UserSettings};
+use crate::configuration::{DatabaseSettings, RedisSettings, SecretSetting, UserSettings};
 use crate::email_client::{DummyEmailClient, GenericEmailService, SmtpEmailClient};
 use crate::middleware::SaveRequestResponse;
+use crate::redis::RedisClient;
 // use crate::middleware::tracing_middleware;
 
 use crate::routes::main_route;
@@ -36,6 +37,7 @@ impl Application {
             "{}:{}",
             configuration.application.host, configuration.application.port
         );
+        let redis_obj = RedisClient::new(configuration.redis).await?;
         println!("Listening {}", address);
         let listener = TcpListener::bind(&address)?;
         let port = listener.local_addr().unwrap().port();
@@ -45,6 +47,7 @@ impl Application {
             email_pool,
             configuration.application.workers,
             configuration.secret,
+            redis_obj,
             configuration.user,
         )
         .await?;
@@ -73,6 +76,7 @@ async fn run(
     email_obj: Arc<dyn GenericEmailService>,
     workers: usize,
     secret: SecretSetting,
+    redis_client: RedisClient,
     user_setting: UserSettings,
 ) -> Result<Server, anyhow::Error> {
     let db_pool = web::Data::new(db_pool);
@@ -80,7 +84,7 @@ async fn run(
     let secret_obj = web::Data::new(secret);
     let user_setting_obj = web::Data::new(user_setting);
     // let _secret_key = Key::from(hmac_secret.expose_secret().as_bytes());
-
+    let redis_app = web::Data::new(redis_client);
     let server = HttpServer::new(move || {
         App::new()
             .wrap(TracingLogger::default())
@@ -93,6 +97,7 @@ async fn run(
             .app_data(email_client.clone())
             .app_data(secret_obj.clone())
             .app_data(user_setting_obj.clone())
+            .app_data(redis_app.clone())
             .configure(main_route)
     })
     .workers(workers)

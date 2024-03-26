@@ -34,7 +34,7 @@ pub struct ApplicationSettings {
     pub port: u16,
     pub host: String,
     pub hmac_secret: Secret<String>,
-    pub workers: usize
+    pub workers: usize,
 }
 
 #[derive(Debug, Deserialize, Clone)]

@@ -11,7 +11,7 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 serde = { version = "1.0"}
 
 sqlx = { version = "0.7", default-features = false, features = ["runtime-tokio-rustls", "macros", "postgres", "uuid", "chrono", "migrate", "json"] }
-bigdecimal = { version = "0.3.1", default-features = false, features = ["serde"] }
+bigdecimal = { version = "0.4", default-features = false, features = ["serde"] }
 config = { version = "0.13.3", default-features = false, features = ["yaml"] }
 tracing = { version = "0.1", features = ["log"] }
 tracing-subscriber = { version = "0.3", features = ["registry", "env-filter"] }
@@ -43,6 +43,7 @@ futures ="0.3"
 futures-util = "0.3"
 actix = "0.13.1"
 actix-web-actors = "4"
+redis = { version = "0.24.0", features = ["tokio-comp", "aio"] }
 
 [dev-dependencies]
 claim = "0.5"

@@ -1,9 +1,13 @@
-use crate::websocket::MyWs;
+use crate::{redis::RedisClient, websocket::MyWs};
 
 // use crate::routes::utils::get_customer_dbs;
-use super::utils::get_customer_dbs;
+use super::{
+    schemas::{RedisAction, RedisBasicRequest},
+    utils::get_customer_dbs,
+};
 use actix_web::{web, Error, HttpRequest, HttpResponse, Responder};
 use actix_web_actors::ws;
+use redis::AsyncCommands;
 use sqlx::PgPool;
 
 pub async fn health_check() -> impl Responder {
@@ -48,4 +52,34 @@ pub async fn web_socket(req: HttpRequest, stream: web::Payload) -> Result<HttpRe
     let resp: Result<HttpResponse, Error> = ws::start(MyWs {}, &req, stream);
     println!("SANU {:?}", resp);
     resp
+}
+
+#[tracing::instrument(name = "redis_basic", skip(redis), fields())]
+pub async fn redis_basic(
+    redis: web::Data<RedisClient>,
+    body: web::Json<RedisBasicRequest>,
+) -> HttpResponse {
+    let mut conn = redis
+        .get_connection()
+        .await
+        .expect("Failed to get Redis connection");
+    let message: String;
+    match body.action {
+        RedisAction::Set => {
+            let _: () = conn
+                .set(&body.key, &body.value)
+                .await
+                .expect("Failed to set value in Redis");
+            message = "Successfully set value in Redis".to_string()
+        }
+        RedisAction::Get => {
+            let value: Option<String> = conn
+                .get(&body.key)
+                .await
+                .expect("Failed to get value from Redis");
+            message = value.unwrap_or_default();
+        }
+    }
+
+    HttpResponse::Ok().body(message)
 }

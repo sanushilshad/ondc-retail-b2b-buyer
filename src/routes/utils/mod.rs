@@ -1,5 +1,6 @@
 mod models;
 mod routes;
+mod schemas;
 mod test;
 mod utils;
 mod views;

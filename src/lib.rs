@@ -6,6 +6,7 @@ pub mod errors;
 pub mod middleware;
 pub mod migration;
 pub mod openapi;
+pub mod redis;
 pub mod routes;
 pub mod schemas;
 pub mod session_state;
