@@ -42,6 +42,12 @@ export REDIS__HOST=""
 export REDIS__PORT=""
 export REDIS_PASSWORD=""
 
+
+## BUYER NP DETAILS
+export ONDC__BAP__ID=""
+export ONDC__BAP__URI=""
+export ONDC__BAP__SIGNING_KEY=""
+
 ##USER VARIABLE
 export LIST__USER__ADMIN_LIST="9562279968,"
 
