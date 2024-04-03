@@ -4,6 +4,7 @@ use actix_web::web;
 use sqlx::PgPool;
 
 use crate::{
+    configuration::ONDCSetting,
     routes::{
         ondc::buyer::utils::get_ondc_search_payload, product::errors::ProductSearchError,
         schemas::UserAccount,
@@ -39,9 +40,10 @@ use super::schemas::ProductSearchRequest;
 pub async fn product_search(
     body: web::Json<ProductSearchRequest>,
     _pool: web::Data<PgPool>,
+    ondc_obj: web::Data<ONDCSetting>,
     user_account: UserAccount,
 ) -> Result<web::Json<GenericResponse<()>>, ProductSearchError> {
-    let _ondc_search_payload = get_ondc_search_payload(user_account, body.0)?;
+    // let _ondc_search_payload = get_ondc_search_payload(user_account, body.0, ondc_obj)?;
     Ok(web::Json(GenericResponse::success(
         "Successfully Send Product Search Request",
         Some(()),

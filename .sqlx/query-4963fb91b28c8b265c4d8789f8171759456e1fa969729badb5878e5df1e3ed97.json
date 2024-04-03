@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE auth_mechanism SET\n        valid_upto = $1, secret = $2\n        WHERE id = $3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4963fb91b28c8b265c4d8789f8171759456e1fa969729badb5878e5df1e3ed97"
+}

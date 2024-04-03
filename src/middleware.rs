@@ -199,7 +199,7 @@ where
                     }
 
                     Err(_) => {
-                        tracing::error!("Somrthing went wrong in request body parsing middleware");
+                        tracing::error!("Something went wrong in request body parsing middleware");
                     }
                 }
 
@@ -235,8 +235,8 @@ where
                         }
                     }
                     Err(_) => {
-                        tracing::error!("Somrthing went wrong in response body parsing middleware");
-                        "Somrthing went wrong in response response body parsing middleware".into()
+                        tracing::error!("Something went wrong in response body parsing middleware");
+                        "Something went wrong in response response body parsing middleware".into()
                     }
                 };
                 for (header_name, header_value) in res_headers {

@@ -19,6 +19,20 @@ pub struct SecretSetting {
 pub struct UserSettings {
     pub admin_list: Vec<String>,
 }
+
+// pub struct ONDCSeller{
+
+// }
+#[derive(Debug, Deserialize, Clone)]
+pub struct ONDCBuyer {
+    pub id: String,
+    pub uri: String,
+    pub signing_key: Secret<String>,
+}
+#[derive(Debug, Deserialize, Clone)]
+pub struct ONDCSetting {
+    pub bap: ONDCBuyer, // pub seller:ONDCSeller
+}
 #[derive(Debug, Deserialize, Clone)]
 pub struct Settings {
     pub database: DatabaseSettings,
@@ -27,6 +41,7 @@ pub struct Settings {
     pub email_client: EmailClientSettings,
     pub secret: SecretSetting,
     pub user: UserSettings,
+    pub ondc: ONDCSetting,
 }
 
 #[derive(Debug, Deserialize, Clone)]

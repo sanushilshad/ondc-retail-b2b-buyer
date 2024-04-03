@@ -29,8 +29,8 @@ use serde::Deserialize;
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct ProductSearchRequest {
-    _query: String,
-    _latitude: f64,
-    _longitude: f64,
-    _domain_category_id: String,
+    pub query: String,
+    pub latitude: f64,
+    pub longitude: f64,
+    pub domain_category_id: String,
 }

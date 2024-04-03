@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ONDCVersion {
@@ -39,13 +40,13 @@ pub enum ONDCDomain {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct ONDCContextCountry {
-    code: String,
+pub struct ONDCContextCountry {
+    pub code: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct ONDCContextCity {
-    code: String,
+pub struct ONDCContextCity {
+    pub code: String,
 }
 
 impl ONDCContextCity {
@@ -65,25 +66,23 @@ impl ONDCContextCountry {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct ONDCContextLocation {
-    city: ONDCContextCity,
-    country: ONDCContextCountry,
+pub struct ONDCContextLocation {
+    pub city: ONDCContextCity,
+    pub country: ONDCContextCountry,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCContext {
-    domain: ONDCDomain,
-    location: Option<ONDCContextLocation>,
-    country: Option<String>,
-    city: Option<String>,
-    action: ONDCActionType,
-    version: ONDCVersion,
-    transaction_id: String,
-    message_id: String,
-    timestamp: DateTime<Utc>,
-    bap_id: String,
-    bap_uri: String,
-    bpp_id: Option<String>,
-    bpp_uri: Option<String>,
-    ttl: String,
+    pub domain: ONDCDomain,
+    pub location: ONDCContextLocation,
+    pub action: ONDCActionType,
+    pub version: ONDCVersion,
+    pub transaction_id: Uuid,
+    pub message_id: Uuid,
+    pub timestamp: DateTime<Utc>,
+    pub bap_id: String,
+    pub bap_uri: String,
+    pub bpp_id: Option<String>,
+    pub bpp_uri: Option<String>,
+    pub ttl: String,
 }

@@ -234,7 +234,7 @@ impl FromRequest for UserAccount {
         let result = match value {
             Some(user) => Ok(user),
             None => Err(ErrorInternalServerError(AuthError::UnexpectedStringError(
-                "Somrthing went wrong".to_string(),
+                "Something went wrong".to_string(),
             ))),
         };
 
