@@ -1,8 +1,8 @@
+use crate::routes::user::schemas::AuthData;
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgHasArrayType;
 use utoipa::{openapi::Object, ToSchema};
 use uuid::Uuid;
-use crate::routes::user::schemas::AuthData;
 
 #[derive(Serialize, Debug, ToSchema)]
 #[aliases(EmptyGenericResponse = GenericResponse<Object>, AuthResponse = GenericResponse<AuthData>)]
@@ -72,4 +72,10 @@ pub enum CommunicationType {
 pub struct JWTClaims {
     pub sub: Uuid,
     pub exp: usize,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(rename_all = "UPPERCASE")]
+pub enum CountryCode {
+    IND,
 }

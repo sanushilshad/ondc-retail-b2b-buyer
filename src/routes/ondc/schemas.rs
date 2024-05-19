@@ -2,6 +2,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::schemas::CountryCode;
+
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ONDCVersion {
     #[serde(rename = "2.0.2")]
@@ -39,9 +41,15 @@ pub enum ONDCDomain {
     GROCERY,
 }
 
+impl ONDCDomain {
+    pub fn get_ondc_domain(domain_category_id: &str) -> Result<ONDCDomain, serde_json::Error> {
+        serde_json::from_str(&format!("ONDC:{}", domain_category_id))
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCContextCountry {
-    pub code: String,
+    pub code: CountryCode,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -60,7 +68,7 @@ impl ONDCContextCity {
 impl ONDCContextCountry {
     fn _default() -> Self {
         ONDCContextCountry {
-            code: "IND".to_string(),
+            code: CountryCode::IND,
         }
     }
 }

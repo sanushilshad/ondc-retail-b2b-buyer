@@ -24,13 +24,50 @@
 //     product_codes: Vec<String>,
 // }
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+
+use crate::schemas::CountryCode;
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PaymentType {
+    Pre_paid,
+    COD,
+    Credit,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+
+pub enum FulfillmentType {
+    Delivery,
+    SelfPickup,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ProductSearchType {
+    Item,
+    Fulfillment,
+    Category,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ProductFulFillmentLocations {
+    pub latitude: f64,
+    pub longitude: f64,
+    pub area_code: String,
+}
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct ProductSearchRequest {
     pub query: String,
-    pub latitude: f64,
-    pub longitude: f64,
     pub domain_category_id: String,
+    pub country_code: CountryCode,
+    pub payment_type: PaymentType,
+    pub fulfillment_type: FulfillmentType,
+    pub search_type: ProductSearchType,
+    pub fulfillment_locations: Vec<ProductFulFillmentLocations>,
 }

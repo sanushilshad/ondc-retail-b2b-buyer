@@ -1,4 +1,4 @@
-use super::errors::{AuthError, BusinessRegistrationError, UserRegistrationError};
+use super::errors::{AuthError, BusinessAccountError, UserRegistrationError};
 use super::models::{AuthMechanismModel, BusinessAccountModel, UserAccountModel, UserRoleModel};
 use super::schemas::{
     AccountRole, AuthContextType, AuthData, AuthMechanism, AuthenticateRequest, AuthenticationScope, BasicBusinessAccount, BulkAuthMechanismInsert, BusinessAccount, CreateBusinessAccount, CreateUserAccount, DataSource, KYCProof, MaskingType, UserAccount, UserType, UserVectors, VectorType
@@ -12,6 +12,7 @@ use argon2::password_hash::SaltString;
 use argon2::{Algorithm, Argon2, Params, PasswordHash, PasswordHasher, PasswordVerifier, Version};
 use chrono::Utc;
 use secrecy::{ExposeSecret, Secret};
+use serde_json::json;
 use sqlx::types::chrono::DateTime;
 use sqlx::{Executor, PgPool, Postgres, Transaction};
 use uuid::Uuid;
@@ -570,7 +571,7 @@ pub async fn register_user(
 #[tracing::instrument(name = "create user account")]
 pub fn create_vector_from_business_account(
     business_account: &CreateBusinessAccount,
-) -> Result<Vec<UserVectors>, BusinessRegistrationError> {
+) -> Result<Vec<UserVectors>, BusinessAccountError> {
     let mut vector_list = vec![
         UserVectors {
             key: VectorType::Email,
@@ -599,7 +600,7 @@ pub fn create_vector_from_business_account(
 }
 
 #[tracing::instrument(name = "create user business relation", skip(transaction))]
-pub async fn save_business_account(transaction: &mut Transaction<'_, Postgres>, user_account: &UserAccount,  create_business_obj: &CreateBusinessAccount) -> Result<uuid::Uuid,  BusinessRegistrationError>{
+pub async fn save_business_account(transaction: &mut Transaction<'_, Postgres>, user_account: &UserAccount,  create_business_obj: &CreateBusinessAccount) -> Result<uuid::Uuid,  BusinessAccountError>{
     let business_account_id = Uuid::new_v4();
     let business_account_number = create_business_obj.company_name.replace(" ", "-").to_lowercase();
     let vector_list = create_vector_from_business_account(&create_business_obj)?;
@@ -625,7 +626,7 @@ pub async fn save_business_account(transaction: &mut Transaction<'_, Postgres>, 
 
     transaction.execute(query).await.map_err(|e| {
         tracing::error!("Failed to execute query: {:?}", e);
-        BusinessRegistrationError::DatabaseError(
+        BusinessAccountError::DatabaseError(
             "A database failure occured while saving business account".to_string(),
             e.into(),
         )
@@ -635,7 +636,7 @@ pub async fn save_business_account(transaction: &mut Transaction<'_, Postgres>, 
     // Ok(Uuid::new_v4())
 }
 #[tracing::instrument(name = "create user business relation", skip(transaction))]
-pub async fn save_user_business_relation(transaction: &mut Transaction<'_, Postgres>, user_id: Uuid, business_id: Uuid, role_id: Uuid)-> Result<uuid::Uuid,  BusinessRegistrationError>{
+pub async fn save_user_business_relation(transaction: &mut Transaction<'_, Postgres>, user_id: Uuid, business_id: Uuid, role_id: Uuid)-> Result<uuid::Uuid,  BusinessAccountError>{
     let user_role_id = Uuid::new_v4();
     let query = sqlx::query!(
         r#"
@@ -652,7 +653,7 @@ pub async fn save_user_business_relation(transaction: &mut Transaction<'_, Postg
 
     transaction.execute(query).await.map_err(|e| {
         tracing::error!("Failed to execute query: {:?}", e);
-        BusinessRegistrationError::DatabaseError(
+        BusinessAccountError::DatabaseError(
             "A database failure occured while saving user business relation".to_string(),
             e.into(),
         )
@@ -699,7 +700,7 @@ pub async fn prepare_auth_mechanism_data_for_business_account(
     })
 }
 #[tracing::instrument(name = "create business account", skip(pool))]
-pub async fn create_business_account( pool: &PgPool, user_account: &UserAccount, create_business_obj: &CreateBusinessAccount) -> Result<uuid::Uuid, BusinessRegistrationError>{
+pub async fn create_business_account( pool: &PgPool, user_account: &UserAccount, create_business_obj: &CreateBusinessAccount) -> Result<uuid::Uuid, BusinessAccountError>{
     //  NOTE: Save business account in table
     // associate the user and business
     // save auth for email and mobile in auth mechanism
@@ -711,7 +712,7 @@ pub async fn create_business_account( pool: &PgPool, user_account: &UserAccount,
     let business_account_id = save_business_account(&mut transaction, user_account, &create_business_obj).await?;
     if  let Some(role_obj) = get_role(pool, &UserType::Admin).await?{
         if role_obj.is_deleted || role_obj.role_status == Status::Inactive {
-            return Err(BusinessRegistrationError::InvalidRoleError("Role is deleted / Inactive".to_string()))
+            return Err(BusinessAccountError::InvalidRoleError("Role is deleted / Inactive".to_string()))
         }
         save_user_business_relation(&mut transaction, user_account.id, business_account_id, role_obj.id).await?;
     }
@@ -754,24 +755,62 @@ pub async fn fetch_business_account_model_by_user_account(
     Ok(row)
 }
 
-fn _get_business_account_from_model(business_model: &BusinessAccountModel) -> Result<BusinessAccount, anyhow::Error> {
+#[tracing::instrument(name = "Get Business Account By User Id and customer type", skip(pool))]
+pub async fn fetch_business_account_model_by_customer_type(
+    user_id: Uuid,
+    business_account_id: Uuid,
+    customer_type_list: Vec<CustomerType>,
+    pool: &PgPool,
+) -> Result<Option<BusinessAccountModel>, anyhow::Error> {
+    // let a  = serde_json::to_vec_pretty(&customer_type_list);
+    let val_list: Vec<String> = customer_type_list.iter().map(|&s| s.to_string()).collect();
+    let row: Option<BusinessAccountModel> = sqlx::query_as!(
+        BusinessAccountModel,
+        r#"SELECT 
+        ba.id, ba.company_name, ba.customer_type as "customer_type: CustomerType" FROM business_user_relationship as bur
+            INNER JOIN business_account ba ON bur.business_id = ba.id
+        WHERE bur.user_id = $1 AND bur.business_id= $2 AND ba.customer_type::text = ANY($3)
+        "#,
+        user_id,
+        business_account_id,
+        &val_list
+    ).fetch_optional(pool)
+    .await?;
+
+    Ok(row)
+}
+
+// let val_list: Vec<String> = value_list.iter().map(|&s| s.to_string()).collect();
+
+// let row: Option<UserAccountModel> = sqlx::query_as!(
+//     UserAccountModel,
+//     r#"SELECT 
+//         ua.id, username, is_test_user, mobile_no, email, is_active as "is_active!:Status", 
+//         vectors as "vectors!:sqlx::types::Json<Vec<Option<UserVectors>>>", display_name, 
+//         international_dialing_code, user_account_number, alt_user_account_number, ua.is_deleted, r.role_name FROM user_account as ua
+//         INNER JOIN user_role ur ON ua.id = ur.user_id
+//         INNER JOIN role r ON ur.role_id = r.id
+//     WHERE ua.email = ANY($1) OR ua.mobile_no = ANY($1) OR ua.id::text = ANY($1)
+
+
+
+pub fn get_business_account_from_model(business_model: &BusinessAccountModel) -> Result<BusinessAccount, anyhow::Error> {
     return Ok(BusinessAccount {
         id: business_model.id,
         company_name: business_model.company_name.to_string()
     });
 }
 
-
-pub async fn _get_business_account_by_user_id(user_id: Uuid, pool: &PgPool) -> Result<Vec<BusinessAccount>, anyhow::Error> {
-    let  business_account_models = fetch_business_account_model_by_user_account(user_id, &pool).await?;
-        // Ok(Some(business_account_models)) => {
-    let mut business_account_list = Vec::new();
-    for business_account_model in business_account_models.iter(){
-        let business_account = _get_business_account_from_model(business_account_model)?;
-        business_account_list.push(business_account)
+pub async fn get_business_account_by_customer_type(user_id: Uuid, business_account_id: Uuid, customer_type_list: Vec<CustomerType>, pool: &PgPool) -> Result<Option<BusinessAccount>, anyhow::Error> {
+    let  business_account_model = fetch_business_account_model_by_customer_type(user_id, business_account_id, customer_type_list, &pool).await?;
+    match business_account_model {
+        Some(model) => {
+            let business_account = get_business_account_from_model(&model)?;
+            Ok(Some(business_account))
+        },
+        None => Ok(None),
     }
-
-    Ok(business_account_list)
+    
 }
 
 

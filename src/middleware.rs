@@ -9,11 +9,15 @@ use std::cell::RefCell;
 use std::future::{self, ready, Ready};
 use std::pin::Pin;
 use std::rc::Rc;
+use std::sync::Arc;
 use tracing::instrument;
+use uuid::Uuid;
 
 use crate::configuration::SecretSetting;
-use crate::routes::user::errors::AuthError;
-use crate::routes::user::utils::get_user;
+use crate::routes::user::errors::{AuthError, BusinessAccountError};
+use crate::routes::user::utils::{
+    fetch_business_account_model_by_customer_type, get_business_account_by_customer_type, get_user,
+};
 use crate::schemas::Status;
 use crate::utils::decode_token;
 use actix_web::body::{EitherBody, MessageBody};
@@ -22,7 +26,7 @@ use std::str;
 pub struct AuthMiddleware<S> {
     service: Rc<S>,
 }
-use crate::routes::user::schemas::UserAccount;
+use crate::routes::user::schemas::{BusinessAccount, CustomerType, UserAccount};
 impl<S> Service<ServiceRequest> for AuthMiddleware<S>
 where
     S: Service<ServiceRequest, Response = ServiceResponse<actix_web::body::BoxBody>, Error = Error>
@@ -46,6 +50,9 @@ where
                     .map(|h| h.to_str().unwrap().split_at(7).1.to_string())
             });
 
+        let request_id = req.headers().get("x-request-id");
+        let device_id = req.headers().get("x-device-id");
+
         // If token is missing, return unauthorized error
         let jwt_secret = &req
             .app_data::<web::Data<SecretSetting>>()
@@ -53,12 +60,18 @@ where
             .jwt
             .secret;
 
-        if token.is_none() {
+        if token.is_none() || request_id.is_none() || device_id.is_none() {
+            let error_message = match (token.is_none(), request_id.is_none(), device_id.is_none()) {
+                (true, _, _) => "Authorization token is missing".to_string(),
+                (_, true, _) => "x-request-id is missing".to_string(),
+                (_, _, true) => "x-device-id is missing".to_string(),
+                _ => "".to_string(), // Default case, if none of the conditions are met
+            };
             let (request, _pl) = req.into_parts();
-            let json_error =
-                AuthError::ValidationStringError("Authorization token is missing".to_string());
+            let json_error = AuthError::ValidationStringError(error_message);
             return Box::pin(async { Ok(ServiceResponse::from_err(json_error, request)) });
         }
+        // if request_id.is_none() {}
 
         // Decode token and handle errors
         let user_id = match decode_token(&token.unwrap(), jwt_secret) {
@@ -252,5 +265,109 @@ where
                 // }
             })
         }
+    }
+}
+
+pub struct BusinessAccountMiddleware<S> {
+    service: Rc<S>,
+    pub business_type_list: Vec<CustomerType>,
+}
+impl<S> Service<ServiceRequest> for BusinessAccountMiddleware<S>
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<actix_web::body::BoxBody>, Error = Error>
+        + 'static,
+{
+    type Response = ServiceResponse<actix_web::body::BoxBody>;
+    type Error = Error;
+    type Future = LocalBoxFuture<'static, Result<Self::Response, Error>>;
+
+    forward_ready!(service);
+
+    /// Handles incoming requests.
+    fn call(&self, req: ServiceRequest) -> Self::Future {
+        // Attempt to extract token from cookie or authorization header
+
+        let business_id = match req
+            .headers()
+            .get("x-business-id")
+            .and_then(|value| value.to_str().ok()) // Convert HeaderValue to &str
+            .and_then(|value| Uuid::parse_str(value).ok())
+        {
+            Some(business_id) => business_id,
+            None => {
+                let json_error = BusinessAccountError::ValidationStringError(
+                    "x-business-id is missing or is invalid".to_string(),
+                );
+                let (request, _pl) = req.into_parts();
+                return Box::pin(async { Ok(ServiceResponse::from_err(json_error, request)) });
+            }
+        };
+        let srv = Rc::clone(&self.service);
+        let customer_type_list = self.business_type_list.clone();
+        Box::pin(async move {
+            let db_pool = req.app_data::<web::Data<PgPool>>().unwrap();
+            let user_account = match req.extensions().get::<UserAccount>() {
+                Some(user_account) => user_account.to_owned(),
+                None => {
+                    // Handle the case where the user account is not found
+                    let (parts, _body) = req.parts(); // Destructure parts of the request
+                    return Ok(ServiceResponse::from_err(
+                        BusinessAccountError::UnexpectedStringError(
+                            "User Account doesn't exist".to_string(),
+                        ),
+                        parts.clone(),
+                    ));
+                }
+            };
+
+            let business_account: Option<BusinessAccount> = get_business_account_by_customer_type(
+                user_account.id,
+                business_id,
+                customer_type_list,
+                db_pool,
+            )
+            .await
+            .map_err(|e| BusinessAccountError::UnexpectedError(e))?;
+            if let Some(business_obj) = business_account {
+                req.extensions_mut().insert::<BusinessAccount>(business_obj);
+            } else {
+                let (parts, _body) = req.parts(); // Destructure parts of the request
+                return Ok(ServiceResponse::from_err(
+                    BusinessAccountError::UnexpectedStringError(
+                        "Business Account doesn't exist".to_string(),
+                    ),
+                    parts.clone(),
+                ));
+            }
+
+            let res = srv.call(req).await?;
+            Ok(res)
+        })
+    }
+}
+
+// Middleware factory for business account validation.
+pub struct BusinessAccountValidation {
+    pub business_type_list: Vec<CustomerType>,
+}
+
+impl<S> Transform<S, ServiceRequest> for BusinessAccountValidation
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<actix_web::body::BoxBody>, Error = Error>
+        + 'static,
+{
+    type Response = ServiceResponse<actix_web::body::BoxBody>;
+    type Error = Error;
+    type Transform = BusinessAccountMiddleware<S>;
+    type InitError = ();
+    type Future = Ready<Result<Self::Transform, Self::InitError>>;
+
+    /// Creates and returns a new AuthMiddleware wrapped in a Result.
+    fn new_transform(&self, service: S) -> Self::Future {
+        // Wrap the AuthMiddleware instance in a Result and return it.
+        ready(Ok(BusinessAccountMiddleware {
+            service: Rc::new(service),
+            business_type_list: self.business_type_list.clone(),
+        }))
     }
 }

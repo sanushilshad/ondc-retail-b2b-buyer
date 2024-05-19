@@ -1,4 +1,4 @@
-use super::errors::{BusinessRegistrationError, UserRegistrationError};
+use super::errors::{BusinessAccountError, UserRegistrationError};
 use super::schemas::{
     AuthData, AuthenticateRequest, CreateBusinessAccount, CreateUserAccount, UserAccount, UserType,
 };
@@ -115,7 +115,7 @@ pub async fn register_business_account(
     body: web::Json<CreateBusinessAccount>,
     pool: web::Data<PgPool>,
     user: UserAccount,
-) -> Result<web::Json<GenericResponse<()>>, BusinessRegistrationError> {
+) -> Result<web::Json<GenericResponse<()>>, BusinessAccountError> {
     // if let UserType::Admin | UserType::Superadmin = body.user_type {
     create_business_account(&pool, &user, &body).await?;
     Ok(web::Json(GenericResponse::success(

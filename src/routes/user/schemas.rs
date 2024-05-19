@@ -15,7 +15,7 @@ use crate::{
     schemas::Status,
 };
 
-use super::errors::AuthError;
+use super::errors::{AuthError, BusinessAccountError};
 
 // macro_rules! impl_serialize_format {
 //     ($struct_name:ident, $trait_name:path) => {
@@ -336,6 +336,21 @@ pub enum CustomerType {
     ExternalPartner,
 }
 
+impl std::fmt::Display for CustomerType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CustomerType::NA => write!(f, "NA"),
+            CustomerType::Buyer => write!(f, "buyer"),
+            CustomerType::Seller => write!(f, "seller"),
+            CustomerType::Brand => write!(f, "brand"),
+            CustomerType::LogisticPartner => write!(f, "logistic_partner"),
+            CustomerType::PaymentAggregator => write!(f, "payment_aggregator"),
+            CustomerType::VirtualOperator => write!(f, "virtual_operator"),
+            CustomerType::ExternalPartner => write!(f, "external_partner"),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, sqlx::Type, PartialEq, ToSchema)]
 #[sqlx(type_name = "data_source", rename_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
@@ -410,9 +425,34 @@ pub struct CreateBusinessAccount {
     pub proofs: Vec<KYCProof>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct BusinessAccount {
     pub id: Uuid,
     pub company_name: String,
+}
+
+impl FromRequest for BusinessAccount {
+    type Error = actix_web::Error;
+    type Future = Ready<Result<Self, Self::Error>>;
+
+    /// Implement the `from_request` method to extract and wrap the authenticated user.
+    fn from_request(
+        req: &actix_web::HttpRequest,
+        _payload: &mut actix_web::dev::Payload,
+    ) -> Self::Future {
+        // Attempt to retrieve the user information from request extensions.
+        let value = req.extensions().get::<BusinessAccount>().cloned();
+
+        // Check if the user information was successfully retrieved.
+        let result = match value {
+            Some(user) => Ok(user),
+            None => Err(ErrorInternalServerError(
+                BusinessAccountError::UnexpectedStringError("Something went wrong".to_string()),
+            )),
+        };
+
+        // Return a ready future with the result.
+        ready(result)
+    }
 }

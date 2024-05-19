@@ -120,7 +120,7 @@ impl ResponseError for UserRegistrationError {
 }
 
 #[derive(thiserror::Error)]
-pub enum BusinessRegistrationError {
+pub enum BusinessAccountError {
     // #[error("Insufficient previlege to register Admin/Superadmin")]
     // InsufficientPrevilegeError(String),
     #[error("{0}, {1}")]
@@ -129,21 +129,27 @@ pub enum BusinessRegistrationError {
     InvalidRoleError(String),
     #[error(transparent)]
     UnexpectedError(#[from] anyhow::Error),
+    #[error("{0}")]
+    ValidationStringError(String),
+    #[error("{0}")]
+    UnexpectedStringError(String),
 }
 
-impl std::fmt::Debug for BusinessRegistrationError {
+impl std::fmt::Debug for BusinessAccountError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         error_chain_fmt(self, f)
     }
 }
 
-impl ResponseError for BusinessRegistrationError {
+impl ResponseError for BusinessAccountError {
     fn status_code(&self) -> StatusCode {
         match self {
             // BusinessRegistrationError::InsufficientPrevilegeError(_) => StatusCode::UNAUTHORIZED,
-            BusinessRegistrationError::DatabaseError(_, _) => StatusCode::INTERNAL_SERVER_ERROR,
-            BusinessRegistrationError::InvalidRoleError(_) => StatusCode::UNAUTHORIZED,
-            BusinessRegistrationError::UnexpectedError(_) => StatusCode::UNAUTHORIZED,
+            BusinessAccountError::DatabaseError(_, _) => StatusCode::INTERNAL_SERVER_ERROR,
+            BusinessAccountError::InvalidRoleError(_) => StatusCode::UNAUTHORIZED,
+            BusinessAccountError::UnexpectedError(_) => StatusCode::UNAUTHORIZED,
+            BusinessAccountError::ValidationStringError(_) => StatusCode::BAD_REQUEST,
+            BusinessAccountError::UnexpectedStringError(_) => StatusCode::BAD_REQUEST,
         }
     }
 
@@ -151,12 +157,14 @@ impl ResponseError for BusinessRegistrationError {
         let status_code = self.status_code();
         let status_code_str = status_code.as_str();
         let inner_error_msg = match self {
-            BusinessRegistrationError::DatabaseError(message, _err) => message.to_string(),
-            BusinessRegistrationError::InvalidRoleError(error_msg) => error_msg.to_string(),
+            BusinessAccountError::DatabaseError(message, _err) => message.to_string(),
+            BusinessAccountError::InvalidRoleError(error_msg) => error_msg.to_string(),
+            BusinessAccountError::ValidationStringError(message) => message.to_string(),
             // BusinessRegistrationError::InsufficientPrevilegeError(error_msg) => {
             //     error_msg.to_string()
             // }
-            BusinessRegistrationError::UnexpectedError(error_msg) => error_msg.to_string(),
+            BusinessAccountError::UnexpectedError(error_msg) => error_msg.to_string(),
+            BusinessAccountError::UnexpectedStringError(error_msg) => error_msg.to_string(),
         };
 
         HttpResponse::build(status_code).json(GenericResponse::error(

@@ -216,3 +216,25 @@ where
     // Parse the string as JSON array and extract Vec<String>
     serde_json::from_str::<Vec<String>>(&config_str).map_err(serde::de::Error::custom)
 }
+
+// fn get_country_alpha3(latitude: f64, longitude: f64) -> Result<String, String> {
+//     // Initialize the geocoder
+//     let geocoder = Geocoder::new();
+
+//     // Reverse geocode to get the location information
+//     match geocoder.reverse((latitude, longitude)) {
+//         Ok(locations) => {
+//             // Assuming the first location is the most relevant
+//             if let Some(Location::Country(country)) = locations.first() {
+//                 Ok(country.alpha3)
+//             } else {
+//                 Err("Country code not found.".to_string())
+//             }
+//         }
+//         Err(err) => Err(format!("Error: {}", err)),
+//     }
+// }
+
+pub fn get_gps_string(latitude: f64, longitude: f64) -> String {
+    format!("{},{}", latitude, longitude)
+}
