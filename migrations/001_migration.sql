@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS user_account(
     updated_on TIMESTAMPTZ,
     deleted_on TIMESTAMPTZ,
     is_deleted BOOLEAN NOT NULL DEFAULT false,
+    subscriber_id TEXT NOT NULL
 );
 
 CREATE TYPE "user_auth_identifier_scope" AS ENUM (
@@ -218,7 +219,8 @@ CREATE TABLE IF NOT EXISTS business_account (
   updated_at TIMESTAMPTZ,
   deleted_by uuid,
   deleted_at TIMESTAMPTZ,
-  is_test_account BOOLEAN NOT NULL DEFAULT false
+  is_test_account BOOLEAN NOT NULL DEFAULT false,
+  subscriber_id TEXT NOT NULL
 
 );
 

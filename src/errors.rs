@@ -1,4 +1,7 @@
-use crate::utils::error_chain_fmt;
+use actix_web::{HttpResponse, ResponseError};
+use reqwest::StatusCode;
+
+use crate::{schemas::GenericResponse, utils::error_chain_fmt};
 
 #[derive(Debug)]
 pub enum DatabaseError {
@@ -44,5 +47,39 @@ pub enum CustomJWTTokenError {
 impl std::fmt::Debug for CustomJWTTokenError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         error_chain_fmt(self, f)
+    }
+}
+
+#[derive(thiserror::Error)]
+pub enum RequestMetaError {
+    #[error("{0}")]
+    ValidationStringError(String),
+}
+
+impl std::fmt::Debug for RequestMetaError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        error_chain_fmt(self, f)
+    }
+}
+
+impl ResponseError for RequestMetaError {
+    fn status_code(&self) -> StatusCode {
+        match self {
+            RequestMetaError::ValidationStringError(_) => StatusCode::BAD_REQUEST,
+        }
+    }
+
+    fn error_response(&self) -> HttpResponse {
+        let status_code = self.status_code();
+        let status_code_str = status_code.as_str();
+        let inner_error_msg = match self {
+            RequestMetaError::ValidationStringError(message) => message.to_string(),
+        };
+
+        HttpResponse::build(status_code).json(GenericResponse::error(
+            &inner_error_msg,
+            status_code_str,
+            Some(()),
+        ))
     }
 }

@@ -1,4 +1,9 @@
-use crate::routes::user::schemas::AuthData;
+use crate::{
+    errors::RequestMetaError,
+    routes::user::{errors::AuthError, schemas::AuthData},
+};
+use actix_web::{error::ErrorInternalServerError, FromRequest, HttpMessage};
+use futures_util::future::{ready, Ready};
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgHasArrayType;
 use utoipa::{openapi::Object, ToSchema};
@@ -78,4 +83,37 @@ pub struct JWTClaims {
 #[serde(rename_all = "UPPERCASE")]
 pub enum CountryCode {
     IND,
+    SGP,
+}
+
+#[derive(Debug, Clone)]
+pub struct RequestMetaData {
+    pub device_id: String,
+    pub request_id: String,
+    pub domain_uri: String,
+}
+
+impl FromRequest for RequestMetaData {
+    type Error = actix_web::Error;
+    type Future = Ready<Result<Self, Self::Error>>;
+
+    /// Implement the `from_request` method to extract and wrap the authenticated user.
+    fn from_request(
+        req: &actix_web::HttpRequest,
+        _payload: &mut actix_web::dev::Payload,
+    ) -> Self::Future {
+        // Attempt to retrieve the user information from request extensions.
+        let value = req.extensions().get::<RequestMetaData>().cloned();
+
+        // Check if the user information was successfully retrieved.
+        let result = match value {
+            Some(user) => Ok(user),
+            None => Err(ErrorInternalServerError(
+                RequestMetaError::ValidationStringError("Something went wrong".to_string()),
+            )),
+        };
+
+        // Return a ready future with the result.
+        ready(result)
+    }
 }

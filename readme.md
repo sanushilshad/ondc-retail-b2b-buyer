@@ -3,6 +3,11 @@
 ```
 cargo run --bin rust_test -- migrate
 ```
+## SQLX OFFLINE MODE:
+
+```
+cargo sqlx prepare
+```
 
 ## ENVIRON VARIABLE 
 - Set the following environ variables in files called `env.sh` and `configuration.yaml`.
@@ -95,8 +100,9 @@ bash release.sh
 * [x] INTEGRATE OPENAPI SWAGGER
 * [x] INTEGRATE REDIS
 * [x] WEBSOCKET INTEGRATION
-* [x] BUSINESS VERIFICATION MIDDLEWARE
+* [x] ADD BUSINESS VERIFICATION MIDDLEWARE
 * [x] ADD TSP CHANGES INTO USER ACCOUNT AND BUSINESS ACCOUNT
+* [x] ADD HEADER VALIDATION MIDDLEWARE
 * [ ] COMPLETE SEARCH API + ONDC SEARCH API
 * [ ] INTERGRATE ETCD FOR TSP FLOW 
 * [ ] FIX TEST INTEGRATION + ADD TEST CASES

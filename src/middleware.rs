@@ -14,19 +14,20 @@ use tracing::instrument;
 use uuid::Uuid;
 
 use crate::configuration::SecretSetting;
+use crate::errors::RequestMetaError;
 use crate::routes::user::errors::{AuthError, BusinessAccountError};
+use crate::routes::user::schemas::{BusinessAccount, CustomerType, UserAccount};
 use crate::routes::user::utils::{
     fetch_business_account_model_by_customer_type, get_business_account_by_customer_type, get_user,
 };
-use crate::schemas::Status;
-use crate::utils::decode_token;
+use crate::schemas::{RequestMetaData, Status};
+use crate::utils::{decode_token, get_header_value};
 use actix_web::body::{EitherBody, MessageBody};
 use std::str;
-
 pub struct AuthMiddleware<S> {
     service: Rc<S>,
 }
-use crate::routes::user::schemas::{BusinessAccount, CustomerType, UserAccount};
+
 impl<S> Service<ServiceRequest> for AuthMiddleware<S>
 where
     S: Service<ServiceRequest, Response = ServiceResponse<actix_web::body::BoxBody>, Error = Error>
@@ -49,10 +50,6 @@ where
                     .get(http::header::AUTHORIZATION)
                     .map(|h| h.to_str().unwrap().split_at(7).1.to_string())
             });
-
-        let request_id = req.headers().get("x-request-id");
-        let device_id = req.headers().get("x-device-id");
-
         // If token is missing, return unauthorized error
         let jwt_secret = &req
             .app_data::<web::Data<SecretSetting>>()
@@ -60,20 +57,13 @@ where
             .jwt
             .secret;
 
-        if token.is_none() || request_id.is_none() || device_id.is_none() {
-            let error_message = match (token.is_none(), request_id.is_none(), device_id.is_none()) {
-                (true, _, _) => "Authorization token is missing".to_string(),
-                (_, true, _) => "x-request-id is missing".to_string(),
-                (_, _, true) => "x-device-id is missing".to_string(),
-                _ => "".to_string(), // Default case, if none of the conditions are met
-            };
+        if token.is_none() {
+            let error_message = "x-device-id is missing".to_string();
             let (request, _pl) = req.into_parts();
             let json_error = AuthError::ValidationStringError(error_message);
             return Box::pin(async { Ok(ServiceResponse::from_err(json_error, request)) });
         }
-        // if request_id.is_none() {}
 
-        // Decode token and handle errors
         let user_id = match decode_token(&token.unwrap(), jwt_secret) {
             Ok(id) => id,
             Err(e) => {
@@ -107,6 +97,7 @@ where
             }
 
             req.extensions_mut().insert::<UserAccount>(user);
+
             let res = srv.call(req).await?;
             Ok(res)
         })
@@ -368,6 +359,79 @@ where
         ready(Ok(BusinessAccountMiddleware {
             service: Rc::new(service),
             business_type_list: self.business_type_list.clone(),
+        }))
+    }
+}
+
+pub struct HeaderMiddleware<S> {
+    service: Rc<S>,
+}
+
+impl<S> Service<ServiceRequest> for HeaderMiddleware<S>
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<actix_web::body::BoxBody>, Error = Error>
+        + 'static,
+{
+    type Response = ServiceResponse<actix_web::body::BoxBody>;
+    type Error = Error;
+    type Future = LocalBoxFuture<'static, Result<Self::Response, Error>>;
+
+    forward_ready!(service);
+
+    /// Handles incoming requests.
+    fn call(&self, req: ServiceRequest) -> Self::Future {
+        // Attempt to extract token from cookie or authorization header
+
+        let request_id = get_header_value(&req, "x-request-id", 7);
+        let device_id = get_header_value(&req, "x-device-id", 7);
+        let hostname = get_header_value(&req, "Host", 7);
+        // If token is missing, return unauthorized error
+
+        if request_id.is_none() || device_id.is_none() {
+            let error_message = match (request_id.is_none(), device_id.is_none()) {
+                (true, _) => "x-request-id is missing".to_string(),
+                (_, true) => "x-device-id is missing".to_string(),
+                _ => "".to_string(), // Default case, if none of the conditions are met
+            };
+            let (request, _pl) = req.into_parts();
+            let json_error = RequestMetaError::ValidationStringError(error_message);
+            return Box::pin(async { Ok(ServiceResponse::from_err(json_error, request)) });
+        } else {
+            let meta_data = RequestMetaData {
+                request_id: request_id.unwrap(),
+                device_id: device_id.unwrap(),
+                domain_uri: hostname.unwrap(),
+            };
+            req.extensions_mut().insert::<RequestMetaData>(meta_data);
+        }
+
+        let srv = Rc::clone(&self.service);
+        Box::pin(async move {
+            let res = srv.call(req).await?;
+            Ok(res)
+        })
+    }
+}
+
+/// Middleware factory for requiring authentication.
+pub struct HeaderValidation;
+
+impl<S> Transform<S, ServiceRequest> for HeaderValidation
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<actix_web::body::BoxBody>, Error = Error>
+        + 'static,
+{
+    type Response = ServiceResponse<actix_web::body::BoxBody>;
+    type Error = Error;
+    type Transform = HeaderMiddleware<S>;
+    type InitError = ();
+    type Future = Ready<Result<Self::Transform, Self::InitError>>;
+
+    /// Creates and returns a new AuthMiddleware wrapped in a Result.
+    fn new_transform(&self, service: S) -> Self::Future {
+        // Wrap the AuthMiddleware instance in a Result and return it.
+        ready(Ok(HeaderMiddleware {
+            service: Rc::new(service),
         }))
     }
 }

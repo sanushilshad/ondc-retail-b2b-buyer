@@ -316,14 +316,15 @@ pub fn create_vector_from_create_account(
 pub async fn save_user(
     transaction: &mut Transaction<'_, Postgres>,
     user_account: &CreateUserAccount,
+    subscriber_id: String
 ) -> Result<Uuid, anyhow::Error> {
     let user_id = Uuid::new_v4();
     let user_account_number = user_account.display_name.replace(" ", "-").to_lowercase();
     let vector_list = create_vector_from_create_account(user_account)?;
     let query = sqlx::query!(
         r#"
-        INSERT INTO user_account (id, username, email, mobile_no, created_by, created_on, display_name, vectors, is_active, is_test_user, user_account_number, alt_user_account_number, international_dialing_code, source)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        INSERT INTO user_account (id, username, email, mobile_no, created_by, created_on, display_name, vectors, is_active, is_test_user, user_account_number, alt_user_account_number, international_dialing_code, source, subscriber_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
         "#,
         user_id,
         &user_account.username,
@@ -338,7 +339,8 @@ pub async fn save_user(
         &user_account_number,
         &user_account_number,
         &user_account.international_dialing_code,
-        &user_account.source as &DataSource
+        &user_account.source as &DataSource,
+        &subscriber_id
     );
 
     transaction.execute(query).await.map_err(|e| {
@@ -510,8 +512,10 @@ pub async fn save_auth_mechanism(
 
 #[tracing::instrument(name = "register user", skip(pool))]
 pub async fn register_user(
-    user_account: CreateUserAccount,
     pool: &PgPool,
+    user_account: CreateUserAccount,
+    subscriber_id: String
+   
 ) -> Result<uuid::Uuid, UserRegistrationError> {
     let mut transaction = pool
         .begin()
@@ -541,7 +545,7 @@ pub async fn register_user(
             return Err(anyhow!(message)).map_err(UserRegistrationError::DuplicateEmail);
         }
     }
-    let uuid = save_user(&mut transaction, &user_account).await?;
+    let uuid = save_user(&mut transaction, &user_account, subscriber_id).await?;
     let bulk_auth_data = prepare_auth_mechanism_data_for_user_account(uuid, &user_account).await?;
     save_auth_mechanism(&mut transaction, bulk_auth_data).await?;
     if  let Some(role_obj) = get_role(pool, &user_account.user_type).await?{
@@ -600,15 +604,15 @@ pub fn create_vector_from_business_account(
 }
 
 #[tracing::instrument(name = "create user business relation", skip(transaction))]
-pub async fn save_business_account(transaction: &mut Transaction<'_, Postgres>, user_account: &UserAccount,  create_business_obj: &CreateBusinessAccount) -> Result<uuid::Uuid,  BusinessAccountError>{
+pub async fn save_business_account(transaction: &mut Transaction<'_, Postgres>, user_account: &UserAccount,  create_business_obj: &CreateBusinessAccount, subscriber_id: String) -> Result<uuid::Uuid,  BusinessAccountError>{
     let business_account_id = Uuid::new_v4();
     let business_account_number = create_business_obj.company_name.replace(" ", "-").to_lowercase();
     let vector_list = create_vector_from_business_account(&create_business_obj)?;
     // let proofs = vec![];
     let query = sqlx::query!(
         r#"
-        INSERT INTO business_account (id, business_account_number, alt_business_account_number, company_name, vectors, proofs, customer_type, merchant_type, trade, source, created_by,  created_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        INSERT INTO business_account (id, business_account_number, alt_business_account_number, company_name, vectors, proofs, customer_type, merchant_type, trade, source, created_by,  created_at, subscriber_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         "#,
         business_account_id,
         business_account_number,
@@ -622,6 +626,7 @@ pub async fn save_business_account(transaction: &mut Transaction<'_, Postgres>, 
         &create_business_obj.source as &DataSource,
         user_account.id,
         Utc::now(),
+        subscriber_id
     );
 
     transaction.execute(query).await.map_err(|e| {
@@ -700,7 +705,7 @@ pub async fn prepare_auth_mechanism_data_for_business_account(
     })
 }
 #[tracing::instrument(name = "create business account", skip(pool))]
-pub async fn create_business_account( pool: &PgPool, user_account: &UserAccount, create_business_obj: &CreateBusinessAccount) -> Result<uuid::Uuid, BusinessAccountError>{
+pub async fn create_business_account( pool: &PgPool, user_account: &UserAccount, create_business_obj: &CreateBusinessAccount, subscriber_id: String) -> Result<uuid::Uuid, BusinessAccountError>{
     //  NOTE: Save business account in table
     // associate the user and business
     // save auth for email and mobile in auth mechanism
@@ -709,7 +714,7 @@ pub async fn create_business_account( pool: &PgPool, user_account: &UserAccount,
         .begin()
         .await
         .context("Failed to acquire a Postgres connection from the pool")?;
-    let business_account_id = save_business_account(&mut transaction, user_account, &create_business_obj).await?;
+    let business_account_id = save_business_account(&mut transaction, user_account, &create_business_obj, subscriber_id).await?;
     if  let Some(role_obj) = get_role(pool, &UserType::Admin).await?{
         if role_obj.is_deleted || role_obj.role_status == Status::Inactive {
             return Err(BusinessAccountError::InvalidRoleError("Role is deleted / Inactive".to_string()))

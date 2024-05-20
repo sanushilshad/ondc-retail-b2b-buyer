@@ -5,11 +5,10 @@ use super::{
     schemas::{RedisAction, RedisBasicRequest},
     utils::get_customer_dbs,
 };
-use actix_web::{web, Error, HttpRequest, HttpResponse, Responder};
+use actix_web::{http, web, Error, HttpRequest, HttpResponse, Responder};
 use actix_web_actors::ws;
 use redis::AsyncCommands;
 use sqlx::PgPool;
-
 pub async fn health_check() -> impl Responder {
     println!("mango");
     HttpResponse::Ok().body("Running")
@@ -50,7 +49,8 @@ pub async fn get_customer_dbs_api(pool: web::Data<PgPool>) -> impl Responder {
     )]
 pub async fn web_socket(req: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
     let resp: Result<HttpResponse, Error> = ws::start(MyWs {}, &req, stream);
-    println!("SANU {:?}", resp);
+    let host = req.headers().get("Host").unwrap().to_str().unwrap();
+    println!("Hostname: {:?}", host);
     resp
 }
 

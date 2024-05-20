@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT \n        ba.id, ba.company_name, ba.customer_type as \"customer_type: CustomerType\" FROM business_user_relationship as bur\n            INNER JOIN business_account ba ON bur.business_id = ba.id\n        WHERE bur.user_id = $1 AND bur.business_id= $2 AND ba.customer_type::text = ANY($3)\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "company_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "customer_type: CustomerType",
+        "type_info": {
+          "Custom": {
+            "name": "customer_type",
+            "kind": {
+              "Enum": [
+                "na",
+                "buyer",
+                "seller",
+                "brand",
+                "logistic_partner",
+                "payment_aggregator",
+                "virtual_operator",
+                "external_partner"
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "d3fb0e64cad2523076dd3efffb477e59b2aed11d4745f3c92bebac8531891d85"
+}

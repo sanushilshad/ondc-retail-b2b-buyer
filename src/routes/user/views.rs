@@ -5,7 +5,7 @@ use super::schemas::{
 use super::utils::{create_business_account, fetch_user, get_auth_data, register_user};
 use super::{errors::AuthError, utils::validate_user_credentials};
 use crate::configuration::{SecretSetting, UserSettings};
-use crate::schemas::GenericResponse;
+use crate::schemas::{GenericResponse, RequestMetaData};
 // use crate::session_state::TypedSession;
 use actix_web::{web, Result};
 use sqlx::PgPool;
@@ -68,16 +68,16 @@ pub async fn authenticate(
 pub async fn register_user_account(
     body: web::Json<CreateUserAccount>,
     pool: web::Data<PgPool>,
+    meta_data: RequestMetaData,
     user_settings: web::Data<UserSettings>,
 ) -> Result<web::Json<GenericResponse<()>>, UserRegistrationError> {
-    // if let UserType::Admin | UserType::Superadmin = body.user_type {
     let admin_role = vec![UserType::Admin, UserType::Superadmin];
     if admin_role.contains(&body.user_type) && !user_settings.admin_list.contains(&body.mobile_no) {
         return Err(UserRegistrationError::InsufficientPrevilegeError(
             "Insufficient previlege to register Admin/Superadmin".to_string(),
         ));
     } else {
-        match register_user(body.0, &pool).await {
+        match register_user(&pool, body.0, meta_data.domain_uri).await {
             Ok(uuid) => {
                 tracing::Span::current().record("user_id", &tracing::field::display(&uuid));
                 Ok(web::Json(GenericResponse::success(
@@ -114,10 +114,11 @@ pub async fn register_user_account(
 pub async fn register_business_account(
     body: web::Json<CreateBusinessAccount>,
     pool: web::Data<PgPool>,
+    meta_data: RequestMetaData,
     user: UserAccount,
 ) -> Result<web::Json<GenericResponse<()>>, BusinessAccountError> {
     // if let UserType::Admin | UserType::Superadmin = body.user_type {
-    create_business_account(&pool, &user, &body).await?;
+    create_business_account(&pool, &user, &body, meta_data.domain_uri).await?;
     Ok(web::Json(GenericResponse::success(
         "Sucessfully Registered Business Account",
         Some(()),

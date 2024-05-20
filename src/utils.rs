@@ -3,6 +3,7 @@ use crate::email_client::{GenericEmailService, SmtpEmailClient};
 use crate::errors::CustomJWTTokenError;
 use crate::migration;
 use crate::schemas::{CommunicationType, JWTClaims};
+use actix_web::dev::ServiceRequest;
 use actix_web::rt::task::JoinHandle;
 use chrono::{Duration, Utc};
 use jsonwebtoken::{
@@ -237,4 +238,15 @@ where
 
 pub fn get_gps_string(latitude: f64, longitude: f64) -> String {
     format!("{},{}", latitude, longitude)
+}
+
+pub fn get_header_value(
+    req: &ServiceRequest,
+    header_name: &str,
+    split_index: usize,
+) -> Option<String> {
+    req.headers()
+        .get(header_name)
+        .and_then(|h| h.to_str().ok())
+        .map(|h| h.to_string())
 }
