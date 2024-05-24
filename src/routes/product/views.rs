@@ -1,17 +1,12 @@
 use actix_web::web;
 
 // use anyhow::Context;
+use crate::configuration::ONDCSetting;
+use crate::routes::ondc::buyer::utils::get_ondc_search_payload;
+use crate::routes::product::errors::ProductSearchError;
+use crate::routes::schemas::{BusinessAccount, UserAccount};
+use crate::schemas::GenericResponse;
 use sqlx::PgPool;
-
-use crate::{
-    configuration::ONDCSetting,
-    routes::{
-        ondc::buyer::utils::get_ondc_search_payload,
-        product::errors::ProductSearchError,
-        schemas::{BusinessAccount, UserAccount},
-    },
-    schemas::GenericResponse,
-};
 
 // use crate::routes::product::schemas::InventoryRequest;
 // #[tracing::instrument(ret(Debug), name = "Fetching Inventory List", skip(_pool), fields())]
@@ -45,7 +40,10 @@ pub async fn product_search(
     user_account: UserAccount,
     business_account: BusinessAccount,
 ) -> Result<web::Json<GenericResponse<()>>, ProductSearchError> {
-    //let _ondc_search_payload = get_ondc_search_payload(user_account, body.0, &ondc_obj)?;
+    let ondc_search_payload =
+        get_ondc_search_payload(&user_account, &business_account, &body.0, &ondc_obj)?;
+    let ondc_search_payload_str = serde_json::to_string(&ondc_search_payload);
+    println!("{}", ondc_search_payload_str.unwrap());
     Ok(web::Json(GenericResponse::success(
         "Successfully Send Product Search Request",
         Some(()),

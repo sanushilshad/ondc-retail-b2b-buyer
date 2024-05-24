@@ -1,7 +1,7 @@
 use crate::domain::EmailObject;
 use crate::routes::user::schemas::{
     CreateBusinessAccount, CreateUserAccount, CustomerType, DataSource, KYCProof, MerchantType,
-    TradeType, UserType, VectorType, AuthenticateRequest, AuthenticationScope, AuthData, UserAccount, BasicBusinessAccount, UserVectors, MaskingType 
+    TradeType, UserType, VectorType, AuthenticateRequest, AuthenticationScope, AuthData, UserAccount, BasicBusinessAccount, UserVector, MaskingType 
 };
 use crate::routes::user::views as user_views;
 use crate::schemas::{EmptyGenericResponse, AuthResponse, Status};
@@ -17,7 +17,7 @@ use utoipa::OpenApi;
     ),
     components(
         schemas(CreateUserAccount, UserType, DataSource, EmailObject, EmptyGenericResponse, CreateBusinessAccount, CustomerType, MerchantType, KYCProof, TradeType, VectorType, 
-            AuthenticateRequest, AuthResponse, AuthData, AuthenticationScope, UserAccount, BasicBusinessAccount, UserVectors, MaskingType, Status )
+            AuthenticateRequest, AuthResponse, AuthData, AuthenticationScope, UserAccount, BasicBusinessAccount, UserVector, MaskingType, Status )
     ),
     tags(
         (name = "Rust REST API", description = "Authentication in Rust Endpoints")

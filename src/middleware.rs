@@ -9,7 +9,6 @@ use std::cell::RefCell;
 use std::future::{self, ready, Ready};
 use std::pin::Pin;
 use std::rc::Rc;
-use std::sync::Arc;
 use tracing::instrument;
 use uuid::Uuid;
 
@@ -18,7 +17,7 @@ use crate::errors::RequestMetaError;
 use crate::routes::user::errors::{AuthError, BusinessAccountError};
 use crate::routes::user::schemas::{BusinessAccount, CustomerType, UserAccount};
 use crate::routes::user::utils::{
-    fetch_business_account_model_by_customer_type, get_business_account_by_customer_type, get_user,
+    get_business_account_by_customer_type, get_user, validate_business_account_active,
 };
 use crate::schemas::{RequestMetaData, Status};
 use crate::utils::{decode_token, get_header_value};
@@ -320,6 +319,12 @@ where
             .await
             .map_err(|e| BusinessAccountError::UnexpectedError(e))?;
             if let Some(business_obj) = business_account {
+                let error_message = validate_business_account_active(&business_obj);
+                if let Some(message) = error_message {
+                    let (request, _pl) = req.into_parts();
+                    let json_error = RequestMetaError::ValidationStringError(message);
+                    return Ok(ServiceResponse::from_err(json_error, request));
+                }
                 req.extensions_mut().insert::<BusinessAccount>(business_obj);
             } else {
                 let (parts, _body) = req.parts(); // Destructure parts of the request
@@ -382,9 +387,9 @@ where
     fn call(&self, req: ServiceRequest) -> Self::Future {
         // Attempt to extract token from cookie or authorization header
 
-        let request_id = get_header_value(&req, "x-request-id", 7);
-        let device_id = get_header_value(&req, "x-device-id", 7);
-        let hostname = get_header_value(&req, "Host", 7);
+        let request_id = get_header_value(&req, "x-request-id");
+        let device_id = get_header_value(&req, "x-device-id");
+        let hostname = get_header_value(&req, "Host");
         // If token is missing, return unauthorized error
 
         if request_id.is_none() || device_id.is_none() {

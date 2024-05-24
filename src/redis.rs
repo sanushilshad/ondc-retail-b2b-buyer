@@ -1,4 +1,4 @@
-use redis::{aio::Connection as connection, AsyncCommands, RedisResult};
+use redis::{aio::Connection as connection, RedisResult};
 use secrecy::ExposeSecret;
 
 use crate::configuration::RedisSettings;

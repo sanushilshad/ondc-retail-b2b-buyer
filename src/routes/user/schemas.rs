@@ -12,11 +12,10 @@ use uuid::Uuid;
 
 use crate::{
     domain::{subscriber_email::deserialize_subscriber_email, EmailObject},
-    schemas::Status,
+    schemas::{KycStatus, Status},
 };
 
 use super::errors::{AuthError, BusinessAccountError};
-
 // macro_rules! impl_serialize_format {
 //     ($struct_name:ident, $trait_name:path) => {
 //         impl $trait_name for $struct_name {
@@ -65,8 +64,8 @@ pub struct AuthenticateRequest {
 // }
 
 #[derive(Serialize, Deserialize, Debug, sqlx::Type, PartialEq, ToSchema)]
-#[sqlx(type_name = "user_type", rename_all = "lowercase")]
-#[serde(rename_all = "lowercase")]
+#[sqlx(type_name = "user_type", rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
 pub enum UserType {
     Guest,
     User,
@@ -91,7 +90,7 @@ impl UserType {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "snake_case")]
 pub enum CreateUserType {
     Guest,
     User,
@@ -110,8 +109,8 @@ impl From<CreateUserType> for UserType {
 }
 
 #[derive(Serialize, Deserialize, Debug, sqlx::Type, ToSchema)]
-#[serde(rename_all = "lowercase")]
-#[sqlx(type_name = "user_auth_identifier_scope", rename_all = "lowercase")]
+#[serde(rename_all = "snake_case")]
+#[sqlx(type_name = "user_auth_identifier_scope", rename_all = "snake_case")]
 pub enum AuthenticationScope {
     Otp,
     Password,
@@ -148,8 +147,8 @@ pub struct CreateUserAccount {
 }
 
 #[derive(Serialize, Deserialize, Debug, sqlx::Type, Clone, ToSchema)]
-#[sqlx(rename_all = "lowercase")]
-#[serde(rename_all = "lowercase")]
+#[sqlx(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
 pub enum MaskingType {
     NA,
     Encrypt,
@@ -164,8 +163,8 @@ pub enum MaskingType {
 // }
 
 #[derive(Serialize, Deserialize, Debug, sqlx::Type, PartialEq, Clone, ToSchema)]
-#[sqlx(type_name = "vector_type", rename_all = "lowercase")]
-#[serde(rename_all = "lowercase")]
+#[sqlx(type_name = "vector_type", rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
 pub enum VectorType {
     PanCardNo,
     Gstin,
@@ -185,16 +184,40 @@ pub enum VectorType {
     FssaiLicenseNumber,
 }
 
+impl std::fmt::Display for VectorType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            VectorType::PanCardNo => "pan_card_no",
+            VectorType::Gstin => "gstin",
+            VectorType::AadhaarCardNo => "aadhaar_card_no",
+            VectorType::MobileNo => "mobile_no",
+            VectorType::Email => "email",
+            VectorType::InternationalDialingCode => "international_dialing_code",
+            VectorType::UpiId => "upi_id",
+            VectorType::BankAccountNumber => "bank_account_number",
+            VectorType::IfscCode => "ifsc_code",
+            VectorType::LicenseNumber => "license_number",
+            VectorType::PassportNo => "passport_no",
+            VectorType::VoterIdNo => "voter_id_no",
+            VectorType::Ssn => "ssn",
+            VectorType::Tin => "tin",
+            VectorType::ExportLicenseNo => "export_license_no",
+            VectorType::FssaiLicenseNumber => "fssai_license_number",
+        };
+        write!(f, "{}", s)
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, sqlx::Type, Clone, ToSchema)]
 #[sqlx(type_name = "vectors")]
-pub struct UserVectors {
+pub struct UserVector {
     pub key: VectorType,
     pub value: String,
     pub masking: MaskingType,
     pub verified: bool,
 }
 
-impl PgHasArrayType for UserVectors {
+impl PgHasArrayType for UserVector {
     fn array_type_info() -> sqlx::postgres::PgTypeInfo {
         sqlx::postgres::PgTypeInfo::with_name("_vectors")
     }
@@ -209,7 +232,7 @@ pub struct UserAccount {
     pub email: String,
     pub is_active: Status,
     pub display_name: String,
-    pub vectors: Vec<Option<UserVectors>>,
+    pub vectors: Vec<Option<UserVector>>,
     pub international_dialing_code: String,
     pub user_account_number: String,
     pub alt_user_account_number: String,
@@ -335,25 +358,25 @@ pub enum CustomerType {
     VirtualOperator,
     ExternalPartner,
 }
-
 impl std::fmt::Display for CustomerType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            CustomerType::NA => write!(f, "NA"),
-            CustomerType::Buyer => write!(f, "buyer"),
-            CustomerType::Seller => write!(f, "seller"),
-            CustomerType::Brand => write!(f, "brand"),
-            CustomerType::LogisticPartner => write!(f, "logistic_partner"),
-            CustomerType::PaymentAggregator => write!(f, "payment_aggregator"),
-            CustomerType::VirtualOperator => write!(f, "virtual_operator"),
-            CustomerType::ExternalPartner => write!(f, "external_partner"),
-        }
+        let display_str = match self {
+            CustomerType::NA => "NA",
+            CustomerType::Buyer => "buyer",
+            CustomerType::Seller => "seller",
+            CustomerType::Brand => "brand",
+            CustomerType::LogisticPartner => "logistic_partner",
+            CustomerType::PaymentAggregator => "payment_aggregator",
+            CustomerType::VirtualOperator => "virtual_operator",
+            CustomerType::ExternalPartner => "external_partner",
+        };
+        write!(f, "{}", display_str)
     }
 }
 
 #[derive(Serialize, Deserialize, Debug, sqlx::Type, PartialEq, ToSchema)]
-#[sqlx(type_name = "data_source", rename_all = "lowercase")]
-#[serde(rename_all = "lowercase")]
+#[sqlx(type_name = "data_source", rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
 pub enum DataSource {
     PlaceOrder,
     Ondc,
@@ -361,8 +384,8 @@ pub enum DataSource {
 }
 
 #[derive(Serialize, Deserialize, Debug, sqlx::Type, PartialEq, ToSchema)]
-#[sqlx(type_name = "trade_type", rename_all = "lowercase")]
-#[serde(rename_all = "lowercase")]
+#[sqlx(type_name = "trade_type", rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
 pub enum TradeType {
     Domestic,
     Export,
@@ -374,8 +397,8 @@ impl PgHasArrayType for TradeType {
     }
 }
 #[derive(Serialize, Deserialize, Debug, sqlx::Type, PartialEq, ToSchema)]
-#[sqlx(type_name = "merchant_type", rename_all = "lowercase")]
-#[serde(rename_all = "lowercase")]
+#[sqlx(type_name = "merchant_type", rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
 pub enum MerchantType {
     FPO,
     Manufacturer,
@@ -423,6 +446,7 @@ pub struct CreateBusinessAccount {
     pub opening_time: Option<NaiveTime>,
     pub closing_time: Option<NaiveTime>,
     pub proofs: Vec<KYCProof>,
+    pub default_vector_type: VectorType,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -430,6 +454,12 @@ pub struct CreateBusinessAccount {
 pub struct BusinessAccount {
     pub id: Uuid,
     pub company_name: String,
+    pub vectors: Vec<UserVector>,
+    pub kyc_status: KycStatus,
+    pub is_active: Status,
+    pub is_deleted: bool,
+    pub verified: bool,
+    pub default_vector_type: VectorType,
 }
 
 impl FromRequest for BusinessAccount {

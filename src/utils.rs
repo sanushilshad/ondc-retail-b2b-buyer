@@ -240,11 +240,7 @@ pub fn get_gps_string(latitude: f64, longitude: f64) -> String {
     format!("{},{}", latitude, longitude)
 }
 
-pub fn get_header_value(
-    req: &ServiceRequest,
-    header_name: &str,
-    split_index: usize,
-) -> Option<String> {
+pub fn get_header_value(req: &ServiceRequest, header_name: &str) -> Option<String> {
     req.headers()
         .get(header_name)
         .and_then(|h| h.to_str().ok())

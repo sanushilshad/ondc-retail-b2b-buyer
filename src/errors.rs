@@ -1,7 +1,9 @@
 use actix_web::{HttpResponse, ResponseError};
 use reqwest::StatusCode;
 
-use crate::{schemas::GenericResponse, utils::error_chain_fmt};
+use crate::{
+    routes::product::ProductSearchError, schemas::GenericResponse, utils::error_chain_fmt,
+};
 
 #[derive(Debug)]
 pub enum DatabaseError {
@@ -83,3 +85,50 @@ impl ResponseError for RequestMetaError {
         ))
     }
 }
+
+#[derive(thiserror::Error)]
+pub enum GenericError {
+    #[error("{0}")]
+    ValidationStringError(String),
+}
+
+impl std::fmt::Debug for GenericError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        error_chain_fmt(self, f)
+    }
+}
+
+// impl From<GenericError> for ProductSearchError {
+//     fn from(err: GenericError) -> Self {
+//         ProductSearchError::ValidationError(err) // Replace with the appropriate variant
+//     }
+// }
+
+// impl From<GenericError> for ProductSearchError {
+//     fn from(err: GenericError) -> Self {
+//         // Implement conversion logic here (e.g., match on specific error types within GenericError)
+//         ProductSearchError::ValidationError(err.to_string())
+//     }
+// }
+
+// impl ResponseError for GenericError {
+//     fn status_code(&self) -> StatusCode {
+//         match self {
+//             GenericError::ValidationStringError(_) => StatusCode::BAD_REQUEST,
+//         }
+//     }
+
+//     fn error_response(&self) -> HttpResponse {
+//         let status_code = self.status_code();
+//         let status_code_str = status_code.as_str();
+//         let inner_error_msg = match self {
+//             GenericError::ValidationStringError(message) => message.to_string(),
+//         };
+
+//         HttpResponse::build(status_code).json(GenericResponse::error(
+//             &inner_error_msg,
+//             status_code_str,
+//             Some(()),
+//         ))
+//     }
+// }

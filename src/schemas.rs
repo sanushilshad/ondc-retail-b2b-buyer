@@ -1,7 +1,4 @@
-use crate::{
-    errors::RequestMetaError,
-    routes::user::{errors::AuthError, schemas::AuthData},
-};
+use crate::{errors::RequestMetaError, routes::user::schemas::AuthData};
 use actix_web::{error::ErrorInternalServerError, FromRequest, HttpMessage};
 use futures_util::future::{ready, Ready};
 use serde::{Deserialize, Serialize};
@@ -116,4 +113,14 @@ impl FromRequest for RequestMetaData {
         // Return a ready future with the result.
         ready(result)
     }
+}
+
+#[derive(Serialize, Deserialize, Debug, sqlx::Type, Clone, PartialEq)]
+#[sqlx(type_name = "kyc_status", rename_all = "snake_case")] // Match the type name in PostgreSQL
+#[serde(rename_all = "snake_case")] // Ensure JSON serialization matches PostgreSQL naming
+pub enum KycStatus {
+    Pending,
+    OnHold,
+    Rejected,
+    Completed,
 }

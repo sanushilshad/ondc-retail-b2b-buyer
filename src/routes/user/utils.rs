@@ -1,18 +1,19 @@
+use core::str;
+
 use super::errors::{AuthError, BusinessAccountError, UserRegistrationError};
-use super::models::{AuthMechanismModel, BusinessAccountModel, UserAccountModel, UserRoleModel};
+use super::models::{AuthMechanismModel, BusinessAccountModel, UserAccountModel, UserBusinessRelationAccountModel, UserRoleModel};
 use super::schemas::{
-    AccountRole, AuthContextType, AuthData, AuthMechanism, AuthenticateRequest, AuthenticationScope, BasicBusinessAccount, BulkAuthMechanismInsert, BusinessAccount, CreateBusinessAccount, CreateUserAccount, DataSource, KYCProof, MaskingType, UserAccount, UserType, UserVectors, VectorType
+    AccountRole, AuthContextType, AuthData, AuthMechanism, AuthenticateRequest, AuthenticationScope, BasicBusinessAccount, BulkAuthMechanismInsert, BusinessAccount, CreateBusinessAccount, CreateUserAccount, DataSource, KYCProof, MaskingType, UserAccount, UserType, UserVector, VectorType,
 };
 use crate::configuration::JWT;
 use crate::routes::schemas::{CustomerType, MerchantType, TradeType};
-use crate::schemas::Status;
+use crate::schemas::{Status, KycStatus};
 use crate::utils::{generate_jwt_token_for_user, spawn_blocking_with_tracing};
 use anyhow::{anyhow, Context};
 use argon2::password_hash::SaltString;
 use argon2::{Algorithm, Argon2, Params, PasswordHash, PasswordHasher, PasswordVerifier, Version};
 use chrono::Utc;
 use secrecy::{ExposeSecret, Secret};
-use serde_json::json;
 use sqlx::types::chrono::DateTime;
 use sqlx::{Executor, PgPool, Postgres, Transaction};
 use uuid::Uuid;
@@ -188,7 +189,7 @@ pub async fn validate_user_credentials(
 }
 
 fn get_user_account_from_model(user_model: UserAccountModel) -> Result<UserAccount, anyhow::Error> {
-    let vectors_option: Vec<Option<UserVectors>> = user_model.vectors.0; // Extract the inner Option<Vec<UserVectors>>
+    let vectors_option: Vec<Option<UserVector>> = user_model.vectors.0; // Extract the inner Option<Vec<UserVectors>>
     return Ok(UserAccount {
         id: user_model.id,
         mobile_no: user_model.mobile_no,
@@ -217,7 +218,7 @@ pub async fn fetch_user(
         UserAccountModel,
         r#"SELECT 
             ua.id, username, is_test_user, mobile_no, email, is_active as "is_active!:Status", 
-            vectors as "vectors!:sqlx::types::Json<Vec<Option<UserVectors>>>", display_name, 
+            vectors as "vectors!:sqlx::types::Json<Vec<Option<UserVector>>>", display_name, 
             international_dialing_code, user_account_number, alt_user_account_number, ua.is_deleted, r.role_name FROM user_account as ua
             INNER JOIN user_role ur ON ua.id = ur.user_id
             INNER JOIN role r ON ur.role_id = r.id
@@ -266,7 +267,8 @@ pub async fn get_user(value_list: Vec<&str>, pool: &PgPool) -> Result<UserAccoun
             let user_account = get_user_account_from_model(user_obj)?;
             Ok(user_account)
         }
-        Ok(None) | Err(_) => Err(anyhow!("Internal Server Error")),
+        Ok(None)=> Err(anyhow!("User doesn't exist")),
+        Err(_) => Err(anyhow!("Internal Server Error"))
     }
 }
 
@@ -294,15 +296,15 @@ pub async fn get_user(value_list: Vec<&str>, pool: &PgPool) -> Result<UserAccoun
 #[tracing::instrument(name = "create user account")]
 pub fn create_vector_from_create_account(
     user_account: &CreateUserAccount,
-) -> Result<Vec<UserVectors>, anyhow::Error> {
+) -> Result<Vec<UserVector>, anyhow::Error> {
     let vector_list = vec![
-        UserVectors {
+        UserVector {
             key: VectorType::Email,
             value: user_account.email.get().to_string(),
             masking: MaskingType::NA,
             verified: false,
         },
-        UserVectors {
+        UserVector {
             key: VectorType::MobileNo,
             value: user_account.mobile_no.to_string(),
             masking: MaskingType::NA,
@@ -333,7 +335,7 @@ pub async fn save_user(
         user_id,
         Utc::now(),
         &user_account.display_name,
-        sqlx::types::Json(vector_list) as sqlx::types::Json<Vec<UserVectors>>,
+        sqlx::types::Json(vector_list) as sqlx::types::Json<Vec<UserVector>>,
         Status::Active as Status,
         &user_account.is_test_user,
         &user_account_number,
@@ -406,7 +408,7 @@ pub async fn save_user_role(
     transaction.execute(query).await.map_err(|e| {
         tracing::error!("Failed to execute query: {:?}", e);
         UserRegistrationError::DatabaseError(
-            "A database failure occured while saving user account".to_string(),
+            "A database failure occured while saving user account role".to_string(),
             e.into(),
         )
     })?;
@@ -575,15 +577,15 @@ pub async fn register_user(
 #[tracing::instrument(name = "create user account")]
 pub fn create_vector_from_business_account(
     business_account: &CreateBusinessAccount,
-) -> Result<Vec<UserVectors>, BusinessAccountError> {
+) -> Result<Vec<UserVector>, BusinessAccountError> {
     let mut vector_list = vec![
-        UserVectors {
+        UserVector {
             key: VectorType::Email,
             value: business_account.email.get().to_string(),
             masking: MaskingType::NA,
             verified: false,
         },
-        UserVectors {
+        UserVector {
             key: VectorType::MobileNo,
             value: business_account.mobile_no.to_string(),
             masking: MaskingType::NA,
@@ -592,7 +594,7 @@ pub fn create_vector_from_business_account(
     ];
     for proof in business_account.proofs.iter(){
         vector_list.push(
-            UserVectors {
+            UserVector {
                 key: proof.key.to_owned(),
                 value: proof.kyc_id.to_string(),
                 masking: MaskingType::NA,
@@ -611,14 +613,14 @@ pub async fn save_business_account(transaction: &mut Transaction<'_, Postgres>, 
     // let proofs = vec![];
     let query = sqlx::query!(
         r#"
-        INSERT INTO business_account (id, business_account_number, alt_business_account_number, company_name, vectors, proofs, customer_type, merchant_type, trade, source, created_by,  created_at, subscriber_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        INSERT INTO business_account (id, business_account_number, alt_business_account_number, company_name, vectors, proofs, customer_type, merchant_type, trade, source, created_by,  created_at, subscriber_id, default_vector_type)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         "#,
         business_account_id,
         business_account_number,
         business_account_number,
         create_business_obj.company_name,
-        sqlx::types::Json(vector_list) as sqlx::types::Json<Vec<UserVectors>>,
+        sqlx::types::Json(vector_list) as sqlx::types::Json<Vec<UserVector>>,
         sqlx::types::Json(&create_business_obj.proofs) as sqlx::types::Json<&Vec<KYCProof>>,
         &create_business_obj.customer_type as &CustomerType,
         &create_business_obj.merchant_type as &MerchantType,
@@ -626,7 +628,8 @@ pub async fn save_business_account(transaction: &mut Transaction<'_, Postgres>, 
         &create_business_obj.source as &DataSource,
         user_account.id,
         Utc::now(),
-        subscriber_id
+        subscriber_id, 
+        &create_business_obj.default_vector_type.to_string()
     );
 
     transaction.execute(query).await.map_err(|e| {
@@ -703,13 +706,11 @@ pub async fn prepare_auth_mechanism_data_for_business_account(
         created_by,
         auth_context,
     })
+
+    
 }
 #[tracing::instrument(name = "create business account", skip(pool))]
 pub async fn create_business_account( pool: &PgPool, user_account: &UserAccount, create_business_obj: &CreateBusinessAccount, subscriber_id: String) -> Result<uuid::Uuid, BusinessAccountError>{
-    //  NOTE: Save business account in table
-    // associate the user and business
-    // save auth for email and mobile in auth mechanism
-    // when authenticating fettch the business account list.
     let mut transaction = pool
         .begin()
         .await
@@ -725,10 +726,9 @@ pub async fn create_business_account( pool: &PgPool, user_account: &UserAccount,
         tracing::info!("Invalid role for business account");
         
     }
-    // if let Ok(None) = get_auth_mechanism_model(&user_account.username, AuthenticationScope::Mobile, pool, AuthContextType::BusinessAccount).await? {
-        let bulk_auth_data = prepare_auth_mechanism_data_for_business_account(user_account.id, &create_business_obj).await?;
-        save_auth_mechanism(&mut transaction, bulk_auth_data).await?;
-    // }
+
+    let bulk_auth_data = prepare_auth_mechanism_data_for_business_account(user_account.id, &create_business_obj).await?;
+    save_auth_mechanism(&mut transaction, bulk_auth_data).await?;
 
 
     transaction
@@ -749,7 +749,8 @@ pub async fn fetch_business_account_model_by_user_account(
     let row: Vec<BusinessAccountModel> = sqlx::query_as!(
         BusinessAccountModel,
         r#"SELECT 
-        ba.id, ba.company_name, ba.customer_type as "customer_type: CustomerType" FROM business_user_relationship as bur
+        ba.id, ba.company_name, ba.customer_type as "customer_type: CustomerType", vectors as "vectors!:sqlx::types::Json<Vec<UserVector>>", ba.is_active as "is_active: Status",  ba.kyc_status as "kyc_status: KycStatus"
+         FROM business_user_relationship as bur
             INNER JOIN business_account ba ON bur.business_id = ba.id
         WHERE bur.user_id = $1
         "#,
@@ -766,13 +767,16 @@ pub async fn fetch_business_account_model_by_customer_type(
     business_account_id: Uuid,
     customer_type_list: Vec<CustomerType>,
     pool: &PgPool,
-) -> Result<Option<BusinessAccountModel>, anyhow::Error> {
+) -> Result<Option<UserBusinessRelationAccountModel>, anyhow::Error> {
     // let a  = serde_json::to_vec_pretty(&customer_type_list);
+    //let a: String  = serde_json::from_value(serde_json::to_value(customer_type_list[0]).unwrap()).unwrap();
     let val_list: Vec<String> = customer_type_list.iter().map(|&s| s.to_string()).collect();
-    let row: Option<BusinessAccountModel> = sqlx::query_as!(
-        BusinessAccountModel,
+    //let val_list: Vec<String> = customer_type_list.iter().map(|&s| s.to_string()).collect();
+    let row: Option<UserBusinessRelationAccountModel> = sqlx::query_as!(
+        UserBusinessRelationAccountModel,
         r#"SELECT 
-        ba.id, ba.company_name, ba.customer_type as "customer_type: CustomerType" FROM business_user_relationship as bur
+        ba.id, ba.company_name, ba.customer_type as "customer_type: CustomerType", vectors as "vectors!:sqlx::types::Json<Vec<UserVector>>", ba.is_active as "is_active: Status", 
+        ba.kyc_status as "kyc_status: KycStatus", bur.verified, ba.is_deleted, ba.default_vector_type as "default_vector_type: VectorType" FROM business_user_relationship as bur
             INNER JOIN business_account ba ON bur.business_id = ba.id
         WHERE bur.user_id = $1 AND bur.business_id= $2 AND ba.customer_type::text = ANY($3)
         "#,
@@ -799,10 +803,17 @@ pub async fn fetch_business_account_model_by_customer_type(
 
 
 
-pub fn get_business_account_from_model(business_model: &BusinessAccountModel) -> Result<BusinessAccount, anyhow::Error> {
+pub fn get_business_account_from_model(business_model: &UserBusinessRelationAccountModel) -> Result<BusinessAccount, anyhow::Error> {
     return Ok(BusinessAccount {
         id: business_model.id,
-        company_name: business_model.company_name.to_string()
+        company_name: business_model.company_name.to_string(),
+        vectors: business_model.vectors.0.to_owned(),
+        kyc_status: business_model.kyc_status.to_owned(),
+        is_active: business_model.is_active.to_owned(),
+        is_deleted: business_model.is_deleted,
+        verified: business_model.verified,
+        default_vector_type: business_model.default_vector_type.to_owned()
+        
     });
 }
 
@@ -856,4 +867,35 @@ pub async fn get_auth_data(
         token: token,
         business_account_list: business_obj,
     })
+}
+
+pub fn validate_business_account_active(business_obj: &BusinessAccount) -> Option<String>{
+    let error_message = match (
+        &business_obj.kyc_status,
+        &business_obj.is_active,
+        business_obj.is_deleted,
+        business_obj.verified,
+    ) {
+        (KycStatus::Pending, _, _, _) => Some("KYC is still pending".to_string()),
+        (KycStatus::OnHold, _, _, _) => Some("KYC is On-hold".to_string()),
+        (KycStatus::Rejected, _, _, _) => Some("KYC is Rejected".to_string()),
+        (_, Status::Inactive, _, _) => Some("Business Account is inactive".to_string()),
+        (_, _, true, _) => Some("Business Account is deleted".to_string()),
+        (_, _, _, false) => Some("Business User relation is not verified".to_string()),
+        _ => None 
+    };
+    return error_message
+}
+
+
+pub fn get_default_vector_value<'a>(
+    default_vector_type: &'a VectorType,
+    vectors: &'a Vec<UserVector>,
+) -> Option<&'a str> {
+    for vector in vectors {
+        if vector.key == *default_vector_type {
+            return Some(&vector.value);
+        }
+    }
+    None
 }

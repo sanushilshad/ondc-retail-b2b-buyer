@@ -1,8 +1,12 @@
+use std::str::FromStr;
+
+use anyhow::Error;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use serde_with::skip_serializing_none;
 use uuid::Uuid;
 
-use crate::schemas::CountryCode;
+use crate::{errors::GenericError, schemas::CountryCode};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ONDCVersion {
@@ -41,9 +45,23 @@ pub enum ONDCDomain {
     GROCERY,
 }
 
+impl FromStr for ONDCDomain {
+    type Err = GenericError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "RET10" => Ok(ONDCDomain::GROCERY),
+            _ => Err(GenericError::ValidationStringError(
+                "Invalid Domains".to_string(),
+            )),
+        }
+    }
+}
+
 impl ONDCDomain {
-    pub fn get_ondc_domain(domain_category_id: &str) -> Result<ONDCDomain, serde_json::Error> {
-        serde_json::from_str(&format!("ONDC:{}", domain_category_id))
+    pub fn get_ondc_domain(domain_category_code: &str) -> Result<ONDCDomain, GenericError> {
+        // serde_json::from_str(&format!("ONDC:{}", domain_category_code))
+        domain_category_code.parse::<ONDCDomain>()
     }
 }
 
@@ -78,7 +96,7 @@ pub struct ONDCContextLocation {
     pub city: ONDCContextCity,
     pub country: ONDCContextCountry,
 }
-
+#[skip_serializing_none]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCContext {
     pub domain: ONDCDomain,

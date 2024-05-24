@@ -3,9 +3,9 @@ use serde::Serialize;
 use sqlx::{types::Json, FromRow};
 use uuid::Uuid;
 
-use crate::schemas::Status;
+use crate::schemas::{KycStatus, Status};
 
-use super::schemas::{AuthContextType, AuthenticationScope, CustomerType, UserVectors};
+use super::schemas::{AuthContextType, AuthenticationScope, CustomerType, UserVector, VectorType};
 
 #[derive(Serialize, FromRow)]
 pub struct RapidorCustomerModel {
@@ -33,7 +33,7 @@ pub struct UserAccountModel {
     pub email: String,
     pub is_active: Status,
     pub display_name: String,
-    pub vectors: Json<Vec<Option<UserVectors>>>,
+    pub vectors: Json<Vec<Option<UserVector>>>,
     pub international_dialing_code: String,
     pub user_account_number: String,
     pub alt_user_account_number: String,
@@ -69,4 +69,20 @@ pub struct BusinessAccountModel {
     pub id: Uuid,
     pub company_name: String,
     pub customer_type: CustomerType,
+    pub vectors: Json<Vec<UserVector>>,
+    pub kyc_status: KycStatus,
+    pub is_active: Status,
+}
+
+#[derive(Debug, FromRow)]
+pub struct UserBusinessRelationAccountModel {
+    pub id: Uuid,
+    pub company_name: String,
+    pub customer_type: CustomerType,
+    pub vectors: Json<Vec<UserVector>>,
+    pub kyc_status: KycStatus,
+    pub is_active: Status,
+    pub verified: bool,
+    pub is_deleted: bool,
+    pub default_vector_type: VectorType,
 }

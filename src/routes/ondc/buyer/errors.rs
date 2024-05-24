@@ -4,7 +4,7 @@ use actix_web::ResponseError;
 use crate::utils::error_chain_fmt;
 #[allow(dead_code)]
 #[derive(thiserror::Error)]
-pub enum ProductSearchError {
+pub enum ONDCProductSearchError {
     #[error("{0}")]
     ValidationError(String),
 
@@ -12,17 +12,17 @@ pub enum ProductSearchError {
     UnexpectedError(#[from] anyhow::Error),
 }
 
-impl std::fmt::Debug for ProductSearchError {
+impl std::fmt::Debug for ONDCProductSearchError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         error_chain_fmt(self, f)
     }
 }
 
-impl ResponseError for ProductSearchError {
+impl ResponseError for ONDCProductSearchError {
     fn status_code(&self) -> StatusCode {
         match self {
-            ProductSearchError::ValidationError(_) => StatusCode::BAD_REQUEST,
-            ProductSearchError::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            ONDCProductSearchError::ValidationError(_) => StatusCode::BAD_REQUEST,
+            ONDCProductSearchError::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }

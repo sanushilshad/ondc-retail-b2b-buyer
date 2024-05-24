@@ -1,7 +1,5 @@
-use crate::configuration::{
-    DatabaseSettings, ONDCSetting, RedisSettings, SecretSetting, UserSettings,
-};
-use crate::email_client::{DummyEmailClient, GenericEmailService, SmtpEmailClient};
+use crate::configuration::{DatabaseSettings, ONDCSetting, SecretSetting, UserSettings};
+use crate::email_client::{GenericEmailService, SmtpEmailClient};
 use crate::middleware::SaveRequestResponse;
 use crate::redis::RedisClient;
 // use crate::middleware::tracing_middleware;
@@ -28,13 +26,14 @@ impl Application {
     // `Application`.
     pub async fn build(configuration: Settings) -> Result<Self, anyhow::Error> {
         let connection_pool = get_connection_pool(&configuration.database);
-        // UNCOMMENT BELOW CODE TO ENABLE EMAIL SERVICE
-        // let email_pool = Arc::new(
-        //     SmtpEmailClient::new(configuration.email_client)
-        //         .expect("Failed to create SmtpEmailClient"),
-        // );
-        let email_pool =
-            Arc::new(DummyEmailClient::new().expect("Failed to create SmtpEmailClient"));
+
+        let email_pool = Arc::new(
+            SmtpEmailClient::new(configuration.email_client)
+                .expect("Failed to create SmtpEmailClient"),
+        );
+        // UNCOMMENT BELOW CODE TO ENABLE DUMMY EMAIL SERVICE
+        // let email_pool =
+        //     Arc::new(DummyEmailClient::new().expect("Failed to create SmtpEmailClient"));
         let address = format!(
             "{}:{}",
             configuration.application.host, configuration.application.port

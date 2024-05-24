@@ -1,6 +1,8 @@
 use actix_web::http::StatusCode;
-use actix_web::ResponseError;
+use actix_web::{HttpResponse, ResponseError};
 
+use crate::errors::GenericError;
+use crate::schemas::GenericResponse;
 use crate::utils::error_chain_fmt;
 #[allow(dead_code)]
 #[derive(thiserror::Error)]
@@ -18,12 +20,35 @@ impl std::fmt::Debug for ProductSearchError {
     }
 }
 
+impl From<GenericError> for ProductSearchError {
+    fn from(err: GenericError) -> Self {
+        match err {
+            GenericError::ValidationStringError(msg) => ProductSearchError::ValidationError(msg),
+        }
+    }
+}
+
 impl ResponseError for ProductSearchError {
     fn status_code(&self) -> StatusCode {
         match self {
             ProductSearchError::ValidationError(_) => StatusCode::BAD_REQUEST,
             ProductSearchError::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
+    }
+
+    fn error_response(&self) -> HttpResponse {
+        let status_code = self.status_code();
+        let status_code_str = status_code.as_str();
+        let inner_error_msg = match self {
+            ProductSearchError::ValidationError(message) => message.to_string(),
+            ProductSearchError::UnexpectedError(error_msg) => error_msg.to_string(),
+        };
+
+        HttpResponse::build(status_code).json(GenericResponse::error(
+            &inner_error_msg,
+            status_code_str,
+            Some(()),
+        ))
     }
 }
 

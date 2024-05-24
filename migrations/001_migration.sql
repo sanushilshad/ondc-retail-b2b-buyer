@@ -174,7 +174,7 @@ CREATE TYPE kyc_status AS ENUM (
 );
 
 CREATE TYPE "data_source" AS ENUM (
-  'placeorder',
+  'plac_eorder',
   'ondc',
   'rapidor'
 );
@@ -201,16 +201,17 @@ CREATE TABLE IF NOT EXISTS business_account (
   alt_business_account_number TEXT NOT NULL,
   company_name TEXT NOT NULL,
   vectors jsonb NOT NULL,
+  default_vector_type TEXT NOT NULL,
   proofs jsonb NOT NULL,
   customer_type customer_type NOT NULL,
   merchant_type merchant_type NOT NULL,
   trade trade_type[],
   tags TEXT[],
-  is_active status DEFAULT 'active'::status,
+  is_active status DEFAULT 'active'::status NOT NULL,
   source data_source NOT NULL,
   opening_time TIME,
   closing_time TIME,
-  kyc_status kyc_status DEFAULT 'pending'::kyc_status,
+  kyc_status kyc_status DEFAULT 'pending'::kyc_status NOT NULL,
   kyc_completed_by uuid,
   metadata_json jsonb,
   created_by  uuid NOT NULL,
@@ -219,6 +220,7 @@ CREATE TABLE IF NOT EXISTS business_account (
   updated_at TIMESTAMPTZ,
   deleted_by uuid,
   deleted_at TIMESTAMPTZ,
+  is_deleted BOOLEAN NOT NULL DEFAULT false,
   is_test_account BOOLEAN NOT NULL DEFAULT false,
   subscriber_id TEXT NOT NULL
 
@@ -229,14 +231,11 @@ CREATE TABLE IF NOT EXISTS business_user_relationship (
   user_id uuid NOT NULL,
   business_id uuid NOT NULL,
   role_id uuid NOT NULL,
-  verified BOOLEAN DEFAULT false,
+  verified BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ NOT NULL,
   updated_at TIMESTAMPTZ,
-  deleted_at TIMESTAMPTZ,
   created_by uuid NOT NULL,
-  updated_by uuid,
-  deleted_by uuid,
-  is_deleted BOOLEAN DEFAULT false
+  updated_by uuid
 );
 
 
@@ -244,3 +243,19 @@ ALTER TABLE business_user_relationship ADD CONSTRAINT "fk_user_id" FOREIGN KEY (
 ALTER TABLE business_user_relationship ADD CONSTRAINT "fk_business_id" FOREIGN KEY ("business_id") REFERENCES business_account ("id") ON DELETE CASCADE;
 ALTER TABLE business_user_relationship ADD CONSTRAINT "fk_role_id" FOREIGN KEY ("role_id") REFERENCES role ("id") ON DELETE CASCADE;
 ALTER TABLE business_user_relationship ADD CONSTRAINT user_business_role UNIQUE (user_id, business_id, role_id);
+
+
+CREATE TYPE ondc_network_participant_type AS ENUM (
+  'buyer',
+  'seller'
+);
+
+
+CREATE TABLE IF NOT EXISTS ondc_subscribers (
+  id uuid PRIMARY KEY,
+  subsriber_id TEXT NOT NULL,
+  subscriber_uri TEXT NOT NULL,
+  network_participant_type ondc_network_participant_type NOT NULL,
+  unique_key_id TEXT NOT NULL,
+  signing_key TEXT NOT NULL
+)

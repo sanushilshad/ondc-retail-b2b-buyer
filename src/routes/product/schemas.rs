@@ -29,22 +29,22 @@ use serde::{Deserialize, Serialize};
 use crate::schemas::CountryCode;
 
 #[derive(Debug, Deserialize, Serialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "snake_case")]
 pub enum PaymentType {
-    Pre_paid,
-    COD,
+    PrePaid,
+    CashOnDelivery,
     Credit,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "snake_case")]
 
 pub enum FulfillmentType {
     Delivery,
     SelfPickup,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum ProductSearchType {
     Item,
@@ -64,7 +64,7 @@ pub struct ProductFulFillmentLocations {
 #[serde(rename_all = "camelCase")]
 pub struct ProductSearchRequest {
     pub query: String,
-    pub domain_category_id: String,
+    pub domain_category_code: String,
     pub country_code: CountryCode,
     pub payment_type: PaymentType,
     pub fulfillment_type: FulfillmentType,

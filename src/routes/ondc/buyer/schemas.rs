@@ -1,9 +1,10 @@
-use argon2::password_hash::Decimal;
 use serde::{Deserialize, Serialize};
+use serde_with::skip_serializing_none;
 
 use crate::routes::{
     ondc::schemas::ONDCContext,
     product::schemas::{FulfillmentType, PaymentType},
+    schemas::VectorType,
 };
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -51,15 +52,32 @@ impl IntentTagValue {
             descriptor: IntentTagDescriptor {
                 code: IntentTagValueCode::FinderFeeType,
             },
-            value: serde_json::to_string(&fee_type).unwrap(),
+            value: fee_type.to_string(),
         }
     }
-    pub fn get_buyer_fee_amount(fee_amount: String) -> IntentTagValue {
+    pub fn get_buyer_fee_amount(fee_amount: &str) -> IntentTagValue {
         IntentTagValue {
             descriptor: IntentTagDescriptor {
                 code: IntentTagValueCode::FinderFeeType,
             },
-            value: fee_amount,
+            value: fee_amount.to_owned(),
+        }
+    }
+
+    pub fn get_buyer_id_code(id_code: &VectorType) -> IntentTagValue {
+        IntentTagValue {
+            descriptor: IntentTagDescriptor {
+                code: IntentTagValueCode::BuyerIdCode,
+            },
+            value: id_code.to_string(),
+        }
+    }
+    pub fn get_buyer_id_no(id_no: &str) -> IntentTagValue {
+        IntentTagValue {
+            descriptor: IntentTagDescriptor {
+                code: IntentTagValueCode::BuyerIdNo,
+            },
+            value: id_no.to_string(),
         }
     }
 }
@@ -74,8 +92,19 @@ impl IntentTagValue {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BuyerFeeType {
-    Percentage,
+    Percent,
     Amount,
+}
+
+impl std::fmt::Display for BuyerFeeType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            BuyerFeeType::Percent => "percent",
+            BuyerFeeType::Amount => "amount",
+        };
+
+        write!(f, "{}", s)
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -85,9 +114,9 @@ pub struct ONDCIntentTag {
 }
 
 impl ONDCIntentTag {
-    pub fn get_buyer_tag(
+    pub fn get_buyer_fee_tag(
         finder_fee_type: BuyerFeeType,
-        finder_fee_amount: String,
+        finder_fee_amount: &str,
     ) -> ONDCIntentTag {
         ONDCIntentTag {
             descriptor: MainIntentTagDescriptor {
@@ -96,6 +125,18 @@ impl ONDCIntentTag {
             list: vec![
                 IntentTagValue::get_buyer_fee_type(finder_fee_type),
                 IntentTagValue::get_buyer_fee_amount(finder_fee_amount),
+            ],
+        }
+    }
+
+    pub fn get_buyer_id_tag(id_code: &VectorType, id_no: &str) -> ONDCIntentTag {
+        ONDCIntentTag {
+            descriptor: MainIntentTagDescriptor {
+                code: IntentTagType::BuyerId,
+            },
+            list: vec![
+                IntentTagValue::get_buyer_id_code(&id_code),
+                IntentTagValue::get_buyer_id_no(id_no),
             ],
         }
     }
@@ -145,9 +186,8 @@ pub struct ONDCSearchCategory {
     pub id: String,
 }
 #[derive(Debug, Serialize, Deserialize)]
-pub struct ONDCItem {
+pub struct ONDCSearchItem {
     pub descriptor: Option<ONDCSearchDescriptor>,
-    pub category: Option<ONDCSearchCategory>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -161,10 +201,10 @@ pub enum ONDCPaymentType {
 }
 
 impl ONDCPaymentType {
-    pub fn get_ondc_payment(payment_type: PaymentType) -> ONDCPaymentType {
+    pub fn get_ondc_payment(payment_type: &PaymentType) -> ONDCPaymentType {
         return match payment_type {
-            PaymentType::COD => ONDCPaymentType::OnFulfillment,
-            PaymentType::Pre_paid => ONDCPaymentType::PreFulfillment,
+            PaymentType::CashOnDelivery => ONDCPaymentType::OnFulfillment,
+            PaymentType::PrePaid => ONDCPaymentType::PreFulfillment,
             PaymentType::Credit => ONDCPaymentType::PostFulfillment,
         };
     }
@@ -179,21 +219,21 @@ pub struct ONDCSearchPayment {
 pub struct ONDCSearchProvider {
     id: String,
 }
-
+#[skip_serializing_none]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCSearchIntent {
-    pub item: Option<ONDCItem>,
-    pub fulfillment: ONDCSearchFulfillment,
+    pub item: Option<ONDCSearchItem>,
+    pub fulfillment: Option<ONDCSearchFulfillment>,
     pub tags: Vec<ONDCIntentTag>,
     pub payment: ONDCSearchPayment,
     pub provider: Option<ONDCSearchProvider>,
+    pub category: Option<ONDCSearchCategory>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCSearchMessage {
     pub intent: ONDCSearchIntent,
 }
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCSearchRequest {
     pub context: ONDCContext,

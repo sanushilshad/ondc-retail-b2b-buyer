@@ -5,7 +5,7 @@ use super::{
     schemas::{RedisAction, RedisBasicRequest},
     utils::get_customer_dbs,
 };
-use actix_web::{http, web, Error, HttpRequest, HttpResponse, Responder};
+use actix_web::{web, Error, HttpRequest, HttpResponse, Responder};
 use actix_web_actors::ws;
 use redis::AsyncCommands;
 use sqlx::PgPool;
