@@ -1,7 +1,7 @@
 use actix_web::{HttpResponse, ResponseError};
 use reqwest::StatusCode;
 
-use crate::{schemas::GenericResponse, utils::error_chain_fmt};
+use crate::{general_utils::error_chain_fmt, schemas::GenericResponse};
 
 #[allow(dead_code)]
 #[derive(thiserror::Error)]

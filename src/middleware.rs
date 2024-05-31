@@ -14,13 +14,13 @@ use uuid::Uuid;
 
 use crate::configuration::SecretSetting;
 use crate::errors::RequestMetaError;
+use crate::general_utils::{decode_token, get_header_value};
 use crate::routes::user::errors::{AuthError, BusinessAccountError};
 use crate::routes::user::schemas::{BusinessAccount, CustomerType, UserAccount};
 use crate::routes::user::utils::{
     get_business_account_by_customer_type, get_user, validate_business_account_active,
 };
 use crate::schemas::{RequestMetaData, Status};
-use crate::utils::{decode_token, get_header_value};
 use actix_web::body::{EitherBody, MessageBody};
 use std::str;
 pub struct AuthMiddleware<S> {

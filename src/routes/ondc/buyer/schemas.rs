@@ -198,7 +198,9 @@ pub struct ONDCSearchItem {
     pub descriptor: Option<ONDCSearchDescriptor>,
 }
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug, Serialize, Deserialize)]
+
 pub enum ONDCPaymentType {
     #[serde(rename = "PRE-FULFILLMENT")]
     PreFulfillment,

@@ -1,6 +1,6 @@
 use crate::domain::{subscriber_email::deserialize_subscriber_email, EmailObject};
+use crate::general_utils::pascal_to_snake_case;
 use crate::schemas::{KycStatus, Status};
-use crate::utils::pascal_to_snake_case;
 
 use actix_web::{error::ErrorInternalServerError, FromRequest, HttpMessage};
 use chrono::{DateTime, NaiveTime, Utc};

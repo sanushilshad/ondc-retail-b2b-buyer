@@ -1,9 +1,9 @@
 use once_cell::sync::Lazy;
 use rust_test::{
     configuration::get_configuration,
+    general_utils::configure_database,
     startup::{get_connection_pool, Application},
     telemetry::{get_subscriber, init_subscriber},
-    utils::configure_database,
 };
 use sqlx::PgPool;
 pub struct TestApp {

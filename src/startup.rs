@@ -1,4 +1,4 @@
-use crate::configuration::{DatabaseSettings, ONDCSetting, SecretSetting, UserSettings};
+use crate::configuration::DatabaseSettings;
 use crate::email_client::{GenericEmailService, SmtpEmailClient};
 use crate::middleware::SaveRequestResponse;
 use crate::redis::RedisClient;
@@ -28,7 +28,7 @@ impl Application {
         let connection_pool = get_connection_pool(&configuration.database);
 
         let email_pool = Arc::new(
-            SmtpEmailClient::new(configuration.email_client)
+            SmtpEmailClient::new(&configuration.email_client)
                 .expect("Failed to create SmtpEmailClient"),
         );
         // UNCOMMENT BELOW CODE TO ENABLE DUMMY EMAIL SERVICE
@@ -46,11 +46,11 @@ impl Application {
             listener,
             connection_pool,
             email_pool,
-            configuration.application.workers,
-            configuration.secret,
+            // configuration.application.workers,
+            // configuration.secret,
             redis_obj,
-            configuration.user,
-            configuration.ondc,
+            configuration, // configuration.user,
+                           // configuration.ondc,
         )
         .await?;
         // We "save" the bound port in one of `Application`'s fields
@@ -76,17 +76,18 @@ async fn run(
     listener: TcpListener,
     db_pool: PgPool,
     email_obj: Arc<dyn GenericEmailService>,
-    workers: usize,
-    secret: SecretSetting,
+    // workers: usize,
+    // secret: SecretSetting,
     redis_client: RedisClient,
-    user_setting: UserSettings,
-    ondc_setting: ONDCSetting,
+    configuration: Settings,
+    // user_setting: UserSettings,
+    // ondc_setting: ONDCSetting,
 ) -> Result<Server, anyhow::Error> {
     let db_pool = web::Data::new(db_pool);
     let email_client: web::Data<dyn GenericEmailService> = web::Data::from(email_obj);
-    let secret_obj = web::Data::new(secret);
-    let user_setting_obj = web::Data::new(user_setting);
-    let ondc_obj = web::Data::new(ondc_setting);
+    let secret_obj = web::Data::new(configuration.secret);
+    let user_setting_obj = web::Data::new(configuration.user);
+    let ondc_obj = web::Data::new(configuration.ondc);
     // let _secret_key = Key::from(hmac_secret.expose_secret().as_bytes());
     let redis_app = web::Data::new(redis_client);
     let server = HttpServer::new(move || {
@@ -105,7 +106,7 @@ async fn run(
             .app_data(ondc_obj.clone())
             .configure(main_route)
     })
-    .workers(workers)
+    .workers(configuration.application.workers)
     .listen(listener)?
     .run();
 

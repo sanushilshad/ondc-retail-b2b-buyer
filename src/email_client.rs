@@ -94,12 +94,12 @@ pub struct SmtpEmailClient {
 
 impl SmtpEmailClient {
     #[tracing::instrument]
-    pub fn new(email_config: EmailClientSettings) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new(email_config: &EmailClientSettings) -> Result<Self, Box<dyn std::error::Error>> {
         let sender = email_config
             .sender()
             .expect("Invalid sender email address.");
         let smtp_credentials = Credentials::new(
-            email_config.username,
+            email_config.username.to_string(),
             email_config.password.expose_secret().to_string(),
         );
         tracing::info!("Establishing  connection to the SMTP server.");

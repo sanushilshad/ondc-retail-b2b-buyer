@@ -1,7 +1,7 @@
 use actix_web::web;
 use sqlx::PgPool;
 
-use crate::routes::utils::models::RapidorCustomer;
+use crate::routes::util::models::RapidorCustomer;
 
 #[tracing::instrument(name = "Fetching customer data from database.", skip(pool), fields())]
 pub async fn get_customer_dbs(

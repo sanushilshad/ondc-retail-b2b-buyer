@@ -1,8 +1,8 @@
 use actix_web::{HttpResponse, ResponseError};
 use reqwest::StatusCode;
 
+use crate::general_utils::error_chain_fmt;
 use crate::schemas::GenericResponse;
-use crate::utils::error_chain_fmt;
 
 #[derive(Debug)]
 pub enum DatabaseError {

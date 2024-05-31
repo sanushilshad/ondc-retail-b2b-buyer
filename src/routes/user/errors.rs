@@ -1,5 +1,5 @@
+use crate::general_utils::error_chain_fmt;
 use crate::schemas::GenericResponse;
-use crate::utils::error_chain_fmt;
 use actix_web::http::StatusCode;
 use actix_web::{HttpResponse, ResponseError};
 
@@ -118,8 +118,9 @@ impl ResponseError for UserRegistrationError {
         ))
     }
 }
-
+#[allow(clippy::enum_variant_names)]
 #[derive(thiserror::Error)]
+
 pub enum BusinessAccountError {
     // #[error("Insufficient previlege to register Admin/Superadmin")]
     // InsufficientPrevilegeError(String),

@@ -1,11 +1,11 @@
 mod notification;
 mod ondc;
 pub(crate) mod product;
-mod routes;
+mod route;
 pub(crate) mod user;
-mod utils;
+mod util;
 use notification::notification_route;
 use product::product_route;
-pub use routes::*;
+pub use route::*;
 use user::*;
-use utils::util_route;
+use util::util_route;

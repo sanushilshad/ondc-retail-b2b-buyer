@@ -1,6 +1,6 @@
 use crate::{
     configuration::get_configuration,
-    utils::{configure_database, configure_database_using_sqlx},
+    general_utils::{configure_database, configure_database_using_sqlx},
 };
 
 // use rust_test::configuration::get_configuration;

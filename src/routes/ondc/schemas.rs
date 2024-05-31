@@ -7,7 +7,7 @@ use std::{
 };
 use uuid::Uuid;
 
-use crate::{errors::GenericError, schemas::CountryCode, utils::pascal_to_snake_case};
+use crate::{errors::GenericError, general_utils::pascal_to_snake_case, schemas::CountryCode};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ONDCVersion {

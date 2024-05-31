@@ -16,6 +16,7 @@ use super::schemas::{
 use crate::constants::ONDC_TTL;
 use crate::errors::GenericError;
 
+use crate::general_utils::get_gps_string;
 use crate::routes::ondc::schemas::{
     ONDCActionType, ONDCContext, ONDCContextCity, ONDCContextCountry, ONDCContextLocation,
     ONDCDomain, ONDCVersion,
@@ -27,7 +28,6 @@ use crate::routes::product::ProductSearchError;
 use crate::routes::schemas::{BusinessAccount, UserAccount};
 use crate::routes::user::utils::get_default_vector_value;
 use crate::schemas::{CountryCode, NetworkCall, RegisteredNetworkParticipant};
-use crate::utils::get_gps_string;
 
 pub fn get_common_context(
     transaction_id: Uuid,

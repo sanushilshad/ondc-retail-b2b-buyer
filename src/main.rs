@@ -1,9 +1,9 @@
 // use env_logger::Env;
 use rust_test::{
     configuration::get_configuration,
+    general_utils::run_custom_commands,
     startup::Application,
     telemetry::{get_subscriber, init_subscriber},
-    utils::run_custom_commands,
 };
 #[actix_web::main]
 async fn main() -> anyhow::Result<()> {

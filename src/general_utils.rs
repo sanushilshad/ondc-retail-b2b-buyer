@@ -145,7 +145,7 @@ pub fn create_email_type_pool(
     email_config: EmailClientSettings,
 ) -> HashMap<CommunicationType, Arc<dyn GenericEmailService>> {
     let smtp_client =
-        Arc::new(SmtpEmailClient::new(email_config).expect("Failed to create SmtpEmailClient"))
+        Arc::new(SmtpEmailClient::new(&email_config).expect("Failed to create SmtpEmailClient"))
             as Arc<dyn GenericEmailService>;
 
     let mut email_services = HashMap::new();
@@ -343,17 +343,6 @@ fn hash_message(msg: &str) -> String {
     let digest = hasher.finalize();
     general_purpose::STANDARD.encode(digest.as_slice())
 }
-
-// fn sign_response(
-//     signing_key: &str,
-//     private_key: &[u8],
-// ) -> Result<String, Box<dyn std::error::Error>> {
-//     let private_key_bytes = base_decode(private_key)?;
-//     let keypair = Keypair::from_bytes(&private_key_bytes)?;
-//     let signed = keypair.sign(signing_key.as_bytes());
-
-//     Ok(base_decode(signed.to_bytes()))
-// }
 
 fn sign_response(msg: &str, private_key: &str) -> Result<String, anyhow::Error> {
     use base64::engine::general_purpose::STANDARD as BASE64;

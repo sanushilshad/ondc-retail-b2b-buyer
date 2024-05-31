@@ -3,12 +3,12 @@ use actix_web::web;
 // use anyhow::Context;
 use super::schemas::ProductSearchRequest;
 use crate::configuration::ONDCSetting;
+use crate::general_utils::{create_authorization_header, get_np_detail};
 use crate::routes::ondc::buyer::utils::{get_ondc_search_payload, send_ondc_payload};
 use crate::routes::ondc::ONDCActionType;
 use crate::routes::product::errors::ProductSearchError;
 use crate::routes::schemas::{BusinessAccount, UserAccount};
 use crate::schemas::{GenericResponse, ONDCNPType, RequestMetaData};
-use crate::utils::{create_authorization_header, get_np_detail};
 use sqlx::PgPool;
 // use crate::routes::product::schemas::InventoryRequest;
 // #[tracing::instrument(ret(Debug), name = "Fetching Inventory List", skip(_pool), fields())]

@@ -1,7 +1,7 @@
 use actix_web::http::StatusCode;
 use actix_web::ResponseError;
 
-use crate::utils::error_chain_fmt;
+use crate::general_utils::error_chain_fmt;
 #[allow(dead_code)]
 #[derive(thiserror::Error)]
 pub enum ONDCProductSearchError {

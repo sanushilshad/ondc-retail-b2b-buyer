@@ -2,10 +2,11 @@ use actix_web::http::StatusCode;
 use actix_web::{HttpResponse, ResponseError};
 
 use crate::errors::GenericError;
+use crate::general_utils::error_chain_fmt;
 use crate::schemas::GenericResponse;
-use crate::utils::error_chain_fmt;
 use serde_json::Error as SerdeError;
-#[allow(dead_code)]
+
+#[allow(clippy::enum_variant_names)]
 #[derive(thiserror::Error)]
 pub enum ProductSearchError {
     #[error("{0}")]
