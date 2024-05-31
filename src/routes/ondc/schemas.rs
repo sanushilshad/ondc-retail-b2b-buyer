@@ -1,12 +1,13 @@
-use std::str::FromStr;
-
-use anyhow::Error;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
+use std::{
+    fmt::{Display, Formatter},
+    str::FromStr,
+};
 use uuid::Uuid;
 
-use crate::{errors::GenericError, schemas::CountryCode};
+use crate::{errors::GenericError, schemas::CountryCode, utils::pascal_to_snake_case};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ONDCVersion {
@@ -39,10 +40,15 @@ pub enum ONDCActionType {
     OnIssueStatus, // Pending
 }
 
+impl Display for ONDCActionType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", pascal_to_snake_case(&format!("{:?}", self)))
+    }
+}
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ONDCDomain {
     #[serde(rename = "ONDC:RET10")]
-    GROCERY,
+    Grocery,
 }
 
 impl FromStr for ONDCDomain {
@@ -50,7 +56,7 @@ impl FromStr for ONDCDomain {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "RET10" => Ok(ONDCDomain::GROCERY),
+            "RET10" => Ok(ONDCDomain::Grocery),
             _ => Err(GenericError::ValidationStringError(
                 "Invalid Domains".to_string(),
             )),

@@ -1,1 +1,1 @@
-pub const ONDC_TTL: &'static str = "PT30";
+pub const ONDC_TTL: &str = "PT30";

@@ -36,9 +36,9 @@ impl Application {
         //     Arc::new(DummyEmailClient::new().expect("Failed to create SmtpEmailClient"));
         let address = format!(
             "{}:{}",
-            configuration.application.host, configuration.application.port
+            &configuration.application.host, &configuration.application.port
         );
-        let redis_obj = RedisClient::new(configuration.redis).await?;
+        let redis_obj = RedisClient::new(&configuration.redis).await?;
         println!("Listening {}", address);
         let listener = TcpListener::bind(&address)?;
         let port = listener.local_addr().unwrap().port();

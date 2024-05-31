@@ -16,7 +16,6 @@ impl EmailObject {
             Err(format!("{} is not a valid email.", s))
         }
     }
-
     pub fn get<'a>(&'a self) -> &'a str {
         &self.0
     }

@@ -6,6 +6,7 @@ pub mod email_client;
 pub mod errors;
 pub mod middleware;
 pub mod migration;
+pub mod models;
 pub mod openapi;
 pub mod redis;
 pub mod routes;

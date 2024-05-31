@@ -4,6 +4,7 @@ use actix_web::{HttpResponse, ResponseError};
 use crate::errors::GenericError;
 use crate::schemas::GenericResponse;
 use crate::utils::error_chain_fmt;
+use serde_json::Error as SerdeError;
 #[allow(dead_code)]
 #[derive(thiserror::Error)]
 pub enum ProductSearchError {
@@ -12,6 +13,8 @@ pub enum ProductSearchError {
 
     #[error(transparent)]
     UnexpectedError(#[from] anyhow::Error),
+    #[error("{0}")]
+    DatabaseError(String, anyhow::Error),
 }
 
 impl std::fmt::Debug for ProductSearchError {
@@ -28,11 +31,18 @@ impl From<GenericError> for ProductSearchError {
     }
 }
 
+impl From<SerdeError> for ProductSearchError {
+    fn from(err: SerdeError) -> Self {
+        ProductSearchError::ValidationError(err.to_string())
+    }
+}
+
 impl ResponseError for ProductSearchError {
     fn status_code(&self) -> StatusCode {
         match self {
             ProductSearchError::ValidationError(_) => StatusCode::BAD_REQUEST,
             ProductSearchError::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            ProductSearchError::DatabaseError(_, _) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 
@@ -42,6 +52,7 @@ impl ResponseError for ProductSearchError {
         let inner_error_msg = match self {
             ProductSearchError::ValidationError(message) => message.to_string(),
             ProductSearchError::UnexpectedError(error_msg) => error_msg.to_string(),
+            ProductSearchError::DatabaseError(message, _err) => message.to_string(),
         };
 
         HttpResponse::build(status_code).json(GenericResponse::error(

@@ -20,6 +20,6 @@ pub fn main_route(cfg: &mut web::ServiceConfig) {
                 .configure(user_route)
                 .wrap(HeaderValidation),
         )
-        .service(web::scope("/ondc").configure(ondc_route))
+        .service(web::scope("/v1/ondc").configure(ondc_route))
         .service(SwaggerUi::new("/docs/{_:.*}").url("/api-docs/openapi.json", openapi.clone()));
 }

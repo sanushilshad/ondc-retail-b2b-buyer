@@ -25,6 +25,7 @@
 // }
 
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::schemas::CountryCode;
 
@@ -64,6 +65,8 @@ pub struct ProductFulFillmentLocations {
 #[serde(rename_all = "camelCase")]
 pub struct ProductSearchRequest {
     pub query: String,
+    pub transaction_id: Uuid,
+    pub message_id: Uuid,
     pub domain_category_code: String,
     pub country_code: CountryCode,
     pub payment_type: PaymentType,

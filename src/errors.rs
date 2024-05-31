@@ -1,9 +1,8 @@
 use actix_web::{HttpResponse, ResponseError};
 use reqwest::StatusCode;
 
-use crate::{
-    routes::product::ProductSearchError, schemas::GenericResponse, utils::error_chain_fmt,
-};
+use crate::schemas::GenericResponse;
+use crate::utils::error_chain_fmt;
 
 #[derive(Debug)]
 pub enum DatabaseError {
@@ -97,6 +96,15 @@ impl std::fmt::Debug for GenericError {
         error_chain_fmt(self, f)
     }
 }
+
+// impl From<anyhow::Error> for GenericError {
+//     fn from(err: anyhow::Error) -> Self {
+//         // Convert the error details from anyhow::Error to your GenericError format
+//         GenericError {
+//             message: err.to_string(),
+//         } // Example conversion
+//     }
+// }
 
 // impl From<GenericError> for ProductSearchError {
 //     fn from(err: GenericError) -> Self {

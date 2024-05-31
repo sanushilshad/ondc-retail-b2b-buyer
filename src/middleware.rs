@@ -63,7 +63,7 @@ where
             return Box::pin(async { Ok(ServiceResponse::from_err(json_error, request)) });
         }
 
-        let user_id = match decode_token(&token.unwrap(), jwt_secret) {
+        let user_id = match decode_token(token.unwrap(), jwt_secret) {
             Ok(id) => id,
             Err(e) => {
                 return Box::pin(async move {
@@ -78,16 +78,16 @@ where
         let srv = Rc::clone(&self.service);
         Box::pin(async move {
             let db_pool = &req.app_data::<web::Data<PgPool>>().unwrap();
-            let user = get_user(vec![&user_id.to_string()], &db_pool)
+            let user = get_user(vec![&user_id.to_string()], db_pool)
                 .await
-                .map_err(|e| AuthError::UnexpectedError(e))?;
+                .map_err(AuthError::UnexpectedError)?;
             if user.is_active == Status::Inactive {
                 let (request, _pl) = req.into_parts();
                 let json_error = AuthError::ValidationStringError(
                     "User is Inactive. Please contact customer support".to_string(),
                 );
                 return Ok(ServiceResponse::from_err(json_error, request));
-            } else if user.is_deleted == true {
+            } else if user.is_deleted {
                 let (request, _pl) = req.into_parts();
                 let json_error = AuthError::ValidationStringError(
                     "User is in deleted. Please contact customer support".to_string(),
@@ -175,7 +175,7 @@ where
         {
             Box::pin(async move {
                 let fut: ServiceResponse<B> = svc.call(req).await?;
-                return Ok(fut.map_into_left_body());
+                Ok(fut.map_into_left_body())
             })
         } else {
             Box::pin(async move {
@@ -214,7 +214,7 @@ where
                 req.set_payload(in_memory_payload);
                 let fut = svc.call(req).await?;
 
-                let res_status = fut.status().clone();
+                let res_status = fut.status();
                 let res_headers = fut.headers().clone();
                 let new_request = fut.request().clone();
                 let mut new_response = HttpResponseBuilder::new(res_status);
@@ -317,7 +317,7 @@ where
                 db_pool,
             )
             .await
-            .map_err(|e| BusinessAccountError::UnexpectedError(e))?;
+            .map_err(BusinessAccountError::UnexpectedError)?;
             if let Some(business_obj) = business_account {
                 let error_message = validate_business_account_active(&business_obj);
                 if let Some(message) = error_message {

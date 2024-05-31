@@ -71,7 +71,7 @@ pub async fn register_user_account(
     meta_data: RequestMetaData,
     user_settings: web::Data<UserSettings>,
 ) -> Result<web::Json<GenericResponse<()>>, UserRegistrationError> {
-    let admin_role = vec![UserType::Admin, UserType::Superadmin];
+    let admin_role = [UserType::Admin, UserType::Superadmin];
     if admin_role.contains(&body.user_type) && !user_settings.admin_list.contains(&body.mobile_no) {
         return Err(UserRegistrationError::InsufficientPrevilegeError(
             "Insufficient previlege to register Admin/Superadmin".to_string(),

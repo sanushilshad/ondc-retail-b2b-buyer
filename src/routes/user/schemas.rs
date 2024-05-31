@@ -1,19 +1,16 @@
+use crate::domain::{subscriber_email::deserialize_subscriber_email, EmailObject};
+use crate::schemas::{KycStatus, Status};
+use crate::utils::pascal_to_snake_case;
+
 use actix_web::{error::ErrorInternalServerError, FromRequest, HttpMessage};
 use chrono::{DateTime, NaiveTime, Utc};
 use secrecy::{ExposeSecret, Secret};
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgHasArrayType;
-use std::{
-    fmt::{self, Debug},
-    future::{ready, Ready},
-};
+use std::fmt::{self, Debug};
+use std::future::{ready, Ready};
 use utoipa::ToSchema;
 use uuid::Uuid;
-
-use crate::{
-    domain::{subscriber_email::deserialize_subscriber_email, EmailObject},
-    schemas::{KycStatus, Status},
-};
 
 use super::errors::{AuthError, BusinessAccountError};
 // macro_rules! impl_serialize_format {
@@ -186,26 +183,29 @@ pub enum VectorType {
 
 impl std::fmt::Display for VectorType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let s = match self {
-            VectorType::PanCardNo => "pan_card_no",
-            VectorType::Gstin => "gstin",
-            VectorType::AadhaarCardNo => "aadhaar_card_no",
-            VectorType::MobileNo => "mobile_no",
-            VectorType::Email => "email",
-            VectorType::InternationalDialingCode => "international_dialing_code",
-            VectorType::UpiId => "upi_id",
-            VectorType::BankAccountNumber => "bank_account_number",
-            VectorType::IfscCode => "ifsc_code",
-            VectorType::LicenseNumber => "license_number",
-            VectorType::PassportNo => "passport_no",
-            VectorType::VoterIdNo => "voter_id_no",
-            VectorType::Ssn => "ssn",
-            VectorType::Tin => "tin",
-            VectorType::ExportLicenseNo => "export_license_no",
-            VectorType::FssaiLicenseNumber => "fssai_license_number",
-        };
-        write!(f, "{}", s)
+        write!(f, "{}", pascal_to_snake_case(&format!("{:?}", self)))
     }
+    // fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    //     let s = match self {
+    //         VectorType::PanCardNo => "pan_card_no",
+    //         VectorType::Gstin => "gstin",
+    //         VectorType::AadhaarCardNo => "aadhaar_card_no",
+    //         VectorType::MobileNo => "mobile_no",
+    //         VectorType::Email => "email",
+    //         VectorType::InternationalDialingCode => "international_dialing_code",
+    //         VectorType::UpiId => "upi_id",
+    //         VectorType::BankAccountNumber => "bank_account_number",
+    //         VectorType::IfscCode => "ifsc_code",
+    //         VectorType::LicenseNumber => "license_number",
+    //         VectorType::PassportNo => "passport_no",
+    //         VectorType::VoterIdNo => "voter_id_no",
+    //         VectorType::Ssn => "ssn",
+    //         VectorType::Tin => "tin",
+    //         VectorType::ExportLicenseNo => "export_license_no",
+    //         VectorType::FssaiLicenseNumber => "fssai_license_number",
+    //     };
+    //     write!(f, "{}", s)
+    // }
 }
 
 #[derive(Serialize, Deserialize, Debug, sqlx::Type, Clone, ToSchema)]
@@ -400,7 +400,7 @@ impl PgHasArrayType for TradeType {
 #[sqlx(type_name = "merchant_type", rename_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
 pub enum MerchantType {
-    FPO,
+    Fpo,
     Manufacturer,
     Restaurant,
     Grocery,

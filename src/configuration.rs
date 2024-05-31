@@ -31,7 +31,9 @@ pub struct ONDCBuyer {
 }
 #[derive(Debug, Deserialize, Clone)]
 pub struct ONDCSetting {
-    pub bap: ONDCBuyer, // pub seller:ONDCSeller
+    //pub bap: ONDCBuyer, // pub seller:ONDCSeller
+    pub gateway_key: String,
+    pub gateway_uri: String,
 }
 #[derive(Debug, Deserialize, Clone)]
 pub struct Settings {
@@ -85,7 +87,7 @@ impl DatabaseSettings {
         PgConnectOptions::new()
             .host(&self.host)
             .username(&self.username)
-            .password(&self.password.expose_secret())
+            .password(self.password.expose_secret())
             .port(self.port)
     }
     // Renamed from `connection_string`

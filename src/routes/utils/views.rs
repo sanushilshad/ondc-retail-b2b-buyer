@@ -41,7 +41,7 @@ pub async fn get_customer_dbs_api(pool: web::Data<PgPool>) -> impl Responder {
 }
 
 #[tracing::instrument(
-    name = "web_socket",
+    name = "Commect web socket",
     skip(stream),
     fields(
     // request_id = %Uuid::new_v4()
@@ -54,7 +54,7 @@ pub async fn web_socket(req: HttpRequest, stream: web::Payload) -> Result<HttpRe
     resp
 }
 
-#[tracing::instrument(name = "redis_basic", skip(redis), fields())]
+#[tracing::instrument(name = "Set Value in Redis", skip(redis), fields())]
 pub async fn redis_basic(
     redis: web::Data<RedisClient>,
     body: web::Json<RedisBasicRequest>,

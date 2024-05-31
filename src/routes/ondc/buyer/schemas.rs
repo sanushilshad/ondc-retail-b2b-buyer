@@ -1,11 +1,10 @@
 use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
 
-use crate::routes::{
-    ondc::schemas::ONDCContext,
-    product::schemas::{FulfillmentType, PaymentType},
-    schemas::VectorType,
-};
+use crate::routes::ondc::schemas::ONDCContext;
+use crate::routes::product::schemas::{FulfillmentType, PaymentType};
+use crate::routes::schemas::VectorType;
+use crate::schemas::FeeType;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -47,7 +46,7 @@ pub struct IntentTagValue {
 }
 
 impl IntentTagValue {
-    pub fn get_buyer_fee_type(fee_type: BuyerFeeType) -> IntentTagValue {
+    pub fn get_buyer_fee_type(fee_type: ONDCFeeType) -> IntentTagValue {
         IntentTagValue {
             descriptor: IntentTagDescriptor {
                 code: IntentTagValueCode::FinderFeeType,
@@ -91,19 +90,28 @@ impl IntentTagValue {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum BuyerFeeType {
+pub enum ONDCFeeType {
     Percent,
     Amount,
 }
 
-impl std::fmt::Display for BuyerFeeType {
+impl std::fmt::Display for ONDCFeeType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = match self {
-            BuyerFeeType::Percent => "percent",
-            BuyerFeeType::Amount => "amount",
+            ONDCFeeType::Percent => "percent",
+            ONDCFeeType::Amount => "amount",
         };
 
         write!(f, "{}", s)
+    }
+}
+
+impl ONDCFeeType {
+    pub fn get_fee_type(fee_type: &FeeType) -> Self {
+        match fee_type {
+            FeeType::Percent => ONDCFeeType::Percent,
+            FeeType::Amount => ONDCFeeType::Amount,
+        }
     }
 }
 
@@ -115,7 +123,7 @@ pub struct ONDCIntentTag {
 
 impl ONDCIntentTag {
     pub fn get_buyer_fee_tag(
-        finder_fee_type: BuyerFeeType,
+        finder_fee_type: ONDCFeeType,
         finder_fee_amount: &str,
     ) -> ONDCIntentTag {
         ONDCIntentTag {
@@ -135,7 +143,7 @@ impl ONDCIntentTag {
                 code: IntentTagType::BuyerId,
             },
             list: vec![
-                IntentTagValue::get_buyer_id_code(&id_code),
+                IntentTagValue::get_buyer_id_code(id_code),
                 IntentTagValue::get_buyer_id_no(id_no),
             ],
         }
@@ -163,10 +171,10 @@ pub enum ONDCFulfillmentType {
 
 impl ONDCFulfillmentType {
     pub fn get_ondc_fulfillment(payment_type: &FulfillmentType) -> ONDCFulfillmentType {
-        return match payment_type {
+        match payment_type {
             FulfillmentType::Delivery => ONDCFulfillmentType::Delivery,
             FulfillmentType::SelfPickup => ONDCFulfillmentType::SelfPickup,
-        };
+        }
     }
 }
 
@@ -202,11 +210,11 @@ pub enum ONDCPaymentType {
 
 impl ONDCPaymentType {
     pub fn get_ondc_payment(payment_type: &PaymentType) -> ONDCPaymentType {
-        return match payment_type {
+        match payment_type {
             PaymentType::CashOnDelivery => ONDCPaymentType::OnFulfillment,
             PaymentType::PrePaid => ONDCPaymentType::PreFulfillment,
             PaymentType::Credit => ONDCPaymentType::PostFulfillment,
-        };
+        }
     }
 }
 

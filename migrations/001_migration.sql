@@ -250,12 +250,28 @@ CREATE TYPE ondc_network_participant_type AS ENUM (
   'seller'
 );
 
+CREATE TYPE ondc_np_fee_type AS ENUM (
+  'percent',
+  'amount'
+);
 
-CREATE TABLE IF NOT EXISTS ondc_subscribers (
+
+CREATE TABLE IF NOT EXISTS registered_network_participant (
   id uuid PRIMARY KEY,
-  subsriber_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  code TEXT NOT NULL,
+  subscriber_id TEXT NOT NULL,
   subscriber_uri TEXT NOT NULL,
+  signing_key TEXT NOT NULL,
   network_participant_type ondc_network_participant_type NOT NULL,
+  logo TEXT NOT NULL,
+  long_description TEXT NOT NULL,
+  short_description TEXT NOT NULL,
   unique_key_id TEXT NOT NULL,
-  signing_key TEXT NOT NULL
-)
+  created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_by uuid NOT NULL,
+  fee_type ondc_np_fee_type DEFAULT 'percent'::ondc_np_fee_type NOT NULL,
+  fee_value DECIMAL(20, 2) NOT NULL DEFAULT 0.00
+);
+
+ALTER TABLE registered_network_participant ADD CONSTRAINT registered_network_participant_constraint UNIQUE (subscriber_id, network_participant_type);

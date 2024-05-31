@@ -6,7 +6,7 @@ use crate::domain::{subscriber_email::deserialize_subscriber_email, EmailObject}
 #[serde(rename_all = "lowercase")]
 pub enum OTPScope {
     Email,
-    SMS,
+    Sms,
 }
 
 #[derive(Debug, Deserialize)]

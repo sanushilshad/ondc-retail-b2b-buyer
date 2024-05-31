@@ -3,6 +3,7 @@ use reqwest::StatusCode;
 
 use crate::{schemas::GenericResponse, utils::error_chain_fmt};
 
+#[allow(dead_code)]
 #[derive(thiserror::Error)]
 pub enum OTPError {
     // #[error("{0}")]

@@ -84,7 +84,7 @@ async fn get_stored_credentials(
         Ok(None)
     }
 }
-
+#[tracing::instrument(name = "Verify Password")]
 pub async fn verify_password(
     password: Secret<String>,
     auth_mechanism: AuthMechanism,
@@ -103,6 +103,8 @@ pub async fn verify_password(
         .await
         .context("Failed to spawn blocking task.")?
 }
+
+#[tracing::instrument(name = "Reset OTP")]
 pub async fn reset_otp(pool: &PgPool, auth_mechanism: &AuthMechanism) -> Result<(), anyhow::Error> {
     let _updated_tutor_result = sqlx::query!(
         r#"UPDATE auth_mechanism SET
@@ -121,6 +123,7 @@ pub async fn reset_otp(pool: &PgPool, auth_mechanism: &AuthMechanism) -> Result<
     Ok(())
 }
 
+#[tracing::instrument(name = "Verify OTP")]
 pub async fn verify_otp(
     pool: &PgPool,
     secret: Secret<String>,
@@ -147,7 +150,7 @@ pub async fn verify_otp(
         tracing::error!("Failed to execute verify_otp database query: {:?}", e);
         AuthError::DatabaseError(
             "Something went wrong while resetting OTP".to_string(),
-            e.into(),
+            e,
         )
     })?;
     Ok(())
@@ -190,7 +193,7 @@ pub async fn validate_user_credentials(
 
 fn get_user_account_from_model(user_model: UserAccountModel) -> Result<UserAccount, anyhow::Error> {
     let vectors_option: Vec<Option<UserVector>> = user_model.vectors.0; // Extract the inner Option<Vec<UserVectors>>
-    return Ok(UserAccount {
+    Ok(UserAccount {
         id: user_model.id,
         mobile_no: user_model.mobile_no,
         username: user_model.username,
@@ -204,7 +207,7 @@ fn get_user_account_from_model(user_model: UserAccountModel) -> Result<UserAccou
         is_test_user: user_model.is_test_user,
         is_deleted: user_model.is_deleted,
         user_role: user_model.role_name
-    });
+    })
 }
 
 #[tracing::instrument(name = "Get user Account", skip(pool))]
@@ -261,8 +264,10 @@ pub async fn fetch_user(
 //     Ok(row)
 // }
 
+
+#[tracing::instrument(name = "Get User by value list")]
 pub async fn get_user(value_list: Vec<&str>, pool: &PgPool) -> Result<UserAccount, anyhow::Error> {
-    match fetch_user(value_list, &pool).await {
+    match fetch_user(value_list, pool).await {
         Ok(Some(user_obj)) => {
             let user_account = get_user_account_from_model(user_obj)?;
             Ok(user_account)
@@ -321,7 +326,7 @@ pub async fn save_user(
     subscriber_id: String
 ) -> Result<Uuid, anyhow::Error> {
     let user_id = Uuid::new_v4();
-    let user_account_number = user_account.display_name.replace(" ", "-").to_lowercase();
+    let user_account_number = user_account.display_name.replace(' ', "-").to_lowercase();
     let vector_list = create_vector_from_create_account(user_account)?;
     let query = sqlx::query!(
         r#"
@@ -371,7 +376,7 @@ pub async fn get_role_model(pool: &PgPool, role_type: &UserType) -> Result<Optio
 }
 #[tracing::instrument(name = "get_role", skip(pool))]
 pub async fn get_role(pool: &PgPool, role_type: &UserType) -> Result<Option<AccountRole>, anyhow::Error> {
-    let role_model = get_role_model(&pool, &role_type).await?;
+    let role_model = get_role_model(pool, role_type).await?;
     match role_model {
         Some(role) => {
             Ok(Some(AccountRole {
@@ -608,8 +613,8 @@ pub fn create_vector_from_business_account(
 #[tracing::instrument(name = "create user business relation", skip(transaction))]
 pub async fn save_business_account(transaction: &mut Transaction<'_, Postgres>, user_account: &UserAccount,  create_business_obj: &CreateBusinessAccount, subscriber_id: String) -> Result<uuid::Uuid,  BusinessAccountError>{
     let business_account_id = Uuid::new_v4();
-    let business_account_number = create_business_obj.company_name.replace(" ", "-").to_lowercase();
-    let vector_list = create_vector_from_business_account(&create_business_obj)?;
+    let business_account_number = create_business_obj.company_name.replace(' ', "-").to_lowercase();
+    let vector_list = create_vector_from_business_account(create_business_obj)?;
     // let proofs = vec![];
     let query = sqlx::query!(
         r#"
@@ -669,6 +674,8 @@ pub async fn save_user_business_relation(transaction: &mut Transaction<'_, Postg
     Ok(user_role_id)
 }
 
+
+#[tracing::instrument(name = "Save Auth Mechanism for Business account")]
 pub async fn prepare_auth_mechanism_data_for_business_account(
     user_id: Uuid,
     user_account: &CreateBusinessAccount,
@@ -715,7 +722,7 @@ pub async fn create_business_account( pool: &PgPool, user_account: &UserAccount,
         .begin()
         .await
         .context("Failed to acquire a Postgres connection from the pool")?;
-    let business_account_id = save_business_account(&mut transaction, user_account, &create_business_obj, subscriber_id).await?;
+    let business_account_id = save_business_account(&mut transaction, user_account, create_business_obj, subscriber_id).await?;
     if  let Some(role_obj) = get_role(pool, &UserType::Admin).await?{
         if role_obj.is_deleted || role_obj.role_status == Status::Inactive {
             return Err(BusinessAccountError::InvalidRoleError("Role is deleted / Inactive".to_string()))
@@ -727,7 +734,7 @@ pub async fn create_business_account( pool: &PgPool, user_account: &UserAccount,
         
     }
 
-    let bulk_auth_data = prepare_auth_mechanism_data_for_business_account(user_account.id, &create_business_obj).await?;
+    let bulk_auth_data = prepare_auth_mechanism_data_for_business_account(user_account.id, create_business_obj).await?;
     save_auth_mechanism(&mut transaction, bulk_auth_data).await?;
 
 
@@ -802,7 +809,7 @@ pub async fn fetch_business_account_model_by_customer_type(
 //     WHERE ua.email = ANY($1) OR ua.mobile_no = ANY($1) OR ua.id::text = ANY($1)
 
 
-
+#[tracing::instrument(name = "Get Business Account from model")]
 pub fn get_business_account_from_model(business_model: &UserBusinessRelationAccountModel) -> Result<BusinessAccount, anyhow::Error> {
     return Ok(BusinessAccount {
         id: business_model.id,
@@ -817,8 +824,10 @@ pub fn get_business_account_from_model(business_model: &UserBusinessRelationAcco
     });
 }
 
+
+#[tracing::instrument(name = "Get Business Account by Customer Type")]
 pub async fn get_business_account_by_customer_type(user_id: Uuid, business_account_id: Uuid, customer_type_list: Vec<CustomerType>, pool: &PgPool) -> Result<Option<BusinessAccount>, anyhow::Error> {
-    let  business_account_model = fetch_business_account_model_by_customer_type(user_id, business_account_id, customer_type_list, &pool).await?;
+    let  business_account_model = fetch_business_account_model_by_customer_type(user_id, business_account_id, customer_type_list, pool).await?;
     match business_account_model {
         Some(model) => {
             let business_account = get_business_account_from_model(&model)?;
@@ -829,7 +838,7 @@ pub async fn get_business_account_by_customer_type(user_id: Uuid, business_accou
     
 }
 
-
+#[tracing::instrument(name = "Get Basic Business Account from Business Model")]
 pub fn get_basic_business_account_from_model(business_model: &BusinessAccountModel) -> Result<BasicBusinessAccount, anyhow::Error> {
     return Ok(BasicBusinessAccount {
         id: business_model.id,
@@ -839,8 +848,10 @@ pub fn get_basic_business_account_from_model(business_model: &BusinessAccountMod
 }
 
 
+
+#[tracing::instrument(name = "Get Basic Business account by user id")]
 pub async fn get_basic_business_account_by_user_id(user_id: Uuid, pool: &PgPool) -> Result<Vec<BasicBusinessAccount>, anyhow::Error> {
-    let business_account_models =  fetch_business_account_model_by_user_account(user_id, &pool).await?;
+    let business_account_models =  fetch_business_account_model_by_user_account(user_id, pool).await?;
     let mut business_account_list = Vec::new();
     for business_account_model in business_account_models.iter(){
         let business_account = get_basic_business_account_from_model(business_account_model)?;
@@ -852,6 +863,7 @@ pub async fn get_basic_business_account_by_user_id(user_id: Uuid, pool: &PgPool)
 }
 
 
+#[tracing::instrument(name = "Get Auth Data")]
 pub async fn get_auth_data(
     pool: &PgPool,
     user_model: UserAccountModel,
@@ -864,13 +876,13 @@ pub async fn get_auth_data(
 
     Ok(AuthData {
         user: user_account,
-        token: token,
+        token,
         business_account_list: business_obj,
     })
 }
 
 pub fn validate_business_account_active(business_obj: &BusinessAccount) -> Option<String>{
-    let error_message = match (
+    match (
         &business_obj.kyc_status,
         &business_obj.is_active,
         business_obj.is_deleted,
@@ -883,8 +895,7 @@ pub fn validate_business_account_active(business_obj: &BusinessAccount) -> Optio
         (_, _, true, _) => Some("Business Account is deleted".to_string()),
         (_, _, _, false) => Some("Business User relation is not verified".to_string()),
         _ => None 
-    };
-    return error_message
+    }
 }
 
 
