@@ -118,3 +118,50 @@ pub struct ONDCContext {
     pub bpp_uri: Option<String>,
     pub ttl: String,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "UPPERCASE")]
+pub enum ONDCResponseStatusType {
+    Ack,
+    Nack,
+}
+
+#[allow(clippy::enum_variant_names)]
+#[derive(Debug, Deserialize)]
+pub enum ONDCResponseErrorCode {
+    #[serde(rename = "10000")]
+    InvalidRequest,
+    #[serde(rename = "10001")]
+    InvalidSignature,
+    #[serde(rename = "10002")]
+    InvalidCityCode,
+}
+#[derive(Debug, Deserialize)]
+pub enum ONDCResponseErrorType {
+    #[serde(rename = "Gateway")]
+    Gateway,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ONDCResponseAck {
+    pub status: ONDCResponseStatusType,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ONDCResponseMessage {
+    pub ack: ONDCResponseAck,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ONDCResponseError {
+    pub r#type: ONDCResponseErrorType,
+    pub code: ONDCResponseErrorCode,
+    pub message: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ONDCResponse {
+    pub context: ONDCContext,
+    pub message: ONDCResponseMessage,
+    pub error: Option<ONDCResponseError>,
+}

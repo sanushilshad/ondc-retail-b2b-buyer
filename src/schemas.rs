@@ -236,7 +236,7 @@ impl NetworkCall {
             tracing::info!("Retry attempt {}...", current_retry + 1);
             match self.async_post_call(url, payload, headers.to_owned()).await {
                 Ok(network_response) => {
-                    if network_response.status_code >= 500 {
+                    if network_response.status_code > 500 {
                         let error_message = network_response.body;
                         return Err(NetworkError::Validation(error_message));
                     }

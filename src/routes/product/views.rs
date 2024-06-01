@@ -51,7 +51,6 @@ pub async fn product_search(
             )))
         }
         Err(e) => {
-            println!("AAA {:?}", e);
             return Err(ProductSearchError::DatabaseError(
                 "Something went wrong while fetching NP credentials".to_string(),
                 e,
@@ -61,17 +60,14 @@ pub async fn product_search(
     let ondc_search_payload =
         get_ondc_search_payload(&user_account, &business_account, &body.0, &np_detail)?;
     let ondc_search_payload_str = serde_json::to_string(&ondc_search_payload)?;
-    println!("{}", ondc_search_payload_str);
     let header = create_authorization_header(&ondc_search_payload_str, &np_detail, None, None)?;
-    println!("{}", header);
-    let response = send_ondc_payload(
+    send_ondc_payload(
         &ondc_obj.gateway_uri,
         &ondc_search_payload_str,
         &header,
         ONDCActionType::Search,
     )
     .await?;
-    println!("{}", response);
     Ok(web::Json(GenericResponse::success(
         "Successfully Send Product Search Request",
         Some(()),

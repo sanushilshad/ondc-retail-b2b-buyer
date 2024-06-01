@@ -440,3 +440,59 @@ where
         }))
     }
 }
+
+pub struct UserBusinessPermissionMiddleware<S> {
+    service: Rc<S>,
+    pub permission_list: Vec<String>,
+}
+impl<S> Service<ServiceRequest> for UserBusinessPermissionMiddleware<S>
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<actix_web::body::BoxBody>, Error = Error>
+        + 'static,
+{
+    type Response = ServiceResponse<actix_web::body::BoxBody>;
+    type Error = Error;
+    type Future = LocalBoxFuture<'static, Result<Self::Response, Error>>;
+
+    forward_ready!(service);
+
+    /// Handles incoming requests.
+    fn call(&self, req: ServiceRequest) -> Self::Future {
+        println!("Hi from start. You requested: {}", req.path());
+
+        let fut = self.service.call(req);
+
+        Box::pin(async move {
+            let res = fut.await?;
+
+            println!("Hi from response");
+            Ok(res)
+        })
+    }
+}
+
+// Middleware factory for business account validation.
+pub struct UserBusinessPermissionValidation {
+    pub permission_list: Vec<String>,
+}
+
+impl<S> Transform<S, ServiceRequest> for UserBusinessPermissionValidation
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<actix_web::body::BoxBody>, Error = Error>
+        + 'static,
+{
+    type Response = ServiceResponse<actix_web::body::BoxBody>;
+    type Error = Error;
+    type Transform = UserBusinessPermissionMiddleware<S>;
+    type InitError = ();
+    type Future = Ready<Result<Self::Transform, Self::InitError>>;
+
+    /// Creates and returns a new AuthMiddleware wrapped in a Result.
+    fn new_transform(&self, service: S) -> Self::Future {
+        // Wrap the AuthMiddleware instance in a Result and return it.
+        ready(Ok(UserBusinessPermissionMiddleware {
+            service: Rc::new(service),
+            permission_list: self.permission_list.clone(),
+        }))
+    }
+}

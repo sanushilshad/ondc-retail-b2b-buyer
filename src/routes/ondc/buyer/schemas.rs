@@ -181,7 +181,7 @@ impl ONDCFulfillmentType {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCSearchFulfillment {
     pub r#type: ONDCFulfillmentType,
-    pub stops: Vec<ONDCSearchStop>,
+    pub stops: Option<Vec<ONDCSearchStop>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

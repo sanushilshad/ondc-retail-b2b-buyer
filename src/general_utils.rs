@@ -363,9 +363,8 @@ pub fn create_authorization_header(
     println!("{}", signing_key);
     // let  signing_key = "digest: BLAKE-512=n11lI7rMbBysTm60EL5ALC4rlSB3bnd9510qrH9g5eh2idHdghW1Z6zxChE6ozn42UybQQowSQ7pEuTMrM3rYg==";
     // let a = "xPwEy7bD3SWw0UBAG+SpznAS5xjgNUlBPD0GqKj/pz4=";
-    //let signature = sign_response(&signing_key, a)?;
+    // let signature = sign_response(&signing_key, a)?;
     let signature = sign_response(&signing_key, np_detail.signing_key.expose_secret())?;
-    println!("{}", signature);
     Ok(format!(
             "Signature keyId=\"{}|{}|ed25519\",algorithm=\"ed25519\", created=\"{}\", expires=\"{}\", headers=\"(created) (expires) digest\",signature=\"{}\"",
             &np_detail.subscriber_id, &np_detail.unique_key_id,

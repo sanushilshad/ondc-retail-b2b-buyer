@@ -72,5 +72,5 @@ pub struct ProductSearchRequest {
     pub payment_type: PaymentType,
     pub fulfillment_type: FulfillmentType,
     pub search_type: ProductSearchType,
-    pub fulfillment_locations: Vec<ProductFulFillmentLocations>,
+    pub fulfillment_locations: Option<Vec<ProductFulFillmentLocations>>,
 }

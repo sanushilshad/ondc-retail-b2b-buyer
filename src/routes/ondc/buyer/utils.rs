@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use chrono::Utc;
 use reqwest::Client;
-use serde_json::Value;
 //use fake::faker::address::raw::Longitude;
 use uuid::Uuid;
 
@@ -21,6 +20,7 @@ use crate::routes::ondc::schemas::{
     ONDCActionType, ONDCContext, ONDCContextCity, ONDCContextCountry, ONDCContextLocation,
     ONDCDomain, ONDCVersion,
 };
+use crate::routes::ondc::ONDCResponse;
 use crate::routes::product::schemas::{
     ProductFulFillmentLocations, ProductSearchRequest, ProductSearchType,
 };
@@ -28,7 +28,7 @@ use crate::routes::product::ProductSearchError;
 use crate::routes::schemas::{BusinessAccount, UserAccount};
 use crate::routes::user::utils::get_default_vector_value;
 use crate::schemas::{CountryCode, NetworkCall, RegisteredNetworkParticipant};
-
+use anyhow::{anyhow, Context};
 pub fn get_common_context(
     transaction_id: Uuid,
     message_id: Uuid,
@@ -89,24 +89,25 @@ pub fn get_search_tag(
 }
 
 pub fn get_search_fulfillment_stops(
-    fulfillment_locations: &Vec<ProductFulFillmentLocations>,
-) -> Vec<ONDCSearchStop> {
-    let mut ondc_fulfillment_stops: Vec<ONDCSearchStop> = Vec::new();
-    for fulfillment_location in fulfillment_locations {
-        let search_fulfillment_end_obj = ONDCSearchStop {
-            r#type: ONDCFulfillmentStopType::End,
-            location: ONDCSearchLocation {
-                gps: get_gps_string(
-                    fulfillment_location.latitude,
-                    fulfillment_location.longitude,
-                ),
-                area_code: fulfillment_location.area_code.to_string(),
-            },
-        };
-
-        ondc_fulfillment_stops.push(search_fulfillment_end_obj);
+    fulfillment_locations: &Option<Vec<ProductFulFillmentLocations>>,
+) -> Option<Vec<ONDCSearchStop>> {
+    let mut ondc_fulfillment_stops = Vec::new();
+    match fulfillment_locations {
+        Some(locations) => {
+            for location in locations {
+                let search_fulfillment_end_obj = ONDCSearchStop {
+                    r#type: ONDCFulfillmentStopType::End,
+                    location: ONDCSearchLocation {
+                        gps: get_gps_string(location.latitude, location.longitude),
+                        area_code: location.area_code.to_string(),
+                    },
+                };
+                ondc_fulfillment_stops.push(search_fulfillment_end_obj);
+            }
+            Some(ondc_fulfillment_stops)
+        }
+        None => None,
     }
-    ondc_fulfillment_stops
 }
 
 pub fn get_search_by_item(search_request: &ProductSearchRequest) -> Option<ONDCSearchItem> {
@@ -200,21 +201,27 @@ pub async fn send_ondc_payload(
     payload: &str,
     header: &str,
     action: ONDCActionType,
-) -> Result<Value, anyhow::Error> {
+) -> Result<ONDCResponse, anyhow::Error> {
     let final_url = format!("{}/{}", url, action);
     let client = Client::new();
     let mut header_map = HashMap::new();
     header_map.insert("Authorization", header);
     let network_call = NetworkCall { client };
-    println!("{}", final_url);
-    println!("{}", payload);
-    println!("{}", header);
     let result = network_call
         .async_post_call_with_retry(&final_url, Some(payload), Some(header_map))
         .await;
 
     match result {
-        Ok(value) => Ok(value),
-        Err(err) => Err(anyhow::Error::from(err)), // Convert NetworkError to anyhow::Error
+        Ok(response) => {
+            println!("{:?}", &response);
+            let response_obj: ONDCResponse =
+                serde_json::from_value(response).context("Failed to deserialize response")?;
+            if let Some(error) = response_obj.error {
+                Err(anyhow!(error.message))
+            } else {
+                Ok(response_obj)
+            }
+        }
+        Err(err) => Err(anyhow::Error::from(err)),
     }
 }
