@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use chrono::Utc;
 use reqwest::Client;
+use sqlx::PgPool;
 //use fake::faker::address::raw::Longitude;
 use uuid::Uuid;
 
@@ -22,12 +23,14 @@ use crate::routes::ondc::schemas::{
 };
 use crate::routes::ondc::ONDCResponse;
 use crate::routes::product::schemas::{
-    ProductFulFillmentLocations, ProductSearchRequest, ProductSearchType,
+    PaymentType, ProductFulFillmentLocations, ProductSearchRequest, ProductSearchType,
 };
 use crate::routes::product::ProductSearchError;
 use crate::routes::schemas::{BusinessAccount, UserAccount};
 use crate::routes::user::utils::get_default_vector_value;
-use crate::schemas::{CountryCode, NetworkCall, RegisteredNetworkParticipant};
+use crate::schemas::{
+    CountryCode, NetworkCall, RegisteredNetworkParticipant, RequestMetaData, WebSocketParam,
+};
 use anyhow::{anyhow, Context};
 pub fn get_common_context(
     transaction_id: Uuid,
@@ -132,6 +135,15 @@ pub fn get_search_by_category(search_request: &ProductSearchRequest) -> Option<O
     None
 }
 
+pub fn get_ondc_search_payment_obj(payment_obj: &Option<PaymentType>) -> Option<ONDCSearchPayment> {
+    match payment_obj {
+        Some(_) => payment_obj.as_ref().map(|obj| ONDCSearchPayment {
+            r#type: ONDCPaymentType::get_ondc_payment(obj),
+        }),
+        None => None,
+    }
+}
+
 pub fn get_ondc_search_message_obj(
     _user_account: &UserAccount,
     business_account: &BusinessAccount,
@@ -145,9 +157,7 @@ pub fn get_ondc_search_message_obj(
                 stops: get_search_fulfillment_stops(&search_request.fulfillment_locations),
             }),
             tags: get_search_tag(business_account, np_detail)?,
-            payment: ONDCSearchPayment {
-                r#type: ONDCPaymentType::get_ondc_payment(&search_request.payment_type),
-            },
+            payment: get_ondc_search_payment_obj(&search_request.payment_type),
             item: get_search_by_item(search_request),
 
             provider: None,
@@ -224,4 +234,55 @@ pub async fn send_ondc_payload(
         }
         Err(err) => Err(anyhow::Error::from(err)),
     }
+}
+
+#[tracing::instrument(name = "Save ONDC Search Request", skip(pool))]
+pub async fn save_ondc_search_request(
+    pool: &PgPool,
+    user_account: &UserAccount,
+    business_account: &BusinessAccount,
+    meta_data: &RequestMetaData,
+    ondc_search_payload: &ONDCSearchRequest,
+) -> Result<(), anyhow::Error> {
+    let ondc_search_payload_string = serde_json::to_value(ondc_search_payload)?;
+    sqlx::query!(
+        r#"
+        INSERT INTO ondc_search_request (message_id, transaction_id, device_id, request_json, business_id,  user_id, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        "#,
+        &ondc_search_payload.context.message_id,
+        &ondc_search_payload.context.transaction_id,
+        &meta_data.device_id,
+        &ondc_search_payload_string,
+        &business_account.id,
+        &user_account.id,
+        Utc::now(),
+    )
+    .execute(pool).await
+    .map_err(|e| {
+        tracing::error!("Failed to execute query: {:?}", e);
+        anyhow::Error::new(e).context("A database failure occurred while saving ONDC search request")
+    })?;
+    Ok(())
+}
+
+#[tracing::instrument(name = "Fetch Search WebSocket Params", skip(pool))]
+pub async fn fetch_websocket_params(
+    pool: &PgPool,
+    transaction_id: &Uuid,
+    message_id: &Uuid,
+) -> Result<Option<WebSocketParam>, anyhow::Error> {
+    let row = sqlx::query_as!(
+        WebSocketParam,
+        r#"SELECT business_id, user_id, device_id
+        FROM ondc_search_request
+        WHERE transaction_id = $1 AND message_id = $2
+        "#,
+        transaction_id,
+        message_id
+    )
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(row)
 }

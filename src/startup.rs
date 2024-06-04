@@ -5,6 +5,8 @@ use crate::redis::RedisClient;
 // use crate::middleware::tracing_middleware;
 
 use crate::routes::main_route;
+use crate::websocket;
+use actix::Actor;
 // use actix_session::storage::RedisSessionStore;
 // use actix_session::SessionMiddleware;
 // use actix_web::cookie::Key;
@@ -88,6 +90,7 @@ async fn run(
     let secret_obj = web::Data::new(configuration.secret);
     let user_setting_obj = web::Data::new(configuration.user);
     let ondc_obj = web::Data::new(configuration.ondc);
+    let ws_server = web::Data::new(websocket::Server::new().start());
     // let _secret_key = Key::from(hmac_secret.expose_secret().as_bytes());
     let redis_app = web::Data::new(redis_client);
     let server = HttpServer::new(move || {
@@ -104,6 +107,7 @@ async fn run(
             .app_data(user_setting_obj.clone())
             .app_data(redis_app.clone())
             .app_data(ondc_obj.clone())
+            .app_data(ws_server.clone())
             .configure(main_route)
     })
     .workers(configuration.application.workers)

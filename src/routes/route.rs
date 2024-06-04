@@ -9,7 +9,7 @@ use utoipa_swagger_ui::SwaggerUi;
 pub fn main_route(cfg: &mut web::ServiceConfig) {
     let openapi = ApiDoc::openapi();
     cfg.service(web::scope("/notification").configure(notification_route))
-        .service(web::scope("/utils").configure(util_route))
+        .service(web::scope("/util").configure(util_route))
         .service(
             web::scope("/product")
                 .configure(product_route)

@@ -321,3 +321,24 @@ pub enum ONDCNPType {
     Buyer,
     Seller,
 }
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct WebSocketParam {
+    pub user_id: Uuid,
+    pub business_id: Uuid,
+    pub device_id: String,
+}
+
+impl WebSocketParam {
+    pub fn get_key(&self) -> String {
+        format!("{}#{}#{}", self.user_id, self.business_id, self.device_id)
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "UPPERCASE")]
+pub enum ONDCNetworkType {
+    Bap,
+    Bpp,
+}

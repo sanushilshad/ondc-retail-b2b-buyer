@@ -7,7 +7,7 @@ use super::schemas::{
 };
 use crate::configuration::JWT;
 use crate::routes::schemas::{CustomerType, MerchantType, TradeType};
-use crate::schemas::{Status, KycStatus};
+use crate::schemas::{KycStatus, Status};
 use crate::general_utils::{generate_jwt_token_for_user, spawn_blocking_with_tracing};
 use anyhow::{anyhow, Context};
 use argon2::password_hash::SaltString;
@@ -910,3 +910,5 @@ pub fn get_default_vector_value<'a>(
     }
     None
 }
+
+

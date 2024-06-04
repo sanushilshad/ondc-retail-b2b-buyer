@@ -69,7 +69,8 @@ pub struct ProductSearchRequest {
     pub message_id: Uuid,
     pub domain_category_code: String,
     pub country_code: CountryCode,
-    pub payment_type: PaymentType,
+
+    pub payment_type: Option<PaymentType>,
     pub fulfillment_type: FulfillmentType,
     pub search_type: ProductSearchType,
     pub fulfillment_locations: Option<Vec<ProductFulFillmentLocations>>,

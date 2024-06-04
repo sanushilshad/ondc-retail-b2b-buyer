@@ -1,19 +1,24 @@
-use crate::{redis::RedisClient, websocket::MyWs};
-
+// use crate::{redis::RedisClient, websocket::MyWs};
+use crate::{
+    redis::RedisClient,
+    schemas::WebSocketParam,
+    websocket::{Server, WebSocketSession},
+};
 // use crate::routes::utils::get_customer_dbs;
 use super::{
     schemas::{RedisAction, RedisBasicRequest},
     utils::get_customer_dbs,
 };
+use actix::Addr;
 use actix_web::{web, Error, HttpRequest, HttpResponse, Responder};
 use actix_web_actors::ws;
 use redis::AsyncCommands;
 use sqlx::PgPool;
+
 pub async fn health_check() -> impl Responder {
     println!("mango");
     HttpResponse::Ok().body("Running")
 }
-
 #[tracing::instrument(
     name = "Fetching Customer List",
     skip(pool),
@@ -47,11 +52,20 @@ pub async fn get_customer_dbs_api(pool: web::Data<PgPool>) -> impl Responder {
     // request_id = %Uuid::new_v4()
     )
     )]
-pub async fn web_socket(req: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
-    let resp: Result<HttpResponse, Error> = ws::start(MyWs {}, &req, stream);
-    let host = req.headers().get("Host").unwrap().to_str().unwrap();
-    println!("Hostname: {:?}", host);
-    resp
+pub async fn web_socket(
+    req: HttpRequest,
+    stream: web::Payload,
+    query: web::Query<WebSocketParam>,
+    server_addr: web::Data<Addr<Server>>,
+) -> Result<HttpResponse, Error> {
+    let web_socket_key = query.get_key();
+    println!("{}", web_socket_key);
+    let res = ws::start(
+        WebSocketSession::new(web_socket_key, server_addr.get_ref().clone()),
+        &req,
+        stream,
+    )?;
+    Ok(res)
 }
 
 #[tracing::instrument(name = "Set Value in Redis", skip(redis), fields())]

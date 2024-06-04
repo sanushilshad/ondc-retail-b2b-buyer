@@ -207,7 +207,7 @@ CREATE TABLE IF NOT EXISTS business_account (
   merchant_type merchant_type NOT NULL,
   trade trade_type[],
   tags TEXT[],
-  is_active status DEFAULT 'active'::status NOT NULL,
+  is_active status DEFAULT 'inactive'::status NOT NULL,
   source data_source NOT NULL,
   opening_time TIME,
   closing_time TIME,
@@ -275,3 +275,17 @@ CREATE TABLE IF NOT EXISTS registered_network_participant (
 );
 
 ALTER TABLE registered_network_participant ADD CONSTRAINT registered_network_participant_constraint UNIQUE (subscriber_id, network_participant_type);
+
+
+
+
+CREATE TABLE IF NOT EXISTS ondc_search_request (
+  id SERIAL NOT NULL PRIMARY KEY,
+  message_id uuid NOT NULL,
+  transaction_id uuid NOT NULL,
+  business_id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  device_id TEXT NOT NULL,
+  request_json JSONB NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL
+);

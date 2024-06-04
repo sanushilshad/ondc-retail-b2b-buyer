@@ -1,10 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
-use std::{
-    fmt::{Display, Formatter},
-    str::FromStr,
-};
+use std::fmt::{Display, Formatter};
 use uuid::Uuid;
 
 use crate::{errors::GenericError, general_utils::pascal_to_snake_case, schemas::CountryCode};
@@ -51,23 +48,29 @@ pub enum ONDCDomain {
     Grocery,
 }
 
-impl FromStr for ONDCDomain {
-    type Err = GenericError;
+// impl FromStr for ONDCDomain {
+//     type Err = GenericError;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "RET10" => Ok(ONDCDomain::Grocery),
-            _ => Err(GenericError::ValidationStringError(
-                "Invalid Domains".to_string(),
-            )),
-        }
-    }
-}
+//     fn from_str(s: &str) -> Result<Self, Self::Err> {
+//         match s {
+//             "ONDC:RET10" => Ok(ONDCDomain::Grocery),
+//             _ => Err(GenericError::ValidationStringError(
+//                 "Invalid Domain".to_string(),
+//             )),
+//         }
+//     }
+// }
 
 impl ONDCDomain {
     pub fn get_ondc_domain(domain_category_code: &str) -> Result<ONDCDomain, GenericError> {
         // serde_json::from_str(&format!("ONDC:{}", domain_category_code))
-        domain_category_code.parse::<ONDCDomain>()
+        // domain_category_code.parse::<ONDCDomain>()
+        match domain_category_code {
+            "RET10" => Ok(ONDCDomain::Grocery),
+            _ => Err(GenericError::ValidationStringError(
+                "Invalid domain category code".to_owned(),
+            )),
+        }
     }
 }
 

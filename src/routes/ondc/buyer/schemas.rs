@@ -4,7 +4,7 @@ use serde_with::skip_serializing_none;
 use crate::routes::ondc::schemas::ONDCContext;
 use crate::routes::product::schemas::{FulfillmentType, PaymentType};
 use crate::routes::schemas::VectorType;
-use crate::schemas::FeeType;
+use crate::schemas::{FeeType, ONDCNetworkType};
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -235,7 +235,7 @@ pub struct ONDCSearchIntent {
     pub item: Option<ONDCSearchItem>,
     pub fulfillment: Option<ONDCSearchFulfillment>,
     pub tags: Vec<ONDCIntentTag>,
-    pub payment: ONDCSearchPayment,
+    pub payment: Option<ONDCSearchPayment>,
     pub provider: Option<ONDCSearchProvider>,
     pub category: Option<ONDCSearchCategory>,
 }
@@ -248,4 +248,89 @@ pub struct ONDCSearchMessage {
 pub struct ONDCSearchRequest {
     pub context: ONDCContext,
     pub message: ONDCSearchMessage,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCError {
+    r#type: String,
+    code: String,
+    path: Option<String>,
+    message: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum OnSearchContentType {
+    #[serde(rename = "text/html")]
+    Html,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCOnSearchAdditionalDescriptor {
+    pub url: String,
+    pub content_type: OnSearchContentType,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCOnSearchImage {
+    url: String,
+}
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCOnSearchDescriptor {
+    name: String,
+    code: Option<String>,
+    short_desc: String,
+    long_desc: String,
+    additional_desc: Option<ONDCOnSearchAdditionalDescriptor>,
+    images: Vec<ONDCOnSearchImage>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCOnSearchPayment {
+    pub id: String,
+    pub payment_type: ONDCPaymentType,
+    pub collected_by: ONDCNetworkType,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCFullFillment {
+    pub id: String,
+    pub fulfillment_type: ONDCFulfillmentType,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCCredential {
+    pub id: String,
+    pub r#type: String,
+    pub desc: String,
+    pub icon: Option<String>,
+    pub url: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCOnSearchProvider {
+    id: String,
+    payments: Option<Vec<ONDCOnSearchPayment>>,
+    rating: String,
+    ttl: String,
+    creds: Option<Vec<ONDCCredential>>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCOnSearchCatalog {
+    descriptor: ONDCOnSearchDescriptor,
+    payments: Vec<ONDCOnSearchPayment>,
+    fulfillments: Vec<ONDCFullFillment>,
+    providers: Vec<ONDCOnSearchProvider>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCOnSearchMessage {
+    catalog: Option<ONDCOnSearchCatalog>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCOnSearchRequest {
+    pub context: ONDCContext,
+    pub message: ONDCOnSearchMessage,
+    pub error: Option<ONDCError>,
 }

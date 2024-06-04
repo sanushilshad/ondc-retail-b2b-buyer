@@ -4,7 +4,9 @@ use actix_web::web;
 use super::schemas::ProductSearchRequest;
 use crate::configuration::ONDCSetting;
 use crate::general_utils::{create_authorization_header, get_np_detail};
-use crate::routes::ondc::buyer::utils::{get_ondc_search_payload, send_ondc_payload};
+use crate::routes::ondc::buyer::utils::{
+    get_ondc_search_payload, save_ondc_search_request, send_ondc_payload,
+};
 use crate::routes::ondc::ONDCActionType;
 use crate::routes::product::errors::ProductSearchError;
 use crate::routes::schemas::{BusinessAccount, UserAccount};
@@ -60,6 +62,14 @@ pub async fn product_search(
     let ondc_search_payload =
         get_ondc_search_payload(&user_account, &business_account, &body.0, &np_detail)?;
     let ondc_search_payload_str = serde_json::to_string(&ondc_search_payload)?;
+    save_ondc_search_request(
+        &pool,
+        &user_account,
+        &business_account,
+        &meta_data,
+        &ondc_search_payload,
+    )
+    .await?;
     let header = create_authorization_header(&ondc_search_payload_str, &np_detail, None, None)?;
     send_ondc_payload(
         &ondc_obj.gateway_uri,
