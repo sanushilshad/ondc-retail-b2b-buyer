@@ -51,6 +51,7 @@ pub enum ProductSearchType {
     Item,
     Fulfillment,
     Category,
+    City,
 }
 
 #[derive(Deserialize, Debug)]

@@ -68,7 +68,7 @@ pub fn get_common_context(
     })
 }
 
-pub fn get_search_tag(
+fn get_search_tag(
     business_account: &BusinessAccount,
     np_detail: &RegisteredNetworkParticipant,
 ) -> Result<Vec<ONDCIntentTag>, ProductSearchError> {
@@ -113,7 +113,7 @@ pub fn get_search_fulfillment_stops(
     }
 }
 
-pub fn get_search_by_item(search_request: &ProductSearchRequest) -> Option<ONDCSearchItem> {
+fn get_search_by_item(search_request: &ProductSearchRequest) -> Option<ONDCSearchItem> {
     if search_request.search_type == ProductSearchType::Item {
         return Some(ONDCSearchItem {
             descriptor: Some(ONDCSearchDescriptor {
@@ -125,7 +125,7 @@ pub fn get_search_by_item(search_request: &ProductSearchRequest) -> Option<ONDCS
     None
 }
 
-pub fn get_search_by_category(search_request: &ProductSearchRequest) -> Option<ONDCSearchCategory> {
+fn get_search_by_category(search_request: &ProductSearchRequest) -> Option<ONDCSearchCategory> {
     if search_request.search_type == ProductSearchType::Category {
         return Some(ONDCSearchCategory {
             id: search_request.query.to_owned(),
@@ -135,7 +135,7 @@ pub fn get_search_by_category(search_request: &ProductSearchRequest) -> Option<O
     None
 }
 
-pub fn get_ondc_search_payment_obj(payment_obj: &Option<PaymentType>) -> Option<ONDCSearchPayment> {
+fn get_ondc_search_payment_obj(payment_obj: &Option<PaymentType>) -> Option<ONDCSearchPayment> {
     match payment_obj {
         Some(_) => payment_obj.as_ref().map(|obj| ONDCSearchPayment {
             r#type: ONDCPaymentType::get_ondc_payment(obj),
@@ -143,8 +143,19 @@ pub fn get_ondc_search_payment_obj(payment_obj: &Option<PaymentType>) -> Option<
         None => None,
     }
 }
-
-pub fn get_ondc_search_message_obj(
+fn get_search_fulfillment_obj(
+    search_request: &ProductSearchRequest,
+) -> Option<ONDCSearchFulfillment> {
+    if search_request.search_type != ProductSearchType::City {
+        Some(ONDCSearchFulfillment {
+            r#type: ONDCFulfillmentType::get_ondc_fulfillment(&search_request.fulfillment_type),
+            stops: get_search_fulfillment_stops(&search_request.fulfillment_locations),
+        })
+    } else {
+        None
+    }
+}
+fn get_ondc_search_message_obj(
     _user_account: &UserAccount,
     business_account: &BusinessAccount,
     search_request: &ProductSearchRequest,
@@ -152,10 +163,7 @@ pub fn get_ondc_search_message_obj(
 ) -> Result<ONDCSearchMessage, ProductSearchError> {
     Ok(ONDCSearchMessage {
         intent: ONDCSearchIntent {
-            fulfillment: Some(ONDCSearchFulfillment {
-                r#type: ONDCFulfillmentType::get_ondc_fulfillment(&search_request.fulfillment_type),
-                stops: get_search_fulfillment_stops(&search_request.fulfillment_locations),
-            }),
+            fulfillment: get_search_fulfillment_obj(search_request),
             tags: get_search_tag(business_account, np_detail)?,
             payment: get_ondc_search_payment_obj(&search_request.payment_type),
             item: get_search_by_item(search_request),
@@ -166,7 +174,7 @@ pub fn get_ondc_search_message_obj(
     })
 }
 
-pub fn get_ondc_payload_from_search_request(
+fn get_ondc_payload_from_search_request(
     user_account: &UserAccount,
     business_account: &BusinessAccount,
     search_request: &ProductSearchRequest,
@@ -267,7 +275,7 @@ pub async fn save_ondc_search_request(
 }
 
 #[tracing::instrument(name = "Fetch Search WebSocket Params", skip(pool))]
-pub async fn fetch_websocket_params(
+pub async fn get_websocket_params_from_ondc_search_req(
     pool: &PgPool,
     transaction_id: &Uuid,
     message_id: &Uuid,

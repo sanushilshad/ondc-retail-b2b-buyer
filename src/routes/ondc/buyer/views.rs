@@ -4,7 +4,7 @@ use sqlx::PgPool;
 
 use crate::websocket::{MessageToClient, Server};
 
-use super::{schemas::ONDCOnSearchRequest, utils::fetch_websocket_params};
+use super::{schemas::ONDCOnSearchRequest, utils::get_websocket_params_from_ondc_search_req};
 
 #[tracing::instrument(name = "ONDC On Search Response", skip(pool), fields())]
 pub async fn on_search(
@@ -14,7 +14,7 @@ pub async fn on_search(
     websocket_srv: web::Data<Addr<Server>>,
 ) -> impl Responder {
     let json_obj = serde_json::to_value(&body.0).unwrap();
-    match fetch_websocket_params(
+    match get_websocket_params_from_ondc_search_req(
         &pool,
         &body.context.transaction_id,
         &body.context.message_id,

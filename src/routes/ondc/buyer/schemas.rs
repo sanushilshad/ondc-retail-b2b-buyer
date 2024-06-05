@@ -287,14 +287,14 @@ pub struct ONDCOnSearchDescriptor {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCOnSearchPayment {
     pub id: String,
-    pub payment_type: ONDCPaymentType,
+    pub r#type: ONDCPaymentType,
     pub collected_by: ONDCNetworkType,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct ONDCFullFillment {
+pub struct ONDCOnSearchFullFillment {
     pub id: String,
-    pub fulfillment_type: ONDCFulfillmentType,
+    pub r#type: ONDCFulfillmentType,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -319,7 +319,7 @@ pub struct ONDCOnSearchProvider {
 pub struct ONDCOnSearchCatalog {
     descriptor: ONDCOnSearchDescriptor,
     payments: Vec<ONDCOnSearchPayment>,
-    fulfillments: Vec<ONDCFullFillment>,
+    fulfillments: Vec<ONDCOnSearchFullFillment>,
     providers: Vec<ONDCOnSearchProvider>,
 }
 
