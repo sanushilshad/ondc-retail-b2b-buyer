@@ -7,10 +7,10 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use super::schemas::{
-    ONDCFeeType, ONDCFulfillmentStopType, ONDCFulfillmentType, ONDCIntentTag, ONDCPaymentType,
-    ONDCSearchCategory, ONDCSearchDescriptor, ONDCSearchFulfillment, ONDCSearchIntent,
-    ONDCSearchItem, ONDCSearchLocation, ONDCSearchMessage, ONDCSearchPayment, ONDCSearchRequest,
-    ONDCSearchStop,
+    ONDCFeeType, ONDCFulfillmentStopType, ONDCFulfillmentType, ONDCPaymentType, ONDCSearchCategory,
+    ONDCSearchDescriptor, ONDCSearchFulfillment, ONDCSearchIntent, ONDCSearchItem,
+    ONDCSearchLocation, ONDCSearchMessage, ONDCSearchPayment, ONDCSearchRequest, ONDCSearchStop,
+    ONDCTag,
 };
 
 use crate::constants::ONDC_TTL;
@@ -71,7 +71,7 @@ pub fn get_common_context(
 fn get_search_tag(
     business_account: &BusinessAccount,
     np_detail: &RegisteredNetworkParticipant,
-) -> Result<Vec<ONDCIntentTag>, ProductSearchError> {
+) -> Result<Vec<ONDCTag>, ProductSearchError> {
     let buyer_id: Option<&str> = get_default_vector_value(
         &business_account.default_vector_type,
         &business_account.vectors,
@@ -82,11 +82,11 @@ fn get_search_tag(
             &business_account.default_vector_type.to_string()
         ))),
         Some(id) => Ok(vec![
-            ONDCIntentTag::get_buyer_fee_tag(
+            ONDCTag::get_buyer_fee_tag(
                 ONDCFeeType::get_fee_type(&np_detail.fee_type),
                 &np_detail.fee_value.to_string(),
             ),
-            ONDCIntentTag::get_buyer_id_tag(&business_account.default_vector_type, id),
+            ONDCTag::get_buyer_id_tag(&business_account.default_vector_type, id),
         ]),
     }
 }

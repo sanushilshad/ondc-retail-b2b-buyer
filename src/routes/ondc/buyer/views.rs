@@ -1,19 +1,21 @@
 use actix::Addr;
-use actix_web::{web, HttpResponse, Responder};
+use actix_web::web;
 use sqlx::PgPool;
 
+use super::schemas::ONDCOnSearchRequest;
+use super::utils::get_websocket_params_from_ondc_search_req;
+use crate::routes::ondc::errors::ONDCError;
+use crate::routes::ondc::ONDCResponse;
 use crate::websocket::{MessageToClient, Server};
-
-use super::{schemas::ONDCOnSearchRequest, utils::get_websocket_params_from_ondc_search_req};
 
 #[tracing::instrument(name = "ONDC On Search Response", skip(pool), fields())]
 pub async fn on_search(
     pool: web::Data<PgPool>,
-    // req_body: web::Bytes,
     body: web::Json<ONDCOnSearchRequest>,
     websocket_srv: web::Data<Addr<Server>>,
-) -> impl Responder {
+) -> Result<web::Json<ONDCResponse>, ONDCError> {
     let json_obj = serde_json::to_value(&body.0).unwrap();
+
     match get_websocket_params_from_ondc_search_req(
         &pool,
         &body.context.transaction_id,
@@ -22,15 +24,12 @@ pub async fn on_search(
     .await
     {
         Ok(Some(ws_params)) => {
-            println!("{}", ws_params.get_key());
             let msg = MessageToClient::new("search", json_obj.clone(), Some(ws_params.get_key()));
             websocket_srv.do_send(msg);
         }
-        Ok(None) => {}
-        Err(_) => {
-            return HttpResponse::InternalServerError().body("Error fetching WebSocket parameters")
-        }
+        Ok(None) => return Err(ONDCError::InternalServerError { path: None }),
+        Err(_) => return Err(ONDCError::InternalServerError { path: None }),
     };
-
-    HttpResponse::Ok().body(" BLAH Running")
+    // Ok(web::Json(ONDCResponse::successful_response(None)))
+    return Err(ONDCError::StaleError { path: None });
 }

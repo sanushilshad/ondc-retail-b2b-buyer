@@ -130,41 +130,82 @@ pub enum ONDCResponseStatusType {
 }
 
 #[allow(clippy::enum_variant_names)]
-#[derive(Debug, Deserialize)]
-pub enum ONDCResponseErrorCode {
+#[derive(Debug, Serialize, Deserialize)]
+pub enum ONDCErrorCode {
     #[serde(rename = "10000")]
     InvalidRequest,
     #[serde(rename = "10001")]
     InvalidSignature,
     #[serde(rename = "10002")]
     InvalidCityCode,
+    #[serde(rename = "23001")]
+    InternalErrorCode,
+    #[serde(rename = "30016")]
+    InvalidSignatureCode,
+    #[serde(rename = "30022")]
+    StaleRequestCode,
+    #[serde(rename = "20008")]
+    ResponseSequenceCode,
 }
-#[derive(Debug, Deserialize)]
-pub enum ONDCResponseErrorType {
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING-KEBAB-CASE")]
+pub enum ONDErrorType {
     #[serde(rename = "Gateway")]
     Gateway,
+    ContextError,
+    DomainError,
+    PolicyError,
+    JsonSchemaError,
+    CoreError,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct ONDCResponseAck {
     pub status: ONDCResponseStatusType,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct ONDCResponseMessage {
     pub ack: ONDCResponseAck,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct ONDCResponseError {
-    pub r#type: ONDCResponseErrorType,
-    pub code: ONDCResponseErrorCode,
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCResponseErrorBody {
+    pub r#type: ONDErrorType,
+    pub code: ONDCErrorCode,
+    pub path: Option<String>,
     pub message: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct ONDCResponse {
-    pub context: ONDCContext,
+    pub context: Option<ONDCContext>,
     pub message: ONDCResponseMessage,
-    pub error: Option<ONDCResponseError>,
+    pub error: Option<ONDCResponseErrorBody>,
+}
+
+impl ONDCResponse {
+    pub fn successful_response(context: Option<ONDCContext>) -> Self {
+        Self {
+            message: ONDCResponseMessage {
+                ack: ONDCResponseAck {
+                    status: ONDCResponseStatusType::Ack,
+                },
+            },
+            context: context,
+            error: None,
+        }
+    }
+
+    pub fn error_response(context: Option<ONDCContext>, error: ONDCResponseErrorBody) -> Self {
+        Self {
+            message: ONDCResponseMessage {
+                ack: ONDCResponseAck {
+                    status: ONDCResponseStatusType::Nack,
+                },
+            },
+            context: context,
+            error: Some(error),
+        }
+    }
 }
