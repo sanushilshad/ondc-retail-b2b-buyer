@@ -1,6 +1,6 @@
 use crate::middleware::RequireAuth;
 
-use super::views::send_email_otp;
+use super::handlers::send_email_otp;
 use actix_web::web;
 pub fn notification_route(cfg: &mut web::ServiceConfig) {
     // cfg.service(web::resource("/send/email").route(web::post().to(send_email)));

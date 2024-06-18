@@ -1,4 +1,4 @@
-use crate::routes::ondc::errors::ONDCBuyerError;
+use super::errors::ONDCBuyerError;
 use crate::routes::ondc::schemas::{ONDCContext, ONDCResponseErrorBody};
 use crate::routes::ondc::ONDCSellerErrorCode;
 use crate::routes::product::schemas::{FulfillmentType, PaymentType};
@@ -738,4 +738,19 @@ impl FromRequest for ONDCOnSearchRequest {
             }
         })
     }
+}
+
+#[allow(clippy::enum_variant_names)]
+#[derive(Debug, Serialize, Deserialize)]
+pub enum ONDCBuyerErrorCode {
+    #[serde(rename = "23001")]
+    InternalErrorCode,
+    #[serde(rename = "20008")]
+    ResponseSequenceCode,
+    #[serde(rename = "20001")]
+    InvalidSignatureCode,
+    #[serde(rename = "20002")]
+    StaleRequestCode,
+    #[serde(rename = "20006")]
+    InvalidResponseCode,
 }

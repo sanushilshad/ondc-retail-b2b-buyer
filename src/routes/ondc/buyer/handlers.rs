@@ -2,10 +2,10 @@ use actix::Addr;
 use actix_web::web;
 use sqlx::PgPool;
 
-use super::schemas::ONDCOnSearchRequest;
+use super::errors::ONDCBuyerError;
+use super::schemas::{ONDCBuyerErrorCode, ONDCOnSearchRequest};
 use super::utils::get_websocket_params_from_ondc_search_req;
-use crate::routes::ondc::errors::ONDCBuyerError;
-use crate::routes::ondc::{ONDCBuyerErrorCode, ONDCResponse};
+use crate::routes::ondc::ONDCResponse;
 use crate::websocket::{MessageToClient, Server, WebSocketActionType};
 
 #[tracing::instrument(name = "ONDC On Search Payload", skip(pool), fields())]

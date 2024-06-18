@@ -3,7 +3,7 @@ use crate::routes::user::schemas::{
     CreateBusinessAccount, CreateUserAccount, CustomerType, DataSource, KYCProof, MerchantType,
     TradeType, UserType, VectorType, AuthenticateRequest, AuthenticationScope, AuthData, UserAccount, BasicBusinessAccount, UserVector, MaskingType 
 };
-use crate::routes::user::views as user_views;
+use crate::routes::user::handlers as user_views;
 use crate::schemas::{EmptyGenericResponse, AuthResponse, Status};
 use utoipa::OpenApi;
 

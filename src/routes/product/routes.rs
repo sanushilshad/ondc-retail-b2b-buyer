@@ -1,4 +1,4 @@
-use super::views::product_search;
+use super::handlers::product_search;
 use crate::{
     middleware::{BusinessAccountValidation, RequireAuth},
     routes::schemas::CustomerType,

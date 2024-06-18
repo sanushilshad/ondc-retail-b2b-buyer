@@ -1,4 +1,4 @@
-use super::views::on_search;
+use super::handlers::on_search;
 use actix_web::web;
 pub fn ondc_buyer_route(cfg: &mut web::ServiceConfig) {
     // cfg.service(web::resource("/inventory/fetch").route(web::post().to(fetch_inventory)));

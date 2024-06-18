@@ -142,21 +142,6 @@ pub enum ONDCGateWayErrorCode {
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Serialize, Deserialize)]
-pub enum ONDCBuyerErrorCode {
-    #[serde(rename = "23001")]
-    InternalErrorCode,
-    #[serde(rename = "20008")]
-    ResponseSequenceCode,
-    #[serde(rename = "20001")]
-    InvalidSignatureCode,
-    #[serde(rename = "20002")]
-    StaleRequestCode,
-    #[serde(rename = "20006")]
-    InvalidResponseCode,
-}
-
-#[allow(clippy::enum_variant_names)]
-#[derive(Debug, Serialize, Deserialize)]
 pub enum ONDCSellerErrorCode {
     #[serde(rename = "30016")]
     SellerInvalidSignatureCode,
