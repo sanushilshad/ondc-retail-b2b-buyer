@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use actix::prelude::{Actor, Context, Handler, Message as ActixMessage, Recipient};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::{error::Result as SerdeResult, to_string, Value};
 use std::time::{Duration, Instant};
 use tracing::{error, info, warn};
@@ -16,23 +16,29 @@ use actix_web_actors::ws;
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(30);
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WebSocketActionType {
+    Search,
+}
+
 #[derive(ActixMessage)]
 #[rtype(result = "()")]
 pub struct Message(pub String);
 
-#[derive(ActixMessage, Deserialize, Serialize)]
+#[derive(ActixMessage, Serialize)]
 #[rtype(result = "()")]
 pub struct MessageToClient {
     pub id: Option<String>,
-    pub action_type: String,
+    pub action_type: WebSocketActionType,
     pub data: Value,
 }
 
 impl MessageToClient {
-    pub fn new(msg_type: &str, data: Value, id: Option<String>) -> Self {
+    pub fn new(msg_type: WebSocketActionType, data: Value, id: Option<String>) -> Self {
         Self {
             id,
-            action_type: msg_type.to_string(),
+            action_type: msg_type,
             data,
         }
     }

@@ -59,7 +59,7 @@ pub async fn web_socket(
     server_addr: web::Data<Addr<Server>>,
 ) -> Result<HttpResponse, Error> {
     let web_socket_key = query.get_key();
-    println!("{}", web_socket_key);
+    // println!("{}", web_socket_key);
     let res = ws::start(
         WebSocketSession::new(web_socket_key, server_addr.get_ref().clone()),
         &req,

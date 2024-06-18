@@ -95,8 +95,8 @@ async fn run(
     let redis_app = web::Data::new(redis_client);
     let server = HttpServer::new(move || {
         App::new()
-            .wrap(TracingLogger::default())
             .wrap(SaveRequestResponse)
+            .wrap(TracingLogger::default())
             // .wrap(ErrorHandlers::new().handler(StatusCode::BAD_REQUEST, add_error_header))
             // .wrap(Logger::default())  // for minimal logs
             // Register the connection as part of the application state

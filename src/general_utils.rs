@@ -251,11 +251,8 @@ pub fn get_gps_string(latitude: f64, longitude: f64) -> String {
 }
 
 #[tracing::instrument(name = "Get header value")]
-pub fn get_header_value(req: &ServiceRequest, header_name: &str) -> Option<String> {
-    req.headers()
-        .get(header_name)
-        .and_then(|h| h.to_str().ok())
-        .map(|h| h.to_string())
+pub fn get_header_value<'a>(req: &'a ServiceRequest, header_name: &'a str) -> Option<&'a str> {
+    req.headers().get(header_name).and_then(|h| h.to_str().ok())
 }
 
 pub fn pascal_to_snake_case(pascal_case: &str) -> String {
@@ -360,7 +357,7 @@ pub fn create_authorization_header(
     expires: Option<i64>,
 ) -> Result<String, anyhow::Error> {
     let signing_key = create_signing_string(&hash_message(request_body), created, expires);
-    println!("{}", signing_key);
+    // println!("{}", signing_key);
     // let  signing_key = "digest: BLAKE-512=n11lI7rMbBysTm60EL5ALC4rlSB3bnd9510qrH9g5eh2idHdghW1Z6zxChE6ozn42UybQQowSQ7pEuTMrM3rYg==";
     // let a = "xPwEy7bD3SWw0UBAG+SpznAS5xjgNUlBPD0GqKj/pz4=";
     // let signature = sign_response(&signing_key, a)?;

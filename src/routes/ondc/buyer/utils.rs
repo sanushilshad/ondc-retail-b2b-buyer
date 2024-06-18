@@ -21,7 +21,7 @@ use crate::routes::ondc::schemas::{
     ONDCActionType, ONDCContext, ONDCContextCity, ONDCContextCountry, ONDCContextLocation,
     ONDCDomain, ONDCVersion,
 };
-use crate::routes::ondc::ONDCResponse;
+use crate::routes::ondc::{ONDCResponse, ONDCSellerErrorCode};
 use crate::routes::product::schemas::{
     PaymentType, ProductFulFillmentLocations, ProductSearchRequest, ProductSearchType,
 };
@@ -219,7 +219,7 @@ pub async fn send_ondc_payload(
     payload: &str,
     header: &str,
     action: ONDCActionType,
-) -> Result<ONDCResponse, anyhow::Error> {
+) -> Result<ONDCResponse<ONDCSellerErrorCode>, anyhow::Error> {
     let final_url = format!("{}/{}", url, action);
     let client = Client::new();
     let mut header_map = HashMap::new();
@@ -231,8 +231,8 @@ pub async fn send_ondc_payload(
 
     match result {
         Ok(response) => {
-            println!("{:?}", &response);
-            let response_obj: ONDCResponse =
+            // println!("{:?}", &response);
+            let response_obj: ONDCResponse<ONDCSellerErrorCode> =
                 serde_json::from_value(response).context("Failed to deserialize response")?;
             if let Some(error) = response_obj.error {
                 Err(anyhow!(error.message))

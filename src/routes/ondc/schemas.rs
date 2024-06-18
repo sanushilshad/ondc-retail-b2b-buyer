@@ -131,22 +131,49 @@ pub enum ONDCResponseStatusType {
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Serialize, Deserialize)]
-pub enum ONDCErrorCode {
+pub enum ONDCGateWayErrorCode {
     #[serde(rename = "10000")]
-    InvalidRequest,
+    GateWayInvalidRequest,
     #[serde(rename = "10001")]
-    InvalidSignature,
+    GateWayInvalidSignature,
     #[serde(rename = "10002")]
-    InvalidCityCode,
+    GateWayInvalidCityCode,
+}
+
+#[allow(clippy::enum_variant_names)]
+#[derive(Debug, Serialize, Deserialize)]
+pub enum ONDCBuyerErrorCode {
     #[serde(rename = "23001")]
     InternalErrorCode,
-    #[serde(rename = "30016")]
-    InvalidSignatureCode,
-    #[serde(rename = "30022")]
-    StaleRequestCode,
     #[serde(rename = "20008")]
     ResponseSequenceCode,
+    #[serde(rename = "20001")]
+    InvalidSignatureCode,
+    #[serde(rename = "20002")]
+    StaleRequestCode,
+    #[serde(rename = "20006")]
+    InvalidResponseCode,
 }
+
+#[allow(clippy::enum_variant_names)]
+#[derive(Debug, Serialize, Deserialize)]
+pub enum ONDCSellerErrorCode {
+    #[serde(rename = "30016")]
+    SellerInvalidSignatureCode,
+    #[serde(rename = "30022")]
+    SellerStaleRequestCode,
+    #[serde(rename = "30000")]
+    SellerInvalidRequestCode,
+}
+
+// #[allow(clippy::enum_variant_names)]
+// #[derive(Debug, Serialize, Deserialize)]
+// pub enum ONDCErrorCode {
+//     GatewayError(ONDCGateWayErrorCode),
+//     BuyerError(ONDCBuyerErrorCode),
+//     SellerError(ONDCSellerErrorCode),
+// }
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING-KEBAB-CASE")]
 pub enum ONDErrorType {
@@ -170,41 +197,41 @@ pub struct ONDCResponseMessage {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct ONDCResponseErrorBody {
+pub struct ONDCResponseErrorBody<D> {
     pub r#type: ONDErrorType,
-    pub code: ONDCErrorCode,
+    pub code: D,
     pub path: Option<String>,
     pub message: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct ONDCResponse {
-    pub context: Option<ONDCContext>,
+pub struct ONDCResponse<D> {
+    // pub context: Option<ONDCContext>,
     pub message: ONDCResponseMessage,
-    pub error: Option<ONDCResponseErrorBody>,
+    pub error: Option<ONDCResponseErrorBody<D>>,
 }
 
-impl ONDCResponse {
-    pub fn successful_response(context: Option<ONDCContext>) -> Self {
+impl<D> ONDCResponse<D> {
+    pub fn successful_response(_context: Option<ONDCContext>) -> Self {
         Self {
             message: ONDCResponseMessage {
                 ack: ONDCResponseAck {
                     status: ONDCResponseStatusType::Ack,
                 },
             },
-            context: context,
+            // context: context,
             error: None,
         }
     }
 
-    pub fn error_response(context: Option<ONDCContext>, error: ONDCResponseErrorBody) -> Self {
+    pub fn error_response(_context: Option<ONDCContext>, error: ONDCResponseErrorBody<D>) -> Self {
         Self {
             message: ONDCResponseMessage {
                 ack: ONDCResponseAck {
                     status: ONDCResponseStatusType::Nack,
                 },
             },
-            context: context,
+            // context: context,
             error: Some(error),
         }
     }

@@ -342,3 +342,13 @@ pub enum ONDCNetworkType {
     Bap,
     Bpp,
 }
+
+#[derive(Debug)]
+pub struct ONDCAuthParams {
+    pub created_time: i64,
+    pub expires_time: i64,
+    pub subscriber_id: String,
+    pub uk_id: String,
+    pub algorithm: String,
+    pub signature: String,
+}

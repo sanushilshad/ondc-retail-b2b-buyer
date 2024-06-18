@@ -1,10 +1,13 @@
-use serde::{Deserialize, Serialize};
-use serde_with::skip_serializing_none;
-
+use crate::routes::ondc::errors::ONDCBuyerError;
 use crate::routes::ondc::schemas::{ONDCContext, ONDCResponseErrorBody};
+use crate::routes::ondc::ONDCSellerErrorCode;
 use crate::routes::product::schemas::{FulfillmentType, PaymentType};
 use crate::routes::schemas::VectorType;
 use crate::schemas::{FeeType, ONDCNetworkType};
+use actix_web::{dev::Payload, web, FromRequest, HttpRequest};
+use futures_util::future::LocalBoxFuture;
+use serde::{Deserialize, Serialize};
+use serde_with::skip_serializing_none;
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ONDCTagType {
@@ -716,5 +719,23 @@ pub struct ONDCOnSearchMessage {
 pub struct ONDCOnSearchRequest {
     pub context: ONDCContext,
     pub message: ONDCOnSearchMessage,
-    pub error: Option<ONDCResponseErrorBody>,
+    pub error: Option<ONDCResponseErrorBody<ONDCSellerErrorCode>>,
+}
+
+impl FromRequest for ONDCOnSearchRequest {
+    type Error = ONDCBuyerError;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
+
+    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+        let fut = web::Json::<Self>::from_request(req, payload);
+
+        Box::pin(async move {
+            match fut.await {
+                Ok(json) => Ok(json.into_inner()),
+                Err(e) => Err(ONDCBuyerError::InvalidResponseError {
+                    path: Some(e.to_string()),
+                }),
+            }
+        })
+    }
 }

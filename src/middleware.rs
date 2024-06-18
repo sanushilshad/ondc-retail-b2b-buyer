@@ -21,8 +21,14 @@ use crate::routes::user::utils::{
     get_business_account_by_customer_type, get_user, validate_business_account_active,
 };
 use crate::schemas::{RequestMetaData, Status};
+// use crate::utils::get_ondc_params_from_header;
 use actix_web::body::{EitherBody, MessageBody};
 use std::str;
+
+use actix_web::http::header::UPGRADE;
+use futures_util::stream;
+
+// Middleware implementation for Authentication
 pub struct AuthMiddleware<S> {
     service: Rc<S>,
 }
@@ -126,30 +132,7 @@ where
     }
 }
 
-use actix_web::http::header::UPGRADE;
-use futures_util::stream;
-pub struct SaveRequestResponse;
-
-impl<S, B> Transform<S, ServiceRequest> for SaveRequestResponse
-where
-    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
-    S::Future: 'static,
-    B: MessageBody + 'static,
-    <B as MessageBody>::Error: ResponseError + 'static,
-{
-    type Response = ServiceResponse<EitherBody<B>>;
-    type Error = Error;
-    type InitError = ();
-    type Transform = ReadReqResMiddleware<S>;
-    type Future = Ready<Result<Self::Transform, Self::InitError>>;
-
-    fn new_transform(&self, service: S) -> Self::Future {
-        ready(Ok(ReadReqResMiddleware {
-            service: Rc::new(RefCell::new(service)),
-        }))
-    }
-}
-
+// Middlware for saving the request and response into the tracing
 pub struct ReadReqResMiddleware<S> {
     service: Rc<RefCell<S>>,
 }
@@ -170,9 +153,11 @@ where
     #[instrument(skip(self), name = "Request Response Payload", fields(path = %req.path()))]
     fn call(&self, mut req: ServiceRequest) -> Self::Future {
         let svc = self.service.clone();
-
-        if req.headers().contains_key(UPGRADE) && req.headers().get(UPGRADE).unwrap() == "websocket"
-        {
+        //
+        let is_websocket = req.headers().contains_key(UPGRADE)
+            && req.headers().get(UPGRADE).unwrap() == "websocket";
+        let is_on_search = req.path().ends_with("on_search");
+        if is_websocket || is_on_search {
             Box::pin(async move {
                 let fut: ServiceResponse<B> = svc.call(req).await?;
                 Ok(fut.map_into_left_body())
@@ -180,6 +165,7 @@ where
         } else {
             Box::pin(async move {
                 // let route = req.path().to_owned();
+
                 let mut request_body = BytesMut::new();
 
                 while let Some(chunk) = req.take_payload().next().await {
@@ -192,10 +178,8 @@ where
                             // tracing::Span::current().record("Request body", &tracing::field::display("Apple"));
                             serde_json::from_str::<serde_json::Value>(request_str)
                         {
-                            // Successfully parsed as JSON
                             tracing::info!({%request_json}, "HTTP Response");
                         } else {
-                            // Not JSON, log as a string
                             tracing::info!("Non-JSON request: {}", request_str);
                             request_str.to_string();
                         }
@@ -205,7 +189,6 @@ where
                         tracing::error!("Something went wrong in request body parsing middleware");
                     }
                 }
-
                 let single_part: Result<Bytes, PayloadError> = Ok(body);
                 let in_memory_stream = stream::once(future::ready(single_part));
                 let pinned_stream: Pin<Box<dyn Stream<Item = Result<Bytes, PayloadError>>>> =
@@ -224,11 +207,9 @@ where
                         if let Ok(response_json) =
                             serde_json::from_str::<serde_json::Value>(response_str)
                         {
-                            // Successfully parsed as JSON
                             tracing::info!({%response_json}, "HTTP Response");
-                            // Record the response JSON in the current span
                             tracing::Span::current()
-                                .record("Response body", &tracing::field::display(&response_json));
+                                .record("Response body", &tracing::field::display(&response_str));
 
                             response_str.to_string()
                         } else {
@@ -258,6 +239,29 @@ where
     }
 }
 
+pub struct SaveRequestResponse;
+
+impl<S, B> Transform<S, ServiceRequest> for SaveRequestResponse
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
+    S::Future: 'static,
+    B: MessageBody + 'static,
+    <B as MessageBody>::Error: ResponseError + 'static,
+{
+    type Response = ServiceResponse<EitherBody<B>>;
+    type Error = Error;
+    type InitError = ();
+    type Transform = ReadReqResMiddleware<S>;
+    type Future = Ready<Result<Self::Transform, Self::InitError>>;
+
+    fn new_transform(&self, service: S) -> Self::Future {
+        ready(Ok(ReadReqResMiddleware {
+            service: Rc::new(RefCell::new(service)),
+        }))
+    }
+}
+
+//Middleware to validate the business account
 pub struct BusinessAccountMiddleware<S> {
     service: Rc<S>,
     pub business_type_list: Vec<CustomerType>,
@@ -277,10 +281,7 @@ where
     fn call(&self, req: ServiceRequest) -> Self::Future {
         // Attempt to extract token from cookie or authorization header
 
-        let business_id = match req
-            .headers()
-            .get("x-business-id")
-            .and_then(|value| value.to_str().ok()) // Convert HeaderValue to &str
+        let business_id = match get_header_value(&req, "x-business-id") // Convert HeaderValue to &str
             .and_then(|value| Uuid::parse_str(value).ok())
         {
             Some(business_id) => business_id,
@@ -342,7 +343,6 @@ where
     }
 }
 
-// Middleware factory for business account validation.
 pub struct BusinessAccountValidation {
     pub business_type_list: Vec<CustomerType>,
 }
@@ -368,6 +368,7 @@ where
     }
 }
 
+// Middleware to validate the header in incoming requests
 pub struct HeaderMiddleware<S> {
     service: Rc<S>,
 }
@@ -403,9 +404,9 @@ where
             return Box::pin(async { Ok(ServiceResponse::from_err(json_error, request)) });
         } else {
             let meta_data = RequestMetaData {
-                request_id: request_id.unwrap(),
-                device_id: device_id.unwrap(),
-                domain_uri: hostname.unwrap(),
+                request_id: request_id.unwrap().to_owned(),
+                device_id: device_id.unwrap().to_owned(),
+                domain_uri: hostname.unwrap().to_owned(),
             };
             req.extensions_mut().insert::<RequestMetaData>(meta_data);
         }
@@ -441,11 +442,69 @@ where
     }
 }
 
-pub struct UserBusinessPermissionMiddleware<S> {
+// Middlware for verifying the permission
+// pub struct UserBusinessPermissionMiddleware<S> {
+//     service: Rc<S>,
+//     pub permission_list: Vec<String>,
+// }
+// impl<S> Service<ServiceRequest> for UserBusinessPermissionMiddleware<S>
+// where
+//     S: Service<ServiceRequest, Response = ServiceResponse<actix_web::body::BoxBody>, Error = Error>
+//         + 'static,
+// {
+//     type Response = ServiceResponse<actix_web::body::BoxBody>;
+//     type Error = Error;
+//     type Future = LocalBoxFuture<'static, Result<Self::Response, Error>>;
+
+//     forward_ready!(service);
+
+//     /// Handles incoming requests.
+//     fn call(&self, req: ServiceRequest) -> Self::Future {
+//         println!("Hi from start. You requested: {}", req.path());
+
+//         let fut = self.service.call(req);
+
+//         Box::pin(async move {
+//             let res = fut.await?;
+
+//             println!("Hi from response");
+//             Ok(res)
+//         })
+//     }
+// }
+
+// // Middleware factory for business account validation.
+// pub struct UserBusinessPermissionValidation {
+//     pub permission_list: Vec<String>,
+// }
+
+// impl<S> Transform<S, ServiceRequest> for UserBusinessPermissionValidation
+// where
+//     S: Service<ServiceRequest, Response = ServiceResponse<actix_web::body::BoxBody>, Error = Error>
+//         + 'static,
+// {
+//     type Response = ServiceResponse<actix_web::body::BoxBody>;
+//     type Error = Error;
+//     type Transform = UserBusinessPermissionMiddleware<S>;
+//     type InitError = ();
+//     type Future = Ready<Result<Self::Transform, Self::InitError>>;
+
+//     /// Creates and returns a new AuthMiddleware wrapped in a Result.
+//     fn new_transform(&self, service: S) -> Self::Future {
+//         // Wrap the AuthMiddleware instance in a Result and return it.
+//         ready(Ok(UserBusinessPermissionMiddleware {
+//             service: Rc::new(service),
+//             permission_list: self.permission_list.clone(),
+//         }))
+//     }
+// }
+
+// Middleware the verfify ONDC requests coming from the seller networks
+
+pub struct SellerHeaderVerificationMiddleware<S> {
     service: Rc<S>,
-    pub permission_list: Vec<String>,
 }
-impl<S> Service<ServiceRequest> for UserBusinessPermissionMiddleware<S>
+impl<S> Service<ServiceRequest> for SellerHeaderVerificationMiddleware<S>
 where
     S: Service<ServiceRequest, Response = ServiceResponse<actix_web::body::BoxBody>, Error = Error>
         + 'static,
@@ -458,41 +517,43 @@ where
 
     /// Handles incoming requests.
     fn call(&self, req: ServiceRequest) -> Self::Future {
-        println!("Hi from start. You requested: {}", req.path());
-
+        let authorization_header_obj = match get_header_value(&req, "Authorization") {
+            Some(authorization_header) => "Aplle",
+            None => {
+                let json_error = BusinessAccountError::ValidationStringError(
+                    "x-business-id is missing or is invalid".to_string(),
+                );
+                let (request, _pl) = req.into_parts();
+                return Box::pin(async { Ok(ServiceResponse::from_err(json_error, request)) });
+            }
+        };
         let fut = self.service.call(req);
-
         Box::pin(async move {
             let res = fut.await?;
-
-            println!("Hi from response");
             Ok(res)
         })
     }
 }
 
 // Middleware factory for business account validation.
-pub struct UserBusinessPermissionValidation {
-    pub permission_list: Vec<String>,
-}
+pub struct SellerHeaderVerification;
 
-impl<S> Transform<S, ServiceRequest> for UserBusinessPermissionValidation
+impl<S> Transform<S, ServiceRequest> for SellerHeaderVerification
 where
     S: Service<ServiceRequest, Response = ServiceResponse<actix_web::body::BoxBody>, Error = Error>
         + 'static,
 {
     type Response = ServiceResponse<actix_web::body::BoxBody>;
     type Error = Error;
-    type Transform = UserBusinessPermissionMiddleware<S>;
+    type Transform = SellerHeaderVerificationMiddleware<S>;
     type InitError = ();
     type Future = Ready<Result<Self::Transform, Self::InitError>>;
 
     /// Creates and returns a new AuthMiddleware wrapped in a Result.
     fn new_transform(&self, service: S) -> Self::Future {
         // Wrap the AuthMiddleware instance in a Result and return it.
-        ready(Ok(UserBusinessPermissionMiddleware {
+        ready(Ok(SellerHeaderVerificationMiddleware {
             service: Rc::new(service),
-            permission_list: self.permission_list.clone(),
         }))
     }
 }
