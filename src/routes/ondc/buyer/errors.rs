@@ -56,7 +56,10 @@ pub enum ONDCBuyerError {
     #[error("Response out of sequence")]
     BuyerResponseSequenceError { path: Option<String> },
     #[error("Invalid Response")]
-    InvalidResponseError { path: Option<String> },
+    InvalidResponseError {
+        path: Option<String>,
+        message: String,
+    },
 }
 
 impl std::fmt::Debug for ONDCBuyerError {
@@ -97,8 +100,8 @@ impl ResponseError for ONDCBuyerError {
                 path,
                 ONDErrorType::CoreError,
             ),
-            ONDCBuyerError::InvalidResponseError { path } => (
-                "Invalid request",
+            ONDCBuyerError::InvalidResponseError { path, message } => (
+                message.as_str(),
                 ONDCBuyerErrorCode::InvalidResponseCode,
                 path,
                 ONDErrorType::JsonSchemaError,

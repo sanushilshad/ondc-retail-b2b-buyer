@@ -733,7 +733,8 @@ impl FromRequest for ONDCOnSearchRequest {
             match fut.await {
                 Ok(json) => Ok(json.into_inner()),
                 Err(e) => Err(ONDCBuyerError::InvalidResponseError {
-                    path: Some(e.to_string()),
+                    path: None,
+                    message: e.to_string(),
                 }),
             }
         })
