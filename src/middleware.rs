@@ -13,9 +13,8 @@ use tracing::instrument;
 use uuid::Uuid;
 
 use crate::configuration::SecretSetting;
-use crate::errors::RequestMetaError;
+use crate::errors::GenericError;
 use crate::general_utils::{decode_token, get_header_value};
-use crate::routes::user::errors::{AuthError, BusinessAccountError};
 use crate::routes::user::schemas::{BusinessAccount, CustomerType, UserAccount};
 use crate::routes::user::utils::{
     get_business_account_by_customer_type, get_user, validate_business_account_active,
@@ -26,7 +25,7 @@ use actix_web::body::{EitherBody, MessageBody};
 use std::str;
 
 use actix_web::http::header::UPGRADE;
-use futures_util::stream;
+use futures_util::stream::{self};
 
 // Middleware implementation for Authentication
 pub struct AuthMiddleware<S> {
@@ -65,7 +64,7 @@ where
         if token.is_none() {
             let error_message = "x-device-id is missing".to_string();
             let (request, _pl) = req.into_parts();
-            let json_error = AuthError::ValidationStringError(error_message);
+            let json_error = GenericError::ValidationError(error_message);
             return Box::pin(async { Ok(ServiceResponse::from_err(json_error, request)) });
         }
 
@@ -75,7 +74,7 @@ where
                 return Box::pin(async move {
                     let (request, _pl) = req.into_parts();
                     Ok(ServiceResponse::from_err(
-                        AuthError::InvalidJWT(e.to_string()),
+                        GenericError::InvalidJWT(e.to_string()),
                         request,
                     ))
                 });
@@ -86,16 +85,16 @@ where
             let db_pool = &req.app_data::<web::Data<PgPool>>().unwrap();
             let user = get_user(vec![&user_id.to_string()], db_pool)
                 .await
-                .map_err(AuthError::UnexpectedError)?;
+                .map_err(GenericError::UnexpectedError)?;
             if user.is_active == Status::Inactive {
                 let (request, _pl) = req.into_parts();
-                let json_error = AuthError::ValidationStringError(
+                let json_error = GenericError::ValidationError(
                     "User is Inactive. Please contact customer support".to_string(),
                 );
                 return Ok(ServiceResponse::from_err(json_error, request));
             } else if user.is_deleted {
                 let (request, _pl) = req.into_parts();
-                let json_error = AuthError::ValidationStringError(
+                let json_error = GenericError::ValidationError(
                     "User is in deleted. Please contact customer support".to_string(),
                 );
                 return Ok(ServiceResponse::from_err(json_error, request));
@@ -286,7 +285,7 @@ where
         {
             Some(business_id) => business_id,
             None => {
-                let json_error = BusinessAccountError::ValidationStringError(
+                let json_error = GenericError::ValidationError(
                     "x-business-id is missing or is invalid".to_string(),
                 );
                 let (request, _pl) = req.into_parts();
@@ -303,9 +302,7 @@ where
                     // Handle the case where the user account is not found
                     let (parts, _body) = req.parts(); // Destructure parts of the request
                     return Ok(ServiceResponse::from_err(
-                        BusinessAccountError::UnexpectedStringError(
-                            "User Account doesn't exist".to_string(),
-                        ),
+                        GenericError::ValidationError("User Account doesn't exist".to_string()),
                         parts.clone(),
                     ));
                 }
@@ -318,21 +315,19 @@ where
                 db_pool,
             )
             .await
-            .map_err(BusinessAccountError::UnexpectedError)?;
+            .map_err(GenericError::UnexpectedError)?;
             if let Some(business_obj) = business_account {
                 let error_message = validate_business_account_active(&business_obj);
                 if let Some(message) = error_message {
                     let (request, _pl) = req.into_parts();
-                    let json_error = RequestMetaError::ValidationStringError(message);
+                    let json_error = GenericError::ValidationError(message);
                     return Ok(ServiceResponse::from_err(json_error, request));
                 }
                 req.extensions_mut().insert::<BusinessAccount>(business_obj);
             } else {
                 let (parts, _body) = req.parts(); // Destructure parts of the request
                 return Ok(ServiceResponse::from_err(
-                    BusinessAccountError::UnexpectedStringError(
-                        "Business Account doesn't exist".to_string(),
-                    ),
+                    GenericError::ValidationError("Business Account doesn't exist".to_string()),
                     parts.clone(),
                 ));
             }
@@ -400,7 +395,7 @@ where
                 _ => "".to_string(), // Default case, if none of the conditions are met
             };
             let (request, _pl) = req.into_parts();
-            let json_error = RequestMetaError::ValidationStringError(error_message);
+            let json_error: GenericError = GenericError::ValidationError(error_message);
             return Box::pin(async { Ok(ServiceResponse::from_err(json_error, request)) });
         } else {
             let meta_data = RequestMetaData {
@@ -500,60 +495,3 @@ where
 // }
 
 // Middleware the verfify ONDC requests coming from the seller networks
-
-pub struct SellerHeaderVerificationMiddleware<S> {
-    service: Rc<S>,
-}
-impl<S> Service<ServiceRequest> for SellerHeaderVerificationMiddleware<S>
-where
-    S: Service<ServiceRequest, Response = ServiceResponse<actix_web::body::BoxBody>, Error = Error>
-        + 'static,
-{
-    type Response = ServiceResponse<actix_web::body::BoxBody>;
-    type Error = Error;
-    type Future = LocalBoxFuture<'static, Result<Self::Response, Error>>;
-
-    forward_ready!(service);
-
-    /// Handles incoming requests.
-    fn call(&self, req: ServiceRequest) -> Self::Future {
-        let authorization_header_obj = match get_header_value(&req, "Authorization") {
-            Some(authorization_header) => "Aplle",
-            None => {
-                let json_error = BusinessAccountError::ValidationStringError(
-                    "x-business-id is missing or is invalid".to_string(),
-                );
-                let (request, _pl) = req.into_parts();
-                return Box::pin(async { Ok(ServiceResponse::from_err(json_error, request)) });
-            }
-        };
-        let fut = self.service.call(req);
-        Box::pin(async move {
-            let res = fut.await?;
-            Ok(res)
-        })
-    }
-}
-
-// Middleware factory for business account validation.
-pub struct SellerHeaderVerification;
-
-impl<S> Transform<S, ServiceRequest> for SellerHeaderVerification
-where
-    S: Service<ServiceRequest, Response = ServiceResponse<actix_web::body::BoxBody>, Error = Error>
-        + 'static,
-{
-    type Response = ServiceResponse<actix_web::body::BoxBody>;
-    type Error = Error;
-    type Transform = SellerHeaderVerificationMiddleware<S>;
-    type InitError = ();
-    type Future = Ready<Result<Self::Transform, Self::InitError>>;
-
-    /// Creates and returns a new AuthMiddleware wrapped in a Result.
-    fn new_transform(&self, service: S) -> Self::Future {
-        // Wrap the AuthMiddleware instance in a Result and return it.
-        ready(Ok(SellerHeaderVerificationMiddleware {
-            service: Rc::new(service),
-        }))
-    }
-}

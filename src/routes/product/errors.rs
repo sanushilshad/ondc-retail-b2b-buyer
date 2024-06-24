@@ -1,10 +1,10 @@
-use actix_web::http::StatusCode;
-use actix_web::{HttpResponse, ResponseError};
+// use actix_web::http::StatusCode;
+// use actix_web::{HttpResponse, ResponseError};
 
-use crate::errors::GenericError;
-use crate::general_utils::error_chain_fmt;
-use crate::schemas::GenericResponse;
-use serde_json::Error as SerdeError;
+// use crate::errors::GenericError;
+use crate::{errors::GenericError, general_utils::error_chain_fmt};
+// use crate::schemas::GenericResponse;
+// use serde_json::Error as SerdeError;
 
 #[allow(clippy::enum_variant_names)]
 #[derive(thiserror::Error)]
@@ -24,45 +24,57 @@ impl std::fmt::Debug for ProductSearchError {
     }
 }
 
-impl From<GenericError> for ProductSearchError {
-    fn from(err: GenericError) -> Self {
+impl From<ProductSearchError> for GenericError {
+    fn from(err: ProductSearchError) -> GenericError {
         match err {
-            GenericError::ValidationStringError(msg) => ProductSearchError::ValidationError(msg),
+            ProductSearchError::ValidationError(message) => GenericError::ValidationError(message),
+            ProductSearchError::UnexpectedError(error) => GenericError::UnexpectedError(error),
+            ProductSearchError::DatabaseError(message, error) => {
+                GenericError::DatabaseError(message, error)
+            }
         }
     }
 }
 
-impl From<SerdeError> for ProductSearchError {
-    fn from(err: SerdeError) -> Self {
-        ProductSearchError::ValidationError(err.to_string())
-    }
-}
+// impl From<GenericError> for ProductSearchError {
+//     fn from(err: GenericError) -> Self {
+//         match err {
+//             GenericError::ValidationStringError(msg) => ProductSearchError::ValidationError(msg),
+//         }
+//     }
+// }
 
-impl ResponseError for ProductSearchError {
-    fn status_code(&self) -> StatusCode {
-        match self {
-            ProductSearchError::ValidationError(_) => StatusCode::BAD_REQUEST,
-            ProductSearchError::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            ProductSearchError::DatabaseError(_, _) => StatusCode::INTERNAL_SERVER_ERROR,
-        }
-    }
+// impl From<SerdeError> for ProductSearchError {
+//     fn from(err: SerdeError) -> Self {
+//         ProductSearchError::ValidationError(err.to_string())
+//     }
+// }
 
-    fn error_response(&self) -> HttpResponse {
-        let status_code = self.status_code();
-        let status_code_str = status_code.as_str();
-        let inner_error_msg = match self {
-            ProductSearchError::ValidationError(message) => message.to_string(),
-            ProductSearchError::UnexpectedError(error_msg) => error_msg.to_string(),
-            ProductSearchError::DatabaseError(message, _err) => message.to_string(),
-        };
+// impl ResponseError for ProductSearchError {
+//     fn status_code(&self) -> StatusCode {
+//         match self {
+//             ProductSearchError::ValidationError(_) => StatusCode::BAD_REQUEST,
+//             ProductSearchError::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+//             ProductSearchError::DatabaseError(_, _) => StatusCode::INTERNAL_SERVER_ERROR,
+//         }
+//     }
 
-        HttpResponse::build(status_code).json(GenericResponse::error(
-            &inner_error_msg,
-            status_code_str,
-            Some(()),
-        ))
-    }
-}
+//     fn error_response(&self) -> HttpResponse {
+//         let status_code = self.status_code();
+//         let status_code_str = status_code.as_str();
+//         let inner_error_msg = match self {
+//             ProductSearchError::ValidationError(message) => message.to_string(),
+//             ProductSearchError::UnexpectedError(error_msg) => error_msg.to_string(),
+//             ProductSearchError::DatabaseError(message, _err) => message.to_string(),
+//         };
+
+//         HttpResponse::build(status_code).json(GenericResponse::error(
+//             &inner_error_msg,
+//             status_code_str,
+//             Some(()),
+//         ))
+//     }
+// }
 
 // #[derive(thiserror::Error)]
 // pub enum InventoryError {

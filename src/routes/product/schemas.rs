@@ -24,10 +24,11 @@
 //     product_codes: Vec<String>,
 // }
 
+use crate::{errors::GenericError, schemas::CountryCode};
+use actix_web::{dev::Payload, web, FromRequest, HttpRequest};
+use futures_util::future::LocalBoxFuture;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-
-use crate::schemas::CountryCode;
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -70,9 +71,24 @@ pub struct ProductSearchRequest {
     pub message_id: Uuid,
     pub domain_category_code: String,
     pub country_code: CountryCode,
-
     pub payment_type: Option<PaymentType>,
     pub fulfillment_type: FulfillmentType,
     pub search_type: ProductSearchType,
     pub fulfillment_locations: Option<Vec<ProductFulFillmentLocations>>,
+}
+
+impl FromRequest for ProductSearchRequest {
+    type Error = GenericError;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
+
+    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+        let fut = web::Json::<Self>::from_request(req, payload);
+
+        Box::pin(async move {
+            match fut.await {
+                Ok(json) => Ok(json.into_inner()),
+                Err(e) => Err(GenericError::ValidationError(e.to_string())),
+            }
+        })
+    }
 }

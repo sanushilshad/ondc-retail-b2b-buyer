@@ -1,54 +1,15 @@
-use super::errors::{BusinessAccountError, UserRegistrationError};
+use super::errors::UserRegistrationError;
 use super::schemas::{
     AuthData, AuthenticateRequest, CreateBusinessAccount, CreateUserAccount, UserAccount, UserType,
 };
 use super::utils::{create_business_account, fetch_user, get_auth_data, register_user};
 use super::{errors::AuthError, utils::validate_user_credentials};
 use crate::configuration::{SecretSetting, UserSettings};
+use crate::errors::GenericError;
 use crate::schemas::{GenericResponse, RequestMetaData};
 // use crate::session_state::TypedSession;
 use actix_web::{web, Result};
 use sqlx::PgPool;
-
-#[utoipa::path(
-    post,
-    path = "/user/authenticate",
-    tag = "Authenticate User API",
-    request_body(content = AuthenticateRequest, description = "Request Body"),
-    responses(
-        (status=200, description= "Authenticate User", body= AuthResponse),
-    )
-)]
-#[tracing::instrument(err, name = "Authenticate User", skip(pool, body), fields())]
-pub async fn authenticate(
-    body: web::Json<AuthenticateRequest>,
-    pool: web::Data<PgPool>,
-    secret_obj: web::Data<SecretSetting>,
-) -> Result<web::Json<GenericResponse<AuthData>>, AuthError> {
-    tracing::Span::current().record("request_body", &tracing::field::debug(&body));
-    tracing::Span::current().record("identifier", &tracing::field::display(&body.identifier));
-    match validate_user_credentials(body.0, &pool).await {
-        Ok(user_id) => {
-            tracing::Span::current().record("user_id", &tracing::field::display(&user_id));
-            match fetch_user(vec![&user_id.to_string()], &pool).await {
-                Ok(Some(user_obj)) => {
-                    let auth_obj = get_auth_data(&pool, user_obj, &secret_obj.jwt).await?;
-                    Ok(web::Json(GenericResponse::success(
-                        "Successfully Authenticated User",
-                        Some(auth_obj),
-                    )))
-                }
-                Ok(None) | Err(_) => Err(AuthError::UnexpectedStringError(
-                    "Internal Server Error".to_string(),
-                )),
-            }
-        }
-        Err(e) => {
-            tracing::error!("Failed to authenticate user: {:?}", e);
-            return Err(e);
-        }
-    }
-}
 
 #[utoipa::path(
     post,
@@ -70,12 +31,13 @@ pub async fn register_user_account(
     pool: web::Data<PgPool>,
     meta_data: RequestMetaData,
     user_settings: web::Data<UserSettings>,
-) -> Result<web::Json<GenericResponse<()>>, UserRegistrationError> {
+) -> Result<web::Json<GenericResponse<()>>, GenericError> {
     let admin_role = [UserType::Admin, UserType::Superadmin];
     if admin_role.contains(&body.user_type) && !user_settings.admin_list.contains(&body.mobile_no) {
         return Err(UserRegistrationError::InsufficientPrevilegeError(
             "Insufficient previlege to register Admin/Superadmin".to_string(),
-        ));
+        )
+        .into());
     } else {
         match register_user(&pool, body.0, meta_data.domain_uri).await {
             Ok(uuid) => {
@@ -87,8 +49,52 @@ pub async fn register_user_account(
             }
             Err(e) => {
                 tracing::error!("Failed to register user: {:?}", e);
-                return Err(e);
+                return Err(e.into());
             }
+        }
+    }
+}
+
+#[utoipa::path(
+    post,
+    path = "/user/authenticate",
+    tag = "Authenticate User API",
+    request_body(content = AuthenticateRequest, description = "Request Body"),
+    responses(
+        (status=200, description= "Authenticate User", body= AuthResponse),
+    )
+)]
+#[tracing::instrument(err, name = "Authenticate User", skip(pool, body), fields())]
+pub async fn authenticate(
+    body: web::Json<AuthenticateRequest>,
+    pool: web::Data<PgPool>,
+    secret_obj: web::Data<SecretSetting>,
+) -> Result<web::Json<GenericResponse<AuthData>>, GenericError> {
+    // tracing::Span::current().record("request_body", &tracing::field::debug(&body));
+    tracing::Span::current().record("identifier", &tracing::field::display(&body.identifier));
+    match validate_user_credentials(body.0, &pool).await {
+        Ok(Some(user_id)) => {
+            tracing::Span::current().record("user_id", &tracing::field::display(&user_id));
+            match fetch_user(vec![&user_id.to_string()], &pool).await {
+                Ok(Some(user_obj)) => {
+                    let auth_obj = get_auth_data(&pool, user_obj, &secret_obj.jwt).await?;
+                    Ok(web::Json(GenericResponse::success(
+                        "Successfully Authenticated User",
+                        Some(auth_obj),
+                    )))
+                }
+                Err(_) | Ok(None) => Err(AuthError::UnexpectedCustomError(
+                    "Internal Server Error".to_string(),
+                )
+                .into()),
+            }
+        }
+        Ok(None) => {
+            Err(AuthError::UnexpectedCustomError("Unknown user credential".to_string()).into())
+        }
+        Err(e) => {
+            tracing::error!("Failed to authenticate user: {:?}", e);
+            return Err(e.into());
         }
     }
 }
@@ -116,7 +122,7 @@ pub async fn register_business_account(
     pool: web::Data<PgPool>,
     meta_data: RequestMetaData,
     user: UserAccount,
-) -> Result<web::Json<GenericResponse<()>>, BusinessAccountError> {
+) -> Result<web::Json<GenericResponse<()>>, GenericError> {
     // if let UserType::Admin | UserType::Superadmin = body.user_type {
     create_business_account(&pool, &user, &body, meta_data.domain_uri).await?;
     Ok(web::Json(GenericResponse::success(

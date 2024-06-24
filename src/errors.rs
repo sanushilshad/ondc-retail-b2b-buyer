@@ -85,18 +85,6 @@ impl ResponseError for RequestMetaError {
     }
 }
 
-#[derive(thiserror::Error)]
-pub enum GenericError {
-    #[error("{0}")]
-    ValidationStringError(String),
-}
-
-impl std::fmt::Debug for GenericError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        error_chain_fmt(self, f)
-    }
-}
-
 // impl From<anyhow::Error> for GenericError {
 //     fn from(err: anyhow::Error) -> Self {
 //         // Convert the error details from anyhow::Error to your GenericError format
@@ -119,24 +107,66 @@ impl std::fmt::Debug for GenericError {
 //     }
 // }
 
-// impl ResponseError for GenericError {
-//     fn status_code(&self) -> StatusCode {
-//         match self {
-//             GenericError::ValidationStringError(_) => StatusCode::BAD_REQUEST,
-//         }
-//     }
+#[derive(thiserror::Error)]
+pub enum GenericError {
+    #[error("{0}")]
+    ValidationError(String),
+    #[error(transparent)]
+    UnexpectedError(#[from] anyhow::Error),
+    #[error("{0}")]
+    DatabaseError(String, anyhow::Error),
+    #[error("{0}")]
+    SerializationError(String),
+    #[error("Insufficient previlege")]
+    InsufficientPrevilegeError(String),
+    #[error("{0}")]
+    InvalidJWT(String),
+    #[error("{0}")]
+    UnexpectedCustomError(String),
+}
 
-//     fn error_response(&self) -> HttpResponse {
-//         let status_code = self.status_code();
-//         let status_code_str = status_code.as_str();
-//         let inner_error_msg = match self {
-//             GenericError::ValidationStringError(message) => message.to_string(),
-//         };
+impl std::fmt::Debug for GenericError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        error_chain_fmt(self, f)
+    }
+}
 
-//         HttpResponse::build(status_code).json(GenericResponse::error(
-//             &inner_error_msg,
-//             status_code_str,
-//             Some(()),
-//         ))
-//     }
-// }
+impl ResponseError for GenericError {
+    fn status_code(&self) -> StatusCode {
+        match self {
+            GenericError::ValidationError(_) => StatusCode::BAD_REQUEST,
+            GenericError::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            GenericError::DatabaseError(_, _) => StatusCode::INTERNAL_SERVER_ERROR,
+            GenericError::SerializationError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            GenericError::InsufficientPrevilegeError(_) => StatusCode::UNAUTHORIZED,
+            GenericError::InvalidJWT(_) => StatusCode::UNAUTHORIZED,
+            GenericError::UnexpectedCustomError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+        }
+    }
+
+    fn error_response(&self) -> HttpResponse {
+        let status_code = self.status_code();
+        let status_code_str = status_code.as_str();
+        let inner_error_msg = match self {
+            GenericError::ValidationError(message) => message.to_string(),
+            GenericError::UnexpectedError(error_msg) => error_msg.to_string(),
+            GenericError::DatabaseError(message, _err) => message.to_string(),
+            GenericError::SerializationError(message) => message.to_string(),
+            GenericError::InsufficientPrevilegeError(error_msg) => error_msg.to_string(),
+            GenericError::InvalidJWT(error_msg) => error_msg.to_string(),
+            GenericError::UnexpectedCustomError(error_msg) => error_msg.to_string(),
+        };
+
+        HttpResponse::build(status_code).json(GenericResponse::error(
+            &inner_error_msg,
+            status_code_str,
+            Some(()),
+        ))
+    }
+}
+
+impl From<serde_json::Error> for GenericError {
+    fn from(error: serde_json::Error) -> Self {
+        GenericError::UnexpectedError(anyhow::Error::new(error))
+    }
+}

@@ -35,7 +35,7 @@ fn verify_password_hash(
             &expected_password_hash,
         )
         .context("Invalid password.")
-        .map_err(AuthError::InvalidCredentials)
+        .map_err(|e|AuthError::InvalidCredentials(e.to_string()))
 }
 
 #[tracing::instrument(name = "Get Auth Mechanism model", skip(username, pool))]
@@ -132,17 +132,17 @@ pub async fn verify_otp(
     let otp = auth_mechanism
         .secret
         .as_ref()
-        .ok_or_else(|| AuthError::InvalidStringCredentials("Please Send the OTP".to_string()))?;
+        .ok_or_else(|| AuthError::InvalidCredentials("Please Send the OTP".to_string()))?;
 
     if let Some(valid_upto) = auth_mechanism.valid_upto {
         if valid_upto <= Utc::now() {
-            return Err(AuthError::InvalidStringCredentials(
+            return Err(AuthError::InvalidCredentials(
                 "OTP has expired".to_string(),
             ));
         }
     }
     if otp.expose_secret() != secret.expose_secret() {
-        return Err(AuthError::InvalidStringCredentials(
+        return Err(AuthError::InvalidCredentials(
             "Invalid OTP".to_string(),
         ))?;
     }
@@ -160,14 +160,14 @@ pub async fn verify_otp(
 pub async fn validate_user_credentials(
     credentials: AuthenticateRequest,
     pool: &PgPool,
-) -> Result<uuid::Uuid, AuthError> {
+) -> Result<Option<uuid::Uuid>, AuthError> {
     let mut user_id = None;
 
     if let Some(auth_mechanism) =
         get_stored_credentials(&credentials.identifier, &credentials.scope, pool, AuthContextType::UserAccount).await?
     {
         if auth_mechanism.is_active == Status::Inactive{
-            return Err(AuthError::InvalidStringCredentials(format!(
+            return Err(AuthError::InvalidCredentials(format!(
                 "{:?} is not enabled for {}",
                 credentials.scope, credentials.identifier
             )));
@@ -185,10 +185,12 @@ pub async fn validate_user_credentials(
             }
         }
     }
+    // user_id
+    // .ok_or_else(|| anyhow::anyhow!("Unknown username"))
+    // .map_err(AuthError::InvalidCredentials)
 
-    user_id
-        .ok_or_else(|| anyhow::anyhow!("Unknown username"))
-        .map_err(AuthError::InvalidCredentials)
+    Ok(user_id)
+
 }
 
 fn get_user_account_from_model(user_model: UserAccountModel) -> Result<UserAccount, anyhow::Error> {
@@ -542,14 +544,14 @@ pub async fn register_user(
                 user_account.mobile_no
             );
             tracing::error!(message);
-            return Err(anyhow!(message)).map_err(UserRegistrationError::DuplicateMobileNo);
+            return Err(UserRegistrationError::DuplicateMobileNo(message));
         } else {
             let message = format!(
                 "User Already exists with the given email: {}",
                 user_account.email
             );
             tracing::error!(message);
-            return Err(anyhow!(message)).map_err(UserRegistrationError::DuplicateEmail);
+            return Err(UserRegistrationError::DuplicateEmail(message));
         }
     }
     let uuid = save_user(&mut transaction, &user_account, subscriber_id).await?;

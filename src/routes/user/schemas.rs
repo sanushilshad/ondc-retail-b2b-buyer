@@ -1,8 +1,10 @@
 use crate::domain::{subscriber_email::deserialize_subscriber_email, EmailObject};
+use crate::errors::GenericError;
 use crate::general_utils::pascal_to_snake_case;
 use crate::schemas::{KycStatus, Status};
 
-use actix_web::{error::ErrorInternalServerError, FromRequest, HttpMessage};
+use actix_web::{FromRequest, HttpMessage};
+use anyhow::anyhow;
 use chrono::{DateTime, NaiveTime, Utc};
 use secrecy::{ExposeSecret, Secret};
 use serde::{Deserialize, Serialize};
@@ -12,7 +14,6 @@ use std::future::{ready, Ready};
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-use super::errors::{AuthError, BusinessAccountError};
 // macro_rules! impl_serialize_format {
 //     ($struct_name:ident, $trait_name:path) => {
 //         impl $trait_name for $struct_name {
@@ -242,7 +243,7 @@ pub struct UserAccount {
 }
 
 impl FromRequest for UserAccount {
-    type Error = actix_web::Error;
+    type Error = GenericError;
     type Future = Ready<Result<Self, Self::Error>>;
 
     /// Implement the `from_request` method to extract and wrap the authenticated user.
@@ -256,9 +257,9 @@ impl FromRequest for UserAccount {
         // Check if the user information was successfully retrieved.
         let result = match value {
             Some(user) => Ok(user),
-            None => Err(ErrorInternalServerError(AuthError::UnexpectedStringError(
-                "Something went wrong".to_string(),
-            ))),
+            None => Err(GenericError::UnexpectedCustomError(
+                "Something went wrong while parsing user account detail".to_string(),
+            )),
         };
 
         // Return a ready future with the result.
@@ -463,7 +464,7 @@ pub struct BusinessAccount {
 }
 
 impl FromRequest for BusinessAccount {
-    type Error = actix_web::Error;
+    type Error = GenericError;
     type Future = Ready<Result<Self, Self::Error>>;
 
     /// Implement the `from_request` method to extract and wrap the authenticated user.
@@ -477,9 +478,9 @@ impl FromRequest for BusinessAccount {
         // Check if the user information was successfully retrieved.
         let result = match value {
             Some(user) => Ok(user),
-            None => Err(ErrorInternalServerError(
-                BusinessAccountError::UnexpectedStringError("Something went wrong".to_string()),
-            )),
+            None => Err(GenericError::UnexpectedError(anyhow!(
+                "Something went wrong while parsing Business Account data".to_string()
+            ))),
         };
 
         // Return a ready future with the result.

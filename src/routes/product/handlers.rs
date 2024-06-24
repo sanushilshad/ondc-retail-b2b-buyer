@@ -3,12 +3,13 @@ use actix_web::web;
 // use anyhow::Context;
 use super::schemas::ProductSearchRequest;
 use crate::configuration::ONDCSetting;
+use crate::errors::GenericError;
 use crate::general_utils::{create_authorization_header, get_np_detail};
 use crate::routes::ondc::buyer::utils::{
     get_ondc_search_payload, save_ondc_search_request, send_ondc_payload,
 };
 use crate::routes::ondc::ONDCActionType;
-use crate::routes::product::errors::ProductSearchError;
+
 use crate::routes::schemas::{BusinessAccount, UserAccount};
 use crate::schemas::{GenericResponse, ONDCNPType, RequestMetaData};
 use sqlx::PgPool;
@@ -35,33 +36,35 @@ use sqlx::PgPool;
 //     Ok(HttpResponse::Ok().finish())
 // }
 
-#[tracing::instrument(name = "Product Search", skip(pool), fields())]
+#[tracing::instrument(name = "Product Search", skip(pool), fields(transaction_id=body.transaction_id.to_string()))]
 pub async fn product_search(
-    body: web::Json<ProductSearchRequest>,
+    body: ProductSearchRequest,
     pool: web::Data<PgPool>,
     ondc_obj: web::Data<ONDCSetting>,
     user_account: UserAccount,
     business_account: BusinessAccount,
     meta_data: RequestMetaData,
-) -> Result<web::Json<GenericResponse<()>>, ProductSearchError> {
+) -> Result<web::Json<GenericResponse<()>>, GenericError> {
     let np_detail = match get_np_detail(&pool, &meta_data.domain_uri, &ONDCNPType::Buyer).await {
         Ok(Some(np_detail)) => np_detail,
         Ok(None) => {
-            return Err(ProductSearchError::ValidationError(format!(
+            return Err(GenericError::ValidationError(format!(
                 "{} is not a registered ONDC registered domain",
                 meta_data.domain_uri
             )))
         }
         Err(e) => {
-            return Err(ProductSearchError::DatabaseError(
+            return Err(GenericError::DatabaseError(
                 "Something went wrong while fetching NP credentials".to_string(),
                 e,
             ));
         }
     };
     let ondc_search_payload =
-        get_ondc_search_payload(&user_account, &business_account, &body.0, &np_detail)?;
-    let ondc_search_payload_str = serde_json::to_string(&ondc_search_payload)?;
+        get_ondc_search_payload(&user_account, &business_account, &body, &np_detail)?;
+    let ondc_search_payload_str = serde_json::to_string(&ondc_search_payload).map_err(|e| {
+        GenericError::SerializationError(format!("Failed to serialize ONDC search payload: {}", e))
+    })?;
     save_ondc_search_request(
         &pool,
         &user_account,

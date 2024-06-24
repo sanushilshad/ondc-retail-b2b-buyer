@@ -51,6 +51,7 @@ validator = {version="0.16.1", features = ["derive"]}
 uuid = { version = "1.3.4", default-features = false, features = ["v4", "serde"] }
 regex = "1.10.2"
 lazy_static = "1.4"
+actix-http =  "3"
 # strum = "0.24"
 # strum_macros = "0.25"
 # pulsar = "6.1.0"

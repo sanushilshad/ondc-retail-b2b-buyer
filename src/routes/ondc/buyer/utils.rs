@@ -14,14 +14,13 @@ use super::schemas::{
 };
 
 use crate::constants::ONDC_TTL;
-use crate::errors::GenericError;
 
 use crate::general_utils::get_gps_string;
 use crate::routes::ondc::schemas::{
     ONDCActionType, ONDCContext, ONDCContextCity, ONDCContextCountry, ONDCContextLocation,
     ONDCDomain, ONDCVersion,
 };
-use crate::routes::ondc::{ONDCResponse, ONDCSellerErrorCode};
+use crate::routes::ondc::{ONDCErrorCode, ONDCResponse};
 use crate::routes::product::schemas::{
     PaymentType, ProductFulFillmentLocations, ProductSearchRequest, ProductSearchType,
 };
@@ -31,7 +30,7 @@ use crate::routes::user::utils::get_default_vector_value;
 use crate::schemas::{
     CountryCode, NetworkCall, RegisteredNetworkParticipant, RequestMetaData, WebSocketParam,
 };
-use anyhow::{anyhow, Context};
+use anyhow::anyhow;
 pub fn get_common_context(
     transaction_id: Uuid,
     message_id: Uuid,
@@ -40,7 +39,7 @@ pub fn get_common_context(
     bap_id: &str,
     bap_uri: &str,
     country_code: &CountryCode,
-) -> Result<ONDCContext, GenericError> {
+) -> Result<ONDCContext, anyhow::Error> {
     // todo!()
     // let ondc_domain: ONDCDomain = serde_json::from_str(&format!("ONDC:{}", domain_category_code))?;
     let ondc_domain = ONDCDomain::get_ondc_domain(domain_category_code)?;
@@ -179,7 +178,7 @@ fn get_ondc_payload_from_search_request(
     business_account: &BusinessAccount,
     search_request: &ProductSearchRequest,
     np_detail: &RegisteredNetworkParticipant,
-) -> Result<ONDCSearchRequest, ProductSearchError> {
+) -> Result<ONDCSearchRequest, anyhow::Error> {
     let ondc_context = get_common_context(
         search_request.transaction_id,
         search_request.message_id,
@@ -219,7 +218,7 @@ pub async fn send_ondc_payload(
     payload: &str,
     header: &str,
     action: ONDCActionType,
-) -> Result<ONDCResponse<ONDCSellerErrorCode>, anyhow::Error> {
+) -> Result<ONDCResponse<ONDCErrorCode>, anyhow::Error> {
     let final_url = format!("{}/{}", url, action);
     let client = Client::new();
     let mut header_map = HashMap::new();
@@ -232,8 +231,7 @@ pub async fn send_ondc_payload(
     match result {
         Ok(response) => {
             // println!("{:?}", &response);
-            let response_obj: ONDCResponse<ONDCSellerErrorCode> =
-                serde_json::from_value(response).context("Failed to deserialize response")?;
+            let response_obj: ONDCResponse<ONDCErrorCode> = serde_json::from_value(response)?;
             if let Some(error) = response_obj.error {
                 Err(anyhow!(error.message))
             } else {

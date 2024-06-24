@@ -2656,6 +2656,7 @@ name = "rust_test"
 version = "0.1.0"
 dependencies = [
  "actix",
+ "actix-http",
  "actix-web",
  "actix-web-actors",
  "anyhow",

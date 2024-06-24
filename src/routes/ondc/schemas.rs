@@ -67,7 +67,7 @@ impl ONDCDomain {
         // domain_category_code.parse::<ONDCDomain>()
         match domain_category_code {
             "RET10" => Ok(ONDCDomain::Grocery),
-            _ => Err(GenericError::ValidationStringError(
+            _ => Err(GenericError::ValidationError(
                 "Invalid domain category code".to_owned(),
             )),
         }
@@ -142,6 +142,21 @@ pub enum ONDCGateWayErrorCode {
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Serialize, Deserialize)]
+pub enum ONDCBuyerErrorCode {
+    #[serde(rename = "23001")]
+    InternalErrorCode,
+    #[serde(rename = "20008")]
+    ResponseSequenceCode,
+    #[serde(rename = "20001")]
+    InvalidSignatureCode,
+    #[serde(rename = "20002")]
+    StaleRequestCode,
+    #[serde(rename = "20006")]
+    InvalidResponseCode,
+}
+
+#[allow(clippy::enum_variant_names)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum ONDCSellerErrorCode {
     #[serde(rename = "30016")]
     SellerInvalidSignatureCode,
@@ -151,13 +166,14 @@ pub enum ONDCSellerErrorCode {
     SellerInvalidRequestCode,
 }
 
-// #[allow(clippy::enum_variant_names)]
-// #[derive(Debug, Serialize, Deserialize)]
-// pub enum ONDCErrorCode {
-//     GatewayError(ONDCGateWayErrorCode),
-//     BuyerError(ONDCBuyerErrorCode),
-//     SellerError(ONDCSellerErrorCode),
-// }
+#[allow(clippy::enum_variant_names)]
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ONDCErrorCode {
+    GatewayError(ONDCGateWayErrorCode),
+    BuyerError(ONDCBuyerErrorCode),
+    SellerError(ONDCSellerErrorCode),
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING-KEBAB-CASE")]

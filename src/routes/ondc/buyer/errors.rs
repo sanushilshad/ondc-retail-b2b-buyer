@@ -1,9 +1,8 @@
 use crate::general_utils::error_chain_fmt;
-use crate::routes::ondc::{ONDCResponse, ONDCResponseErrorBody, ONDErrorType};
+use crate::routes::ondc::{ONDCBuyerErrorCode, ONDCResponse, ONDCResponseErrorBody, ONDErrorType};
 use actix_web::http::StatusCode;
 use actix_web::{HttpResponse, ResponseError};
 
-use super::schemas::ONDCBuyerErrorCode;
 #[allow(dead_code)]
 #[derive(thiserror::Error)]
 pub enum ONDCProductSearchError {
