@@ -1,5 +1,5 @@
 use crate::errors::GenericError;
-use crate::general_utils::error_chain_fmt;
+use crate::utils::error_chain_fmt;
 
 #[derive(thiserror::Error)]
 pub enum AuthError {

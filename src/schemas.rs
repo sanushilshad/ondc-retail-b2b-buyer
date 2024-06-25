@@ -151,9 +151,14 @@ impl RetryPolicy {
 }
 
 #[derive(Debug)]
-struct NetworkResponse {
+pub struct NetworkResponse {
     status_code: u16,
     body: String,
+}
+impl NetworkResponse {
+    pub fn get_body(&self) -> &str {
+        &self.body
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -316,7 +321,7 @@ pub struct RegisteredNetworkParticipant {
 
 #[derive(Debug, Serialize, sqlx::Type)]
 #[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "ondc_network_participant_type", rename_all = "snake_case")]
+#[sqlx(type_name = "network_participant_type", rename_all = "snake_case")]
 pub enum ONDCNPType {
     Buyer,
     Seller,
@@ -336,8 +341,9 @@ impl WebSocketParam {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Serialize, Deserialize, sqlx::Type)]
 #[serde(rename_all = "UPPERCASE")]
+#[sqlx(type_name = "ondc_network_participant_type", rename_all = "UPPERCASE")]
 pub enum ONDCNetworkType {
     Bap,
     Bpp,

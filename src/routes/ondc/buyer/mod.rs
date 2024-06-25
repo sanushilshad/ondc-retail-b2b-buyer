@@ -1,6 +1,6 @@
 mod errors;
 mod handlers;
-mod middleware;
+mod middlewares;
 mod routes;
 mod schemas;
 pub(crate) mod utils;

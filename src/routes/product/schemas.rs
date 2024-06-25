@@ -24,6 +24,8 @@
 //     product_codes: Vec<String>,
 // }
 
+use std::fmt::{Display, Formatter};
+
 use crate::{errors::GenericError, schemas::CountryCode};
 use actix_web::{dev::Payload, web, FromRequest, HttpRequest};
 use futures_util::future::LocalBoxFuture;
@@ -69,7 +71,7 @@ pub struct ProductSearchRequest {
     pub query: String,
     pub transaction_id: Uuid,
     pub message_id: Uuid,
-    pub domain_category_code: String,
+    pub domain_category_code: CategoryDomain,
     pub country_code: CountryCode,
     pub payment_type: Option<PaymentType>,
     pub fulfillment_type: FulfillmentType,
@@ -90,5 +92,23 @@ impl FromRequest for ProductSearchRequest {
                 Err(e) => Err(GenericError::ValidationError(e.to_string())),
             }
         })
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum CategoryDomain {
+    #[serde(rename = "RET10")]
+    Grocery,
+}
+
+impl Display for CategoryDomain {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "ONDC:{}",
+            match self {
+                CategoryDomain::Grocery => "RET10",
+            }
+        )
     }
 }

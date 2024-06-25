@@ -245,7 +245,7 @@ ALTER TABLE business_user_relationship ADD CONSTRAINT "fk_role_id" FOREIGN KEY (
 ALTER TABLE business_user_relationship ADD CONSTRAINT user_business_role UNIQUE (user_id, business_id, role_id);
 
 
-CREATE TYPE ondc_network_participant_type AS ENUM (
+CREATE TYPE network_participant_type AS ENUM (
   'buyer',
   'seller'
 );
@@ -263,7 +263,7 @@ CREATE TABLE IF NOT EXISTS registered_network_participant (
   subscriber_id TEXT NOT NULL,
   subscriber_uri TEXT NOT NULL,
   signing_key TEXT NOT NULL,
-  network_participant_type ondc_network_participant_type NOT NULL,
+  network_participant_type network_participant_type NOT NULL,
   logo TEXT NOT NULL,
   long_description TEXT NOT NULL,
   short_description TEXT NOT NULL,
@@ -288,4 +288,23 @@ CREATE TABLE IF NOT EXISTS ondc_search_request (
   device_id TEXT NOT NULL,
   request_json JSONB NOT NULL,
   created_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE TYPE ondc_network_participant_type AS ENUM (
+  'BAP',
+  'BPP'
+);
+
+
+CREATE TABLE IF NOT EXISTS network_participant (
+  id uuid PRIMARY KEY,
+  subscriber_id TEXT NOT NULL,
+  br_id TEXT NOT NULL,
+  subscriber_url TEXT NOT NULL,
+  signing_public_key TEXT NOT NULL,
+  domain TEXT NOT NULL,
+  encr_public_key TEXT NOT NULL,
+  type ondc_network_participant_type NOT NULL,
+  unique_key_id TEXT NOT NULL,
+  created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

@@ -1,7 +1,7 @@
 use crate::domain::{subscriber_email::deserialize_subscriber_email, EmailObject};
 use crate::errors::GenericError;
-use crate::general_utils::pascal_to_snake_case;
 use crate::schemas::{KycStatus, Status};
+use crate::utils::pascal_to_snake_case;
 
 use actix_web::{FromRequest, HttpMessage};
 use anyhow::anyhow;

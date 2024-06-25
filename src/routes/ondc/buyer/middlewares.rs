@@ -6,7 +6,7 @@ use std::future::{ready, Ready};
 use std::rc::Rc;
 
 use crate::errors::GenericError;
-use crate::general_utils::get_header_value;
+use crate::utils::get_header_value;
 
 use crate::routes::ondc::ONDCContext;
 use crate::utils::{bytes_to_payload, get_ondc_params_from_header};
@@ -58,7 +58,7 @@ where
     }
 }
 
-// Middleware factory for business account validation.
+// Middleware factory for ONDC Seller Auth validation.
 pub struct SellerHeaderVerification;
 
 impl<S> Transform<S, ServiceRequest> for SellerHeaderVerification

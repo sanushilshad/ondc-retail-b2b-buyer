@@ -15,14 +15,14 @@ use super::schemas::{
 
 use crate::constants::ONDC_TTL;
 
-use crate::general_utils::get_gps_string;
 use crate::routes::ondc::schemas::{
     ONDCActionType, ONDCContext, ONDCContextCity, ONDCContextCountry, ONDCContextLocation,
     ONDCDomain, ONDCVersion,
 };
 use crate::routes::ondc::{ONDCErrorCode, ONDCResponse};
 use crate::routes::product::schemas::{
-    PaymentType, ProductFulFillmentLocations, ProductSearchRequest, ProductSearchType,
+    CategoryDomain, PaymentType, ProductFulFillmentLocations, ProductSearchRequest,
+    ProductSearchType,
 };
 use crate::routes::product::ProductSearchError;
 use crate::routes::schemas::{BusinessAccount, UserAccount};
@@ -30,11 +30,12 @@ use crate::routes::user::utils::get_default_vector_value;
 use crate::schemas::{
     CountryCode, NetworkCall, RegisteredNetworkParticipant, RequestMetaData, WebSocketParam,
 };
+use crate::utils::get_gps_string;
 use anyhow::anyhow;
 pub fn get_common_context(
     transaction_id: Uuid,
     message_id: Uuid,
-    domain_category_code: &str,
+    domain_category_code: &CategoryDomain,
     action: ONDCActionType,
     bap_id: &str,
     bap_uri: &str,

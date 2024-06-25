@@ -4,11 +4,11 @@ use actix_web::web;
 use super::schemas::ProductSearchRequest;
 use crate::configuration::ONDCSetting;
 use crate::errors::GenericError;
-use crate::general_utils::{create_authorization_header, get_np_detail};
 use crate::routes::ondc::buyer::utils::{
     get_ondc_search_payload, save_ondc_search_request, send_ondc_payload,
 };
 use crate::routes::ondc::ONDCActionType;
+use crate::utils::{create_authorization_header, get_np_detail};
 
 use crate::routes::schemas::{BusinessAccount, UserAccount};
 use crate::schemas::{GenericResponse, ONDCNPType, RequestMetaData};

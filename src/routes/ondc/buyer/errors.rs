@@ -1,5 +1,5 @@
-use crate::general_utils::error_chain_fmt;
 use crate::routes::ondc::{ONDCBuyerErrorCode, ONDCResponse, ONDCResponseErrorBody, ONDErrorType};
+use crate::utils::error_chain_fmt;
 use actix_web::http::StatusCode;
 use actix_web::{HttpResponse, ResponseError};
 

@@ -1,4 +1,4 @@
-use super::{handlers::on_search, middleware::SellerHeaderVerification};
+use super::{handlers::on_search, middlewares::SellerHeaderVerification};
 use actix_web::web;
 pub fn ondc_buyer_route(cfg: &mut web::ServiceConfig) {
     // cfg.service(web::resource("/inventory/fetch").route(web::post().to(fetch_inventory)));

@@ -4,7 +4,12 @@ use serde_with::skip_serializing_none;
 use std::fmt::{Display, Formatter};
 use uuid::Uuid;
 
-use crate::{errors::GenericError, general_utils::pascal_to_snake_case, schemas::CountryCode};
+use crate::{
+    errors::GenericError,
+    routes::product::schemas::CategoryDomain,
+    schemas::{CountryCode, ONDCNetworkType},
+    utils::pascal_to_snake_case,
+};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ONDCVersion {
@@ -42,12 +47,23 @@ impl Display for ONDCActionType {
         write!(f, "{}", pascal_to_snake_case(&format!("{:?}", self)))
     }
 }
-#[derive(Debug, Serialize, Deserialize)]
+
+#[derive(Debug, Serialize, Deserialize, sqlx::Type)]
 pub enum ONDCDomain {
     #[serde(rename = "ONDC:RET10")]
     Grocery,
 }
-
+impl Display for ONDCDomain {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "ONDC:{}",
+            match self {
+                ONDCDomain::Grocery => CategoryDomain::Grocery.to_string(),
+            }
+        )
+    }
+}
 // impl FromStr for ONDCDomain {
 //     type Err = GenericError;
 
@@ -62,14 +78,16 @@ pub enum ONDCDomain {
 // }
 
 impl ONDCDomain {
-    pub fn get_ondc_domain(domain_category_code: &str) -> Result<ONDCDomain, GenericError> {
+    pub fn get_ondc_domain(
+        domain_category_code: &CategoryDomain,
+    ) -> Result<ONDCDomain, GenericError> {
         // serde_json::from_str(&format!("ONDC:{}", domain_category_code))
         // domain_category_code.parse::<ONDCDomain>()
         match domain_category_code {
-            "RET10" => Ok(ONDCDomain::Grocery),
-            _ => Err(GenericError::ValidationError(
-                "Invalid domain category code".to_owned(),
-            )),
+            CategoryDomain::Grocery => Ok(ONDCDomain::Grocery),
+            // _ => Err(GenericError::ValidationError(
+            //     "Invalid domain category code".to_owned(),
+            // )),
         }
     }
 }
@@ -236,4 +254,41 @@ impl<D> ONDCResponse<D> {
             error: Some(error),
         }
     }
+}
+
+#[derive(Debug, Serialize)]
+pub enum OndcUrl {
+    #[serde(rename = "/lookup")]
+    LookUp,
+}
+
+impl Display for OndcUrl {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "/{}",
+            match self {
+                OndcUrl::LookUp => "lookup",
+            }
+        )
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct LookupRequest {
+    pub subscriber_id: String,
+    pub domain: ONDCDomain,
+    pub r#type: ONDCNetworkType,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct LookupData {
+    pub br_id: String,
+    pub subscriber_id: String,
+    pub signing_public_key: String,
+    pub subscriber_url: String,
+    pub encr_public_key: String,
+    pub unique_key_id: String,
+    pub domain: ONDCDomain,
+    pub r#type: ONDCNetworkType,
 }

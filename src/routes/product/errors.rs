@@ -2,7 +2,7 @@
 // use actix_web::{HttpResponse, ResponseError};
 
 // use crate::errors::GenericError;
-use crate::{errors::GenericError, general_utils::error_chain_fmt};
+use crate::{errors::GenericError, utils::error_chain_fmt};
 // use crate::schemas::GenericResponse;
 // use serde_json::Error as SerdeError;
 

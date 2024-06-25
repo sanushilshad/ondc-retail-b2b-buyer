@@ -4,7 +4,6 @@ pub mod constants;
 pub mod domain;
 pub mod email_client;
 pub mod errors;
-pub mod general_utils;
 pub mod middleware;
 pub mod migration;
 pub mod models;
