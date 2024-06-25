@@ -305,6 +305,7 @@ CREATE TABLE IF NOT EXISTS network_participant (
   domain TEXT NOT NULL,
   encr_public_key TEXT NOT NULL,
   type ondc_network_participant_type NOT NULL,
-  unique_key_id TEXT NOT NULL,
+  uk_id TEXT NOT NULL,
   created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+ALTER TABLE network_participant ADD CONSTRAINT network_participant_constraint UNIQUE (subscriber_id, type);

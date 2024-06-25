@@ -95,7 +95,7 @@ impl FromRequest for ProductSearchRequest {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, sqlx::Type)]
 pub enum CategoryDomain {
     #[serde(rename = "RET10")]
     Grocery,
@@ -105,7 +105,7 @@ impl Display for CategoryDomain {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "ONDC:{}",
+            "{}",
             match self {
                 CategoryDomain::Grocery => "RET10",
             }

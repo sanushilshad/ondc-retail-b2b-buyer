@@ -1,11 +1,14 @@
 use actix_web::dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform};
 use actix_web::{web, Error};
 use futures::future::LocalBoxFuture;
+use sqlx::PgPool;
 
 use std::future::{ready, Ready};
 use std::rc::Rc;
 
-use crate::errors::GenericError;
+use crate::configuration::ONDCSetting;
+use crate::routes::ondc::utils::fetch_lookup_data;
+use crate::schemas::ONDCNetworkType;
 use crate::utils::get_header_value;
 
 use crate::routes::ondc::ONDCContext;
@@ -52,10 +55,31 @@ where
         let srv = Rc::clone(&self.service);
         Box::pin(async move {
             let data: String = req.extract::<String>().await?;
+            let db_pool = req.app_data::<web::Data<PgPool>>().unwrap();
             let request_body = serde_json::from_str::<serde_json::Value>(&data).unwrap();
-            // let context = request_body["context"];
+            let registry_base_url = &req
+                .app_data::<web::Data<ONDCSetting>>()
+                .unwrap()
+                .registry_base_url;
             if let Some(context_value) = request_body.get("context") {
-                let _context: ONDCContext = serde_json::from_value(context_value.clone())?;
+                let context: ONDCContext = serde_json::from_value(context_value.clone())?;
+                if let Some(bpp_id) = context.bpp_id {
+                    let look_up_data = fetch_lookup_data(
+                        db_pool,
+                        &bpp_id, // Pass the actual bpp_id string if present
+                        &ONDCNetworkType::Bpp,
+                        &context.domain,
+                        &registry_base_url,
+                    )
+                    .await;
+                    // let a = look_up_data.unwrap();
+                    // print!("{:?}", a);
+                } else {
+                    ONDCBuyerError::InvalidResponseError {
+                        path: None,
+                        message: "Missing BPP id".to_owned(),
+                    };
+                }
             } else {
                 ONDCBuyerError::InvalidResponseError {
                     path: None,

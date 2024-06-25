@@ -51,6 +51,7 @@ impl Display for ONDCActionType {
 #[derive(Debug, Serialize, Deserialize, sqlx::Type)]
 pub enum ONDCDomain {
     #[serde(rename = "ONDC:RET10")]
+    #[sqlx(rename = "ONDC:RET10")]
     Grocery,
 }
 impl Display for ONDCDomain {
@@ -186,11 +187,19 @@ pub enum ONDCSellerErrorCode {
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Serialize, Deserialize)]
+pub enum LookUpErrorCode {
+    #[serde(rename = "151")]
+    InvalidRequestCode,
+}
+
+#[allow(clippy::enum_variant_names)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ONDCErrorCode {
     GatewayError(ONDCGateWayErrorCode),
     BuyerError(ONDCBuyerErrorCode),
     SellerError(ONDCSellerErrorCode),
+    LookUpError(LookUpErrorCode),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -275,10 +284,10 @@ impl Display for OndcUrl {
 }
 
 #[derive(Debug, Serialize)]
-pub struct LookupRequest {
-    pub subscriber_id: String,
-    pub domain: ONDCDomain,
-    pub r#type: ONDCNetworkType,
+pub struct LookupRequest<'a> {
+    pub subscriber_id: &'a str,
+    pub domain: &'a ONDCDomain,
+    pub r#type: &'a ONDCNetworkType,
 }
 
 #[derive(Debug, Deserialize)]
@@ -288,7 +297,8 @@ pub struct LookupData {
     pub signing_public_key: String,
     pub subscriber_url: String,
     pub encr_public_key: String,
-    pub unique_key_id: String,
+    #[serde(rename = "ukId")]
+    pub uk_id: String,
     pub domain: ONDCDomain,
     pub r#type: ONDCNetworkType,
 }
