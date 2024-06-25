@@ -12,6 +12,6 @@ if [ ${#PIDS[@]} -gt 0 ];then
         done
 fi
 source env.sh
-#cargo-watch -qc -w src -x "run --bin rust_test" -x clippy
-cargo-watch -qc -w src -x clippy
+cargo-watch -qc -w src -x "run --bin rust_test" -x clippy
+# cargo-watch -qc -w src -x clippy
 # cargo watch --debug -x run

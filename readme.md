@@ -56,6 +56,10 @@ export ONDC__BAP__SIGNING_KEY=""
 ##USER VARIABLE
 export LIST__USER__ADMIN_LIST="9562279968,"
 
+export ONDC__GATEWAY_KEY=""
+export ONDC__GATEWAY_URI="https://preprod.gateway.ondc.org"
+export ONDC__REGISTRY_BASE_URL="https://preprod.registry.ondc.org/ondc"
+
 ```
 
 - The value in `configuration.yaml` are:
