@@ -48,21 +48,15 @@ impl Application {
             listener,
             connection_pool,
             email_pool,
-            // configuration.application.workers,
-            // configuration.secret,
             redis_obj,
-            configuration, // configuration.user,
-                           // configuration.ondc,
+            configuration,
         )
         .await?;
-        // We "save" the bound port in one of `Application`'s fields
         Ok(Self { port, server })
     }
     pub fn port(&self) -> u16 {
         self.port
     }
-    // A more expressive name that makes it clear that
-    // this function only returns when the application is stopped.
     pub async fn run_until_stopped(self) -> Result<(), std::io::Error> {
         self.server.await
     }
@@ -78,12 +72,8 @@ async fn run(
     listener: TcpListener,
     db_pool: PgPool,
     email_obj: Arc<dyn GenericEmailService>,
-    // workers: usize,
-    // secret: SecretSetting,
     redis_client: RedisClient,
     configuration: Settings,
-    // user_setting: UserSettings,
-    // ondc_setting: ONDCSetting,
 ) -> Result<Server, anyhow::Error> {
     let db_pool = web::Data::new(db_pool);
     let email_client: web::Data<dyn GenericEmailService> = web::Data::from(email_obj);
