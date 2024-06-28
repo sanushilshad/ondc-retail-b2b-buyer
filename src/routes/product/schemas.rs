@@ -30,9 +30,10 @@ use crate::{errors::GenericError, schemas::CountryCode};
 use actix_web::{dev::Payload, web, FromRequest, HttpRequest};
 use futures_util::future::LocalBoxFuture;
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum PaymentType {
     PrePaid,
@@ -40,7 +41,7 @@ pub enum PaymentType {
     Credit,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 
 pub enum FulfillmentType {
@@ -48,7 +49,7 @@ pub enum FulfillmentType {
     SelfPickup,
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum ProductSearchType {
     Item,
@@ -57,7 +58,7 @@ pub enum ProductSearchType {
     City,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ProductFulFillmentLocations {
     pub latitude: f64,
@@ -65,11 +66,13 @@ pub struct ProductFulFillmentLocations {
     pub area_code: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ProductSearchRequest {
     pub query: String,
+    #[schema(value_type = String)]
     pub transaction_id: Uuid,
+    #[schema(value_type = String)]
     pub message_id: Uuid,
     pub domain_category_code: CategoryDomain,
     pub country_code: CountryCode,
@@ -77,6 +80,7 @@ pub struct ProductSearchRequest {
     pub fulfillment_type: FulfillmentType,
     pub search_type: ProductSearchType,
     pub fulfillment_locations: Option<Vec<ProductFulFillmentLocations>>,
+    pub city_code: String,
 }
 
 impl FromRequest for ProductSearchRequest {
@@ -95,7 +99,7 @@ impl FromRequest for ProductSearchRequest {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, sqlx::Type)]
+#[derive(Debug, Serialize, Deserialize, sqlx::Type, ToSchema)]
 pub enum CategoryDomain {
     #[serde(rename = "RET10")]
     Grocery,

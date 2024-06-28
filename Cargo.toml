@@ -72,6 +72,8 @@ path="src/lib.rs"
 path = "src/main.rs"
 name = "rust_test"
 
+[profile.release]
+opt-level = 3
 
 # [[bin]]
 # name = "custom_commands"

@@ -1,5 +1,8 @@
 use super::{LookupData, LookupRequest, ONDCDomain, OndcUrl};
-use crate::schemas::{NetworkCall, ONDCNetworkType};
+use crate::{
+    schemas::{NetworkCall, ONDCAuthParams, ONDCNetworkType},
+    utils::{create_signing_string, hash_message},
+};
 use chrono::Utc;
 use reqwest::Client;
 use sqlx::PgPool;
@@ -116,4 +119,18 @@ pub async fn fetch_lookup_data(
     }
 
     Ok(look_up_data_from_api)
+}
+
+pub async fn verify_authorization_header(
+    auth_header: &ONDCAuthParams,
+    request_body: &str,
+    public_key: &str,
+) -> bool {
+    let digest = hash_message(request_body);
+    let signing_key = create_signing_string(
+        &hash_message(request_body),
+        Some(auth_header.created_time),
+        Some(auth_header.expires_time),
+    );
+    return true;
 }

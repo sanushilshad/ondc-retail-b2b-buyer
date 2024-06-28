@@ -15,7 +15,7 @@ use base64::Engine;
 use blake2::{Blake2b512, Digest};
 use chrono::{Duration, Utc};
 // use ed25519::{signature::Signer, SigningKey, VerifyingKey};
-use ed25519_dalek::{Signer, SigningKey};
+use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use jsonwebtoken::{
     decode, encode, Algorithm as JWTAlgorithm, DecodingKey, EncodingKey, Header, Validation,
 };
@@ -28,6 +28,7 @@ use uuid::Uuid;
 
 use crate::constants::AUTHORIZATION_PATTERN;
 use crate::schemas::ONDCAuthParams;
+use base64::engine::general_purpose::STANDARD as BASE64;
 
 pub fn get_ondc_params_from_header(header: &str) -> Result<ONDCAuthParams, anyhow::Error> {
     let captures = AUTHORIZATION_PATTERN
@@ -371,7 +372,7 @@ pub async fn get_np_detail(
     };
 }
 
-fn create_signing_string(
+pub fn create_signing_string(
     digest_base64: &str,
     created: Option<i64>,
     expires: Option<i64>,
@@ -384,7 +385,7 @@ fn create_signing_string(
     )
 }
 
-fn hash_message(msg: &str) -> String {
+pub fn hash_message(msg: &str) -> String {
     let mut hasher = Blake2b512::new();
     hasher.update(msg.as_bytes());
     let digest = hasher.finalize();
@@ -392,12 +393,23 @@ fn hash_message(msg: &str) -> String {
 }
 
 fn sign_response(msg: &str, private_key: &str) -> Result<String, anyhow::Error> {
-    use base64::engine::general_purpose::STANDARD as BASE64;
     let decoded_bytes = BASE64.decode(private_key)?;
     let secret_key_bytes: &[u8; 32] = decoded_bytes.as_slice().try_into()?;
     let signing_key: SigningKey = SigningKey::from_bytes(secret_key_bytes);
     let singed_value = signing_key.sign(msg.as_bytes());
     Ok(BASE64.encode(singed_value.to_bytes()))
+}
+
+pub fn verify_response(signature: &str, msg: &str, public_key: &str) -> Result<(), anyhow::Error> {
+    // let decoded_public_key = BASE64.decode(public_key)?;
+    // let secret_key_bytes: &[u8; 32] = decoded_public_key.as_slice().try_into()?;
+    // let public_key = VerifyingKey::from_bytes(&secret_key_bytes)?;
+    // let decoded_signature = BASE64.decode(signature)?;
+    // let decoded_signature_bytes: &[u8; 64] = decoded_signature.as_slice().try_into()?;
+    // let signature_obj = Signature::from_bytes(decoded_signature_bytes);
+    // let verified = public_key.verify(msg.as_bytes(), &signature_obj)?;
+    // Ok(verified)
+    Ok(())
 }
 
 pub fn create_authorization_header(

@@ -86,7 +86,7 @@ pub struct JWTClaims {
     pub exp: usize,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, ToSchema)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum CountryCode {
     IND,

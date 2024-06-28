@@ -40,6 +40,7 @@ pub fn get_common_context(
     bap_id: &str,
     bap_uri: &str,
     country_code: &CountryCode,
+    city_code: &str,
 ) -> Result<ONDCContext, anyhow::Error> {
     // todo!()
     // let ondc_domain: ONDCDomain = serde_json::from_str(&format!("ONDC:{}", domain_category_code))?;
@@ -49,7 +50,7 @@ pub fn get_common_context(
         domain: ondc_domain,
         location: ONDCContextLocation {
             city: ONDCContextCity {
-                code: "std:080".to_string(),
+                code: city_code.to_owned(),
             },
             country: ONDCContextCountry {
                 code: country_code.clone(),
@@ -188,6 +189,7 @@ fn get_ondc_payload_from_search_request(
         &np_detail.subscriber_id,
         &np_detail.subscriber_uri,
         &search_request.country_code,
+        &search_request.city_code,
     )?;
     let ondc_seach_message =
         get_ondc_search_message_obj(user_account, business_account, search_request, np_detail)?;

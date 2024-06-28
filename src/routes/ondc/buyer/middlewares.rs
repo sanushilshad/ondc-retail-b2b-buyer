@@ -9,7 +9,7 @@ use std::rc::Rc;
 use crate::configuration::ONDCSetting;
 use crate::routes::ondc::utils::fetch_lookup_data;
 use crate::schemas::ONDCNetworkType;
-use crate::utils::get_header_value;
+use crate::utils::{create_signing_string, get_header_value, hash_message, verify_response};
 
 use crate::routes::ondc::ONDCContext;
 use crate::utils::{bytes_to_payload, get_ondc_params_from_header};
@@ -44,7 +44,7 @@ where
             }
         };
 
-        let _ondc_auth_params = match get_ondc_params_from_header(authorization_header) {
+        let ondc_auth_params = match get_ondc_params_from_header(authorization_header) {
             Ok(params) => params,
             Err(e) => {
                 let json_error = ONDCBuyerError::InvalidSignatureError { path: None };
@@ -54,9 +54,10 @@ where
         };
         let srv = Rc::clone(&self.service);
         Box::pin(async move {
-            let data: String = req.extract::<String>().await?;
+            let request_body_str: String = req.extract::<String>().await?;
             let db_pool = req.app_data::<web::Data<PgPool>>().unwrap();
-            let request_body = serde_json::from_str::<serde_json::Value>(&data).unwrap();
+            let request_body =
+                serde_json::from_str::<serde_json::Value>(&request_body_str).unwrap();
             let registry_base_url = &req
                 .app_data::<web::Data<ONDCSetting>>()
                 .unwrap()
@@ -64,16 +65,45 @@ where
             if let Some(context_value) = request_body.get("context") {
                 let context: ONDCContext = serde_json::from_value(context_value.clone())?;
                 if let Some(bpp_id) = context.bpp_id {
-                    let look_up_data = fetch_lookup_data(
+                    match fetch_lookup_data(
                         db_pool,
-                        &bpp_id, // Pass the actual bpp_id string if present
+                        &bpp_id,
                         &ONDCNetworkType::Bpp,
                         &context.domain,
                         &registry_base_url,
                     )
-                    .await;
-                    // let a = look_up_data.unwrap();
-                    // print!("{:?}", a);
+                    .await
+                    {
+                        Ok(data) => {
+                            if let Some(data) = data {
+                                let digest = &hash_message(&request_body_str);
+                                let verfiy_res = verify_response(
+                                    &ondc_auth_params.signature,
+                                    &create_signing_string(
+                                        digest,
+                                        Some(ondc_auth_params.created_time),
+                                        Some(ondc_auth_params.expires_time),
+                                    ),
+                                    &data.signing_public_key,
+                                );
+                                if let Err(err) = verfiy_res {
+                                    let a = err.to_string();
+                                    ONDCBuyerError::InvalidSignatureError { path: None };
+                                }
+                            } else {
+                                ONDCBuyerError::InvalidResponseError {
+                                    path: None,
+                                    message: "Invalid BPP id".to_owned(),
+                                };
+                            }
+                        }
+                        Err(err) => {
+                            ONDCBuyerError::InvalidResponseError {
+                                path: None,
+                                message: "Invalid BPP id".to_owned(),
+                            };
+                        }
+                    }
                 } else {
                     ONDCBuyerError::InvalidResponseError {
                         path: None,
@@ -87,7 +117,7 @@ where
                 };
             }
 
-            req.set_payload(bytes_to_payload(web::Bytes::from(data)));
+            req.set_payload(bytes_to_payload(web::Bytes::from(request_body_str)));
             let res = srv.call(req).await?;
 
             Ok(res)

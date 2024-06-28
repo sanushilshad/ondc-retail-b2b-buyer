@@ -1,5 +1,5 @@
 mod errors;
-mod handlers;
+pub(crate) mod handlers;
 mod routes;
 pub(crate) mod schemas;
 mod utils;
