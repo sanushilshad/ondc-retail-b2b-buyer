@@ -127,7 +127,9 @@ fn get_search_by_item(search_request: &ProductSearchRequest) -> Option<ONDCSearc
 }
 
 fn get_search_by_category(search_request: &ProductSearchRequest) -> Option<ONDCSearchCategory> {
-    if search_request.search_type == ProductSearchType::Category {
+    if search_request.search_type == ProductSearchType::Category
+        || search_request.search_type == ProductSearchType::City
+    {
         return Some(ONDCSearchCategory {
             id: search_request.query.to_owned(),
         });
