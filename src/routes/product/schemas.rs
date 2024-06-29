@@ -77,7 +77,7 @@ pub struct ProductSearchRequest {
     pub domain_category_code: CategoryDomain,
     pub country_code: CountryCode,
     pub payment_type: Option<PaymentType>,
-    pub fulfillment_type: FulfillmentType,
+    pub fulfillment_type: Option<FulfillmentType>,
     pub search_type: ProductSearchType,
     pub fulfillment_locations: Option<Vec<ProductFulFillmentLocations>>,
     pub city_code: String,
@@ -103,6 +103,22 @@ impl FromRequest for ProductSearchRequest {
 pub enum CategoryDomain {
     #[serde(rename = "RET10")]
     Grocery,
+    #[serde(rename = "RET12")]
+    Fashion,
+    #[serde(rename = "RET13")]
+    BPC,
+    #[serde(rename = "RET14")]
+    Electronics,
+    #[serde(rename = "RET15")]
+    Appliances,
+    #[serde(rename = "RET16")]
+    HomeAndKitchen,
+    #[serde(rename = "RET1A")]
+    AutoComponentsAndAccessories,
+    #[serde(rename = "RET1B")]
+    HardwareAndIndustrialEquipments,
+    #[serde(rename = "RET1C")]
+    BuildingAndConstructionSupplies,
 }
 
 impl Display for CategoryDomain {
@@ -112,6 +128,14 @@ impl Display for CategoryDomain {
             "{}",
             match self {
                 CategoryDomain::Grocery => "RET10",
+                CategoryDomain::Fashion => "RET12",
+                CategoryDomain::BPC => "RET13",
+                CategoryDomain::Electronics => "RET14",
+                CategoryDomain::Appliances => "RET15",
+                CategoryDomain::HomeAndKitchen => "RET16",
+                CategoryDomain::AutoComponentsAndAccessories => "RET1A",
+                CategoryDomain::HardwareAndIndustrialEquipments => "RET1B",
+                CategoryDomain::BuildingAndConstructionSupplies => "RET1C",
             }
         )
     }

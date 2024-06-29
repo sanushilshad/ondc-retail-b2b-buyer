@@ -5,7 +5,6 @@ use std::fmt::{Display, Formatter};
 use uuid::Uuid;
 
 use crate::{
-    errors::GenericError,
     routes::product::schemas::CategoryDomain,
     schemas::{CountryCode, ONDCNetworkType},
     utils::pascal_to_snake_case,
@@ -53,6 +52,30 @@ pub enum ONDCDomain {
     #[serde(rename = "ONDC:RET10")]
     #[sqlx(rename = "ONDC:RET10")]
     Grocery,
+    #[serde(rename = "ONDC:RET12")]
+    #[sqlx(rename = "ONDC:RET12")]
+    Fashion,
+    #[serde(rename = "ONDC:RET13")]
+    #[sqlx(rename = "ONDC:RET13")]
+    BPC,
+    #[serde(rename = "ONDC:RET14")]
+    #[sqlx(rename = "ONDC:RET14")]
+    Electronics,
+    #[serde(rename = "ONDC:RET15")]
+    #[sqlx(rename = "ONDC:RET15")]
+    Appliances,
+    #[serde(rename = "ONDC:RET16")]
+    #[sqlx(rename = "ONDC:RET16")]
+    HomeAndKitchen,
+    #[serde(rename = "ONDC:RET1A")]
+    #[sqlx(rename = "ONDC:RET1A")]
+    AutoComponentsAndAccessories,
+    #[serde(rename = "ONDC:RET1B")]
+    #[sqlx(rename = "ONDC:RET1B")]
+    HardwareAndIndustrialEquipments,
+    #[serde(rename = "ONDC:RET1C")]
+    #[sqlx(rename = "ONDC:RET1C")]
+    BuildingAndConstructionSupplies,
 }
 impl Display for ONDCDomain {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -61,34 +84,40 @@ impl Display for ONDCDomain {
             "ONDC:{}",
             match self {
                 ONDCDomain::Grocery => CategoryDomain::Grocery.to_string(),
+                ONDCDomain::Fashion => CategoryDomain::Fashion.to_string(),
+                ONDCDomain::BPC => CategoryDomain::BPC.to_string(),
+                ONDCDomain::Electronics => CategoryDomain::Electronics.to_string(),
+                ONDCDomain::Appliances => CategoryDomain::Appliances.to_string(),
+                ONDCDomain::HomeAndKitchen => CategoryDomain::HomeAndKitchen.to_string(),
+                ONDCDomain::AutoComponentsAndAccessories =>
+                    CategoryDomain::AutoComponentsAndAccessories.to_string(),
+                ONDCDomain::HardwareAndIndustrialEquipments =>
+                    CategoryDomain::HardwareAndIndustrialEquipments.to_string(),
+                ONDCDomain::BuildingAndConstructionSupplies =>
+                    CategoryDomain::BuildingAndConstructionSupplies.to_string(),
             }
         )
     }
 }
-// impl FromStr for ONDCDomain {
-//     type Err = GenericError;
-
-//     fn from_str(s: &str) -> Result<Self, Self::Err> {
-//         match s {
-//             "ONDC:RET10" => Ok(ONDCDomain::Grocery),
-//             _ => Err(GenericError::ValidationStringError(
-//                 "Invalid Domain".to_string(),
-//             )),
-//         }
-//     }
-// }
 
 impl ONDCDomain {
-    pub fn get_ondc_domain(
-        domain_category_code: &CategoryDomain,
-    ) -> Result<ONDCDomain, GenericError> {
-        // serde_json::from_str(&format!("ONDC:{}", domain_category_code))
-        // domain_category_code.parse::<ONDCDomain>()
+    pub fn get_ondc_domain(domain_category_code: &CategoryDomain) -> Self {
         match domain_category_code {
-            CategoryDomain::Grocery => Ok(ONDCDomain::Grocery),
-            // _ => Err(GenericError::ValidationError(
-            //     "Invalid domain category code".to_owned(),
-            // )),
+            CategoryDomain::Grocery => ONDCDomain::Grocery,
+            CategoryDomain::Fashion => ONDCDomain::Fashion,
+            CategoryDomain::BPC => ONDCDomain::BPC,
+            CategoryDomain::Electronics => ONDCDomain::Electronics,
+            CategoryDomain::Appliances => ONDCDomain::Appliances,
+            CategoryDomain::HomeAndKitchen => ONDCDomain::HomeAndKitchen,
+            CategoryDomain::AutoComponentsAndAccessories => {
+                ONDCDomain::AutoComponentsAndAccessories
+            }
+            CategoryDomain::HardwareAndIndustrialEquipments => {
+                ONDCDomain::HardwareAndIndustrialEquipments
+            }
+            CategoryDomain::BuildingAndConstructionSupplies => {
+                ONDCDomain::BuildingAndConstructionSupplies
+            }
         }
     }
 }

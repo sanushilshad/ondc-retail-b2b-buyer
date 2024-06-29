@@ -44,7 +44,7 @@ pub fn get_common_context(
 ) -> Result<ONDCContext, anyhow::Error> {
     // todo!()
     // let ondc_domain: ONDCDomain = serde_json::from_str(&format!("ONDC:{}", domain_category_code))?;
-    let ondc_domain = ONDCDomain::get_ondc_domain(domain_category_code)?;
+    let ondc_domain = ONDCDomain::get_ondc_domain(domain_category_code);
     Ok(ONDCContext {
         // domain: ONDCDomain::from(ondc_domain),
         domain: ondc_domain,
@@ -147,14 +147,14 @@ fn get_ondc_search_payment_obj(payment_obj: &Option<PaymentType>) -> Option<ONDC
 fn get_search_fulfillment_obj(
     search_request: &ProductSearchRequest,
 ) -> Option<ONDCSearchFulfillment> {
-    if search_request.search_type != ProductSearchType::City {
-        Some(ONDCSearchFulfillment {
-            r#type: ONDCFulfillmentType::get_ondc_fulfillment(&search_request.fulfillment_type),
+    if let Some(fulfillment_type) = &search_request.fulfillment_type {
+        return Some(ONDCSearchFulfillment {
+            r#type: ONDCFulfillmentType::get_ondc_fulfillment(fulfillment_type),
             stops: get_search_fulfillment_stops(&search_request.fulfillment_locations),
-        })
-    } else {
-        None
+        });
     }
+
+    None
 }
 fn get_ondc_search_message_obj(
     _user_account: &UserAccount,
