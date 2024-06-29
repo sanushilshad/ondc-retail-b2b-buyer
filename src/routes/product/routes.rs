@@ -1,8 +1,5 @@
 use super::handlers::realtime_product_search;
-use crate::{
-    middleware::{BusinessAccountValidation, RequireAuth},
-    routes::schemas::CustomerType,
-};
+use crate::routes::{schemas::CustomerType, BusinessAccountValidation, RequireAuth};
 use actix_web::web;
 
 pub fn product_route(cfg: &mut web::ServiceConfig) {

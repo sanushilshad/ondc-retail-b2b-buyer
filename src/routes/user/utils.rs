@@ -181,14 +181,9 @@ pub async fn validate_user_credentials(
                 verify_otp(pool, credentials.secret, auth_mechanism).await?;
             }
             _ => {
-                // Handle other cases if needed
             }
         }
     }
-    // user_id
-    // .ok_or_else(|| anyhow::anyhow!("Unknown username"))
-    // .map_err(AuthError::InvalidCredentials)
-
     Ok(user_id)
 
 }
@@ -365,7 +360,6 @@ pub async fn save_user(
 
 #[tracing::instrument(name = "get_role_model", skip(pool))]
 pub async fn get_role_model(pool: &PgPool, role_type: &UserType) -> Result<Option<UserRoleModel>, anyhow::Error> {
-    // let  a = role_type.to_string();
     let row: Option<UserRoleModel> = sqlx::query_as!(
         UserRoleModel,
         r#"SELECT id, role_name, role_status as "role_status!:Status", created_at, created_by, is_deleted from role where role_name  = $1"#,
@@ -449,7 +443,6 @@ pub async fn prepare_auth_mechanism_data_for_user_account(
     .await?
     .context("Failed to hash password")?;
 
-    // Prepare data for auth mechanism
     let id = vec![Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4()];
     let user_id_list = vec![user_id, user_id, user_id];
     let auth_scope = vec![
@@ -490,7 +483,6 @@ pub async fn save_auth_mechanism(
     transaction: &mut Transaction<'_, Postgres>,
     auth_data: BulkAuthMechanismInsert<'_>,
 ) -> Result<(), anyhow::Error> {
-    // Save data to auth mechanism table
     let query = sqlx::query!(
         r#"
         INSERT INTO auth_mechanism (id, user_id, auth_scope, auth_identifier, secret, auth_context, is_active, created_at, created_by)
@@ -531,7 +523,6 @@ pub async fn register_user(
         .await
         .context("Failed to acquire a Postgres connection from the pool")?;
 
-    // Early return if user already exists
     if let Some(existing_user_obj) = fetch_user(
         vec![user_account.email.get(), &user_account.mobile_no],
         pool,
@@ -798,17 +789,6 @@ pub async fn fetch_business_account_model_by_customer_type(
     Ok(row)
 }
 
-// let val_list: Vec<String> = value_list.iter().map(|&s| s.to_string()).collect();
-
-// let row: Option<UserAccountModel> = sqlx::query_as!(
-//     UserAccountModel,
-//     r#"SELECT 
-//         ua.id, username, is_test_user, mobile_no, email, is_active as "is_active!:Status", 
-//         vectors as "vectors!:sqlx::types::Json<Vec<Option<UserVectors>>>", display_name, 
-//         international_dialing_code, user_account_number, alt_user_account_number, ua.is_deleted, r.role_name FROM user_account as ua
-//         INNER JOIN user_role ur ON ua.id = ur.user_id
-//         INNER JOIN role r ON ur.role_id = r.id
-//     WHERE ua.email = ANY($1) OR ua.mobile_no = ANY($1) OR ua.id::text = ANY($1)
 
 
 #[tracing::instrument(name = "Get Business Account from model")]

@@ -1,8 +1,7 @@
 use actix_web::web;
 
-use crate::middleware::RequireAuth;
-
 use super::handlers::{authenticate, register_business_account, register_user_account};
+use super::middlewares::RequireAuth;
 
 pub fn user_route(cfg: &mut web::ServiceConfig) {
     cfg.service(web::resource("/register").route(web::post().to(register_user_account)));

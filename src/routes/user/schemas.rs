@@ -24,18 +24,6 @@ use uuid::Uuid;
 //     };
 // }
 
-// #[derive(Debug)]
-// struct SecretString(Secret<String>);
-
-// impl_serialize_format!(AuthenticateRequest, Debug);
-// #[strum(serialize_all = "snake_case")]
-// #[derive(Debug, Deserialize, Serialize)]
-// #[serde(rename_all = "lowercase")]
-
-// pub enum AuthenticationScope {
-//     OTP,
-//     Password,
-// }
 // impl_serialize_format!(AuthenticateRequest, Display);
 #[derive(Deserialize, Debug, ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -46,20 +34,6 @@ pub struct AuthenticateRequest {
     #[schema(value_type = String)]
     pub secret: Secret<String>,
 }
-
-// impl Serialize for SecretString {
-//     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-//         serializer.serialize_str(&self.0.expose_secret())
-//     }
-// }
-
-// pub struct AuthData {
-//     token: String,
-// }
-
-// pub struct AuthResponse {
-//     data: AuthData,
-// }
 
 #[derive(Serialize, Deserialize, Debug, sqlx::Type, PartialEq, ToSchema)]
 #[sqlx(type_name = "user_type", rename_all = "snake_case")]
@@ -76,8 +50,6 @@ pub enum UserType {
 impl fmt::Display for UserType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?}", self)
-        // or, alternatively:
-        // fmt::Debug::fmt(self, f)
     }
 }
 
@@ -153,12 +125,6 @@ pub enum MaskingType {
     PartialMask,
     FullMask,
 }
-
-// impl PgHasArrayType for UserVectors {
-//     fn array_type_info() -> sqlx::postgres::PgTypeInfo {
-//         sqlx::postgres::PgTypeInfo::with_name("_header_pair")
-//     }
-// }
 
 #[derive(Serialize, Deserialize, Debug, sqlx::Type, PartialEq, Clone, ToSchema)]
 #[sqlx(type_name = "vector_type", rename_all = "snake_case")]
@@ -245,16 +211,12 @@ pub struct UserAccount {
 impl FromRequest for UserAccount {
     type Error = GenericError;
     type Future = Ready<Result<Self, Self::Error>>;
-
-    /// Implement the `from_request` method to extract and wrap the authenticated user.
     fn from_request(
         req: &actix_web::HttpRequest,
         _payload: &mut actix_web::dev::Payload,
     ) -> Self::Future {
-        // Attempt to retrieve the user information from request extensions.
         let value = req.extensions().get::<UserAccount>().cloned();
 
-        // Check if the user information was successfully retrieved.
         let result = match value {
             Some(user) => Ok(user),
             None => Err(GenericError::UnexpectedCustomError(
@@ -262,7 +224,6 @@ impl FromRequest for UserAccount {
             )),
         };
 
-        // Return a ready future with the result.
         ready(result)
     }
 }
@@ -290,28 +251,6 @@ where
 {
     s.serialize_str(x.expose_secret())
 }
-
-// impl<'__s> utoipa::ToSchema<'__s> for Secret<String> {
-//     fn schema() -> (
-//         &'__s str,
-//         utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>,
-//     ) {
-//     }
-// }
-
-// impl ToSchema for Secret<String> {
-// fn json_schema(gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
-//     schema_for!(String)
-// }
-
-// fn schema_name() -> String {
-//     "Secret<String>".to_string()
-// }
-
-// fn json_schema(gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
-//     schema_for!(String)
-// }
-// }
 
 #[derive(Serialize, Deserialize, Debug, sqlx::Type)]
 #[sqlx(type_name = "auth_context_type", rename_all = "snake_case")]
@@ -467,15 +406,12 @@ impl FromRequest for BusinessAccount {
     type Error = GenericError;
     type Future = Ready<Result<Self, Self::Error>>;
 
-    /// Implement the `from_request` method to extract and wrap the authenticated user.
     fn from_request(
         req: &actix_web::HttpRequest,
         _payload: &mut actix_web::dev::Payload,
     ) -> Self::Future {
-        // Attempt to retrieve the user information from request extensions.
         let value = req.extensions().get::<BusinessAccount>().cloned();
 
-        // Check if the user information was successfully retrieved.
         let result = match value {
             Some(user) => Ok(user),
             None => Err(GenericError::UnexpectedError(anyhow!(
@@ -483,7 +419,6 @@ impl FromRequest for BusinessAccount {
             ))),
         };
 
-        // Return a ready future with the result.
         ready(result)
     }
 }

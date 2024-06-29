@@ -14,7 +14,6 @@ use base64::engine::general_purpose;
 use base64::Engine;
 use blake2::{Blake2b512, Digest};
 use chrono::{Duration, Utc};
-// use ed25519::{signature::Signer, SigningKey, VerifyingKey};
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use jsonwebtoken::{
     decode, encode, Algorithm as JWTAlgorithm, DecodingKey, EncodingKey, Header, Validation,
@@ -401,15 +400,14 @@ fn sign_response(msg: &str, private_key: &str) -> Result<String, anyhow::Error> 
 }
 
 pub fn verify_response(signature: &str, msg: &str, public_key: &str) -> Result<(), anyhow::Error> {
-    // let decoded_public_key = BASE64.decode(public_key)?;
-    // let secret_key_bytes: &[u8; 32] = decoded_public_key.as_slice().try_into()?;
-    // let public_key = VerifyingKey::from_bytes(&secret_key_bytes)?;
-    // let decoded_signature = BASE64.decode(signature)?;
-    // let decoded_signature_bytes: &[u8; 64] = decoded_signature.as_slice().try_into()?;
-    // let signature_obj = Signature::from_bytes(decoded_signature_bytes);
-    // let verified = public_key.verify(msg.as_bytes(), &signature_obj)?;
-    // Ok(verified)
-    Ok(())
+    let decoded_public_key = BASE64.decode(public_key)?;
+    let secret_key_bytes: &[u8; 32] = decoded_public_key.as_slice().try_into()?;
+    let public_key = VerifyingKey::from_bytes(&secret_key_bytes)?;
+    let decoded_signature = BASE64.decode(signature)?;
+    let decoded_signature_bytes: &[u8; 64] = decoded_signature.as_slice().try_into()?;
+    let signature_obj = Signature::from_bytes(decoded_signature_bytes);
+    let verified = public_key.verify(msg.as_bytes(), &signature_obj)?;
+    Ok(verified)
 }
 
 pub fn create_authorization_header(

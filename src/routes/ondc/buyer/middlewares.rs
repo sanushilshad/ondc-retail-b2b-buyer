@@ -46,7 +46,7 @@ where
 
         let ondc_auth_params = match get_ondc_params_from_header(authorization_header) {
             Ok(params) => params,
-            Err(e) => {
+            Err(_) => {
                 let json_error = ONDCBuyerError::InvalidSignatureError { path: None };
                 let (request, _pl) = req.into_parts();
                 return Box::pin(async { Ok(ServiceResponse::from_err(json_error, request)) });
@@ -55,6 +55,7 @@ where
         let srv = Rc::clone(&self.service);
         Box::pin(async move {
             let request_body_str: String = req.extract::<String>().await?;
+            let (parts, _body) = req.parts();
             let db_pool = req.app_data::<web::Data<PgPool>>().unwrap();
             let request_body =
                 serde_json::from_str::<serde_json::Value>(&request_body_str).unwrap();
@@ -62,59 +63,54 @@ where
                 .app_data::<web::Data<ONDCSetting>>()
                 .unwrap()
                 .registry_base_url;
-            if let Some(context_value) = request_body.get("context") {
-                let context: ONDCContext = serde_json::from_value(context_value.clone())?;
-                if let Some(bpp_id) = context.bpp_id {
-                    match fetch_lookup_data(
-                        db_pool,
-                        &bpp_id,
-                        &ONDCNetworkType::Bpp,
-                        &context.domain,
-                        &registry_base_url,
-                    )
-                    .await
-                    {
-                        Ok(data) => {
-                            if let Some(data) = data {
-                                let digest = &hash_message(&request_body_str);
-                                let verfiy_res = verify_response(
-                                    &ondc_auth_params.signature,
-                                    &create_signing_string(
-                                        digest,
-                                        Some(ondc_auth_params.created_time),
-                                        Some(ondc_auth_params.expires_time),
-                                    ),
-                                    &data.signing_public_key,
-                                );
-                                if let Err(err) = verfiy_res {
-                                    let a = err.to_string();
-                                    ONDCBuyerError::InvalidSignatureError { path: None };
-                                }
-                            } else {
-                                ONDCBuyerError::InvalidResponseError {
-                                    path: None,
-                                    message: "Invalid BPP id".to_owned(),
-                                };
-                            }
-                        }
-                        Err(err) => {
-                            ONDCBuyerError::InvalidResponseError {
-                                path: None,
-                                message: "Invalid BPP id".to_owned(),
-                            };
-                        }
-                    }
-                } else {
-                    ONDCBuyerError::InvalidResponseError {
-                        path: None,
-                        message: "Missing BPP id".to_owned(),
-                    };
-                }
-            } else {
+
+            let context = request_body.get("context").ok_or_else(|| {
                 ONDCBuyerError::InvalidResponseError {
                     path: None,
                     message: "Missing context".to_owned(),
-                };
+                }
+            })?;
+            let context_obj: ONDCContext =
+                serde_json::from_value(context.clone()).map_err(|_| {
+                    ONDCBuyerError::InvalidResponseError {
+                        path: None,
+                        message: "Invalid context".to_owned(),
+                    }
+                })?;
+            let look_up_data_obj = fetch_lookup_data(
+                db_pool,
+                &ondc_auth_params.subscriber_id,
+                &ONDCNetworkType::Bpp,
+                &context_obj.domain,
+                &registry_base_url,
+            )
+            .await
+            .map_err(|_| ONDCBuyerError::InvalidResponseError {
+                path: None,
+                message: "Invalid BPP id".to_owned(),
+            })?;
+
+            let lookup_data =
+                look_up_data_obj.ok_or_else(|| ONDCBuyerError::InvalidResponseError {
+                    path: None,
+                    message: "Invalid Subscriber id".to_owned(),
+                })?;
+
+            let digest = &hash_message(&request_body_str);
+            let verfiy_res = verify_response(
+                &ondc_auth_params.signature,
+                &create_signing_string(
+                    digest,
+                    Some(ondc_auth_params.created_time),
+                    Some(ondc_auth_params.expires_time),
+                ),
+                &lookup_data.signing_public_key,
+            );
+            if let Err(_) = verfiy_res {
+                return Ok(ServiceResponse::from_err(
+                    ONDCBuyerError::InvalidSignatureError { path: None },
+                    parts.clone(),
+                ));
             }
 
             req.set_payload(bytes_to_payload(web::Bytes::from(request_body_str)));

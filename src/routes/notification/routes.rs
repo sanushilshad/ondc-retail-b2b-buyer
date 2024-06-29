@@ -1,4 +1,4 @@
-use crate::middleware::RequireAuth;
+use crate::routes::RequireAuth;
 
 use super::handlers::send_email_otp;
 use actix_web::web;
