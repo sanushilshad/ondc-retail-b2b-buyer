@@ -56,9 +56,13 @@ export ONDC__BAP__SIGNING_KEY=""
 ##USER VARIABLE
 export LIST__USER__ADMIN_LIST="9562279968,"
 
-export ONDC__GATEWAY_KEY=""
+## ONDC GATEWAY VARIABLE
 export ONDC__GATEWAY_URI="https://preprod.gateway.ondc.org"
 export ONDC__REGISTRY_BASE_URL="https://preprod.registry.ondc.org/ondc"
+
+## PRODUCT MEILEI
+export PRODUCT__MEILEI__API_MASTER_KEY=""
+export PRODUCT__MEIELI__URL=""
 
 ```
 

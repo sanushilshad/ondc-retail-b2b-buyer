@@ -22,14 +22,12 @@ use crate::routes::ondc::schemas::{
 use crate::routes::ondc::{ONDCErrorCode, ONDCResponse};
 use crate::routes::product::schemas::{
     CategoryDomain, PaymentType, ProductFulFillmentLocations, ProductSearchRequest,
-    ProductSearchType,
+    ProductSearchType, SearchRequestModel,
 };
 use crate::routes::product::ProductSearchError;
 use crate::routes::schemas::{BusinessAccount, UserAccount};
 use crate::routes::user::utils::get_default_vector_value;
-use crate::schemas::{
-    CountryCode, NetworkCall, RegisteredNetworkParticipant, RequestMetaData, WebSocketParam,
-};
+use crate::schemas::{CountryCode, NetworkCall, RegisteredNetworkParticipant, WebSocketParam};
 use crate::utils::get_gps_string;
 use anyhow::anyhow;
 pub fn get_common_context(
@@ -247,46 +245,25 @@ pub async fn send_ondc_payload(
     }
 }
 
-#[tracing::instrument(name = "Save ONDC Search Request", skip(pool))]
-pub async fn save_ondc_search_request(
-    pool: &PgPool,
-    user_account: &UserAccount,
-    business_account: &BusinessAccount,
-    meta_data: &RequestMetaData,
-    ondc_search_payload: &ONDCSearchRequest,
-) -> Result<(), anyhow::Error> {
-    let ondc_search_payload_string = serde_json::to_value(ondc_search_payload)?;
-    sqlx::query!(
-        r#"
-        INSERT INTO ondc_search_request (message_id, transaction_id, device_id, request_json, business_id,  user_id, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
-        "#,
-        &ondc_search_payload.context.message_id,
-        &ondc_search_payload.context.transaction_id,
-        &meta_data.device_id,
-        &ondc_search_payload_string,
-        &business_account.id,
-        &user_account.id,
-        Utc::now(),
-    )
-    .execute(pool).await
-    .map_err(|e| {
-        tracing::error!("Failed to execute query: {:?}", e);
-        anyhow::Error::new(e).context("A database failure occurred while saving ONDC search request")
-    })?;
-    Ok(())
+#[tracing::instrument(name = "Fetch Search WebSocket Params", skip())]
+pub fn get_websocket_params_from_search_req(search_model: SearchRequestModel) -> WebSocketParam {
+    WebSocketParam {
+        user_id: search_model.user_id,
+        business_id: search_model.business_id,
+        device_id: search_model.device_id,
+    }
 }
 
-#[tracing::instrument(name = "Fetch Search WebSocket Params", skip(pool))]
-pub async fn get_websocket_params_from_ondc_search_req(
+#[tracing::instrument(name = "Fetch Product Search Params", skip(pool))]
+pub async fn get_product_search_params(
     pool: &PgPool,
     transaction_id: &Uuid,
     message_id: &Uuid,
-) -> Result<Option<WebSocketParam>, anyhow::Error> {
+) -> Result<Option<SearchRequestModel>, anyhow::Error> {
     let row = sqlx::query_as!(
-        WebSocketParam,
-        r#"SELECT business_id, user_id, device_id
-        FROM ondc_search_request
+        SearchRequestModel,
+        r#"SELECT transaction_id, user_id, business_id, device_id, is_real_time
+        FROM search_request
         WHERE transaction_id = $1 AND message_id = $2
         "#,
         transaction_id,

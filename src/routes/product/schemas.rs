@@ -1,29 +1,3 @@
-// impl_serialize_format!(InventoryRequest, Display);
-// #[derive(sqlx::FromRow, Serialize, Deserialize)]
-// pub struct ProductInventory {
-//     #[sqlx(rename = "code")]
-//     product_code: String,
-//     #[sqlx(rename = "no_of_items")]
-//     qty: BigDecimal,
-// }
-
-// impl_serialize_format!(MyResponse, Display);
-// #[derive(Serialize, Deserialize)]
-// pub struct MyResponse {
-//     pub status: bool,
-//     pub customer_message: String,
-//     pub success_code: String,
-//     pub data: Vec<ProductInventory>,
-// }
-
-// impl_serialize_format!(InventoryRequest, Debug);
-// #[derive(Deserialize, Serialize)]
-// pub struct InventoryRequest {
-//     username: String,
-//     session_id: String,
-//     product_codes: Vec<String>,
-// }
-
 use std::fmt::{Display, Formatter};
 
 use crate::{errors::GenericError, schemas::CountryCode};
@@ -33,24 +7,27 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-#[derive(Debug, Deserialize, Serialize, ToSchema)]
+#[derive(Debug, Deserialize, Serialize, ToSchema, sqlx::Type)]
 #[serde(rename_all = "snake_case")]
+#[sqlx(type_name = "payment_type", rename_all = "snake_case")]
 pub enum PaymentType {
     PrePaid,
     CashOnDelivery,
     Credit,
 }
 
-#[derive(Debug, Deserialize, Serialize, ToSchema)]
+#[derive(Debug, Deserialize, Serialize, ToSchema, sqlx::Type)]
 #[serde(rename_all = "snake_case")]
+#[sqlx(type_name = "fulfillment_type", rename_all = "snake_case")]
 
 pub enum FulfillmentType {
     Delivery,
     SelfPickup,
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq, ToSchema)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, ToSchema, sqlx::Type)]
 #[serde(rename_all = "lowercase")]
+#[sqlx(type_name = "product_search_type", rename_all = "snake_case")]
 pub enum ProductSearchType {
     Item,
     Fulfillment,
@@ -81,6 +58,7 @@ pub struct ProductSearchRequest {
     pub search_type: ProductSearchType,
     pub fulfillment_locations: Option<Vec<ProductFulFillmentLocations>>,
     pub city_code: String,
+    pub is_real_time: bool,
 }
 
 impl FromRequest for ProductSearchRequest {
@@ -139,4 +117,18 @@ impl Display for CategoryDomain {
             }
         )
     }
+}
+
+#[derive(Debug, sqlx::Type)]
+pub struct SearchRequestModel {
+    pub transaction_id: String,
+    pub is_real_time: bool,
+    pub user_id: Uuid,
+    pub business_id: Uuid,
+    pub device_id: String,
+}
+
+pub struct PublicProduct {
+    name: String,
+    code: String,
 }

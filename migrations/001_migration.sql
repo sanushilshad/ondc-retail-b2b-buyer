@@ -279,15 +279,39 @@ ALTER TABLE registered_network_participant ADD CONSTRAINT registered_network_par
 
 
 
-CREATE TABLE IF NOT EXISTS ondc_search_request (
+
+CREATE TYPE payment_type AS ENUM (
+  'pre_paid',
+  'cash_on_delivery',
+  'credit'
+);
+
+CREATE TYPE product_search_type AS ENUM (
+  'item',
+  'fulfillment',
+  'category',
+  'city'
+);
+
+CREATE TYPE fulfillment_type AS ENUM (
+  'delivery',
+  'self_pickup'
+);
+
+CREATE TABLE IF NOT EXISTS search_request (
   id SERIAL NOT NULL PRIMARY KEY,
   message_id uuid NOT NULL,
   transaction_id uuid NOT NULL,
   business_id uuid NOT NULL,
   user_id uuid NOT NULL,
   device_id TEXT NOT NULL,
-  request_json JSONB NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL
+  created_at TIMESTAMPTZ NOT NULL,
+  is_real_time BOOLEAN DEFAULT true NOT NULL,
+  query TEXT NOT NULL,
+  payment_type payment_type,
+  domain_category_code TEXT NOT NULL,
+  search_type product_search_type NOT NULL,
+  fulfillment_type fulfillment_type
 );
 
 CREATE TYPE ondc_network_participant_type AS ENUM (

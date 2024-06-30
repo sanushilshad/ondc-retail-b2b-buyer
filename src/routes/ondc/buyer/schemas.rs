@@ -314,14 +314,6 @@ pub struct ONDCSearchRequest {
     pub message: ONDCSearchMessage,
 }
 
-// #[derive(Debug, Serialize, Deserialize)]
-// pub struct ONDCError {
-//     r#type: String,
-//     code: String,
-//     path: Option<String>,
-//     message: Option<String>,
-// }
-
 #[derive(Debug, Serialize, Deserialize)]
 pub enum OnSearchContentType {
     #[serde(rename = "text/html")]
@@ -394,12 +386,6 @@ struct ONDCOnSearchState {
 struct ONDCOnSearchCity {
     code: String,
 }
-
-// #[derive(Serialize, Deserialize, Debug)]
-// struct ONDCOnSearchProviderTag {
-//     descriptor: ONDCTagDescriptor,
-//     list: Vec<ONDCTagItem>,
-// }
 
 #[derive(Serialize, Deserialize, Debug)]
 struct ONDCMedia {
@@ -504,11 +490,6 @@ struct ONDCItemReplacementTerm {
     replace_within: String,
 }
 
-// #[derive(Serialize, Deserialize, Debug)]
-// struct ONDCOnSearchItemTag{
-
-// }
-
 #[derive(Debug, Serialize, Deserialize)]
 struct ONDCFulfillmentDescriptor {
     code: ONDCFulfillmentState,
@@ -544,12 +525,6 @@ struct ONDCAmount {
     currency: ONDCCurrencyType,
     value: String,
 }
-
-// #[derive(Debug, Serialize, Deserialize)]
-// struct ONDCItemCancellationFee {
-//     percentage: Option<String>,
-//     amount: Option<ONDCAmount>,
-// }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -672,12 +647,6 @@ struct ONDCOnSearchOffer {
 struct ONDCOnSearchCategoryDescriptor {
     name: Option<String>,
 }
-
-// #[derive(Debug, Serialize, Deserialize)]
-// struct ONDCOnSearchCategoryTag {
-//     pub descriptor: ONDCTagDescriptor,
-//     pub list: Vec<ONDCTagItem>,
-// }
 
 #[derive(Debug, Serialize, Deserialize)]
 struct ONDCOnSearchCategory {

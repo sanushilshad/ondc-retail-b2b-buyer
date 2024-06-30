@@ -32,7 +32,7 @@ pub struct ONDCBuyer {
 #[derive(Debug, Deserialize, Clone)]
 pub struct ONDCSetting {
     //pub bap: ONDCBuyer, // pub seller:ONDCSeller
-    pub gateway_key: String,
+    //pub gateway_key: String,
     pub gateway_uri: String,
     pub registry_base_url: String,
 }
