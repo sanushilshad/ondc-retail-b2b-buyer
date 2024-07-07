@@ -1,0 +1,58 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO search_request (message_id, transaction_id, device_id, business_id,  user_id, created_at, update_cache, query, payment_type, domain_category_code, search_type, fulfillment_type)\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Uuid",
+        "Uuid",
+        "Timestamptz",
+        "Bool",
+        "Text",
+        {
+          "Custom": {
+            "name": "payment_type",
+            "kind": {
+              "Enum": [
+                "pre_paid",
+                "cash_on_delivery",
+                "credit"
+              ]
+            }
+          }
+        },
+        "Text",
+        {
+          "Custom": {
+            "name": "product_search_type",
+            "kind": {
+              "Enum": [
+                "item",
+                "fulfillment",
+                "category",
+                "city"
+              ]
+            }
+          }
+        },
+        {
+          "Custom": {
+            "name": "fulfillment_type",
+            "kind": {
+              "Enum": [
+                "delivery",
+                "self_pickup"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "295944f30621198f8938f0ac21740df56e11b308d5e5135682269c3b8617d2d6"
+}

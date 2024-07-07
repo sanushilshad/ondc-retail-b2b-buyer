@@ -1,0 +1,86 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT br_id, subscriber_id, signing_public_key, subscriber_url, encr_public_key, uk_id, domain as \"domain!: ONDCDomain\", type as \"type!: ONDCNetworkType\"  FROM network_participant\n        WHERE subscriber_id = $1 AND type = $2 AND domain = $3\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "br_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "subscriber_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "signing_public_key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "subscriber_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "encr_public_key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "uk_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "domain!: ONDCDomain",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "type!: ONDCNetworkType",
+        "type_info": {
+          "Custom": {
+            "name": "ondc_network_participant_type",
+            "kind": {
+              "Enum": [
+                "BAP",
+                "BPP"
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        {
+          "Custom": {
+            "name": "ondc_network_participant_type",
+            "kind": {
+              "Enum": [
+                "BAP",
+                "BPP"
+              ]
+            }
+          }
+        },
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "1259c426936004e5833d46c95323d8fe73a1748958be94598405afacee543b4f"
+}

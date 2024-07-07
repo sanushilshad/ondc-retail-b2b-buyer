@@ -306,7 +306,7 @@ CREATE TABLE IF NOT EXISTS search_request (
   user_id uuid NOT NULL,
   device_id TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL,
-  is_real_time BOOLEAN DEFAULT true NOT NULL,
+  update_cache BOOLEAN DEFAULT false NOT NULL,
   query TEXT NOT NULL,
   payment_type payment_type,
   domain_category_code TEXT NOT NULL,

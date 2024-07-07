@@ -11,5 +11,7 @@ if [ ${#PIDS[@]} -gt 0 ];then
            PID_KILLED=1
         done
 fi
+
+# cargo run --bin rust_test --release
 cargo build --release
-cargo run --bin rust_test --release
+./target/release/rust_test

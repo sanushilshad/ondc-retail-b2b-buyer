@@ -1,9 +1,7 @@
-use std::{
-    collections::HashMap,
-    time::{Duration, Instant},
-};
+use std::{collections::HashMap, time::Duration};
 
-use crate::{errors::RequestMetaError, routes::user::schemas::AuthData};
+use crate::errors::RequestMetaError;
+use crate::routes::{product::schemas::PublicProduct, user::schemas::AuthData};
 use actix_web::{error::ErrorInternalServerError, FromRequest, HttpMessage};
 //use bigdecimal::BigDecimal;
 use futures_util::future::{ready, Ready};
@@ -25,18 +23,7 @@ pub struct GenericResponse<D> {
     pub data: Option<D>,
 }
 
-// impl Responder for GenericResponse {
-//     fn respond_to(self, _req: &web::HttpRequest) -> HttpResponse {
-//         HttpResponse::Ok().json(self)
-//     }
-// }
-// impl<D: Serialize> std::fmt::Display for GenericResponse<D> {
-//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//         write!(f, "{}", serde_json::json!(&self))
-//     }
-// }
 impl<D> GenericResponse<D> {
-    // Associated function for creating a success response
     pub fn success(message: &str, data: Option<D>) -> Self {
         Self {
             status: true,
@@ -46,7 +33,6 @@ impl<D> GenericResponse<D> {
         }
     }
 
-    // Associated function for creating an error response
     pub fn error(message: &str, code: &str, data: Option<D>) -> Self {
         Self {
             status: false,
@@ -104,15 +90,12 @@ impl FromRequest for RequestMetaData {
     type Error = actix_web::Error;
     type Future = Ready<Result<Self, Self::Error>>;
 
-    /// Implement the `from_request` method to extract and wrap the authenticated user.
     fn from_request(
         req: &actix_web::HttpRequest,
         _payload: &mut actix_web::dev::Payload,
     ) -> Self::Future {
-        // Attempt to retrieve the user information from request extensions.
         let value = req.extensions().get::<RequestMetaData>().cloned();
 
-        // Check if the user information was successfully retrieved.
         let result = match value {
             Some(user) => Ok(user),
             None => Err(ErrorInternalServerError(
@@ -120,14 +103,13 @@ impl FromRequest for RequestMetaData {
             )),
         };
 
-        // Return a ready future with the result.
         ready(result)
     }
 }
 
 #[derive(Serialize, Deserialize, Debug, sqlx::Type, Clone, PartialEq)]
-#[sqlx(type_name = "kyc_status", rename_all = "snake_case")] // Match the type name in PostgreSQL
-#[serde(rename_all = "snake_case")] // Ensure JSON serialization matches PostgreSQL naming
+#[sqlx(type_name = "kyc_status", rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
 pub enum KycStatus {
     Pending,
     OnHold,
@@ -212,7 +194,7 @@ impl NetworkCall {
             .client
             .post(url)
             .headers(req_headers)
-            .timeout(Duration::from_secs(10))
+            .timeout(Duration::from_secs(2))
             .body(body)
             .send()
             .await?;
@@ -236,7 +218,7 @@ impl NetworkCall {
         let mut response: Option<Value> = None;
         let mut current_backoff = 1.0;
 
-        let start_time = Instant::now();
+        // let start_time = Instant::now();
         for current_retry in 0..retry_policy.max_retries {
             tracing::info!("Retry attempt {}...", current_retry + 1);
             match self.async_post_call(url, payload, headers.to_owned()).await {
@@ -269,11 +251,11 @@ impl NetworkCall {
                 }
             }
 
-            let elapsed_time = start_time.elapsed().as_secs_f64();
-            if elapsed_time > retry_policy.max_retries as f64 * retry_policy.backoff_value {
-                tracing::warn!("Maximum retry attempts reached.");
-                break;
-            }
+            // let elapsed_time = start_time.elapsed().as_secs_f64();
+            // if elapsed_time > retry_policy.max_retries as f64 * retry_policy.backoff_value {
+            //     tracing::warn!("Maximum retry attempts reached.");
+            //     break;
+            // }
 
             sleep(Duration::from_secs_f64(current_backoff)).await;
             current_backoff *= retry_policy.backoff_value;
@@ -357,4 +339,17 @@ pub struct ONDCAuthParams {
     pub uk_id: String,
     pub algorithm: String,
     pub signature: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "UPPERCASE")]
+pub enum CurrencyType {
+    Inr,
+}
+
+#[derive(Debug, Serialize)]
+pub struct WSSearch {
+    pub transaction_id: Uuid,
+    pub message_id: Uuid,
+    pub products: Vec<PublicProduct>,
 }

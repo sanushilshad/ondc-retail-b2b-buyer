@@ -1,5 +1,7 @@
 use std::collections::HashMap;
+use std::str::FromStr;
 
+use bigdecimal::BigDecimal;
 use chrono::Utc;
 use reqwest::Client;
 use sqlx::PgPool;
@@ -7,10 +9,10 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use super::schemas::{
-    ONDCFeeType, ONDCFulfillmentStopType, ONDCFulfillmentType, ONDCPaymentType, ONDCSearchCategory,
-    ONDCSearchDescriptor, ONDCSearchFulfillment, ONDCSearchIntent, ONDCSearchItem,
-    ONDCSearchLocation, ONDCSearchMessage, ONDCSearchPayment, ONDCSearchRequest, ONDCSearchStop,
-    ONDCTag,
+    ONDCFeeType, ONDCFulfillmentStopType, ONDCFulfillmentType, ONDCOnSearchItemPrice,
+    ONDCOnSearchRequest, ONDCPaymentType, ONDCSearchCategory, ONDCSearchDescriptor,
+    ONDCSearchFulfillment, ONDCSearchIntent, ONDCSearchItem, ONDCSearchLocation, ONDCSearchMessage,
+    ONDCSearchPayment, ONDCSearchRequest, ONDCSearchStop, ONDCTag,
 };
 
 use crate::constants::ONDC_TTL;
@@ -21,15 +23,19 @@ use crate::routes::ondc::schemas::{
 };
 use crate::routes::ondc::{ONDCErrorCode, ONDCResponse};
 use crate::routes::product::schemas::{
-    CategoryDomain, PaymentType, ProductFulFillmentLocations, ProductSearchRequest,
-    ProductSearchType, SearchRequestModel,
+    CategoryDomain, PaymentType, ProductFulFillmentLocations, ProductItemPrice,
+    ProductSearchRequest, ProductSearchType, PublicProduct, SearchRequestModel,
 };
 use crate::routes::product::ProductSearchError;
 use crate::routes::schemas::{BusinessAccount, UserAccount};
 use crate::routes::user::utils::get_default_vector_value;
-use crate::schemas::{CountryCode, NetworkCall, RegisteredNetworkParticipant, WebSocketParam};
+use crate::schemas::{
+    CountryCode, NetworkCall, RegisteredNetworkParticipant, WSSearch, WebSocketParam,
+};
 use crate::utils::get_gps_string;
 use anyhow::anyhow;
+
+#[allow(clippy::too_many_arguments)]
 pub fn get_common_context(
     transaction_id: Uuid,
     message_id: Uuid,
@@ -40,11 +46,8 @@ pub fn get_common_context(
     country_code: &CountryCode,
     city_code: &str,
 ) -> Result<ONDCContext, anyhow::Error> {
-    // todo!()
-    // let ondc_domain: ONDCDomain = serde_json::from_str(&format!("ONDC:{}", domain_category_code))?;
     let ondc_domain = ONDCDomain::get_ondc_domain(domain_category_code);
     Ok(ONDCContext {
-        // domain: ONDCDomain::from(ondc_domain),
         domain: ondc_domain,
         location: ONDCContextLocation {
             city: ONDCContextCity {
@@ -262,9 +265,9 @@ pub async fn get_product_search_params(
 ) -> Result<Option<SearchRequestModel>, anyhow::Error> {
     let row = sqlx::query_as!(
         SearchRequestModel,
-        r#"SELECT transaction_id, user_id, business_id, device_id, is_real_time
+        r#"SELECT transaction_id, user_id, business_id, device_id, update_cache
         FROM search_request
-        WHERE transaction_id = $1 AND message_id = $2
+        WHERE transaction_id = $1 AND message_id = $2 ORDER BY created_at DESC
         "#,
         transaction_id,
         message_id
@@ -273,4 +276,68 @@ pub async fn get_product_search_params(
     .await?;
 
     Ok(row)
+}
+
+pub fn get_price_obj_from_ondc_price_obj(
+    price: &ONDCOnSearchItemPrice,
+) -> Result<ProductItemPrice, anyhow::Error> {
+    return Ok(ProductItemPrice {
+        currency: price.currency.to_owned(),
+        value: BigDecimal::from_str(&price.value).unwrap(),
+        offered_value: price
+            .offered_value
+            .as_ref()
+            .map(|v| BigDecimal::from_str(v).unwrap_or_else(|_| BigDecimal::from(0))),
+        maximum_value: BigDecimal::from_str(&price.maximum_value).unwrap(),
+    });
+}
+
+pub fn get_product_from_on_search_request(
+    on_search_obj: &ONDCOnSearchRequest,
+) -> Result<Vec<PublicProduct>, anyhow::Error> {
+    let mut product_list: Vec<PublicProduct> = vec![];
+
+    if let Some(catalog) = &on_search_obj.message.catalog {
+        //let np_payment_objs = &catalog.payments;
+        for provider in &catalog.providers {
+            // let provider_payment_obj = &provider.payments;
+            for item in &provider.items {
+                let prod = PublicProduct {
+                    id: item.id.clone(),
+                    name: item.descriptor.name.clone(),
+                    code: item.descriptor.code.clone(),
+                    domain_category: on_search_obj.context.domain.get_category_domain(),
+                    price: get_price_obj_from_ondc_price_obj(&item.price)?,
+                    parent_item_id: item.parent_item_id.to_owned(),
+                    recommended: item.recommended,
+                    // payment_types: todo!(),
+                    // fullfillment_type: todo!(),
+                    // creator: todo!(),
+                    // locations: todo!(),
+                    // quantity: todo!(),
+                    // categories: todo!(),
+                    // provider_detail: todo!(),
+                    // np_detail: todo!(),
+                    // tax_rate: todo!(),
+                    // country_of_origin: todo!(),
+                    // images: todo!(),
+                };
+                product_list.push(prod)
+            }
+        }
+    }
+
+    Ok(product_list)
+}
+
+pub fn get_search_ws_body(
+    message_id: Uuid,
+    transaction_id: Uuid,
+    prod_obj: Vec<PublicProduct>,
+) -> WSSearch {
+    WSSearch {
+        message_id,
+        transaction_id,
+        products: prod_obj,
+    }
 }

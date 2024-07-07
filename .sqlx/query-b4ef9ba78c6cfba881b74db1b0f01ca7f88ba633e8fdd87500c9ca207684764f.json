@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT \n            ua.id, username, is_test_user, mobile_no, email, is_active as \"is_active!:Status\", \n            vectors as \"vectors!:sqlx::types::Json<Vec<Option<UserVectors>>>\", display_name, \n            international_dialing_code, user_account_number, alt_user_account_number, ua.is_deleted, r.role_name FROM user_account as ua\n            INNER JOIN user_role ur ON ua.id = ur.user_id\n            INNER JOIN role r ON ur.role_id = r.id\n        WHERE ua.email = ANY($1) OR ua.mobile_no = ANY($1) OR ua.id::text = ANY($1)\n        ",
+  "query": "SELECT \n            ua.id, username, is_test_user, mobile_no, email, is_active as \"is_active!:Status\", \n            vectors as \"vectors!:sqlx::types::Json<Vec<Option<UserVector>>>\", display_name, \n            international_dialing_code, user_account_number, alt_user_account_number, ua.is_deleted, r.role_name FROM user_account as ua\n            INNER JOIN user_role ur ON ua.id = ur.user_id\n            INNER JOIN role r ON ur.role_id = r.id\n        WHERE ua.email = ANY($1) OR ua.mobile_no = ANY($1) OR ua.id::text = ANY($1)\n        ",
   "describe": {
     "columns": [
       {
@@ -47,7 +47,7 @@
       },
       {
         "ordinal": 6,
-        "name": "vectors!:sqlx::types::Json<Vec<Option<UserVectors>>>",
+        "name": "vectors!:sqlx::types::Json<Vec<Option<UserVector>>>",
         "type_info": "Jsonb"
       },
       {
@@ -102,5 +102,5 @@
       false
     ]
   },
-  "hash": "29582b38a824f390abcb497ab2573c4f1c948c2c0c8849cbe59a80ce253868ce"
+  "hash": "b4ef9ba78c6cfba881b74db1b0f01ca7f88ba633e8fdd87500c9ca207684764f"
 }

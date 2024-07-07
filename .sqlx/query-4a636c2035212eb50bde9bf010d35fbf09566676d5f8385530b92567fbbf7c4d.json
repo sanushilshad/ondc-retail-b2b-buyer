@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO user_account (id, username, email, mobile_no, created_by, created_on, display_name, vectors, is_active, is_test_user, user_account_number, alt_user_account_number, international_dialing_code, source)\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)\n        ",
+  "query": "\n        INSERT INTO user_account (id, username, email, mobile_no, created_by, created_on, display_name, vectors, is_active, is_test_user, user_account_number, alt_user_account_number, international_dialing_code, source, subscriber_id)\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)\n        ",
   "describe": {
     "columns": [],
     "parameters": {
@@ -35,16 +35,18 @@
             "name": "data_source",
             "kind": {
               "Enum": [
+                "place_order",
                 "placeorder",
                 "ondc",
                 "rapidor"
               ]
             }
           }
-        }
+        },
+        "Text"
       ]
     },
     "nullable": []
   },
-  "hash": "a5372027bd7cbc3157e19df67f0d667c72591b6a023dce7892105c3de12b98d3"
+  "hash": "4a636c2035212eb50bde9bf010d35fbf09566676d5f8385530b92567fbbf7c4d"
 }

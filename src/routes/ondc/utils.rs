@@ -20,7 +20,7 @@ pub async fn call_lookup_api(
             if data.is_empty() {
                 return Ok(None);
             }
-            let lookup_data_value = data.get(0).expect("Expected non-empty array");
+            let lookup_data_value = data.first().expect("Expected non-empty array");
             let lookup_data: LookupData = serde_json::from_value(lookup_data_value.clone())?;
             Ok(Some(lookup_data))
         }
@@ -37,7 +37,7 @@ pub async fn get_lookup_for_subscriber_by_api(
     lookup_uri: &str,
 ) -> Result<Option<LookupData>, anyhow::Error> {
     let look_up_request = LookupRequest {
-        subscriber_id: subscriber_id,
+        subscriber_id,
         domain,
         r#type: np_type,
     };

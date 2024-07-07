@@ -1,0 +1,109 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, code, name, logo, unique_key_id, fee_type as \"fee_type: FeeType\", fee_value, signing_key, subscriber_id, subscriber_uri, long_description, short_description FROM registered_network_participant WHERE subscriber_id = $1 AND network_participant_type = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "code",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "logo",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "unique_key_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "fee_type: FeeType",
+        "type_info": {
+          "Custom": {
+            "name": "ondc_np_fee_type",
+            "kind": {
+              "Enum": [
+                "percent",
+                "amount"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "fee_value",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 7,
+        "name": "signing_key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "subscriber_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "subscriber_uri",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "long_description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "short_description",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        {
+          "Custom": {
+            "name": "network_participant_type",
+            "kind": {
+              "Enum": [
+                "buyer",
+                "seller"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "8c8229fe2c6046e38c58c31a74407025311a7179caf53227e4816d21f3aed84b"
+}

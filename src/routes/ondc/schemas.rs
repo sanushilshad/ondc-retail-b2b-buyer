@@ -57,7 +57,7 @@ pub enum ONDCDomain {
     Fashion,
     #[serde(rename = "ONDC:RET13")]
     #[sqlx(rename = "ONDC:RET13")]
-    BPC,
+    Bpc,
     #[serde(rename = "ONDC:RET14")]
     #[sqlx(rename = "ONDC:RET14")]
     Electronics,
@@ -77,26 +77,32 @@ pub enum ONDCDomain {
     #[sqlx(rename = "ONDC:RET1C")]
     BuildingAndConstructionSupplies,
 }
+
+impl ONDCDomain {
+    pub fn get_category_domain(&self) -> CategoryDomain {
+        match self {
+            ONDCDomain::Grocery => CategoryDomain::Grocery,
+            ONDCDomain::Fashion => CategoryDomain::Fashion,
+            ONDCDomain::Bpc => CategoryDomain::Bpc,
+            ONDCDomain::Electronics => CategoryDomain::Electronics,
+            ONDCDomain::Appliances => CategoryDomain::Appliances,
+            ONDCDomain::HomeAndKitchen => CategoryDomain::HomeAndKitchen,
+            ONDCDomain::AutoComponentsAndAccessories => {
+                CategoryDomain::AutoComponentsAndAccessories
+            }
+            ONDCDomain::HardwareAndIndustrialEquipments => {
+                CategoryDomain::HardwareAndIndustrialEquipments
+            }
+            ONDCDomain::BuildingAndConstructionSupplies => {
+                CategoryDomain::BuildingAndConstructionSupplies
+            }
+        }
+    }
+}
+
 impl Display for ONDCDomain {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "ONDC:{}",
-            match self {
-                ONDCDomain::Grocery => CategoryDomain::Grocery.to_string(),
-                ONDCDomain::Fashion => CategoryDomain::Fashion.to_string(),
-                ONDCDomain::BPC => CategoryDomain::BPC.to_string(),
-                ONDCDomain::Electronics => CategoryDomain::Electronics.to_string(),
-                ONDCDomain::Appliances => CategoryDomain::Appliances.to_string(),
-                ONDCDomain::HomeAndKitchen => CategoryDomain::HomeAndKitchen.to_string(),
-                ONDCDomain::AutoComponentsAndAccessories =>
-                    CategoryDomain::AutoComponentsAndAccessories.to_string(),
-                ONDCDomain::HardwareAndIndustrialEquipments =>
-                    CategoryDomain::HardwareAndIndustrialEquipments.to_string(),
-                ONDCDomain::BuildingAndConstructionSupplies =>
-                    CategoryDomain::BuildingAndConstructionSupplies.to_string(),
-            }
-        )
+        write!(f, "ONDC:{}", self.get_category_domain())
     }
 }
 
@@ -105,7 +111,7 @@ impl ONDCDomain {
         match domain_category_code {
             CategoryDomain::Grocery => ONDCDomain::Grocery,
             CategoryDomain::Fashion => ONDCDomain::Fashion,
-            CategoryDomain::BPC => ONDCDomain::BPC,
+            CategoryDomain::Bpc => ONDCDomain::Bpc,
             CategoryDomain::Electronics => ONDCDomain::Electronics,
             CategoryDomain::Appliances => ONDCDomain::Appliances,
             CategoryDomain::HomeAndKitchen => ONDCDomain::HomeAndKitchen,
@@ -330,4 +336,16 @@ pub struct LookupData {
     pub uk_id: String,
     pub domain: ONDCDomain,
     pub r#type: ONDCNetworkType,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ONDCItemUOM {
+    Unit,
+    Dozen,
+    Gram,
+    Kilogram,
+    Tonne,
+    Litre,
+    Millilitre,
 }

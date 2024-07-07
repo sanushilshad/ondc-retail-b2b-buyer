@@ -1,12 +1,17 @@
 use std::fmt::{Display, Formatter};
 
-use crate::{errors::GenericError, schemas::CountryCode};
+use crate::routes::ondc::ONDCItemUOM;
+use crate::{
+    errors::GenericError,
+    schemas::{CountryCode, CurrencyType},
+};
 use actix_web::{dev::Payload, web, FromRequest, HttpRequest};
+use bigdecimal::BigDecimal;
 use futures_util::future::LocalBoxFuture;
 use serde::{Deserialize, Serialize};
+use serde_with::skip_serializing_none;
 use utoipa::ToSchema;
 use uuid::Uuid;
-
 #[derive(Debug, Deserialize, Serialize, ToSchema, sqlx::Type)]
 #[serde(rename_all = "snake_case")]
 #[sqlx(type_name = "payment_type", rename_all = "snake_case")]
@@ -58,7 +63,7 @@ pub struct ProductSearchRequest {
     pub search_type: ProductSearchType,
     pub fulfillment_locations: Option<Vec<ProductFulFillmentLocations>>,
     pub city_code: String,
-    pub is_real_time: bool,
+    pub update_cache: bool,
 }
 
 impl FromRequest for ProductSearchRequest {
@@ -84,7 +89,7 @@ pub enum CategoryDomain {
     #[serde(rename = "RET12")]
     Fashion,
     #[serde(rename = "RET13")]
-    BPC,
+    Bpc,
     #[serde(rename = "RET14")]
     Electronics,
     #[serde(rename = "RET15")]
@@ -107,7 +112,7 @@ impl Display for CategoryDomain {
             match self {
                 CategoryDomain::Grocery => "RET10",
                 CategoryDomain::Fashion => "RET12",
-                CategoryDomain::BPC => "RET13",
+                CategoryDomain::Bpc => "RET13",
                 CategoryDomain::Electronics => "RET14",
                 CategoryDomain::Appliances => "RET15",
                 CategoryDomain::HomeAndKitchen => "RET16",
@@ -122,13 +127,115 @@ impl Display for CategoryDomain {
 #[derive(Debug, sqlx::Type)]
 pub struct SearchRequestModel {
     pub transaction_id: String,
-    pub is_real_time: bool,
+    pub update_cache: bool,
     pub user_id: Uuid,
     pub business_id: Uuid,
     pub device_id: String,
 }
 
-pub struct PublicProduct {
+#[derive(Debug, Serialize)]
+pub struct ProductItemPrice {
+    pub currency: CurrencyType,
+    pub value: BigDecimal,
+    pub offered_value: Option<BigDecimal>,
+    pub maximum_value: BigDecimal,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CreatorContactData {
+    name: String,
+    address: String,
+    phone: String,
+    email: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ProductCreator {
+    name: String,
+    contact: CreatorContactData,
+}
+
+#[derive(Debug, Serialize)]
+struct ProviderLocation {
+    id: String,
+    gps: String,
+    address: String,
+    city: String,
+    state: String,
+    country: CountryCode,
+    area_code: String,
+}
+
+#[derive(Debug, Serialize)]
+struct ProductQty {
+    measure: ProductQtyMeasure,
+    count: u32,
+}
+
+#[derive(Debug, Serialize)]
+struct ProductQtyMeasure {
+    unit: ONDCItemUOM,
+    value: BigDecimal,
+}
+
+#[derive(Debug, Serialize)]
+struct UnitizedProductQty {
+    unit: ONDCItemUOM,
+}
+
+#[derive(Debug, Serialize)]
+struct ONDCOnSearchItemQuantity {
+    unitized: UnitizedProductQty,
+    available: ProductQty,
+    maximum: ProductQty,
+    minimum: Option<ProductQty>,
+}
+#[derive(Debug, Serialize)]
+struct ProductProvider {
+    id: String,
+    rating: String,
     name: String,
     code: String,
+    short_desc: String,
+    long_desc: String,
+    videos: Option<String>,
+    images: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct ProductNpDeatils {
+    name: String,
+    code: Option<String>,
+    short_desc: String,
+    long_desc: String,
+    images: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ProductCategory {
+    code: String,
+    name: String,
+}
+
+#[derive(Debug, Serialize)]
+#[skip_serializing_none]
+pub struct PublicProduct {
+    pub id: String,
+    pub name: String,
+    pub code: Option<String>,
+    pub domain_category: CategoryDomain,
+    pub price: ProductItemPrice,
+    pub parent_item_id: Option<String>,
+    pub recommended: bool,
+    // pub payment_types: Vec<PaymentType>,
+    // pub fullfillment_type: Vec<FulfillmentType>,
+    // pub creator: ProductCreator,
+    // pub locations: Vec<ProviderLocation>,
+    // pub quantity: ONDCOnSearchItemQuantity,
+    // pub categories: ProductCategory,
+    // pub provider_detail: ProductProvider,
+    // pub np_detail: ProductNpDeatils,
+    // pub tax_rate: BigDecimal,
+    // pub country_of_origin: CountryCode,
+    // pub images: Vec<String>,
 }

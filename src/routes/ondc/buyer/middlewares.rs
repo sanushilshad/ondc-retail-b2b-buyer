@@ -82,7 +82,7 @@ where
                 &ondc_auth_params.subscriber_id,
                 &ONDCNetworkType::Bpp,
                 &context_obj.domain,
-                &registry_base_url,
+                registry_base_url,
             )
             .await
             .map_err(|_| ONDCBuyerError::InvalidResponseError {
@@ -106,7 +106,7 @@ where
                 ),
                 &lookup_data.signing_public_key,
             );
-            if let Err(_) = verfiy_res {
+            if verfiy_res.is_err() {
                 return Ok(ServiceResponse::from_err(
                     ONDCBuyerError::InvalidSignatureError { path: None },
                     parts.clone(),

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO business_account (id, business_account_number, alt_business_account_number, company_name, vectors, proofs, customer_type, merchant_type, trade, source, created_by,  created_at)\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)\n        ",
+  "query": "\n        INSERT INTO business_account (id, business_account_number, alt_business_account_number, company_name, vectors, proofs, customer_type, merchant_type, trade, source, created_by,  created_at, subscriber_id, default_vector_type)\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)\n        ",
   "describe": {
     "columns": [],
     "parameters": {
@@ -68,6 +68,7 @@
             "name": "data_source",
             "kind": {
               "Enum": [
+                "place_order",
                 "placeorder",
                 "ondc",
                 "rapidor"
@@ -76,10 +77,12 @@
           }
         },
         "Uuid",
-        "Timestamptz"
+        "Timestamptz",
+        "Text",
+        "Text"
       ]
     },
     "nullable": []
   },
-  "hash": "93eb806274e35058b9fefb987c12a88c83a58a286497b33105bb8cfbbb586b01"
+  "hash": "eed0265d23c04457a56e2237177ef0ea1174bdbcf1751d661b0f52e658a40d76"
 }

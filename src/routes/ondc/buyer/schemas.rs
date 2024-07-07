@@ -1,9 +1,9 @@
 use super::errors::ONDCBuyerError;
 use crate::routes::ondc::schemas::{ONDCContext, ONDCResponseErrorBody};
-use crate::routes::ondc::ONDCSellerErrorCode;
+use crate::routes::ondc::{ONDCItemUOM, ONDCSellerErrorCode};
 use crate::routes::product::schemas::{FulfillmentType, PaymentType};
 use crate::routes::schemas::VectorType;
-use crate::schemas::{FeeType, ONDCNetworkType};
+use crate::schemas::{CurrencyType, FeeType, ONDCNetworkType};
 use actix_web::{dev::Payload, web, FromRequest, HttpRequest};
 use futures_util::future::LocalBoxFuture;
 use serde::{Deserialize, Serialize};
@@ -394,9 +394,9 @@ struct ONDCMedia {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct ONDCOnSearchItemDescriptor {
-    name: String,
-    code: Option<String>,
+pub struct ONDCOnSearchItemDescriptor {
+    pub name: String,
+    pub code: Option<String>,
     short_desc: String,
     long_desc: String,
     images: Vec<ONDCImage>,
@@ -428,29 +428,11 @@ struct ONDCOnSearchItemCreator {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "UPPERCASE")]
-enum ONDCCurrencyType {
-    Inr,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct ONDCOnSearchItemPrice {
-    currency: ONDCCurrencyType,
-    value: String,
-    offered_value: Option<String>,
-    maximum_value: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-enum ONDCItemUOM {
-    Unit,
-    Dozen,
-    Gram,
-    Kilogram,
-    Tonne,
-    Litre,
-    Millilitre,
+pub struct ONDCOnSearchItemPrice {
+    pub currency: CurrencyType,
+    pub value: String,
+    pub offered_value: Option<String>,
+    pub maximum_value: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -522,7 +504,7 @@ struct ONDCReturnTerm {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct ONDCAmount {
-    currency: ONDCCurrencyType,
+    currency: CurrencyType,
     value: String,
 }
 
@@ -557,18 +539,18 @@ pub struct ONDCOnSearchItemTag {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct ONDCOnSearchItem {
-    id: String,
-    parent_item_id: Option<String>,
+pub struct ONDCOnSearchItem {
+    pub id: String,
+    pub parent_item_id: Option<String>,
     matched: bool,
-    recommended: bool,
-    descriptor: ONDCOnSearchItemDescriptor,
+    pub recommended: bool,
+    pub descriptor: ONDCOnSearchItemDescriptor,
     creator: ONDCOnSearchItemCreator,
     category_ids: Vec<String>,
     fulfillment_ids: Vec<String>,
     location_ids: Vec<String>,
     payment_ids: Vec<String>,
-    price: ONDCOnSearchItemPrice,
+    pub price: ONDCOnSearchItemPrice,
     quantity: ONDCOnSearchItemQuantity,
     add_ons: Option<Vec<ONDCOnSearchItemAddOns>>,
     time: Option<ONDCTime>,
@@ -659,7 +641,7 @@ struct ONDCOnSearchCategory {
 pub struct ONDCOnSearchProvider {
     id: String,
     descriptor: ONDCOnSearchProviderDescriptor,
-    payments: Option<Vec<ONDCOnSearchPayment>>,
+    pub payments: Option<Vec<ONDCOnSearchPayment>>,
     rating: String,
     ttl: String,
     creds: Option<Vec<ONDCCredential>>,
@@ -668,20 +650,20 @@ pub struct ONDCOnSearchProvider {
     fulfillments: Vec<ONDCOnSearchFulfillmentContact>,
     offers: Option<Vec<ONDCOnSearchOffer>>,
     categories: Option<Vec<ONDCOnSearchCategory>>,
-    items: Vec<ONDCOnSearchItem>,
+    pub items: Vec<ONDCOnSearchItem>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCOnSearchCatalog {
     descriptor: ONDCOnSearchDescriptor,
-    payments: Vec<ONDCOnSearchPayment>,
+    pub payments: Vec<ONDCOnSearchPayment>,
     fulfillments: Vec<ONDCOnSearchFullFillment>,
-    providers: Vec<ONDCOnSearchProvider>,
+    pub providers: Vec<ONDCOnSearchProvider>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCOnSearchMessage {
-    catalog: Option<ONDCOnSearchCatalog>,
+    pub catalog: Option<ONDCOnSearchCatalog>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
