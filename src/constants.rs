@@ -1,4 +1,4 @@
-pub const ONDC_TTL: &str = "PT30";
+pub const ONDC_TTL: &str = "PT30S";
 pub const TEST_DB: &str = "rust_test_db";
 pub const DUMMY_DOMAIN: &str = "ondcpreprodb2b.rapidor.co";
 use lazy_static::lazy_static;

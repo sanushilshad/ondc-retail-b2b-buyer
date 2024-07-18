@@ -1,5 +1,6 @@
 use crate::domain::{subscriber_email::deserialize_subscriber_email, EmailObject};
 use crate::errors::GenericError;
+use crate::routes::ondc::buyer::schemas::ONDCBuyerIdType;
 use crate::schemas::{KycStatus, Status};
 use crate::utils::pascal_to_snake_case;
 
@@ -173,6 +174,20 @@ impl std::fmt::Display for VectorType {
     //     };
     //     write!(f, "{}", s)
     // }
+}
+
+impl VectorType {
+    pub fn get_ondc_vector_type(&self) -> Result<ONDCBuyerIdType, anyhow::Error> {
+        match self {
+            VectorType::PanCardNo => Ok(ONDCBuyerIdType::Pan),
+            VectorType::Gstin => Ok(ONDCBuyerIdType::Gst),
+            VectorType::Tin => Ok(ONDCBuyerIdType::Tin),
+            VectorType::AadhaarCardNo => Ok(ONDCBuyerIdType::Aadhaar),
+            VectorType::MobileNo => Ok(ONDCBuyerIdType::Mobile),
+            VectorType::Email => Ok(ONDCBuyerIdType::Email),
+            _ => Err(anyhow!("Invalid User Vectory Mapping")),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, sqlx::Type, Clone, ToSchema)]

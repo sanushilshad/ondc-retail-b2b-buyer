@@ -1,7 +1,8 @@
 use super::{LookupData, LookupRequest, ONDCDomain, OndcUrl};
 use crate::schemas::{NetworkCall, ONDCNetworkType};
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use reqwest::Client;
+use serde::Serializer;
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -74,7 +75,7 @@ pub async fn save_lookup_data_to_db(pool: &PgPool, data: &LookupData) -> Result<
     sqlx::query!(
         r#"
         INSERT INTO network_participant (id, subscriber_id, br_id, subscriber_url, signing_public_key, domain, encr_public_key, type, uk_id, created_on)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) ON CONFLICT (subscriber_id, type) DO NOTHING;
         "#,
         &uuid,
         &data.subscriber_id,
@@ -116,4 +117,15 @@ pub async fn fetch_lookup_data(
     }
 
     Ok(look_up_data_from_api)
+}
+
+pub fn serialize_timestamp_without_nanos<S>(
+    date: &DateTime<Utc>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let formatted_date = date.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string();
+    serializer.serialize_str(&formatted_date)
 }

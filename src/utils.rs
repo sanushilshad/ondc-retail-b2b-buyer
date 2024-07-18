@@ -478,7 +478,7 @@ pub mod tests {
     use crate::configuration::get_configuration;
     use crate::constants::{DUMMY_DOMAIN, TEST_DB};
     use crate::routes::user::schemas::{
-        BusinessAccount, MaskingType,  UserAccount, UserVector, VectorType,
+        BusinessAccount, MaskingType, UserAccount, UserVector, VectorType,
     };
     use crate::schemas::{FeeType, KycStatus, RegisteredNetworkParticipant, Status};
     use crate::startup::get_connection_pool;

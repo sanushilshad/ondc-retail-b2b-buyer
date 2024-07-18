@@ -4,6 +4,7 @@ use crate::routes::ondc::{ONDCItemUOM, ONDCSellerErrorCode};
 use crate::routes::product::schemas::{FulfillmentType, PaymentType};
 use crate::routes::schemas::VectorType;
 use crate::schemas::{CurrencyType, FeeType, ONDCNetworkType};
+use crate::utils::pascal_to_snake_case;
 use actix_web::{dev::Payload, web, FromRequest, HttpRequest};
 use futures_util::future::LocalBoxFuture;
 use serde::{Deserialize, Serialize};
@@ -124,13 +125,13 @@ impl ONDCTagItem {
     pub fn get_buyer_fee_amount(fee_amount: &str) -> ONDCTagItem {
         ONDCTagItem {
             descriptor: ONDCTagItemDescriptor {
-                code: ONDCTagItemCode::FinderFeeType,
+                code: ONDCTagItemCode::FinderFeeAmount,
             },
             value: fee_amount.to_owned(),
         }
     }
 
-    pub fn get_buyer_id_code(id_code: &VectorType) -> ONDCTagItem {
+    pub fn get_buyer_id_code(id_code: &ONDCBuyerIdType) -> ONDCTagItem {
         ONDCTagItem {
             descriptor: ONDCTagItemDescriptor {
                 code: ONDCTagItemCode::BuyerIdCode,
@@ -201,7 +202,7 @@ impl ONDCTag {
         }
     }
 
-    pub fn get_buyer_id_tag(id_code: &VectorType, id_no: &str) -> ONDCTag {
+    pub fn get_buyer_id_tag(id_code: &ONDCBuyerIdType, id_no: &str) -> ONDCTag {
         ONDCTag {
             descriptor: ONDCTagDescriptor {
                 code: ONDCTagType::BuyerId,
@@ -642,7 +643,7 @@ pub struct ONDCOnSearchProvider {
     id: String,
     descriptor: ONDCOnSearchProviderDescriptor,
     pub payments: Option<Vec<ONDCOnSearchPayment>>,
-    rating: String,
+    rating: Option<String>,
     ttl: String,
     creds: Option<Vec<ONDCCredential>>,
     locations: Vec<ONDCOnSearchProviderLocation>,
@@ -689,5 +690,22 @@ impl FromRequest for ONDCOnSearchRequest {
                 }),
             }
         })
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ONDCBuyerIdType {
+    Gst,
+    Pan,
+    Tin,
+    Aadhaar,
+    Mobile,
+    Email,
+}
+
+impl std::fmt::Display for ONDCBuyerIdType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", pascal_to_snake_case(&format!("{:?}", self)))
     }
 }

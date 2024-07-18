@@ -43,16 +43,18 @@ where
         let is_websocket = req.headers().contains_key(UPGRADE)
             && req.headers().get(UPGRADE).unwrap() == "websocket";
         let is_on_search = req.path().ends_with("on_search");
-        if is_websocket || is_on_search {
+        if is_websocket {
             Box::pin(async move {
                 let fut = svc.call(req).await?;
                 Ok(fut)
             })
         } else {
             Box::pin(async move {
-                let request_str: String = req.extract::<String>().await?;
-                tracing::info!({%request_str}, "HTTP Response");
-                req.set_payload(bytes_to_payload(web::Bytes::from(request_str)));
+                if !is_on_search {
+                    let request_str: String = req.extract::<String>().await?;
+                    tracing::info!({%request_str}, "HTTP Response");
+                    req.set_payload(bytes_to_payload(web::Bytes::from(request_str)));
+                }
                 let fut = svc.call(req).await?;
 
                 let (req, res) = fut.into_parts();

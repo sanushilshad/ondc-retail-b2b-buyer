@@ -4,6 +4,7 @@ use serde_with::skip_serializing_none;
 use std::fmt::{Display, Formatter};
 use uuid::Uuid;
 
+use super::utils::serialize_timestamp_without_nanos;
 use crate::{
     routes::product::schemas::CategoryDomain,
     schemas::{CountryCode, ONDCNetworkType},
@@ -168,6 +169,7 @@ pub struct ONDCContext {
     pub version: ONDCVersion,
     pub transaction_id: Uuid,
     pub message_id: Uuid,
+    #[serde(serialize_with = "serialize_timestamp_without_nanos")]
     pub timestamp: DateTime<Utc>,
     pub bap_id: String,
     pub bap_uri: String,

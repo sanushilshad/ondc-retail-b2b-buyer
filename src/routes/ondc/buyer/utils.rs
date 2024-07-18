@@ -78,6 +78,9 @@ fn get_search_tag(
         &business_account.default_vector_type,
         &business_account.vectors,
     );
+    let ondc_buyer_id_type = &business_account
+        .default_vector_type
+        .get_ondc_vector_type()?;
     match buyer_id {
         None => Err(ProductSearchError::ValidationError(format!(
             "{} doesn't exist for buyer",
@@ -88,7 +91,7 @@ fn get_search_tag(
                 ONDCFeeType::get_fee_type(&np_detail.fee_type),
                 &np_detail.fee_value.to_string(),
             ),
-            ONDCTag::get_buyer_id_tag(&business_account.default_vector_type, id),
+            ONDCTag::get_buyer_id_tag(ondc_buyer_id_type, id),
         ]),
     }
 }
