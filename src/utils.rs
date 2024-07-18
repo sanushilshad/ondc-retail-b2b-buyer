@@ -16,6 +16,7 @@ use actix_web::web;
 use base64::engine::general_purpose;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
+use bigdecimal::BigDecimal;
 use blake2::{Blake2b512, Digest};
 use chrono::{Duration, Utc};
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
@@ -26,6 +27,7 @@ use secrecy::{ExposeSecret, Secret};
 use serde::{Deserialize, Serialize};
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use std::collections::HashMap;
+use std::str::FromStr;
 use std::{fmt, fs, io, sync::Arc};
 use uuid::Uuid;
 
@@ -98,15 +100,30 @@ pub async fn configure_database_using_sqlx(config: &DatabaseSettings) -> PgPool 
         .run(&connection_pool)
         .await
         .expect("Failed to migrate the database");
+
+    let test_connection_pool = PgPool::connect_with(config.test_with_db())
+        .await
+        .expect("Failed to connect to Postgres.");
+
+    sqlx::migrate!("./migrations")
+        .run(&test_connection_pool)
+        .await
+        .expect("Failed to migrate the database");
+
     connection_pool
 }
 #[tracing::instrument(name = "Confiure Database")]
 pub async fn configure_database(config: &DatabaseSettings) -> PgPool {
+    create_database(config).await;
     let connection_pool = PgPool::connect_with(config.with_db())
         .await
         .expect("Failed to connect to Postgres.");
-    create_database(config).await;
+    let test_connection_pool = PgPool::connect_with(config.test_with_db())
+        .await
+        .expect("Failed to connect to Postgres.");
+
     let _ = execute_query("./migrations", &connection_pool).await;
+    let _ = execute_query("./migrations", &test_connection_pool).await;
     connection_pool
 }
 #[tracing::instrument(name = "Create Database")]
@@ -121,20 +138,43 @@ pub async fn create_database(config: &DatabaseSettings) {
             .bind(&config.name)
             .fetch_optional(&mut connection)
             .await;
+
     match db_count {
         Ok(Some(count)) => {
             if count > 0 {
-                println!("Database {} already exists.", &config.name);
+                tracing::info!("Database {} already exists.", &config.name);
             } else {
                 connection
                     .execute(format!(r#"CREATE DATABASE "{}";"#, config.name).as_str())
                     .await
                     .expect("Failed to create database.");
-                println!("Database created.");
+                eprintln!("Database created.");
             }
         }
-        Ok(_) => println!("No rows found."),
+        Ok(_) => eprintln!("No rows found."),
         Err(err) => eprintln!("Error: {}", err),
+    }
+
+    let test_db_count: Result<Option<i64>, sqlx::Error> =
+        sqlx::query_scalar::<_, i64>("SELECT count(*) FROM pg_database WHERE datname = $1")
+            .bind(&config.test_name)
+            .fetch_optional(&mut connection)
+            .await;
+
+    match test_db_count {
+        Ok(Some(count)) => {
+            if count > 0 {
+                eprintln!("Test database {} already exists.", &config.test_name);
+            } else {
+                connection
+                    .execute(format!(r#"CREATE DATABASE "{}";"#, config.test_name).as_str())
+                    .await
+                    .expect("Failed to create test database.");
+                eprintln!("Test database {} created.", &config.test_name);
+            }
+        }
+        Ok(_) => eprintln!("No rows found for the test database check."),
+        Err(err) => eprintln!("Error checking test database existence: {}", err),
     }
 }
 
@@ -154,11 +194,11 @@ async fn execute_query(path: &str, pool: &PgPool) -> io::Result<()> {
             if let Err(err) = sqlx::query(statement).execute(pool).await {
                 eprintln!("Error executing statement {:?}: {} ", statement, err);
             } else {
-                println!("Migration applied: {:?}", statement);
+                eprintln!("Migration applied: {:?}", statement);
             }
         }
 
-        println!("Migration applied: {:?}", migration_path);
+        eprintln!("Migration applied: {:?}", migration_path);
     }
 
     Ok(())
@@ -260,7 +300,7 @@ pub async fn run_custom_commands(args: Vec<String>) -> Result<(), anyhow::Error>
             migration::migrate_using_sqlx().await;
         }
     } else {
-        println!("Invalid command. Use Enter a valid command");
+        eprintln!("Invalid command. Use Enter a valid command");
     }
 
     Ok(())
@@ -352,7 +392,7 @@ pub fn get_network_participant_detail_from_model(
         long_description: network_model.long_description,
         short_description: network_model.short_description,
         fee_type: network_model.fee_type,
-        fee_value: network_model.fee_value,
+        fee_value: BigDecimal::from_str(&network_model.fee_value.to_string()).unwrap(),
         unique_key_id: network_model.unique_key_id,
     }
 }
@@ -429,4 +469,84 @@ pub fn create_authorization_header(
             expires.unwrap_or_else(|| (Utc::now() + chrono::Duration::hours(1)).timestamp()),
             signature
     ))
+}
+
+#[cfg(test)]
+pub mod tests {
+    use std::str::FromStr;
+
+    use crate::configuration::get_configuration;
+    use crate::constants::{DUMMY_DOMAIN, TEST_DB};
+    use crate::routes::user::schemas::{
+        BusinessAccount, MaskingType,  UserAccount, UserVector, VectorType,
+    };
+    use crate::schemas::{FeeType, KycStatus, RegisteredNetworkParticipant, Status};
+    use crate::startup::get_connection_pool;
+    use bigdecimal::BigDecimal;
+    use sqlx::PgPool;
+    use uuid::Uuid;
+    pub async fn get_test_pool() -> PgPool {
+        let mut configuration = get_configuration().expect("Failed to read configuration.");
+        configuration.database.name = TEST_DB.to_string();
+        configuration.application.port = 0;
+        get_connection_pool(&configuration.database)
+    }
+
+    pub fn get_dummy_user_account(
+        username: String,
+        mobile_no: String,
+        email: String,
+    ) -> UserAccount {
+        UserAccount {
+            id: Uuid::new_v4(),
+            username: username,
+            mobile_no: mobile_no,
+            email: email,
+            is_active: Status::Active,
+            display_name: "SANU SHILSHAD".to_owned(),
+            vectors: vec![],
+            international_dialing_code: "+91".to_owned(),
+            user_account_number: "123445".to_owned(),
+            alt_user_account_number: "123445".to_owned(),
+            is_test_user: true,
+            is_deleted: false,
+            user_role: "user".to_owned(),
+        }
+    }
+
+    pub fn get_dummy_business_account() -> BusinessAccount {
+        let vector = UserVector {
+            key: VectorType::PanCardNo,
+            value: "CKWPC9262N".to_owned(),
+            masking: MaskingType::PartialMask,
+            verified: true,
+        };
+        BusinessAccount {
+            id: Uuid::new_v4(),
+            company_name: "SANU SHILSHAD".to_owned(),
+            vectors: vec![vector],
+            kyc_status: KycStatus::Completed,
+            is_active: Status::Active,
+            is_deleted: false,
+            verified: true,
+            default_vector_type: VectorType::PanCardNo,
+        }
+    }
+
+    pub fn get_dummy_registed_np_detail() -> RegisteredNetworkParticipant {
+        RegisteredNetworkParticipant {
+            code: "SANU".to_owned(),
+            name: "SANU".to_owned(),
+            logo: "google.com".to_owned(),
+            signing_key: "google.com".to_owned().into(),
+            id: Uuid::new_v4(),
+            subscriber_id: DUMMY_DOMAIN.to_string(),
+            subscriber_uri: format!("{}/v1/ondc/seller", DUMMY_DOMAIN),
+            long_description: "SANU".to_owned(),
+            short_description: "SANU".to_owned(),
+            fee_type: FeeType::Amount,
+            fee_value: BigDecimal::from_str("0.0").unwrap(),
+            unique_key_id: "SANU".to_owned(),
+        }
+    }
 }

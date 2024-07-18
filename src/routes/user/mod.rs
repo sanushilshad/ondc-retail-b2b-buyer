@@ -4,6 +4,7 @@ mod middlewares;
 mod models;
 mod routes;
 pub(crate) mod schemas;
+pub(crate) mod tests;
 pub(crate) mod utils;
 pub use middlewares::{BusinessAccountValidation, RequireAuth};
 pub use routes::user_route;

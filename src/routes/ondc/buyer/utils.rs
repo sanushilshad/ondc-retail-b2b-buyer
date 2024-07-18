@@ -23,8 +23,8 @@ use crate::routes::ondc::schemas::{
 };
 use crate::routes::ondc::{ONDCErrorCode, ONDCResponse};
 use crate::routes::product::schemas::{
-    CategoryDomain, PaymentType, ProductFulFillmentLocations, ProductItemPrice,
-    ProductSearchRequest, ProductSearchType, PublicProduct, SearchRequestModel,
+    CategoryDomain, FulfillmentType, PaymentType, ProductFulFillmentLocations, ProductItemPrice,
+    ProductSearchRequest, ProductSearchType, SearchRequestModel, WSProduct,
 };
 use crate::routes::product::ProductSearchError;
 use crate::routes::schemas::{BusinessAccount, UserAccount};
@@ -94,7 +94,7 @@ fn get_search_tag(
 }
 
 pub fn get_search_fulfillment_stops(
-    fulfillment_locations: &Option<Vec<ProductFulFillmentLocations>>,
+    fulfillment_locations: Option<&Vec<ProductFulFillmentLocations>>,
 ) -> Option<Vec<ONDCSearchStop>> {
     let mut ondc_fulfillment_stops = Vec::new();
     match fulfillment_locations {
@@ -139,7 +139,7 @@ fn get_search_by_category(search_request: &ProductSearchRequest) -> Option<ONDCS
     None
 }
 
-fn get_ondc_search_payment_obj(payment_obj: &Option<PaymentType>) -> Option<ONDCSearchPayment> {
+pub fn get_ondc_search_payment_obj(payment_obj: &Option<PaymentType>) -> Option<ONDCSearchPayment> {
     match payment_obj {
         Some(_) => payment_obj.as_ref().map(|obj| ONDCSearchPayment {
             r#type: ONDCPaymentType::get_ondc_payment(obj),
@@ -147,29 +147,41 @@ fn get_ondc_search_payment_obj(payment_obj: &Option<PaymentType>) -> Option<ONDC
         None => None,
     }
 }
-fn get_search_fulfillment_obj(
-    search_request: &ProductSearchRequest,
+pub fn get_search_fulfillment_obj(
+    fulfillment_type: &Option<FulfillmentType>,
+    locations: Option<&Vec<ProductFulFillmentLocations>>,
 ) -> Option<ONDCSearchFulfillment> {
-    if let Some(fulfillment_type) = &search_request.fulfillment_type {
+    if let Some(fulfillment_type) = fulfillment_type {
         return Some(ONDCSearchFulfillment {
             r#type: ONDCFulfillmentType::get_ondc_fulfillment(fulfillment_type),
-            stops: get_search_fulfillment_stops(&search_request.fulfillment_locations),
+            stops: get_search_fulfillment_stops(locations),
         });
     }
 
     None
 }
-fn get_ondc_search_message_obj(
+
+pub fn get_ondc_search_message_obj(
     _user_account: &UserAccount,
     business_account: &BusinessAccount,
     search_request: &ProductSearchRequest,
     np_detail: &RegisteredNetworkParticipant,
 ) -> Result<ONDCSearchMessage, ProductSearchError> {
+    let mut fulfillment_obj = None;
+    let mut payment_obj = None;
+    if search_request.search_type != ProductSearchType::City {
+        fulfillment_obj = get_search_fulfillment_obj(
+            &search_request.fulfillment_type,
+            search_request.fulfillment_locations.as_ref(),
+        );
+        payment_obj = get_ondc_search_payment_obj(&search_request.payment_type);
+    }
+
     Ok(ONDCSearchMessage {
         intent: ONDCSearchIntent {
-            fulfillment: get_search_fulfillment_obj(search_request),
+            fulfillment: fulfillment_obj,
             tags: get_search_tag(business_account, np_detail)?,
-            payment: get_ondc_search_payment_obj(&search_request.payment_type),
+            payment: payment_obj,
             item: get_search_by_item(search_request),
 
             provider: None,
@@ -294,15 +306,17 @@ pub fn get_price_obj_from_ondc_price_obj(
 
 pub fn get_product_from_on_search_request(
     on_search_obj: &ONDCOnSearchRequest,
-) -> Result<Vec<PublicProduct>, anyhow::Error> {
-    let mut product_list: Vec<PublicProduct> = vec![];
+) -> Result<Vec<WSProduct>, anyhow::Error> {
+    let mut product_list: Vec<WSProduct> = vec![];
 
     if let Some(catalog) = &on_search_obj.message.catalog {
         //let np_payment_objs = &catalog.payments;
+
         for provider in &catalog.providers {
+            let np_payment_level = &provider.payments;
             // let provider_payment_obj = &provider.payments;
             for item in &provider.items {
-                let prod = PublicProduct {
+                let prod = WSProduct {
                     id: item.id.clone(),
                     name: item.descriptor.name.clone(),
                     code: item.descriptor.code.clone(),
@@ -333,7 +347,7 @@ pub fn get_product_from_on_search_request(
 pub fn get_search_ws_body(
     message_id: Uuid,
     transaction_id: Uuid,
-    prod_obj: Vec<PublicProduct>,
+    prod_obj: Vec<WSProduct>,
 ) -> WSSearch {
     WSSearch {
         message_id,

@@ -1,15 +1,15 @@
 use std::{collections::HashMap, time::Duration};
 
 use crate::errors::RequestMetaError;
-use crate::routes::{product::schemas::PublicProduct, user::schemas::AuthData};
+use crate::routes::{product::schemas::WSProduct, user::schemas::AuthData};
 use actix_web::{error::ErrorInternalServerError, FromRequest, HttpMessage};
-//use bigdecimal::BigDecimal;
+use bigdecimal::BigDecimal;
 use futures_util::future::{ready, Ready};
 use reqwest::{header, Client};
 use secrecy::Secret;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sqlx::{postgres::PgHasArrayType, types::BigDecimal};
+use sqlx::postgres::PgHasArrayType;
 use tokio::time::sleep;
 use utoipa::{openapi::Object, ToSchema};
 use uuid::Uuid;
@@ -351,5 +351,5 @@ pub enum CurrencyType {
 pub struct WSSearch {
     pub transaction_id: Uuid,
     pub message_id: Uuid,
-    pub products: Vec<PublicProduct>,
+    pub products: Vec<WSProduct>,
 }

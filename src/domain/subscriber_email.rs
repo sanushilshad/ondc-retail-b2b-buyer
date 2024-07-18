@@ -19,6 +19,10 @@ impl EmailObject {
     pub fn get(&self) -> &str {
         &self.0
     }
+
+    pub fn new(email: String) -> Self {
+        EmailObject(email)
+    }
 }
 
 impl AsRef<str> for EmailObject {

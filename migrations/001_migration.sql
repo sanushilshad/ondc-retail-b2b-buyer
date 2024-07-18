@@ -16,6 +16,12 @@ CREATE TYPE status AS ENUM (
   'archived'
 );
 
+CREATE TYPE "data_source" AS ENUM (
+  'place_order',
+  'ondc',
+  'rapidor'
+);
+
 CREATE TABLE IF NOT EXISTS user_account(
     id uuid PRIMARY KEY,
     is_test_user BOOLEAN NOT NULL DEFAULT false,
@@ -39,6 +45,10 @@ CREATE TABLE IF NOT EXISTS user_account(
     subscriber_id TEXT NOT NULL
 );
 
+ALTER TABLE user_account ADD CONSTRAINT user_mobile_uq UNIQUE (mobile_no);
+ALTER TABLE user_account ADD CONSTRAINT user_username_uq UNIQUE (username);
+ALTER TABLE user_account ADD CONSTRAINT user_email_uq UNIQUE (email);
+
 CREATE TYPE "user_auth_identifier_scope" AS ENUM (
   'otp',
   'password',
@@ -55,7 +65,7 @@ CREATE TYPE "user_auth_identifier_scope" AS ENUM (
 CREATE TYPE auth_context_type AS ENUM (
   'user_account',
   'business_account'
-)
+);
 
 CREATE TABLE IF NOT EXISTS auth_mechanism (
   id uuid PRIMARY KEY,
@@ -110,7 +120,7 @@ ALTER TABLE role ADD CONSTRAINT unique_role_name UNIQUE (role_name);
 
 CREATE TABLE IF NOT EXISTS user_role (
   id uuid PRIMARY KEY,
-  user_id uuid NOT NULL ON DELETE CASCADE,
+  user_id uuid NOT NULL,
   role_id uuid NOT NULL,
   created_at TIMESTAMPTZ NOT NULL,
   updated_at TIMESTAMPTZ,
@@ -118,7 +128,7 @@ CREATE TABLE IF NOT EXISTS user_role (
   created_by uuid NOT NULL,
   updated_by uuid,
   deleted_by uuid,
-  is_deleted BOOLEAN NOT NULL
+  is_deleted BOOLEAN NOT NULL DEFAULT false
 );
 
 ALTER TABLE user_role ADD CONSTRAINT fk_role_id FOREIGN KEY ("role_id") REFERENCES role ("id") ON DELETE CASCADE;
@@ -135,7 +145,7 @@ CREATE TABLE IF NOT EXISTS permission (
   created_by uuid,
   updated_by uuid,
   deleted_by uuid,
-  is_deleted BOOLEAN
+  is_deleted BOOLEAN NOT NULL DEFAULT false
 );
 
 CREATE TABLE IF NOT EXISTS role_permission (
@@ -148,7 +158,7 @@ CREATE TABLE IF NOT EXISTS role_permission (
   created_by uuid,
   updated_by uuid,
   deleted_by uuid,
-  is_deleted BOOLEAN
+  is_deleted BOOLEAN NOT NULL DEFAULT false
 );
 
 
@@ -171,12 +181,6 @@ CREATE TYPE kyc_status AS ENUM (
   'on-hold',
   'rejected',
   'completed'
-);
-
-CREATE TYPE "data_source" AS ENUM (
-  'plac_eorder',
-  'ondc',
-  'rapidor'
 );
 
 CREATE TYPE trade_type as ENUM (
@@ -333,3 +337,4 @@ CREATE TABLE IF NOT EXISTS network_participant (
   created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 ALTER TABLE network_participant ADD CONSTRAINT network_participant_constraint UNIQUE (subscriber_id, type);
+

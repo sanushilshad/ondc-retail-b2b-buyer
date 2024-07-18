@@ -1,9 +1,9 @@
 use once_cell::sync::Lazy;
+use rust_test::constants::TEST_DB;
 use rust_test::{
     configuration::get_configuration,
     startup::{get_connection_pool, Application},
     telemetry::{get_subscriber, init_subscriber},
-    utils::configure_database,
 };
 use sqlx::PgPool;
 pub struct TestApp {
@@ -32,11 +32,11 @@ pub async fn spawn_app() -> TestApp {
 
     let configuration = {
         let mut c = get_configuration().expect("Failed to read configuration.");
-        c.database.name = "rust_test_db".to_string();
+        c.database.name = TEST_DB.to_string();
         c.application.port = 0;
         c
     };
-    configure_database(&configuration.database).await;
+    // configure_database(&configuration.database).await;
     let application = Application::build(configuration.clone())
         .await
         .expect("Failed to build application.");

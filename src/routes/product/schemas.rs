@@ -219,7 +219,7 @@ pub struct ProductCategory {
 
 #[derive(Debug, Serialize)]
 #[skip_serializing_none]
-pub struct PublicProduct {
+pub struct WSProduct {
     pub id: String,
     pub name: String,
     pub code: Option<String>,

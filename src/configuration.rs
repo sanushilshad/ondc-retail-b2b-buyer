@@ -80,6 +80,7 @@ pub struct DatabaseSettings {
     pub port: u16,
     pub host: String,
     pub name: String,
+    pub test_name: String,
 }
 
 impl DatabaseSettings {
@@ -95,6 +96,12 @@ impl DatabaseSettings {
     pub fn with_db(&self) -> PgConnectOptions {
         self.without_db()
             .database(&self.name)
+            .log_statements(tracing::log::LevelFilter::Trace)
+    }
+
+    pub fn test_with_db(&self) -> PgConnectOptions {
+        self.without_db()
+            .database(&self.test_name)
             .log_statements(tracing::log::LevelFilter::Trace)
     }
 }

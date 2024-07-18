@@ -77,6 +77,9 @@ name = "rust_test"
 
 [profile.release]
 opt-level = 3
+strip = "symbols"
+
+
 
 # [[bin]]
 # name = "custom_commands"

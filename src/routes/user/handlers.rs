@@ -39,7 +39,7 @@ pub async fn register_user_account(
         )
         .into());
     } else {
-        match register_user(&pool, body.0, meta_data.domain_uri).await {
+        match register_user(&pool, &body.0, &meta_data.domain_uri).await {
             Ok(uuid) => {
                 tracing::Span::current().record("user_id", &tracing::field::display(&uuid));
                 Ok(web::Json(GenericResponse::success(
@@ -124,7 +124,7 @@ pub async fn register_business_account(
     user: UserAccount,
 ) -> Result<web::Json<GenericResponse<()>>, GenericError> {
     // if let UserType::Admin | UserType::Superadmin = body.user_type {
-    create_business_account(&pool, &user, &body, meta_data.domain_uri).await?;
+    create_business_account(&pool, &user, &body, &meta_data.domain_uri).await?;
     Ok(web::Json(GenericResponse::success(
         "Sucessfully Registered Business Account",
         Some(()),

@@ -225,7 +225,7 @@ pub struct ONDCSearchStop {
     pub r#type: ONDCFulfillmentStopType,
     pub location: ONDCSearchLocation,
 }
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub enum ONDCFulfillmentType {
     #[serde(rename = "Delivery")]
     Delivery,
@@ -263,7 +263,7 @@ pub struct ONDCSearchItem {
 }
 
 #[allow(clippy::enum_variant_names)]
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 
 pub enum ONDCPaymentType {
     #[serde(rename = "PRE-FULFILLMENT")]

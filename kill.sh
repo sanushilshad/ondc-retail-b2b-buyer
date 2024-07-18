@@ -1,7 +1,8 @@
 #!/bin/bash
 
 # pkill -U dev2
-PIDS=($(ps aux | grep 'dev2' | grep 'rust_test' | awk '{print $2}'))
+source env.sh
+PIDS=($(ps aux | grep "$APPLICATION__ACCOUNT_NAME" | grep "$APPLICATION__NAME" | awk '{print $2}'))
 if [ ${#PIDS[@]} -gt 0 ];then
     echo "Running Ports are ${PIDS}"
     for i in "${PIDS[@]}"
