@@ -53,7 +53,7 @@ pub struct UserAccountModel {
 //         })
 //     }
 // }
-
+#[allow(dead_code)]
 #[derive(Debug, FromRow)]
 pub struct UserRoleModel {
     pub id: Uuid,
@@ -63,7 +63,7 @@ pub struct UserRoleModel {
     pub created_by: String,
     pub is_deleted: bool,
 }
-
+#[allow(dead_code)]
 #[derive(Debug, FromRow)]
 pub struct BusinessAccountModel {
     pub id: Uuid,
@@ -73,7 +73,7 @@ pub struct BusinessAccountModel {
     pub kyc_status: KycStatus,
     pub is_active: Status,
 }
-
+#[allow(dead_code)]
 #[derive(Debug, FromRow)]
 pub struct UserBusinessRelationAccountModel {
     pub id: Uuid,

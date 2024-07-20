@@ -1,15 +1,10 @@
 use std::fmt::{Display, Formatter};
 
-use crate::routes::ondc::ONDCItemUOM;
-use crate::{
-    errors::GenericError,
-    schemas::{CountryCode, CurrencyType},
-};
+use crate::routes::ondc::buyer::schemas::{ONDCFulfillmentType, ONDCPaymentType};
+use crate::{errors::GenericError, schemas::CountryCode};
 use actix_web::{dev::Payload, web, FromRequest, HttpRequest};
-use bigdecimal::BigDecimal;
 use futures_util::future::LocalBoxFuture;
 use serde::{Deserialize, Serialize};
-use serde_with::skip_serializing_none;
 use utoipa::ToSchema;
 use uuid::Uuid;
 #[derive(Debug, Deserialize, Serialize, ToSchema, sqlx::Type)]
@@ -21,6 +16,16 @@ pub enum PaymentType {
     Credit,
 }
 
+impl PaymentType {
+    pub fn get_ondc_payment(&self) -> ONDCPaymentType {
+        match self {
+            PaymentType::CashOnDelivery => ONDCPaymentType::OnFulfillment,
+            PaymentType::PrePaid => ONDCPaymentType::PreFulfillment,
+            PaymentType::Credit => ONDCPaymentType::PostFulfillment,
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize, ToSchema, sqlx::Type)]
 #[serde(rename_all = "snake_case")]
 #[sqlx(type_name = "fulfillment_type", rename_all = "snake_case")]
@@ -28,6 +33,15 @@ pub enum PaymentType {
 pub enum FulfillmentType {
     Delivery,
     SelfPickup,
+}
+
+impl FulfillmentType {
+    pub fn get_ondc_fulfillment(&self) -> ONDCFulfillmentType {
+        match self {
+            FulfillmentType::Delivery => ONDCFulfillmentType::Delivery,
+            FulfillmentType::SelfPickup => ONDCFulfillmentType::SelfPickup,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, ToSchema, sqlx::Type)]
@@ -131,111 +145,4 @@ pub struct SearchRequestModel {
     pub user_id: Uuid,
     pub business_id: Uuid,
     pub device_id: String,
-}
-
-#[derive(Debug, Serialize)]
-pub struct ProductItemPrice {
-    pub currency: CurrencyType,
-    pub value: BigDecimal,
-    pub offered_value: Option<BigDecimal>,
-    pub maximum_value: BigDecimal,
-}
-
-#[derive(Debug, Serialize)]
-pub struct CreatorContactData {
-    name: String,
-    address: String,
-    phone: String,
-    email: String,
-}
-
-#[derive(Debug, Serialize)]
-pub struct ProductCreator {
-    name: String,
-    contact: CreatorContactData,
-}
-
-#[derive(Debug, Serialize)]
-struct ProviderLocation {
-    id: String,
-    gps: String,
-    address: String,
-    city: String,
-    state: String,
-    country: CountryCode,
-    area_code: String,
-}
-
-#[derive(Debug, Serialize)]
-struct ProductQty {
-    measure: ProductQtyMeasure,
-    count: u32,
-}
-
-#[derive(Debug, Serialize)]
-struct ProductQtyMeasure {
-    unit: ONDCItemUOM,
-    value: BigDecimal,
-}
-
-#[derive(Debug, Serialize)]
-struct UnitizedProductQty {
-    unit: ONDCItemUOM,
-}
-
-#[derive(Debug, Serialize)]
-struct ONDCOnSearchItemQuantity {
-    unitized: UnitizedProductQty,
-    available: ProductQty,
-    maximum: ProductQty,
-    minimum: Option<ProductQty>,
-}
-#[derive(Debug, Serialize)]
-struct ProductProvider {
-    id: String,
-    rating: String,
-    name: String,
-    code: String,
-    short_desc: String,
-    long_desc: String,
-    videos: Option<String>,
-    images: Vec<String>,
-}
-
-#[derive(Debug, Serialize)]
-struct ProductNpDeatils {
-    name: String,
-    code: Option<String>,
-    short_desc: String,
-    long_desc: String,
-    images: Vec<String>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct ProductCategory {
-    code: String,
-    name: String,
-}
-
-#[derive(Debug, Serialize)]
-#[skip_serializing_none]
-pub struct WSProduct {
-    pub id: String,
-    pub name: String,
-    pub code: Option<String>,
-    pub domain_category: CategoryDomain,
-    pub price: ProductItemPrice,
-    pub parent_item_id: Option<String>,
-    pub recommended: bool,
-    // pub payment_types: Vec<PaymentType>,
-    // pub fullfillment_type: Vec<FulfillmentType>,
-    // pub creator: ProductCreator,
-    // pub locations: Vec<ProviderLocation>,
-    // pub quantity: ONDCOnSearchItemQuantity,
-    // pub categories: ProductCategory,
-    // pub provider_detail: ProductProvider,
-    // pub np_detail: ProductNpDeatils,
-    // pub tax_rate: BigDecimal,
-    // pub country_of_origin: CountryCode,
-    // pub images: Vec<String>,
 }

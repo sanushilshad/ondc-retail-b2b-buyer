@@ -281,6 +281,7 @@ impl PgHasArrayType for AuthContextType {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct AuthMechanism {
     pub id: Uuid,
@@ -293,6 +294,7 @@ pub struct AuthMechanism {
     pub auth_context: AuthContextType,
 }
 
+#[allow(dead_code)]
 pub struct AccountRole {
     pub id: Uuid,
     pub role_name: String,
@@ -387,6 +389,7 @@ pub struct KYCProof {
     pub value: Vec<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Deserialize, Debug, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateBusinessAccount {
@@ -404,6 +407,7 @@ pub struct CreateBusinessAccount {
     pub default_vector_type: VectorType,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct BusinessAccount {

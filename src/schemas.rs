@@ -1,7 +1,7 @@
 use std::{collections::HashMap, time::Duration};
 
 use crate::errors::RequestMetaError;
-use crate::routes::{product::schemas::WSProduct, user::schemas::AuthData};
+use crate::routes::user::schemas::AuthData;
 use actix_web::{error::ErrorInternalServerError, FromRequest, HttpMessage};
 use bigdecimal::BigDecimal;
 use futures_util::future::{ready, Ready};
@@ -345,11 +345,4 @@ pub struct ONDCAuthParams {
 #[serde(rename_all = "UPPERCASE")]
 pub enum CurrencyType {
     Inr,
-}
-
-#[derive(Debug, Serialize)]
-pub struct WSSearch {
-    pub transaction_id: Uuid,
-    pub message_id: Uuid,
-    pub products: Vec<WSProduct>,
 }

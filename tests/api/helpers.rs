@@ -6,6 +6,7 @@ use rust_test::{
     telemetry::{get_subscriber, init_subscriber},
 };
 use sqlx::PgPool;
+#[allow(dead_code)]
 pub struct TestApp {
     pub address: String,
     pub db_pool: PgPool,

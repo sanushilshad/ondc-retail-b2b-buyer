@@ -1,15 +1,17 @@
 use super::errors::ONDCBuyerError;
 use crate::routes::ondc::schemas::{ONDCContext, ONDCResponseErrorBody};
 use crate::routes::ondc::{ONDCItemUOM, ONDCSellerErrorCode};
-use crate::routes::product::schemas::{FulfillmentType, PaymentType};
-use crate::routes::schemas::VectorType;
+use crate::routes::product::schemas::{CategoryDomain, FulfillmentType, PaymentType};
 use crate::schemas::{CurrencyType, FeeType, ONDCNetworkType};
 use crate::utils::pascal_to_snake_case;
 use actix_web::{dev::Payload, web, FromRequest, HttpRequest};
+use bigdecimal::BigDecimal;
 use futures_util::future::LocalBoxFuture;
 use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
-#[derive(Debug, Serialize, Deserialize)]
+use std::collections::HashMap;
+use uuid::Uuid;
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum ONDCTagType {
     BuyerId,
@@ -33,7 +35,7 @@ pub enum ONDCTagType {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCTagDescriptor {
-    code: ONDCTagType,
+    pub code: ONDCTagType,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -72,6 +74,12 @@ pub enum ONDCTagItemCode {
     MinPackSize,
     MaxPackSize,
     UnitSalePrice,
+}
+
+impl std::fmt::Display for ONDCTagItemCode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", pascal_to_snake_case(&format!("{:?}", self)))
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -183,10 +191,24 @@ impl ONDCFeeType {
     }
 }
 
+pub trait TagTrait {
+    fn get_tag_value(&self, item_code: &str) -> Option<&str>;
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCTag {
     pub descriptor: ONDCTagDescriptor,
     pub list: Vec<ONDCTagItem>,
+}
+
+impl TagTrait for ONDCTag {
+    fn get_tag_value(&self, tag_item_code: &str) -> Option<&str> {
+        self.list
+            .iter()
+            .find(|item| item.descriptor.code.to_string() == tag_item_code)
+            .map(|item| &item.value)
+            .map(|x| x.as_str())
+    }
 }
 
 impl ONDCTag {
@@ -216,6 +238,34 @@ impl ONDCTag {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCOnSearchItemTag {
+    pub descriptor: ONDCTagDescriptor,
+    pub list: Vec<ONDCOnSearchItemTagItem>,
+}
+
+impl TagTrait for ONDCOnSearchItemTag {
+    fn get_tag_value(&self, tag_item_code: &str) -> Option<&str> {
+        self.list
+            .iter()
+            .find(|item| item.descriptor.code == tag_item_code)
+            .map(|item| &item.value)
+            .map(|x| x.as_str())
+        // Some("".to_string())
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCOnSearchItemTagItemDescriptor {
+    pub code: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCOnSearchItemTagItem {
+    pub descriptor: ONDCOnSearchItemTagItemDescriptor,
+    pub value: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCSearchLocation {
     pub gps: String,
     pub area_code: String,
@@ -235,10 +285,17 @@ pub enum ONDCFulfillmentType {
 }
 
 impl ONDCFulfillmentType {
-    pub fn get_ondc_fulfillment(payment_type: &FulfillmentType) -> ONDCFulfillmentType {
-        match payment_type {
-            FulfillmentType::Delivery => ONDCFulfillmentType::Delivery,
-            FulfillmentType::SelfPickup => ONDCFulfillmentType::SelfPickup,
+    // pub fn get_ondc_fulfillment(payment_type: &FulfillmentType) -> ONDCFulfillmentType {
+    //     match payment_type {
+    //         FulfillmentType::Delivery => ONDCFulfillmentType::Delivery,
+    //         FulfillmentType::SelfPickup => ONDCFulfillmentType::SelfPickup,
+    //     }
+    // }
+
+    pub fn get_fulfillment_from_ondc(&self) -> FulfillmentType {
+        match &self {
+            ONDCFulfillmentType::Delivery => FulfillmentType::Delivery,
+            ONDCFulfillmentType::SelfPickup => FulfillmentType::SelfPickup,
         }
     }
 }
@@ -276,11 +333,11 @@ pub enum ONDCPaymentType {
 }
 
 impl ONDCPaymentType {
-    pub fn get_ondc_payment(payment_type: &PaymentType) -> ONDCPaymentType {
-        match payment_type {
-            PaymentType::CashOnDelivery => ONDCPaymentType::OnFulfillment,
-            PaymentType::PrePaid => ONDCPaymentType::PreFulfillment,
-            PaymentType::Credit => ONDCPaymentType::PostFulfillment,
+    pub fn get_payment(&self) -> PaymentType {
+        match self {
+            ONDCPaymentType::OnFulfillment => PaymentType::CashOnDelivery,
+            ONDCPaymentType::PreFulfillment => PaymentType::PrePaid,
+            ONDCPaymentType::PostFulfillment => PaymentType::Credit,
         }
     }
 }
@@ -315,7 +372,7 @@ pub struct ONDCSearchRequest {
     pub message: ONDCSearchMessage,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub enum OnSearchContentType {
     #[serde(rename = "text/html")]
     Html,
@@ -333,13 +390,19 @@ pub struct ONDCOnSearchAdditionalDescriptor {
 pub struct ONDCImage {
     url: String,
 }
+
+impl ONDCImage {
+    pub fn get_value(&self) -> &str {
+        &self.url
+    }
+}
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCOnSearchDescriptor {
-    name: String,
-    code: Option<String>,
-    short_desc: String,
-    long_desc: String,
-    images: Vec<ONDCImage>,
+    pub name: String,
+    pub code: Option<String>,
+    pub short_desc: String,
+    pub long_desc: String,
+    pub images: Vec<ONDCImage>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -348,6 +411,8 @@ pub struct ONDCOnSearchPayment {
     pub r#type: ONDCPaymentType,
     pub collected_by: Option<ONDCNetworkType>,
 }
+
+impl ONDCOnSearchPayment {}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCOnSearchFullFillment {
@@ -365,27 +430,30 @@ pub struct ONDCCredential {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct ONDCOnSearchProviderDescriptor {
-    name: String,
-    code: String,
-    short_desc: String,
-    long_desc: String,
-    additional_desc: Option<ONDCOnSearchAdditionalDescriptor>,
-    images: Vec<ONDCImage>,
+pub struct ONDCOnSearchProviderDescriptor {
+    pub name: String,
+    pub code: String,
+    pub short_desc: String,
+    pub long_desc: String,
+    pub additional_desc: Option<ONDCOnSearchAdditionalDescriptor>,
+    pub images: Vec<ONDCImage>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct ONDCOnSearchCountry {
-    code: String,
+pub struct ONDCOnSearchCountry {
+    pub code: String,
+    pub name: Option<String>,
 }
 #[derive(Serialize, Deserialize, Debug)]
-struct ONDCOnSearchState {
-    code: String,
+pub struct ONDCOnSearchState {
+    pub code: String,
+    pub name: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct ONDCOnSearchCity {
-    code: String,
+pub struct ONDCOnSearchCity {
+    pub code: String,
+    pub name: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -400,32 +468,32 @@ pub struct ONDCOnSearchItemDescriptor {
     pub code: Option<String>,
     short_desc: String,
     long_desc: String,
-    images: Vec<ONDCImage>,
+    pub images: Vec<ONDCImage>,
     media: Option<Vec<ONDCMedia>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct ONDCOnSearchCreatorAddress {
-    full: String,
+pub struct ONDCOnSearchCreatorAddress {
+    pub full: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct ONDCItemCreatorContact {
-    name: String,
-    address: ONDCOnSearchCreatorAddress,
-    phone: String,
-    email: String,
+pub struct ONDCItemCreatorContact {
+    pub name: String,
+    pub address: ONDCOnSearchCreatorAddress,
+    pub phone: String,
+    pub email: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct ONDCItemCreatorDescriptor {
-    name: String,
-    contact: ONDCItemCreatorContact,
+pub struct ONDCItemCreatorDescriptor {
+    pub name: String,
+    pub contact: ONDCItemCreatorContact,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct ONDCOnSearchItemCreator {
-    descriptor: ONDCItemCreatorDescriptor,
+pub struct ONDCOnSearchItemCreator {
+    pub descriptor: ONDCItemCreatorDescriptor,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -437,28 +505,28 @@ pub struct ONDCOnSearchItemPrice {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct ONDCOnSearchQtyMeasure {
-    unit: ONDCItemUOM,
-    value: String,
+pub struct ONDCOnSearchQtyMeasure {
+    pub unit: ONDCItemUOM,
+    pub value: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct ONDCOnSearchQtUnitized {
-    measure: ONDCOnSearchQtyMeasure,
+pub struct ONDCOnSearchQtUnitized {
+    pub measure: ONDCOnSearchQtyMeasure,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct ONDCOnSearchQty {
-    measure: ONDCOnSearchQtyMeasure,
-    count: u32,
+pub struct ONDCOnSearchQty {
+    pub measure: ONDCOnSearchQtyMeasure,
+    pub count: u32,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct ONDCOnSearchItemQuantity {
-    unitized: ONDCOnSearchQtUnitized,
-    available: ONDCOnSearchQty,
-    maximum: ONDCOnSearchQty,
-    minimum: Option<ONDCOnSearchQty>,
+pub struct ONDCOnSearchItemQuantity {
+    pub unitized: ONDCOnSearchQtUnitized,
+    pub available: ONDCOnSearchQty,
+    pub maximum: ONDCOnSearchQty,
+    pub minimum: Option<ONDCOnSearchQty>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -523,22 +591,6 @@ struct ONDCItemCancellationTerm {
     cancellation_fee: ONDCItemCancellationFee,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ONDCOnSearchItemTagItemDescriptor {
-    pub code: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ONDCOnSearchItemTagItem {
-    pub descriptor: ONDCOnSearchItemTagItemDescriptor,
-    pub value: String,
-}
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ONDCOnSearchItemTag {
-    pub descriptor: ONDCTagDescriptor,
-    pub list: Vec<ONDCOnSearchItemTagItem>,
-}
-
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ONDCOnSearchItem {
     pub id: String,
@@ -546,30 +598,30 @@ pub struct ONDCOnSearchItem {
     matched: bool,
     pub recommended: bool,
     pub descriptor: ONDCOnSearchItemDescriptor,
-    creator: ONDCOnSearchItemCreator,
-    category_ids: Vec<String>,
-    fulfillment_ids: Vec<String>,
-    location_ids: Vec<String>,
-    payment_ids: Vec<String>,
+    pub creator: ONDCOnSearchItemCreator,
+    pub category_ids: Vec<String>,
+    pub fulfillment_ids: Vec<String>,
+    pub location_ids: Vec<String>,
+    pub payment_ids: Vec<String>,
     pub price: ONDCOnSearchItemPrice,
-    quantity: ONDCOnSearchItemQuantity,
+    pub quantity: ONDCOnSearchItemQuantity,
     add_ons: Option<Vec<ONDCOnSearchItemAddOns>>,
     time: Option<ONDCTime>,
     replacement_terms: Vec<ONDCItemReplacementTerm>,
     return_terms: Vec<ONDCReturnTerm>,
     cancellation_terms: Vec<ONDCItemCancellationTerm>,
-    tags: Vec<ONDCOnSearchItemTag>,
+    pub tags: Vec<ONDCOnSearchItemTag>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct ONDCOnSearchProviderLocation {
-    id: String,
-    gps: String,
-    address: String,
-    city: ONDCOnSearchCity,
-    state: ONDCOnSearchState,
-    country: ONDCOnSearchCountry,
-    area_code: String,
+pub struct ONDCOnSearchProviderLocation {
+    pub id: String,
+    pub gps: String,
+    pub address: String,
+    pub city: ONDCOnSearchCity,
+    pub state: ONDCOnSearchState,
+    pub country: ONDCOnSearchCountry,
+    pub area_code: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -640,13 +692,13 @@ struct ONDCOnSearchCategory {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCOnSearchProvider {
-    id: String,
-    descriptor: ONDCOnSearchProviderDescriptor,
+    pub id: String,
+    pub descriptor: ONDCOnSearchProviderDescriptor,
     pub payments: Option<Vec<ONDCOnSearchPayment>>,
-    rating: Option<String>,
+    pub rating: Option<String>,
     ttl: String,
     creds: Option<Vec<ONDCCredential>>,
-    locations: Vec<ONDCOnSearchProviderLocation>,
+    pub locations: Vec<ONDCOnSearchProviderLocation>,
     tags: Vec<ONDCTag>,
     fulfillments: Vec<ONDCOnSearchFulfillmentContact>,
     offers: Option<Vec<ONDCOnSearchOffer>>,
@@ -656,9 +708,9 @@ pub struct ONDCOnSearchProvider {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCOnSearchCatalog {
-    descriptor: ONDCOnSearchDescriptor,
+    pub descriptor: ONDCOnSearchDescriptor,
     pub payments: Vec<ONDCOnSearchPayment>,
-    fulfillments: Vec<ONDCOnSearchFullFillment>,
+    pub fulfillments: Vec<ONDCOnSearchFullFillment>,
     pub providers: Vec<ONDCOnSearchProvider>,
 }
 
@@ -708,4 +760,172 @@ impl std::fmt::Display for ONDCBuyerIdType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", pascal_to_snake_case(&format!("{:?}", self)))
     }
+}
+
+#[derive(Debug, Serialize)]
+pub struct WSSearchItemPrice {
+    pub currency: CurrencyType,
+    pub value: BigDecimal,
+    pub offered_value: Option<BigDecimal>,
+    pub maximum_value: BigDecimal,
+}
+
+#[derive(Debug, Serialize)]
+pub struct WSCreatorContactData<'a> {
+    pub name: &'a str,
+    pub address: &'a str,
+    pub phone: &'a str,
+    pub email: &'a str,
+}
+
+#[derive(Debug, Serialize)]
+pub struct WSProductCreator<'a> {
+    pub name: &'a str,
+    pub contact: WSCreatorContactData<'a>,
+}
+
+// #[derive(Debug, Serialize)]
+// struct ProviderLocation {
+//     id: String,
+//     gps: String,
+//     address: String,
+//     city: String,
+//     state: String,
+//     country: CountryCode,
+//     area_code: String,
+// }
+
+#[derive(Debug, Serialize)]
+pub struct WSSearchItemQty {
+    pub measure: WSSearchItemQtyMeasure,
+    pub count: u32,
+}
+
+#[derive(Debug, Serialize)]
+pub struct WSSearchItemQtyMeasure {
+    pub unit: ONDCItemUOM,
+    pub value: BigDecimal,
+}
+
+#[derive(Debug, Serialize)]
+pub struct UnitizedProductQty {
+    pub unit: ONDCItemUOM,
+}
+
+#[derive(Debug, Serialize)]
+pub struct WSSearchItemQuantity {
+    pub unitized: UnitizedProductQty,
+    pub available: WSSearchItemQty,
+    pub maximum: WSSearchItemQty,
+    pub minimum: Option<WSSearchItemQty>,
+}
+#[derive(Debug, Serialize)]
+pub struct WSSearchProductProvider<'a> {
+    pub id: &'a str,
+    pub rating: Option<&'a str>,
+    pub name: &'a str,
+    pub code: &'a str,
+    pub short_desc: &'a str,
+    pub long_desc: &'a str,
+    pub videos: Vec<&'a str>,
+    pub images: Vec<&'a str>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct WSSearchProductNpDeatils {
+    name: String,
+    code: Option<String>,
+    short_desc: String,
+    long_desc: String,
+    images: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct WSProductCategory {
+    pub code: String,
+    pub name: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct WSItemPayment<'a> {
+    pub r#type: PaymentType,
+    pub collected_by: &'a ONDCNetworkType,
+}
+
+#[derive(Debug, Serialize)]
+#[skip_serializing_none]
+pub struct WSSearchItem<'a> {
+    pub id: &'a str,
+    pub name: &'a str,
+    pub code: Option<&'a str>,
+    pub domain_category: CategoryDomain,
+    pub price: WSSearchItemPrice,
+    pub parent_item_id: Option<&'a str>,
+    pub recommended: bool,
+    pub payment_types: Vec<WSItemPayment<'a>>,
+    pub fullfillment_type: Vec<FulfillmentType>,
+    pub location_ids: Vec<&'a str>,
+    pub creator: WSProductCreator<'a>,
+    pub quantity: WSSearchItemQuantity,
+    pub categories: Vec<WSProductCategory>,
+    pub tax_rate: BigDecimal,
+    // pub country_of_origin: CountryCode,
+    pub images: Vec<&'a str>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct WSSearchCountry<'a> {
+    pub code: &'a str,
+    pub name: Option<&'a str>,
+}
+#[derive(Debug, Serialize)]
+pub struct WSSearchState<'a> {
+    pub code: &'a str,
+    pub name: Option<&'a str>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct WSSearchCity<'a> {
+    pub code: &'a str,
+    pub name: Option<&'a str>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct WSSearchProviderLocation<'a> {
+    pub id: &'a str,
+    pub gps: &'a str,
+    pub address: &'a str,
+    pub city: WSSearchCity<'a>,
+    pub country: WSSearchCountry<'a>,
+    pub state: WSSearchState<'a>,
+    pub area_code: &'a str,
+}
+
+#[derive(Debug, Serialize)]
+pub struct WSSearchProvider<'a> {
+    pub items: Vec<WSSearchItem<'a>>,
+    pub provider_detail: WSSearchProductProvider<'a>,
+    pub locations: HashMap<String, WSSearchProviderLocation<'a>>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct WSSearchBPP<'a> {
+    pub name: &'a str,
+    pub code: Option<&'a str>,
+    pub short_desc: &'a str,
+    pub long_desc: &'a str,
+    pub images: Vec<&'a str>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct WSSearchData<'a> {
+    pub bpp: WSSearchBPP<'a>,
+    pub providers: Vec<WSSearchProvider<'a>>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct WSSearch<'a> {
+    pub transaction_id: Uuid,
+    pub message_id: Uuid,
+    pub message: WSSearchData<'a>,
 }

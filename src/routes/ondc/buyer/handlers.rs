@@ -28,32 +28,30 @@ pub async fn on_search(
     .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
     let extracted_search_obj =
         search_obj.ok_or(ONDCBuyerError::BuyerResponseSequenceError { path: None })?;
-    let products = get_product_from_on_search_request(&body).map_err(|e| {
+    let product_objs = get_product_from_on_search_request(&body).map_err(|e| {
         ONDCBuyerError::InvalidResponseError {
             path: None,
             message: e.to_string(),
         }
     })?;
-    if products.is_empty() {
-        return Ok(web::Json(ONDCResponse::successful_response(None)));
+
+    if let Some(product_objs) = product_objs {
+        if !product_objs.providers.is_empty() && !extracted_search_obj.update_cache {
+            let ws_params = get_websocket_params_from_search_req(extracted_search_obj);
+            let ws_body = get_search_ws_body(
+                body.context.message_id,
+                body.context.transaction_id,
+                product_objs,
+            );
+            let ws_json = serde_json::to_value(ws_body).unwrap();
+            let msg = MessageToClient::new(
+                WebSocketActionType::Search,
+                ws_json,
+                Some(ws_params.get_key()),
+            );
+            websocket_srv.do_send(msg);
+        }
     }
-    if extracted_search_obj.update_cache {
-        let ws_params = get_websocket_params_from_search_req(extracted_search_obj);
-        let ws_body = get_search_ws_body(
-            body.context.message_id,
-            body.context.transaction_id,
-            products,
-        );
-        let ws_json = serde_json::to_value(ws_body).unwrap();
-        let msg = MessageToClient::new(
-            WebSocketActionType::Search,
-            ws_json,
-            Some(ws_params.get_key()),
-        );
-        websocket_srv.do_send(msg);
-    }
-    // else {
-    // }
 
     Ok(web::Json(ONDCResponse::successful_response(None)))
 }
