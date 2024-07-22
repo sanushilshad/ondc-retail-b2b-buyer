@@ -1,5 +1,4 @@
 /target
-
 settings.json
 launch.json
 tasks.json
@@ -8,3 +7,4 @@ configuration.yaml
 env.sh
 Cargo.lock
 .env
+/node_modules
