@@ -33,7 +33,7 @@ use crate::routes::product::schemas::{
     ProductSearchRequest, ProductSearchType, SearchRequestModel,
 };
 use crate::routes::product::ProductSearchError;
-use crate::routes::schemas::{BusinessAccount, UserAccount};
+use crate::routes::user::schemas::{BusinessAccount, UserAccount};
 use crate::routes::user::utils::get_default_vector_value;
 use crate::schemas::{
     CountryCode, NetworkCall, ONDCNetworkType, RegisteredNetworkParticipant, WebSocketParam,

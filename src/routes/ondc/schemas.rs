@@ -2,6 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
 use std::fmt::{Display, Formatter};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use super::utils::serialize_timestamp_without_nanos;
@@ -340,7 +341,7 @@ pub struct LookupData {
     pub r#type: ONDCNetworkType,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ONDCItemUOM {
     Unit,

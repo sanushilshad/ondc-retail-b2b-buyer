@@ -323,7 +323,7 @@ impl WebSocketParam {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, sqlx::Type)]
+#[derive(Debug, Serialize, Deserialize, sqlx::Type, Clone)]
 #[serde(rename_all = "UPPERCASE")]
 #[sqlx(type_name = "ondc_network_participant_type", rename_all = "UPPERCASE")]
 pub enum ONDCNetworkType {
@@ -341,7 +341,7 @@ pub struct ONDCAuthParams {
     pub signature: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum CurrencyType {
     Inr,

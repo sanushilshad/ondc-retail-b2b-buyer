@@ -6,7 +6,8 @@ use super::schemas::{
     AccountRole, AuthContextType, AuthData, AuthMechanism, AuthenticateRequest, AuthenticationScope, BasicBusinessAccount, BulkAuthMechanismInsert, BusinessAccount, CreateBusinessAccount, CreateUserAccount, DataSource, KYCProof, MaskingType, UserAccount, UserType, UserVector, VectorType,
 };
 use crate::configuration::JWT;
-use crate::routes::schemas::{CustomerType, MerchantType, TradeType};
+use crate::routes::user::schemas::{CustomerType, TradeType, MerchantType};
+// use crate::routes::schemas::{CustomerType, MerchantType, TradeType};
 use crate::schemas::{KycStatus, Status};
 use crate::utils::{generate_jwt_token_for_user, spawn_blocking_with_tracing};
 use anyhow::{anyhow, Context};

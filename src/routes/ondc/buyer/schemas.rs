@@ -10,6 +10,7 @@ use futures_util::future::LocalBoxFuture;
 use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
 use std::collections::HashMap;
+use utoipa::ToSchema;
 use uuid::Uuid;
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
@@ -719,7 +720,8 @@ pub struct ONDCOnSearchMessage {
     pub catalog: Option<ONDCOnSearchCatalog>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub struct ONDCOnSearchRequest {
     pub context: ONDCContext,
     pub message: ONDCOnSearchMessage,
@@ -762,15 +764,18 @@ impl std::fmt::Display for ONDCBuyerIdType {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct WSSearchItemPrice {
     pub currency: CurrencyType,
+    #[schema(value_type = f64)]
     pub value: BigDecimal,
+    #[schema(value_type =Option<f64>)]
     pub offered_value: Option<BigDecimal>,
+    #[schema(value_type = f64)]
     pub maximum_value: BigDecimal,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct WSCreatorContactData<'a> {
     pub name: &'a str,
     pub address: &'a str,
@@ -778,7 +783,7 @@ pub struct WSCreatorContactData<'a> {
     pub email: &'a str,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct WSProductCreator<'a> {
     pub name: &'a str,
     pub contact: WSCreatorContactData<'a>,
@@ -795,31 +800,32 @@ pub struct WSProductCreator<'a> {
 //     area_code: String,
 // }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct WSSearchItemQty {
     pub measure: WSSearchItemQtyMeasure,
     pub count: u32,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct WSSearchItemQtyMeasure {
     pub unit: ONDCItemUOM,
+    #[schema(value_type = f64)]
     pub value: BigDecimal,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct UnitizedProductQty {
     pub unit: ONDCItemUOM,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct WSSearchItemQuantity {
     pub unitized: UnitizedProductQty,
     pub available: WSSearchItemQty,
     pub maximum: WSSearchItemQty,
     pub minimum: Option<WSSearchItemQty>,
 }
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct WSSearchProductProvider<'a> {
     pub id: &'a str,
     pub rating: Option<&'a str>,
@@ -831,28 +837,28 @@ pub struct WSSearchProductProvider<'a> {
     pub images: Vec<&'a str>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct WSSearchProductNpDeatils {
-    name: String,
-    code: Option<String>,
-    short_desc: String,
-    long_desc: String,
-    images: Vec<String>,
+    pub name: String,
+    pub code: Option<String>,
+    pub short_desc: String,
+    pub long_desc: String,
+    pub images: Vec<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct WSProductCategory {
     pub code: String,
     pub name: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct WSItemPayment<'a> {
     pub r#type: PaymentType,
     pub collected_by: &'a ONDCNetworkType,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[skip_serializing_none]
 pub struct WSSearchItem<'a> {
     pub id: &'a str,
@@ -873,24 +879,24 @@ pub struct WSSearchItem<'a> {
     pub images: Vec<&'a str>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct WSSearchCountry<'a> {
     pub code: &'a str,
     pub name: Option<&'a str>,
 }
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct WSSearchState<'a> {
     pub code: &'a str,
     pub name: Option<&'a str>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct WSSearchCity<'a> {
     pub code: &'a str,
     pub name: Option<&'a str>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct WSSearchProviderLocation<'a> {
     pub id: &'a str,
     pub gps: &'a str,
@@ -901,14 +907,14 @@ pub struct WSSearchProviderLocation<'a> {
     pub area_code: &'a str,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct WSSearchProvider<'a> {
     pub items: Vec<WSSearchItem<'a>>,
     pub provider_detail: WSSearchProductProvider<'a>,
     pub locations: HashMap<String, WSSearchProviderLocation<'a>>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct WSSearchBPP<'a> {
     pub name: &'a str,
     pub code: Option<&'a str>,
@@ -917,15 +923,17 @@ pub struct WSSearchBPP<'a> {
     pub images: Vec<&'a str>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct WSSearchData<'a> {
     pub bpp: WSSearchBPP<'a>,
     pub providers: Vec<WSSearchProvider<'a>>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct WSSearch<'a> {
+    #[schema(value_type = String)]
     pub transaction_id: Uuid,
+    #[schema(value_type = String)]
     pub message_id: Uuid,
     pub message: WSSearchData<'a>,
 }

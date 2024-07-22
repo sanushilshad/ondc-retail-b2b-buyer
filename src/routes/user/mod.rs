@@ -1,4 +1,4 @@
-pub(crate) mod errors;
+mod errors;
 pub(crate) mod handlers;
 mod middlewares;
 mod models;

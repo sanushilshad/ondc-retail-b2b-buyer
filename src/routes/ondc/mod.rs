@@ -1,7 +1,7 @@
-pub(super) mod buyer;
+pub(crate) mod buyer;
 mod errors;
 mod routes;
-mod schemas;
+pub mod schemas;
 mod seller;
 mod utils;
 pub use routes::*;

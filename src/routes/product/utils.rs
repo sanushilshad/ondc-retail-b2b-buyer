@@ -1,7 +1,7 @@
 use sqlx::PgPool;
-
-use crate::{routes::{product::schemas::{FulfillmentType, PaymentType, ProductSearchType}, schemas::{BusinessAccount, UserAccount}}, schemas::RequestMetaData};
-
+use crate::routes:: user::schemas::{BusinessAccount, UserAccount};
+use crate::routes::product::schemas::{FulfillmentType, PaymentType, ProductSearchType};
+use crate::schemas::RequestMetaData;
 use super::schemas::ProductSearchRequest;
 use chrono::Utc;
 

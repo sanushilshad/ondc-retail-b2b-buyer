@@ -9,9 +9,8 @@ mod tests {
     use crate::routes::user::utils::{
         create_business_account, get_basic_business_account_by_user_id, get_stored_credentials,
         get_user, hard_delete_business_account, hard_delete_user_account, register_user,
-        verify_password,
+        validate_business_account_active, verify_password,
     };
-    use crate::routes::utils::validate_business_account_active;
     use crate::schemas::{KycStatus, Status};
     use crate::utils::tests::get_test_pool;
     use secrecy::Secret;

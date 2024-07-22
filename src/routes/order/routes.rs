@@ -1,14 +1,14 @@
-use crate::routes::user::{schemas::CustomerType, BusinessAccountValidation, RequireAuth};
-
-use super::handlers::realtime_product_search;
+// use crate::routes::{schemas::CustomerType, BusinessAccountValidation, RequireAuth};
+use crate::routes::order::handlers::order_select;
+use crate::routes::user::schemas::CustomerType;
+use crate::routes::user::{BusinessAccountValidation, RequireAuth};
 use actix_web::web;
-
-pub fn product_route(cfg: &mut web::ServiceConfig) {
+pub fn order_route(cfg: &mut web::ServiceConfig) {
     // cfg.service(web::resource("/inventory/fetch").route(web::post().to(fetch_inventory)));
     cfg.service(
-        web::resource("/realtime/search").route(
+        web::resource("/select").route(
             web::post()
-                .to(realtime_product_search)
+                .to(order_select)
                 .wrap(BusinessAccountValidation {
                     business_type_list: vec![CustomerType::Buyer, CustomerType::Seller],
                 })
