@@ -97,9 +97,11 @@ impl FromRequest for RequestMetaData {
         let value = req.extensions().get::<RequestMetaData>().cloned();
 
         let result = match value {
-            Some(user) => Ok(user),
+            Some(data) => Ok(data),
             None => Err(ErrorInternalServerError(
-                RequestMetaError::ValidationStringError("Something went wrong".to_string()),
+                RequestMetaError::ValidationStringError(
+                    "Something went wrong while setting meta data".to_string(),
+                ),
             )),
         };
 

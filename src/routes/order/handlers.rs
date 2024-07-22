@@ -11,14 +11,14 @@ use sqlx::PgPool;
 use super::schemas::OrderSelectRequest;
 #[utoipa::path(
     post,
-    path = "/product/realtime/search",
-    tag = "Realtime Product Search",
-    request_body(content = ProductSearchRequest, description = "Request Body"),
+    path = "/order/select",
+    tag = "Order Select Request",
+    request_body(content = OrderSelectRequest, description = "Request Body"),
     responses(
-        (status=200, description= "Realtime Product Search", body= EmptyGenericResponse),
+        (status=200, description= "Order Select Request", body= EmptyGenericResponse),
     )
 )]
-#[tracing::instrument(name = "Order Select", skip(pool), fields(transaction_id=body.transaction_id.to_string()))]
+#[tracing::instrument(name = "order select", skip(pool), fields(transaction_id=body.transaction_id.to_string()))]
 pub async fn order_select(
     body: OrderSelectRequest,
     pool: web::Data<PgPool>,
@@ -57,7 +57,7 @@ pub async fn order_select(
     // );
     // futures::future::join(task1, task2).await.1?;
     Ok(web::Json(GenericResponse::success(
-        "Successfully Send Product Search Request",
+        "Successfully send select request",
         Some(()),
     )))
 }

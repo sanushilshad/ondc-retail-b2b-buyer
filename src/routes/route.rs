@@ -10,7 +10,11 @@ pub fn main_route(cfg: &mut web::ServiceConfig) {
     let openapi = ApiDoc::openapi();
     cfg.service(web::scope("/notification").configure(notification_route))
         .service(web::scope("/util").configure(util_route))
-        .service(web::scope("/order").configure(order_route))
+        .service(
+            web::scope("/order")
+                .configure(order_route)
+                .wrap(HeaderValidation),
+        )
         .service(
             web::scope("/product")
                 .configure(product_route)
