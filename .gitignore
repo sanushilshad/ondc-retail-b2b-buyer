@@ -7,4 +7,5 @@ configuration.yaml
 env.sh
 Cargo.lock
 .env
+--connect=*
 /node_modules
