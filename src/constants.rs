@@ -1,5 +1,5 @@
 pub const ONDC_TTL: &str = "PT30S";
-pub const TEST_DB: &str = "rust_test_db";
+// pub const TEST_DB: &str = "ondc_b2b_buyer";
 pub const DUMMY_DOMAIN: &str = "ondcpreprodb2b.rapidor.co";
 use lazy_static::lazy_static;
 use regex::Regex;

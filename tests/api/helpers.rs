@@ -1,6 +1,6 @@
 use once_cell::sync::Lazy;
-use rust_test::constants::TEST_DB;
-use rust_test::{
+// use ondc_b2b_buyer::constants::TEST_DB;
+use ondc_b2b_buyer::{
     configuration::get_configuration,
     startup::{get_connection_pool, Application},
     telemetry::{get_subscriber, init_subscriber},
@@ -33,7 +33,7 @@ pub async fn spawn_app() -> TestApp {
 
     let configuration = {
         let mut c = get_configuration().expect("Failed to read configuration.");
-        c.database.name = TEST_DB.to_string();
+        // c.database.name = TEST_DB.to_string();
         c.application.port = 0;
         c
     };

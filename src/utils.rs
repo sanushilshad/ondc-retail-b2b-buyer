@@ -476,7 +476,7 @@ pub mod tests {
     use std::str::FromStr;
 
     use crate::configuration::get_configuration;
-    use crate::constants::{DUMMY_DOMAIN, TEST_DB};
+    use crate::constants::DUMMY_DOMAIN;
     use crate::routes::user::schemas::{
         BusinessAccount, MaskingType, UserAccount, UserVector, VectorType,
     };
@@ -487,7 +487,7 @@ pub mod tests {
     use uuid::Uuid;
     pub async fn get_test_pool() -> PgPool {
         let mut configuration = get_configuration().expect("Failed to read configuration.");
-        configuration.database.name = TEST_DB.to_string();
+        // configuration.database.name = TEST_DB.to_string();
         configuration.application.port = 0;
         get_connection_pool(&configuration.database)
     }

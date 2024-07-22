@@ -1,5 +1,5 @@
 // use env_logger::Env;
-use rust_test::{
+use ondc_b2b_buyer::{
     configuration::get_configuration,
     startup::Application,
     telemetry::{get_subscriber_with_jeager, init_subscriber},
@@ -14,7 +14,7 @@ async fn main() -> anyhow::Result<()> {
     } else {
         let configuration = get_configuration().expect("Failed to read configuration.");
         let subscriber =
-            get_subscriber_with_jeager("rust_test".into(), "info".into(), std::io::stdout); // set sink  to `std::io::stdout` to print trace in terminal
+            get_subscriber_with_jeager("ondc_b2b_buyer".into(), "info".into(), std::io::stdout); // set sink  to `std::io::stdout` to print trace in terminal
         init_subscriber(subscriber);
         let application = Application::build(configuration).await?;
         application.run_until_stopped().await?;
