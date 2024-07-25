@@ -2,10 +2,13 @@ use actix_web::web;
 // use anyhow::Context;
 use crate::configuration::ONDCSetting;
 use crate::errors::GenericError;
+use crate::routes::ondc::buyer::utils::{get_ondc_select_payload, send_ondc_payload};
+use crate::routes::ondc::utils::get_lookup_data_from_db;
+use crate::routes::ondc::{ONDCActionType, ONDCDomain};
 use crate::routes::user::schemas::{BusinessAccount, UserAccount};
-use crate::utils::get_np_detail;
+use crate::utils::{create_authorization_header, get_np_detail};
 
-use crate::schemas::{GenericResponse, ONDCNPType, RequestMetaData};
+use crate::schemas::{GenericResponse, ONDCNPType, ONDCNetworkType, RequestMetaData};
 use sqlx::PgPool;
 
 use super::schemas::OrderSelectRequest;
@@ -27,8 +30,12 @@ pub async fn order_select(
     business_account: BusinessAccount,
     meta_data: RequestMetaData,
 ) -> Result<web::Json<GenericResponse<()>>, GenericError> {
-    let np_detail = match get_np_detail(&pool, &meta_data.domain_uri, &ONDCNPType::Buyer).await {
-        Ok(Some(np_detail)) => np_detail,
+    let task1 = get_np_detail(&pool, &meta_data.domain_uri, &ONDCNPType::Buyer);
+    let ondc_domain = ONDCDomain::get_ondc_domain(&body.domain_category_code);
+    let task2 = get_lookup_data_from_db(&pool, &body.bpp_id, &ONDCNetworkType::Bap, &ondc_domain);
+    let (bap_detail_res, bpp_detail_res) = futures::future::join(task1, task2).await;
+    let bap_detail = match bap_detail_res {
+        Ok(Some(bap_detail)) => bap_detail,
         Ok(None) => {
             return Err(GenericError::ValidationError(format!(
                 "{} is not a registered ONDC registered domain",
@@ -42,20 +49,41 @@ pub async fn order_select(
             ));
         }
     };
-    // let ondc_search_payload =
-    //     get_ondc_search_payload(&user_account, &business_account, &body, &np_detail)?;
-    // let ondc_search_payload_str = serde_json::to_string(&ondc_search_payload).map_err(|e| {
-    //     GenericError::SerializationError(format!("Failed to serialize ONDC search payload: {}", e))
-    // })?;
-    // let task1 = save_search_request(&pool, &user_account, &business_account, &meta_data, &body);
-    // let header = create_authorization_header(&ondc_search_payload_str, &np_detail, None, None)?;
-    // let task2 = send_ondc_payload(
-    //     &ondc_obj.gateway_uri,
-    //     &ondc_search_payload_str,
-    //     &header,
-    //     ONDCActionType::Search,
-    // );
-    // futures::future::join(task1, task2).await.1?;
+    let bpp_detail = match bpp_detail_res {
+        Ok(Some(np_detail)) => np_detail,
+        Ok(None) => {
+            return Err(GenericError::ValidationError(format!(
+                "{} is not a Valid BPP Id",
+                meta_data.domain_uri
+            )))
+        }
+        Err(e) => {
+            return Err(GenericError::DatabaseError(
+                "Something went wrong while fetching BPP credentials".to_string(),
+                e,
+            ));
+        }
+    };
+
+    let ondc_select_payload = get_ondc_select_payload(
+        &user_account,
+        &business_account,
+        &body,
+        &bap_detail,
+        &bpp_detail,
+    )?;
+
+    let ondc_search_payload_str = serde_json::to_string(&ondc_select_payload).map_err(|e| {
+        GenericError::SerializationError(format!("Failed to serialize ONDC select payload: {}", e))
+    })?;
+    let header = create_authorization_header(&ondc_search_payload_str, &bap_detail, None, None)?;
+    let response = send_ondc_payload(
+        &bpp_detail.subscriber_url,
+        &ondc_search_payload_str,
+        &header,
+        ONDCActionType::Select,
+    )
+    .await?;
     Ok(web::Json(GenericResponse::success(
         "Successfully send select request",
         Some(()),

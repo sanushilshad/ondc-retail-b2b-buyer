@@ -1,7 +1,7 @@
 ## CUSTOM MIGRATION COMMAND:
 
 ```
-cargo run --bin ondc_b2b_buyer -- migrate
+cargo run --bin ondc_retail_b2b_buyer -- migrate
 ```
 ## SQLX OFFLINE MODE:
 
@@ -31,7 +31,7 @@ export EMAIL_CLIENT__TIMEOUT_MILLISECONDS=10000
 
 
 ## TARACING VARIABLES
-export OTEL_SERVICE_NAME="ondc_b2b_buyer"
+export OTEL_SERVICE_NAME="ondc_retail_b2b_buyer"
 export OTEL_EXPORTER_OTLP_TRACES_ENDPOINT="http://localhost:4317"
 # export OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:4318/v1/traces"
 # export OTEL_INSTRUMENTATION_HTTP_CAPTURE_HEADERS_SERVER_REQUEST="X-Request-*"
@@ -65,7 +65,7 @@ export PRODUCT__MEILEI__API_MASTER_KEY=""
 export PRODUCT__MEIELI__URL=""
 
 ## APPLICATION DATA
-export APPLICATION__NAME="ondc_b2b_buyer"
+export APPLICATION__NAME="ondc_retail_b2b_buyer"
 export APPLICATION__ACCOUNT_NAME=""
 
 

@@ -937,3 +937,124 @@ pub struct WSSearch<'a> {
     pub message_id: Uuid,
     pub message: WSSearchData<'a>,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCPerson {
+    creds: Vec<ONDCCredential>,
+    name: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCCustomer {
+    person: ONDCPerson,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ONDCLocationIds {
+    id: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ONDCSelectProvider {
+    id: String,
+    locations: Vec<ONDCLocationIds>,
+    ttl: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ONDCItemSelectQty {
+    count: i32,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ONDCItemSelect {
+    selected: ONDCItemSelectQty,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ONDCItemAddOns {
+    id: String,
+}
+#[derive(Debug, Serialize)]
+pub struct ONDCSelectPaymentType {
+    r#type: ONDCPaymentType,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ONDCCity {
+    name: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ONDCState {
+    name: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ONDCCountry {
+    code: String,
+}
+#[derive(Debug, Serialize)]
+pub struct ONDCSelectFulfillmentLocation {
+    gps: String,
+    area_code: String,
+    city: ONDCCity,
+    country: ONDCCountry,
+    state: ONDCState,
+    contact: ONDCContact,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ONDCInitFulfillmentLocation {
+    gps: String,
+    area_code: String,
+    address: String,
+    city: ONDCCity,
+    country: ONDCCountry,
+    state: ONDCState,
+    contact: ONDCContact,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ONDCOrderFulfillmentEnd<T> {
+    r#type: ONDCFulfillmentStopType,
+    location: T,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ONDCFulfillment<T> {
+    pub id: String,
+    pub r#type: ONDCFulfillmentType,
+    pub stops: Option<Vec<ONDCOrderFulfillmentEnd<T>>>,
+    pub tags: Option<Vec<ONDCTag>>,
+    pub customer: Option<ONDCCustomer>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ONDCSelectItem {
+    pub id: String,
+    pub location_ids: Vec<String>,
+    pub fulfillment_ids: Vec<String>,
+    pub quantity: ONDCItemSelect,
+    pub add_ons: Option<Vec<ONDCItemAddOns>>,
+    pub payments: Vec<ONDCSelectPaymentType>,
+    pub tags: Vec<ONDCTag>,
+    pub fulfillments: Vec<ONDCFulfillment<ONDCSelectFulfillmentLocation>>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ONDCSelectOrder {
+    provider: ONDCSelectProvider,
+    items: Vec<ONDCSelectItem>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ONDCSelectMessage {
+    order: ONDCSelectOrder,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ONDCSelectRequest {
+    pub context: ONDCContext,
+    pub message: ONDCSelectMessage,
+}

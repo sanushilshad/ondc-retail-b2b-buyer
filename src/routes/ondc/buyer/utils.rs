@@ -5,6 +5,7 @@ use bigdecimal::BigDecimal;
 use chrono::Utc;
 use reqwest::Client;
 use sqlx::PgPool;
+use utoipa::openapi::content;
 //use fake::faker::address::raw::Longitude;
 use uuid::Uuid;
 
@@ -14,10 +15,10 @@ use super::schemas::{
     ONDCOnSearchProviderDescriptor, ONDCOnSearchProviderLocation, ONDCOnSearchRequest,
     ONDCSearchCategory, ONDCSearchDescriptor, ONDCSearchFulfillment, ONDCSearchIntent,
     ONDCSearchItem, ONDCSearchLocation, ONDCSearchMessage, ONDCSearchPayment, ONDCSearchRequest,
-    ONDCSearchStop, ONDCTag, ONDCTagItemCode, ONDCTagType, OnSearchContentType, TagTrait,
-    UnitizedProductQty, WSCreatorContactData, WSItemPayment, WSProductCategory, WSProductCreator,
-    WSSearch, WSSearchBPP, WSSearchCity, WSSearchCountry, WSSearchData, WSSearchItem,
-    WSSearchItemPrice, WSSearchItemQty, WSSearchItemQtyMeasure, WSSearchItemQuantity,
+    ONDCSearchStop, ONDCSelectRequest, ONDCTag, ONDCTagItemCode, ONDCTagType, OnSearchContentType,
+    TagTrait, UnitizedProductQty, WSCreatorContactData, WSItemPayment, WSProductCategory,
+    WSProductCreator, WSSearch, WSSearchBPP, WSSearchCity, WSSearchCountry, WSSearchData,
+    WSSearchItem, WSSearchItemPrice, WSSearchItemQty, WSSearchItemQtyMeasure, WSSearchItemQuantity,
     WSSearchProductProvider, WSSearchProvider, WSSearchProviderLocation, WSSearchState,
 };
 
@@ -27,7 +28,8 @@ use crate::routes::ondc::schemas::{
     ONDCActionType, ONDCContext, ONDCContextCity, ONDCContextCountry, ONDCContextLocation,
     ONDCDomain, ONDCVersion,
 };
-use crate::routes::ondc::{ONDCErrorCode, ONDCResponse};
+use crate::routes::ondc::{LookupData, ONDCErrorCode, ONDCResponse};
+use crate::routes::order::schemas::OrderSelectRequest;
 use crate::routes::product::schemas::{
     CategoryDomain, FulfillmentType, PaymentType, ProductFulFillmentLocations,
     ProductSearchRequest, ProductSearchType, SearchRequestModel,
@@ -49,6 +51,8 @@ pub fn get_common_context(
     action: ONDCActionType,
     bap_id: &str,
     bap_uri: &str,
+    bpp_id: Option<&str>,
+    bpp_uri: Option<&str>,
     country_code: &CountryCode,
     city_code: &str,
 ) -> Result<ONDCContext, anyhow::Error> {
@@ -70,12 +74,13 @@ pub fn get_common_context(
         bap_id: bap_id.to_string(),
         bap_uri: bap_uri.to_string(),
         timestamp: Utc::now(),
-        bpp_id: None,
-        bpp_uri: None,
+        bpp_id: bpp_id.map(|s| s.to_string()),
+        bpp_uri: bpp_uri.map(|s| s.to_string()),
         ttl: ONDC_TTL.to_owned(),
     })
 }
 
+#[tracing::instrument(name = "get search tag", skip())]
 fn get_search_tag(
     business_account: &BusinessAccount,
     np_detail: &RegisteredNetworkParticipant,
@@ -102,6 +107,7 @@ fn get_search_tag(
     }
 }
 
+#[tracing::instrument(name = "get search fulfillment stops", skip())]
 pub fn get_search_fulfillment_stops(
     fulfillment_locations: Option<&Vec<ProductFulFillmentLocations>>,
 ) -> Option<Vec<ONDCSearchStop>> {
@@ -156,6 +162,8 @@ pub fn get_ondc_search_payment_obj(payment_obj: &Option<PaymentType>) -> Option<
         None => None,
     }
 }
+
+#[tracing::instrument(name = "get search fulfillment obj", skip())]
 pub fn get_search_fulfillment_obj(
     fulfillment_type: &Option<FulfillmentType>,
     locations: Option<&Vec<ProductFulFillmentLocations>>,
@@ -170,6 +178,7 @@ pub fn get_search_fulfillment_obj(
     None
 }
 
+#[tracing::instrument(name = "get ondc search message obj", skip())]
 pub fn get_ondc_search_message_obj(
     _user_account: &UserAccount,
     business_account: &BusinessAccount,
@@ -199,7 +208,8 @@ pub fn get_ondc_search_message_obj(
     })
 }
 
-fn get_ondc_payload_from_search_request(
+#[tracing::instrument(name = "get ondc search payload", skip())]
+pub fn get_ondc_search_payload(
     user_account: &UserAccount,
     business_account: &BusinessAccount,
     search_request: &ProductSearchRequest,
@@ -212,6 +222,8 @@ fn get_ondc_payload_from_search_request(
         ONDCActionType::Search,
         &np_detail.subscriber_id,
         &np_detail.subscriber_uri,
+        None,
+        None,
         &search_request.country_code,
         &search_request.city_code,
     )?;
@@ -221,22 +233,6 @@ fn get_ondc_payload_from_search_request(
         context: ondc_context,
         message: ondc_seach_message,
     })
-}
-
-pub fn get_ondc_search_payload(
-    user_account: &UserAccount,
-    business_account: &BusinessAccount,
-    search_request: &ProductSearchRequest,
-    np_detail: &RegisteredNetworkParticipant,
-) -> Result<ONDCSearchRequest, ProductSearchError> {
-    let ondc_search_request_obj = get_ondc_payload_from_search_request(
-        user_account,
-        business_account,
-        search_request,
-        np_detail,
-    )?;
-
-    Ok(ondc_search_request_obj)
 }
 
 #[tracing::instrument(name = "Send ONDC Payload")]
@@ -299,6 +295,7 @@ pub async fn get_product_search_params(
     Ok(row)
 }
 
+#[tracing::instrument(name = "get price obj from ondc price obj", skip())]
 pub fn get_price_obj_from_ondc_price_obj(
     price: &ONDCOnSearchItemPrice,
 ) -> Result<WSSearchItemPrice, anyhow::Error> {
@@ -313,6 +310,7 @@ pub fn get_price_obj_from_ondc_price_obj(
     });
 }
 
+#[tracing::instrument(name = "get ws location mapping", skip())]
 fn get_ws_location_mapping(
     ondc_location: &ONDCOnSearchProviderLocation,
 ) -> WSSearchProviderLocation {
@@ -336,6 +334,7 @@ fn get_ws_location_mapping(
     }
 }
 
+#[tracing::instrument(name = "ws search provider from ondc provider", skip())]
 pub fn ws_search_provider_from_ondc_provider<'a>(
     id: &'a str,
     rating: Option<&'a str>,
@@ -368,6 +367,8 @@ pub fn ws_search_provider_from_ondc_provider<'a>(
         videos,
     }
 }
+
+#[tracing::instrument(name = "get ws quantity from ondc quantity", skip())]
 fn get_ws_quantity_from_ondc_quantity(
     ondc_quantity: &ONDCOnSearchItemQuantity,
 ) -> WSSearchItemQuantity {
@@ -425,6 +426,7 @@ fn get_payment_mapping(
     payment_objs.iter().map(|f| (f.id.as_str(), f)).collect()
 }
 
+#[tracing::instrument(name = "get ws search item payment objs", skip())]
 fn get_ws_search_item_payment_objs(ondc_payment_obj: &ONDCOnSearchPayment) -> WSItemPayment {
     WSItemPayment {
         r#type: ondc_payment_obj.r#type.get_payment(),
@@ -434,6 +436,8 @@ fn get_ws_search_item_payment_objs(ondc_payment_obj: &ONDCOnSearchPayment) -> WS
             .unwrap_or(&ONDCNetworkType::Bap),
     }
 }
+
+#[tracing::instrument(name = "get product from on search request", skip())]
 pub fn get_product_from_on_search_request(
     on_search_obj: &ONDCOnSearchRequest,
 ) -> Result<Option<WSSearchData>, anyhow::Error> {
@@ -541,6 +545,8 @@ pub fn get_product_from_on_search_request(
 
     Ok(None)
 }
+
+#[tracing::instrument(name = "get search ws body", skip())]
 pub fn get_search_ws_body(
     message_id: Uuid,
     transaction_id: Uuid,
@@ -553,6 +559,7 @@ pub fn get_search_ws_body(
     }
 }
 
+#[tracing::instrument(name = "get search tag item  list from tag", skip())]
 fn search_tag_item_list_from_tag<'a>(
     tag: &'a [ONDCOnSearchItemTag],
     tag_descriptor_code: &ONDCTagType,
@@ -562,6 +569,7 @@ fn search_tag_item_list_from_tag<'a>(
         .collect()
 }
 
+#[tracing::instrument(name = "get search tag item value", skip())]
 pub fn get_search_tag_item_value<'a>(
     tag: &'a [ONDCOnSearchItemTag],
     tag_descriptor_code: &ONDCTagType,
@@ -573,4 +581,47 @@ pub fn get_search_tag_item_value<'a>(
     } else {
         None
     }
+}
+
+#[tracing::instrument(name = "get select context", skip())]
+fn get_ondc_select_context(
+    user_account: &UserAccount,
+    business_account: &BusinessAccount,
+    select_request: &OrderSelectRequest,
+    bap_detail: &RegisteredNetworkParticipant,
+    bpp_detail: &LookupData,
+) -> Result<ONDCContext, anyhow::Error> {
+    get_common_context(
+        select_request.transaction_id,
+        select_request.message_id,
+        &select_request.domain_category_code,
+        ONDCActionType::Search,
+        &bap_detail.subscriber_id,
+        &bap_detail.subscriber_uri,
+        Some(&bpp_detail.subscriber_id),
+        Some(&bpp_detail.subscriber_url),
+        &select_request.fulfillments[0].locations[0].country.code,
+        &select_request.fulfillments[0].locations[0].city.code,
+    )
+}
+
+#[tracing::instrument(name = "get ondc select payload", skip())]
+pub fn get_ondc_select_payload(
+    user_account: &UserAccount,
+    business_account: &BusinessAccount,
+    order_request: &OrderSelectRequest,
+    bap_detail: &RegisteredNetworkParticipant,
+    bpp_detail: &LookupData,
+) -> Result<ONDCSelectRequest, ProductSearchError> {
+    let context = get_ondc_select_context(
+        user_account,
+        business_account,
+        order_request,
+        &bap_detail,
+        &bpp_detail,
+    )?;
+    Ok(ONDCSelectRequest {
+        context: context,
+        message: todo!(),
+    })
 }

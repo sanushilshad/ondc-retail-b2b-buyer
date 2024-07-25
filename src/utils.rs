@@ -24,7 +24,7 @@ use jsonwebtoken::{
     decode, encode, Algorithm as JWTAlgorithm, DecodingKey, EncodingKey, Header, Validation,
 };
 use secrecy::{ExposeSecret, Secret};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use std::collections::HashMap;
 use std::str::FromStr;
@@ -548,5 +548,20 @@ pub mod tests {
             fee_value: BigDecimal::from_str("0.0").unwrap(),
             unique_key_id: "SANU".to_owned(),
         }
+    }
+}
+
+pub fn deserialize_non_empty_vector<'de, T, D>(deserializer: D) -> Result<Vec<T>, D::Error>
+where
+    T: Deserialize<'de>,
+    D: Deserializer<'de>,
+{
+    let vec: Vec<T> = Deserialize::deserialize(deserializer)?;
+    if vec.is_empty() {
+        Err(serde::de::Error::custom(
+            "Vector field must contain at least one value",
+        ))
+    } else {
+        Ok(vec)
     }
 }

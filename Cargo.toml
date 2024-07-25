@@ -1,5 +1,5 @@
 [package]
-name = "ondc_b2b_buyer"
+name = "ondc_retail_b2b_buyer"
 version = "0.1.0"
 edition = "2021"
 
@@ -73,7 +73,7 @@ path="src/lib.rs"
 
 [[bin]]
 path = "src/main.rs"
-name = "ondc_b2b_buyer"
+name = "ondc_retail_b2b_buyer"
 
 [profile.release]
 opt-level = 3
