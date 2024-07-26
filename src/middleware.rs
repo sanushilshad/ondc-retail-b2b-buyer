@@ -43,7 +43,6 @@ where
         let is_websocket = req.headers().contains_key(UPGRADE)
             && req.headers().get(UPGRADE).unwrap() == "websocket";
         let is_on_search = req.path().ends_with("on_search");
-        let a = req.path();
         let is_non_json_req_res =
             req.path().contains("/docs/") || req.path().contains("/api-docs/");
         if is_websocket || is_non_json_req_res {

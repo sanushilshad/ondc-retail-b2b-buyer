@@ -26,7 +26,7 @@ impl PaymentType {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, ToSchema, sqlx::Type)]
+#[derive(Debug, Deserialize, Serialize, ToSchema, sqlx::Type, PartialEq)]
 #[serde(rename_all = "snake_case")]
 #[sqlx(type_name = "fulfillment_type", rename_all = "snake_case")]
 
@@ -36,7 +36,7 @@ pub enum FulfillmentType {
 }
 
 impl FulfillmentType {
-    pub fn get_ondc_fulfillment(&self) -> ONDCFulfillmentType {
+    pub fn get_ondc_fulfillment_type(&self) -> ONDCFulfillmentType {
         match self {
             FulfillmentType::Delivery => ONDCFulfillmentType::Delivery,
             FulfillmentType::SelfPickup => ONDCFulfillmentType::SelfPickup,

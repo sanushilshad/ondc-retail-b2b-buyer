@@ -14,7 +14,7 @@ async fn main() -> anyhow::Result<()> {
     } else {
         let configuration = get_configuration().expect("Failed to read configuration.");
         let subscriber = get_subscriber_with_jeager(
-            "ondc_retail_b2b_buyer".into(),
+            "ondc-retail-b2b-buyer".into(),
             "info".into(),
             std::io::stdout,
         ); // set sink  to `std::io::stdout` to print trace in terminal

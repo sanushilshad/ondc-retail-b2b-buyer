@@ -21,7 +21,7 @@ pub struct BuyerTerms {
 pub struct OrderSelectItem {
     pub item_code: String,
     pub location_ids: Vec<String>,
-    pub quantity: i32,
+    pub qty: i32,
     pub buyer_term: Option<BuyerTerms>,
     pub fulfillment_ids: Vec<String>,
 }
@@ -29,13 +29,13 @@ pub struct OrderSelectItem {
 #[derive(Deserialize, Debug, ToSchema)]
 pub struct Country {
     pub code: CountryCode,
-    name: String,
+    pub name: String,
 }
 
 #[derive(Deserialize, Debug, ToSchema)]
 pub struct City {
     pub code: String,
-    name: String,
+    pub name: String,
 }
 
 #[derive(Deserialize, Debug, ToSchema)]
@@ -47,12 +47,12 @@ pub struct FulfillmentLocation {
     pub city: City,
     pub country: Country,
     pub state: String,
-    pub contact_mobile: Option<String>,
+    pub contact_mobile_no: String,
 }
 
 #[derive(Deserialize, Debug, ToSchema)]
 #[serde(rename_all = "UPPERCASE")]
-pub enum IncorTermType {
+pub enum IncoTermType {
     Exw,
     Cif,
     Fob,
@@ -60,10 +60,24 @@ pub enum IncorTermType {
     Ddp,
 }
 
+impl std::fmt::Display for IncoTermType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            IncoTermType::Exw => "EXW",
+            IncoTermType::Cif => "CIF",
+            IncoTermType::Fob => "FOB",
+            IncoTermType::Dap => "DAP",
+            IncoTermType::Ddp => "DDP",
+        };
+
+        write!(f, "{}", s)
+    }
+}
+
 #[derive(Deserialize, Debug, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct OrderDeliveyTerm {
-    pub inco_terms: IncorTermType,
+    pub inco_terms: IncoTermType,
     pub place_of_delivery: String,
 }
 

@@ -466,7 +466,7 @@ impl NetworkCall {
 
         // let start_time = Instant::now();
         for current_retry in 0..retry_policy.max_retries {
-            tracing::info!("Retry attempt {}...", current_retry + 1);
+            tracing::info!("Retry attempt {}...", current_retry);
             match self.async_post_call(url, payload, headers.to_owned()).await {
                 Ok(network_response) => {
                     if network_response.status_code > 500 {

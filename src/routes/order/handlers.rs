@@ -32,7 +32,7 @@ pub async fn order_select(
 ) -> Result<web::Json<GenericResponse<()>>, GenericError> {
     let task1 = get_np_detail(&pool, &meta_data.domain_uri, &ONDCNPType::Buyer);
     let ondc_domain = ONDCDomain::get_ondc_domain(&body.domain_category_code);
-    let task2 = get_lookup_data_from_db(&pool, &body.bpp_id, &ONDCNetworkType::Bap, &ondc_domain);
+    let task2 = get_lookup_data_from_db(&pool, &body.bpp_id, &ONDCNetworkType::Bpp, &ondc_domain);
     let (bap_detail_res, bpp_detail_res) = futures::future::join(task1, task2).await;
     let bap_detail = match bap_detail_res {
         Ok(Some(bap_detail)) => bap_detail,
@@ -54,7 +54,7 @@ pub async fn order_select(
         Ok(None) => {
             return Err(GenericError::ValidationError(format!(
                 "{} is not a Valid BPP Id",
-                meta_data.domain_uri
+                &body.bpp_id
             )))
         }
         Err(e) => {
@@ -73,13 +73,13 @@ pub async fn order_select(
         &bpp_detail,
     )?;
 
-    let ondc_search_payload_str = serde_json::to_string(&ondc_select_payload).map_err(|e| {
+    let ondc_select_payload_str = serde_json::to_string(&ondc_select_payload).map_err(|e| {
         GenericError::SerializationError(format!("Failed to serialize ONDC select payload: {}", e))
     })?;
-    let header = create_authorization_header(&ondc_search_payload_str, &bap_detail, None, None)?;
-    let response = send_ondc_payload(
+    let header = create_authorization_header(&ondc_select_payload_str, &bap_detail, None, None)?;
+    let _response = send_ondc_payload(
         &bpp_detail.subscriber_url,
-        &ondc_search_payload_str,
+        &ondc_select_payload_str,
         &header,
         ONDCActionType::Select,
     )

@@ -55,3 +55,12 @@ pub async fn on_search(
 
     Ok(web::Json(ONDCResponse::successful_response(None)))
 }
+
+#[tracing::instrument(name = "ONDC On select Payload", skip(pool), fields())]
+pub async fn on_select(
+    pool: web::Data<PgPool>,
+    // body: web::Json<Payload>,
+    websocket_srv: web::Data<Addr<Server>>,
+) -> Result<web::Json<ONDCResponse<ONDCBuyerErrorCode>>, ONDCBuyerError> {
+    Ok(web::Json(ONDCResponse::successful_response(None)))
+}

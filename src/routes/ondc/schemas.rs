@@ -221,6 +221,8 @@ pub enum ONDCSellerErrorCode {
     SellerStaleRequestCode,
     #[serde(rename = "30000")]
     SellerInvalidRequestCode,
+    #[serde(rename = "40000")]
+    SellerBusinessErrorCode,
 }
 
 #[allow(clippy::enum_variant_names)]
