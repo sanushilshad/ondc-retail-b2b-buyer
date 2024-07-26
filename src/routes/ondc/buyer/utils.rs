@@ -10,18 +10,19 @@ use uuid::Uuid;
 
 use super::schemas::{
     ONDCCity, ONDCContact, ONDCCountry, ONDCFeeType, ONDCFulfillment, ONDCFulfillmentStopType,
-    ONDCFulfillmentType, ONDCImage, ONDCItemSelect, ONDCItemSelectQty, ONDCLocationIds,
-    ONDCOnSearchItemPrice, ONDCOnSearchItemQuantity, ONDCOnSearchItemTag, ONDCOnSearchPayment,
+    ONDCFulfillmentType, ONDCImage, ONDCLocationIds, ONDCOnSearchItemPrice,
+    ONDCOnSearchItemQuantity, ONDCOnSearchItemTag, ONDCOnSearchPayment,
     ONDCOnSearchProviderDescriptor, ONDCOnSearchProviderLocation, ONDCOnSearchRequest,
-    ONDCOrderFulfillmentEnd, ONDCSearchCategory, ONDCSearchDescriptor, ONDCSearchFulfillment,
-    ONDCSearchIntent, ONDCSearchItem, ONDCSearchLocation, ONDCSearchMessage, ONDCSearchPayment,
-    ONDCSearchRequest, ONDCSearchStop, ONDCSelectFulfillmentLocation, ONDCSelectItem,
-    ONDCSelectMessage, ONDCSelectOrder, ONDCSelectPaymentType, ONDCSelectProvider,
-    ONDCSelectRequest, ONDCState, ONDCTag, ONDCTagItemCode, ONDCTagType, OnSearchContentType,
-    TagTrait, UnitizedProductQty, WSCreatorContactData, WSItemPayment, WSProductCategory,
-    WSProductCreator, WSSearch, WSSearchBPP, WSSearchCity, WSSearchCountry, WSSearchData,
-    WSSearchItem, WSSearchItemPrice, WSSearchItemQty, WSSearchItemQtyMeasure, WSSearchItemQuantity,
-    WSSearchProductProvider, WSSearchProvider, WSSearchProviderLocation, WSSearchState,
+    ONDCOrderFulfillmentEnd, ONDCOrderParams, ONDCQuantityCountInt, ONDCQuantitySelect,
+    ONDCSearchCategory, ONDCSearchDescriptor, ONDCSearchFulfillment, ONDCSearchIntent,
+    ONDCSearchItem, ONDCSearchLocation, ONDCSearchMessage, ONDCSearchPayment, ONDCSearchRequest,
+    ONDCSearchStop, ONDCSelectFulfillmentLocation, ONDCSelectMessage, ONDCSelectOrder,
+    ONDCSelectPaymentType, ONDCSelectProvider, ONDCSelectRequest, ONDCSelectedItem, ONDCState,
+    ONDCTag, ONDCTagItemCode, ONDCTagType, OnSearchContentType, TagTrait, UnitizedProductQty,
+    WSCreatorContactData, WSItemPayment, WSProductCategory, WSProductCreator, WSSearch,
+    WSSearchBPP, WSSearchCity, WSSearchCountry, WSSearchData, WSSearchItem, WSSearchItemPrice,
+    WSSearchItemQty, WSSearchItemQtyMeasure, WSSearchItemQuantity, WSSearchProductProvider,
+    WSSearchProvider, WSSearchProviderLocation, WSSearchState,
 };
 
 use crate::constants::ONDC_TTL;
@@ -33,8 +34,8 @@ use crate::routes::ondc::schemas::{
 use crate::routes::ondc::{LookupData, ONDCErrorCode, ONDCResponse};
 use crate::routes::order::errors::SelectOrderError;
 use crate::routes::order::schemas::{
-    FulfillmentLocation, OrderDeliveyTerm, OrderSelectFulfillment, OrderSelectItem,
-    OrderSelectRequest,
+    BuyerTerms, FulfillmentLocation, OrderDeliveyTerm, OrderSelectFulfillment, OrderSelectItem,
+    OrderSelectRequest, OrderType,
 };
 use crate::routes::product::schemas::{
     CategoryDomain, FulfillmentType, PaymentType, ProductFulFillmentLocations,
@@ -316,6 +317,29 @@ pub async fn get_product_search_params(
         "#,
         transaction_id,
         message_id
+    )
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(row)
+}
+
+#[tracing::instrument(name = "Fetch ONDC Order Params", skip(pool))]
+pub async fn get_ondc_order_params(
+    pool: &PgPool,
+    transaction_id: &Uuid,
+    message_id: &Uuid,
+    action_type: ONDCActionType,
+) -> Result<Option<ONDCOrderParams>, anyhow::Error> {
+    let row = sqlx::query_as!(
+        ONDCOrderParams,
+        r#"SELECT message_id, transaction_id, user_id, business_id, device_id
+        FROM ondc_buyer_order_req
+        WHERE transaction_id = $1 AND message_id = $2 AND action_type = $3 AND user_id is not NULL AND business_id is not NULL ORDER BY created_on DESC
+        "#,
+        &transaction_id,
+        &message_id,
+        &action_type.to_string()
     )
     .fetch_optional(pool)
     .await?;
@@ -671,17 +695,37 @@ fn get_ondc_select_tags(business_account: &BusinessAccount) -> Result<Vec<ONDCTa
 }
 
 #[tracing::instrument(name = "get ondc select order item", skip())]
-fn get_ondc_select_order_item(items: &Vec<OrderSelectItem>) -> Vec<ONDCSelectItem> {
-    let mut ondc_item_objs: Vec<ONDCSelectItem> = vec![];
+fn get_ondc_select_item_tags(
+    order_type: &OrderType,
+    buyer_terms: &Option<BuyerTerms>,
+) -> Option<Vec<ONDCTag>> {
+    if order_type == &OrderType::Rfq {
+        if let Some(terms) = buyer_terms {
+            return Some(vec![ONDCTag::get_item_tags(
+                &terms.item_req,
+                &terms.packaging_req,
+            )]);
+        }
+    }
+    None
+}
+
+#[tracing::instrument(name = "get ondc select order item", skip())]
+fn get_ondc_select_order_item(
+    order_type: &OrderType,
+    items: &Vec<OrderSelectItem>,
+) -> Vec<ONDCSelectedItem> {
+    let mut ondc_item_objs: Vec<ONDCSelectedItem> = vec![];
+
     for item in items {
-        ondc_item_objs.push(ONDCSelectItem {
+        ondc_item_objs.push(ONDCSelectedItem {
             id: item.item_code.clone(),
             location_ids: item.location_ids.clone(),
             fulfillment_ids: item.fulfillment_ids.clone(),
-            quantity: ONDCItemSelect {
-                selected: ONDCItemSelectQty { count: item.qty },
+            quantity: ONDCQuantitySelect {
+                selected: ONDCQuantityCountInt { count: item.qty },
             },
-            tags: None,
+            tags: get_ondc_select_item_tags(&order_type, &item.buyer_term),
         })
     }
     return ondc_item_objs;
@@ -779,7 +823,7 @@ fn get_ondc_select_message(
     Ok(ONDCSelectMessage {
         order: ONDCSelectOrder {
             provider: provider,
-            items: get_ondc_select_order_item(&order_request.items),
+            items: get_ondc_select_order_item(&order_request.order_type, &order_request.items),
             add_ons: None,
             tags: select_tag,
             payments: get_ondc_select_payment_obs(&order_request.payment_types),

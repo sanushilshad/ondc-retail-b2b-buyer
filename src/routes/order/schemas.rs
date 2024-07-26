@@ -91,7 +91,7 @@ pub struct OrderSelectFulfillment {
     pub delivery_terms: Option<OrderDeliveyTerm>,
 }
 
-#[derive(Deserialize, Debug, ToSchema)]
+#[derive(Deserialize, Debug, ToSchema, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum OrderType {
     Rfq,

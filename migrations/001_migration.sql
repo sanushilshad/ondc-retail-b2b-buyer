@@ -354,3 +354,15 @@ CREATE TABLE IF NOT EXISTS ondc_seller_product_info (
     created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS ondc_buyer_order_req (
+    "id" SERIAL NOT NULL PRIMARY KEY,
+    "message_id" uuid NOT NULL,
+    "transaction_id" uuid NOT NULL,
+    "user_id" uuid,
+    "business_id" uuid,
+    "device_id" TEXT NULL,
+    "action_type" TEXT NOT NULL,
+    "request_payload" JSONB NOT NULL,
+    "created_on" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+

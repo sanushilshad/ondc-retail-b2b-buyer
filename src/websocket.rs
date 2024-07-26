@@ -20,6 +20,7 @@ const CLIENT_TIMEOUT: Duration = Duration::from_secs(30);
 #[serde(rename_all = "snake_case")]
 pub enum WebSocketActionType {
     Search,
+    Select,
 }
 
 #[derive(ActixMessage)]

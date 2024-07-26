@@ -12,6 +12,7 @@ use crate::schemas::{GenericResponse, ONDCNPType, ONDCNetworkType, RequestMetaDa
 use sqlx::PgPool;
 
 use super::schemas::OrderSelectRequest;
+use super::utils::save_ondc_order_request;
 #[utoipa::path(
     post,
     path = "/order/select",
@@ -77,13 +78,24 @@ pub async fn order_select(
         GenericError::SerializationError(format!("Failed to serialize ONDC select payload: {}", e))
     })?;
     let header = create_authorization_header(&ondc_select_payload_str, &bap_detail, None, None)?;
-    let _response = send_ondc_payload(
+    let select_json_obj = serde_json::to_value(&ondc_select_payload)?;
+    let task_3 = save_ondc_order_request(
+        &pool,
+        &user_account,
+        &business_account,
+        &meta_data,
+        &select_json_obj,
+        body.transaction_id,
+        body.message_id,
+        ONDCActionType::Select,
+    );
+    let task_4 = send_ondc_payload(
         &bpp_detail.subscriber_url,
         &ondc_select_payload_str,
         &header,
         ONDCActionType::Select,
-    )
-    .await?;
+    );
+    futures::future::join(task_3, task_4).await.1?;
     Ok(web::Json(GenericResponse::success(
         "Successfully send select request",
         Some(()),

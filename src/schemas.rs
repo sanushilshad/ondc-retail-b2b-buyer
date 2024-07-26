@@ -440,7 +440,7 @@ impl NetworkCall {
             .client
             .post(url)
             .headers(req_headers)
-            .timeout(Duration::from_secs(2))
+            .timeout(Duration::from_secs(5))
             .body(body)
             .send()
             .await?;
@@ -563,8 +563,12 @@ pub struct WebSocketParam {
     pub device_id: String,
 }
 
-impl WebSocketParam {
-    pub fn get_key(&self) -> String {
+pub trait WSKeyTrait {
+    fn get_key(&self) -> String;
+}
+
+impl WSKeyTrait for WebSocketParam {
+    fn get_key(&self) -> String {
         format!("{}#{}#{}", self.user_id, self.business_id, self.device_id)
     }
 }
