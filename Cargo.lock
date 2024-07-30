@@ -481,19 +481,6 @@ dependencies = [
  "num-bigint",
  "num-integer",
  "num-traits",
-]
-
-[[package]]
-name = "bigdecimal"
-version = "0.4.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "51d712318a27c7150326677b321a5fa91b55f6d9034ffd67f20319e147d40cee"
-dependencies = [
- "autocfg",
- "libm",
- "num-bigint",
- "num-integer",
- "num-traits",
  "serde",
 ]
 
@@ -2186,7 +2173,7 @@ dependencies = [
  "argon2",
  "async-trait",
  "base64 0.21.2",
- "bigdecimal 0.4.5",
+ "bigdecimal",
  "blake2",
  "chrono",
  "claim",
@@ -3338,7 +3325,7 @@ checksum = "8d6753e460c998bbd4cd8c6f0ed9a64346fcca0723d6e75e52fdc351c5d2169d"
 dependencies = [
  "ahash 0.8.3",
  "atoi",
- "bigdecimal 0.3.1",
+ "bigdecimal",
  "byteorder",
  "bytes",
  "chrono",
@@ -3423,7 +3410,7 @@ checksum = "864b869fdf56263f4c95c45483191ea0af340f9f3e3e7b4d57a61c7c87a970db"
 dependencies = [
  "atoi",
  "base64 0.21.2",
- "bigdecimal 0.3.1",
+ "bigdecimal",
  "bitflags 2.4.0",
  "byteorder",
  "bytes",
@@ -3468,7 +3455,7 @@ checksum = "eb7ae0e6a97fb3ba33b23ac2671a5ce6e3cabe003f451abd5a56e7951d975624"
 dependencies = [
  "atoi",
  "base64 0.21.2",
- "bigdecimal 0.3.1",
+ "bigdecimal",
  "bitflags 2.4.0",
  "byteorder",
  "chrono",

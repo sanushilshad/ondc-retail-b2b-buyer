@@ -343,26 +343,25 @@ ALTER TABLE network_participant ADD CONSTRAINT network_participant_constraint UN
 CREATE TABLE IF NOT EXISTS ondc_seller_product_info (
     id SERIAL NOT NULL PRIMARY KEY,
     seller_subscriber_id TEXT NOT NULL,
-    product_code TEXT NOT NULL,
     provider_id TEXT NOT NULL,
     provider_name TEXT,
-    images jsonb NOT NULL,
-    provider_gstin TEXT,
-    manufacturer_json jsonb,
-    provider_json jsonb,
-    provider_location_json JSONB,
+    product_code TEXT NOT NULL,
+    product_name TEXT NOT NULL,
+    tax_rate DECIMAL(5, 2) NOT NULL,
+    images JSONB NOT NULL,
     created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+ALTER TABLE ondc_seller_product_info ADD CONSTRAINT ondc_seller_product_info_constraint UNIQUE (seller_subscriber_id, provider_id, product_code);
 
 CREATE TABLE IF NOT EXISTS ondc_buyer_order_req (
-    "id" SERIAL NOT NULL PRIMARY KEY,
-    "message_id" uuid NOT NULL,
-    "transaction_id" uuid NOT NULL,
-    "user_id" uuid,
-    "business_id" uuid,
-    "device_id" TEXT NULL,
-    "action_type" TEXT NOT NULL,
-    "request_payload" JSONB NOT NULL,
-    "created_on" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    id SERIAL NOT NULL PRIMARY KEY,
+    message_id uuid NOT NULL,
+    transaction_id uuid NOT NULL,
+    user_id uuid,
+    business_id uuid,
+    device_id TEXT NULL,
+    action_type TEXT NOT NULL,
+    request_payload JSONB NOT NULL,
+    created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

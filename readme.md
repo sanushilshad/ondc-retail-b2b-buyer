@@ -66,7 +66,6 @@ export PRODUCT__MEIELI__URL=""
 
 ## APPLICATION DATA
 export APPLICATION__NAME="ondc-retail-b2b-buyer"
-export APPLICATION__ACCOUNT_NAME=""
 
 
 ```

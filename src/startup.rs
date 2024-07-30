@@ -85,6 +85,8 @@ async fn run(
     let redis_app = web::Data::new(redis_client);
     let server = HttpServer::new(move || {
         App::new()
+            //.app_data(web::JsonConfig::default().limit(1024 * 1024 * 50))
+            .app_data(web::PayloadConfig::new(1 << 25))
             .wrap(SaveRequestResponse)
             .wrap(TracingLogger::default())
             // .wrap(ErrorHandlers::new().handler(StatusCode::BAD_REQUEST, add_error_header))
