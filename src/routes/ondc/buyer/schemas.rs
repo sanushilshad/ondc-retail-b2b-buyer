@@ -10,7 +10,9 @@ use actix_web::{dev::Payload, web, FromRequest, HttpRequest};
 use bigdecimal::BigDecimal;
 use futures_util::future::LocalBoxFuture;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use serde_with::skip_serializing_none;
+
 use std::collections::HashMap;
 use utoipa::ToSchema;
 use uuid::Uuid;
@@ -985,6 +987,8 @@ pub struct WSSearchProvider<'a> {
 pub struct WSSearchBPP<'a> {
     pub name: &'a str,
     pub code: Option<&'a str>,
+    pub subscriber_id: &'a str,
+    pub subscriber_uri: &'a str,
     pub short_desc: &'a str,
     pub long_desc: &'a str,
     pub images: Vec<&'a str>,
@@ -1002,7 +1006,7 @@ pub struct WSSearch<'a> {
     pub transaction_id: Uuid,
     #[schema(value_type = String)]
     pub message_id: Uuid,
-    pub message: WSSearchData<'a>,
+    pub message: &'a WSSearchData<'a>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -1298,4 +1302,14 @@ impl WSKeyTrait for ONDCOrderParams {
             self.device_id.clone().unwrap_or("NA".to_string())
         )
     }
+}
+
+pub struct BulkSellerProductInfo<'a> {
+    pub seller_subscriber_ids: Vec<&'a str>,
+    pub provider_ids: Vec<&'a str>,
+    pub provider_names: Vec<&'a str>,
+    pub product_codes: Vec<&'a str>,
+    pub product_names: Vec<&'a str>,
+    pub tax_rates: Vec<BigDecimal>,
+    pub image_objs: Vec<Value>,
 }

@@ -14,6 +14,4 @@ pub fn ondc_buyer_route(cfg: &mut web::ServiceConfig) {
             .route(web::post().to(on_select))
             .wrap(SellerHeaderVerification),
     );
-
-    // cfg.route("/customer/database", web::post().to(get_customer_dbs_api))
 }

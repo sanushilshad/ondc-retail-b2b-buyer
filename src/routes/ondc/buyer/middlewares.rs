@@ -55,7 +55,6 @@ where
         let srv = Rc::clone(&self.service);
         Box::pin(async move {
             let request_body_str: String = req.extract::<String>().await?;
-            println!("{}", request_body_str);
             let (parts, _body) = req.parts();
             let db_pool = req.app_data::<web::Data<PgPool>>().unwrap();
             let request_body =
