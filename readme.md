@@ -1,3 +1,20 @@
+
+# ONDC RETAIL B2B BUYER APP
+ 
+Backend server for an ONDC B2B Buyer App.
+The progress can be tracked here: [milestones](##MILESTONES)
+
+
+## Tech Stack
+| Type | Technologies |
+|---|---|
+| Client | None |
+| Server | Rust (Actix-web), Bash |
+| Database | PostgreSQL |
+| Caching | Redis, MeileiSeach |
+| Email Service | Amazon Email Service |
+
+
 ## CUSTOM MIGRATION COMMAND:
 
 ```
@@ -11,7 +28,7 @@ cargo sqlx prepare
 
 ## ENVIRON VARIABLE 
 - Set the following environ variables in files called `env.sh` and `configuration.yaml`.
-- The value in `env.sh` are:
+- `env.sh`:
 ```
 
 ## DATABASE VARIABLES
@@ -70,7 +87,7 @@ export APPLICATION__NAME="ondc-retail-b2b-buyer"
 
 ```
 
-- The value in `configuration.yaml` are:
+-  `configuration.yaml`:
 
 ```
 application:
@@ -95,8 +112,8 @@ bash dev_run.sh
 bash release.sh
 ```
 
-
-## MILESTONE 1:
+## MILESTONES
+### MILESTONE 1:
 * [x] Set up basic actix web server
 * [x] Add environment config fetch
 * [x] Develop custom migration command
@@ -122,7 +139,7 @@ bash release.sh
 
 
 
-## MILESTONE 2:
+### MILESTONE 2:
 * [ ] Develop select API
 * [ ] Develop ondc on select API
 * [ ] Develop init API
@@ -140,17 +157,17 @@ bash release.sh
 * [ ] Develop IGM issue close API
 * [ ] Integrate permission flow
 
-## MILESTONE 3:
+### MILESTONE 3:
 * [ ] Integrate permission flow
 * [ ] Develop permission flow
 
-## MILESTONE 4:
+### MILESTONE 4:
 * [ ] Complete validation for business_account registration
 * [ ] Complete validation for user_account registration
 * [ ] Complete validation for product search registration
 * [ ] Complete validation ondc on search registration
 
-## OPTIONAL
+### OPTIONAL
 
 * [ ] Integrate SMS
 * [ ] Integrate Whatsapp
