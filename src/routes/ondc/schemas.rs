@@ -22,7 +22,7 @@ pub enum ONDCVersion {
 #[serde(rename_all = "snake_case")]
 pub enum ONDCActionType {
     Search,
-    OnSearch, //Working on it.
+    OnSearch,
     Select,
     OnSelect, // Pending
     Init,
@@ -221,6 +221,12 @@ pub enum ONDCSellerErrorCode {
     SellerStaleRequestCode,
     #[serde(rename = "30000")]
     SellerInvalidRequestCode,
+    #[serde(rename = "40000")]
+    SellerBusinessErrorCode,
+    #[serde(rename = "30001")]
+    SellerProviderNotFoundError,
+    #[serde(rename = "30009")]
+    SellerServiceabilityError,
 }
 
 #[allow(clippy::enum_variant_names)]

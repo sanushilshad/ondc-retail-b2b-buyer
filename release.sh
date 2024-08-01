@@ -2,7 +2,7 @@
 source env.sh
 executable_name="$APPLICATION__NAME" 
 directory="./target/release"
-PIDS=($(ps aux | grep "$APPLICATION__ACCOUNT_NAME" | grep "$APPLICATION__NAME" | awk '{print $2}'))
+PIDS=($(ps aux | grep "$USER" | grep "$APPLICATION__NAME" | awk '{print $2}'))
 
 if [ ${#PIDS[@]} -gt 0 ];then
     echo "Running Ports are ${PIDS}"
@@ -47,5 +47,6 @@ else
 fi
 
 echo "Successfully executed build script."
+"$directory/$executable_name" -- migrate
 "$directory/$executable_name"
 

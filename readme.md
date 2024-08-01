@@ -1,8 +1,39 @@
-## CUSTOM MIGRATION COMMAND:
+
+# ONDC RETAIL B2B BUYER APP
+ 
+Backend server for an ONDC B2B Buyer App.
+The progress can be tracked here: [milestones](##MILESTONES)
+
+
+## Tech Stack
+| Type | Technologies |
+|---|---|
+| Client | None |
+| Server | Rust (Actix-web), Bash |
+| Database | PostgreSQL |
+| Caching | Redis, MeileiSeach |
+| Email Service | Amazon Email Service |
+| API Documention | OpenAPI Swagger |
+
+
+## CUSTOM MIGRATION COMMAND FOR DEBUG:
 
 ```
-cargo run --bin ondc_b2b_buyer -- migrate
+cargo run --bin ondc-retail-b2b-buyer -- migrate
 ```
+
+## CUSTOM MIGRATION COMMAND FOR RELEASE:
+
+```
+cargo run --release --bin  ondc-retail-b2b-buyer -- migrate
+```
+
+OR 
+
+```
+  ./target/release/ondc-retail-b2b-buyer migrate
+```
+
 ## SQLX OFFLINE MODE:
 
 ```
@@ -11,7 +42,7 @@ cargo sqlx prepare
 
 ## ENVIRON VARIABLE 
 - Set the following environ variables in files called `env.sh` and `configuration.yaml`.
-- The value in `env.sh` are:
+- `env.sh`:
 ```
 
 ## DATABASE VARIABLES
@@ -31,7 +62,7 @@ export EMAIL_CLIENT__TIMEOUT_MILLISECONDS=10000
 
 
 ## TARACING VARIABLES
-export OTEL_SERVICE_NAME="ondc_b2b_buyer"
+export OTEL_SERVICE_NAME="ondc-retail-b2b-buyer"
 export OTEL_EXPORTER_OTLP_TRACES_ENDPOINT="http://localhost:4317"
 # export OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:4318/v1/traces"
 # export OTEL_INSTRUMENTATION_HTTP_CAPTURE_HEADERS_SERVER_REQUEST="X-Request-*"
@@ -65,13 +96,12 @@ export PRODUCT__MEILEI__API_MASTER_KEY=""
 export PRODUCT__MEIELI__URL=""
 
 ## APPLICATION DATA
-export APPLICATION__NAME="ondc_b2b_buyer"
-export APPLICATION__ACCOUNT_NAME=""
+export APPLICATION__NAME="ondc-retail-b2b-buyer"
 
 
 ```
 
-- The value in `configuration.yaml` are:
+-  `configuration.yaml`:
 
 ```
 application:
@@ -96,64 +126,76 @@ bash dev_run.sh
 bash release.sh
 ```
 
+## API DOCUMENTATION:
+The API Docmentation can be found at `https://{{domain}}/docs/` after running the server.
 
-## MILESTONE 1:
-* [x] SET UP THE BASIC ACTIX SERVER
-* [x] ADD AUTOMATIC CONFIGURATION FETCH
-* [x] ADD ERROR HANDLING
-* [x] DEVELOP CUSTOM MIGRATION COMMAND
-* [x] ADD TRACING WITH JAEGER INTEGRATION
-* [x] DEVELOP `SAVE REQ/RESPONSE PAYLOAD IN TRACING` MIDDLEWARE
-* [x] EMAIL SERVICE INTEGRATION
-* [x] DEVELOP USER REGISTRATION API
-* [x] DEVELOP BUSINESS REGISTRATION API
-* [x] DEVEOP USER AUTHENTICATION VIA PASSWORD
-* [x] SETTING THE CODEBASE STRUCTURE SIMILAR TO DJANGO
-* [x] DEVELOP JWT CREATION API AND VERIFICATION MIDDLEWARE
-* [x] INTEGRATE OPENAPI SWAGGER
-* [x] INTEGRATE REDIS
-* [x] INTEGRATE WEBSOCKET 
-* [x] ADD BUSINESS VERIFICATION MIDDLEWARE
-* [x] ADD TSP CHANGES INTO USER ACCOUNT AND BUSINESS ACCOUNT
-* [x] ADD GENERIC HEADER VALIDATION MIDDLEWARE
-* [x] ADD REALTIME SEARCH API
-* [x] ADD SELLER AUTH HEADER VALIDATION MIDDLEWARE
-* [x] ADD ONDC ON SEARCH API
-* [x] FIX INTEGRATION TEST + ADD UNIT TEST CASES FOR THE APIs IN MILESTONE 1
-* [x] ADD APPLICATION RELEASE + DEBUG + KILL BASH SCRIPTS 
+## MILESTONES
+### MILESTONE 1:
+* [x] Set up basic actix web server
+* [x] Add environment config fetch
+* [x] Develop custom migration command
+* [x] Add tracing with jaeger integration
+* [x] Develop middleware to access request & response
+* [x] Email service integration
+* [x] Develop user registration API
+* [x] Develop business registration API
+* [x] Develop API for user authentication via password
+* [x] Setting the codebase structure similar to django
+* [x] Develop JWT creation and verification middleware
+* [x] Integrate openapi swagger
+* [x] Integrate redis
+* [x] Integrate websocket 
+* [x] Add business verification middleware
+* [x] Add tsp changes into user account and business account
+* [x] Add generic header validation middleware
+* [x] Add realtime search API
+* [x] Add seller auth header validation middleware
+* [x] Add ondc on search api
+* [x] Fix integration test + add unit test cases for the apis in milestone 1
+* [x] Add application release + debug + kill bash scripts 
 
 
 
-## MILESTONE 2:
-* [ ] DEVELOP SELECT API
-* [ ] DEVELOP ONDC ON SELECT API
-* [ ] DEVELOP INIT API
-* [ ] DEVELOP ONDC ON INIT API
-* [ ] DEVELOP CONFIRM API
-* [ ] DEVELOP ONDC ON ON_CONFIRM API
-* [ ] DEVELOP  STATUS API
-* [ ] DEVELOP ONDC ON STATUS API
-* [ ] INTEGRATE PERMISSION FLOW
+### MILESTONE 2:
+* [ ] Develop select API
+* [ ] Develop ondc on select API
+* [ ] Develop init API
+* [ ] Develop ondc on init API
+* [ ] Develop confirm API
+* [ ] Develop ondc on on_confirm API
+* [ ] Develop status API
+* [ ] Develop ondc on status API
+* [ ] Develop update API
+* [ ] Develop ondc on update API
+* [ ] Develop cancel API
+* [ ] Develop ONDC on cancel API
+* [ ] Develop IGM issue API
+* [ ] Develop ondc on issue API
+* [ ] Develop IGM issue_status API
+* [ ] Develop ondc on issue_status API
+* [ ] Develop IGM issue close API
+* [ ] Integrate permission flow
 
-## MILESTONE 3:
-* [ ] INTEGRATE PERMISSION FLOW
-* [ ] DEVELOP PERMISSION FLOW
 
-## MILESTONE 4:
-* [ ] COMPLETE VALIDATION FOR BUSINESS_ACCOUNT REGISTRATION
-* [ ] COMPLETE VALIDATION FOR USER_ACCOUNT REGISTRATION
-* [ ] COMPLETE VALIDATION FOR PRODUCT SEARCH REGISTRATION
-* [ ] COMPLETE VALIDATION ONDC ON SEARCH REGISTRATION
+### MILESTONE 3:
+* [ ] Integrate permission flow
+* [ ] Develop permission flow
 
-## OPTIONAL
+### MILESTONE 4:
+* [ ] Complete validation for business_account registration
+* [ ] Complete validation for user_account registration
+* [ ] Complete validation for product search registration
+* [ ] Complete validation ondc on search registration
 
-* [ ] INTEGRATE SMS
-* [ ] INTEGRATE WHATSAPP
-* [ ] DEVELOP EMAIL VERFICATION APIS FOR USER AND BUSINESS ACCOUNT
-* [ ] DEVELOP MOBILE VERFICATION APIS FOR USER AND BUSINESS ACCOUNT
-* [ ] DEVELOP SMS OTP API
-* [ ] DEVELOP EMAIL OTP API
-* [ ] THINK OF MODE OF PRODUCT CACHING
-* [ ] DEVELOP NEW CONFIG FETCH (will be given the last priority)
-* [ ] INTERGRATE ETCD FOR TSP FLOW (WHEN I HAVE NOTHING BETTER TO DO: PROBABLY NEVER)
+### OPTIONAL
+
+* [ ] Integrate SMS
+* [ ] Integrate Whatsapp
+* [ ] Develop email verfication apis for user and business account
+* [ ] Develop mobile verfication apis for user and business account
+* [ ] Develop sms otp api
+* [ ] Develop email otp api
+* [ ] Design product caching
+* [ ] Develop new config fetch (will be given the last priority)
+* [ ] Intergrate etcd for tsp flow (when i have nothing better to do: probably never)
 ### THE MILESTONES ARE SUSCEPTIBLE TO CHANGES ╰(*°▽°*)╯

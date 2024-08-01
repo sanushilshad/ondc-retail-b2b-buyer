@@ -1,4 +1,5 @@
-use super::{handlers::on_search, middlewares::SellerHeaderVerification};
+use super::handlers::{on_search, on_select};
+use super::middlewares::SellerHeaderVerification;
 use actix_web::web;
 pub fn ondc_buyer_route(cfg: &mut web::ServiceConfig) {
     // cfg.service(web::resource("/inventory/fetch").route(web::post().to(fetch_inventory)));
@@ -8,6 +9,9 @@ pub fn ondc_buyer_route(cfg: &mut web::ServiceConfig) {
             .route(web::post().to(on_search))
             .wrap(SellerHeaderVerification),
     );
-
-    // cfg.route("/customer/database", web::post().to(get_customer_dbs_api))
+    cfg.service(
+        web::resource("/on_select")
+            .route(web::post().to(on_select))
+            .wrap(SellerHeaderVerification),
+    );
 }

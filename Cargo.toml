@@ -1,6 +1,7 @@
 [package]
-name = "ondc_b2b_buyer"
+name = "ondc-retail-b2b-buyer"
 version = "0.1.0"
+authors = ["Sanu Shilshad <sanushilshad@gmail.com>"]
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -13,7 +14,7 @@ actix-web-actors = "4"
 anyhow = "1"
 argon2 = { version = "0.5", default-features = false, features = ["std"] }
 async-trait = "0.1.74"
-bigdecimal = { version = "0.4", default-features = false, features = ["serde"] }
+bigdecimal = { version = "0.3.1", default-features = false, features = ["serde"] }
 base64 = "0.21.0"
 blake2 = "0.10.6"
 clap = { version = "4.3", default-features = false, features=["std"]}
@@ -73,7 +74,7 @@ path="src/lib.rs"
 
 [[bin]]
 path = "src/main.rs"
-name = "ondc_b2b_buyer"
+name = "ondc-retail-b2b-buyer"
 
 [profile.release]
 opt-level = 3

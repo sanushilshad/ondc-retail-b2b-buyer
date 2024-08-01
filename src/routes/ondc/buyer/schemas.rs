@@ -1,14 +1,18 @@
 use super::errors::ONDCBuyerError;
 use crate::routes::ondc::schemas::{ONDCContext, ONDCResponseErrorBody};
 use crate::routes::ondc::{ONDCItemUOM, ONDCSellerErrorCode};
+use crate::routes::order::schemas::IncoTermType;
 use crate::routes::product::schemas::{CategoryDomain, FulfillmentType, PaymentType};
-use crate::schemas::{CurrencyType, FeeType, ONDCNetworkType};
+use crate::schemas::{CountryCode, CurrencyType, FeeType, ONDCNetworkType, WSKeyTrait};
 use crate::utils::pascal_to_snake_case;
+use crate::websocket::WebSocketActionType;
 use actix_web::{dev::Payload, web, FromRequest, HttpRequest};
 use bigdecimal::BigDecimal;
 use futures_util::future::LocalBoxFuture;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use serde_with::skip_serializing_none;
+
 use std::collections::HashMap;
 use utoipa::ToSchema;
 use uuid::Uuid;
@@ -32,6 +36,10 @@ pub enum ONDCTagType {
     PriceSlab,
     Attribute,
     BackImage,
+    #[serde(rename = "DELIVERY_TERMS")]
+    DeliveyTerms,
+    #[serde(rename = "BUYER_TERMS")]
+    BuyerTerms,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -75,6 +83,14 @@ pub enum ONDCTagItemCode {
     MinPackSize,
     MaxPackSize,
     UnitSalePrice,
+    #[serde(rename = "INCOTERMS")]
+    IncoTerms,
+    #[serde(rename = "NAMED_PLACE_OF_DELIVERY")]
+    NamedPlaceOfDelivery,
+    #[serde(rename = "ITEM_REQ")]
+    ItemReq,
+    #[serde(rename = "PACKAGING_REQ")]
+    PackagingsReq,
 }
 
 impl std::fmt::Display for ONDCTagItemCode {
@@ -123,39 +139,64 @@ pub struct ONDCTagItem {
 }
 
 impl ONDCTagItem {
-    pub fn get_buyer_fee_type(fee_type: ONDCFeeType) -> ONDCTagItem {
+    pub fn get_tag_item(descriptor_code: ONDCTagItemCode, tag_item_code: &str) -> ONDCTagItem {
         ONDCTagItem {
             descriptor: ONDCTagItemDescriptor {
-                code: ONDCTagItemCode::FinderFeeType,
+                code: descriptor_code,
             },
-            value: fee_type.to_string(),
+            value: tag_item_code.to_string(),
         }
     }
-    pub fn get_buyer_fee_amount(fee_amount: &str) -> ONDCTagItem {
-        ONDCTagItem {
-            descriptor: ONDCTagItemDescriptor {
-                code: ONDCTagItemCode::FinderFeeAmount,
-            },
-            value: fee_amount.to_owned(),
-        }
-    }
+    // pub fn get_buyer_fee_type(fee_type: ONDCFeeType) -> ONDCTagItem {
+    //     ONDCTagItem {
+    //         descriptor: ONDCTagItemDescriptor {
+    //             code: ONDCTagItemCode::FinderFeeType,
+    //         },
+    //         value: fee_type.to_string(),
+    //     }
+    // }
+    // pub fn get_buyer_fee_amount(fee_amount: &str) -> ONDCTagItem {
+    //     ONDCTagItem {
+    //         descriptor: ONDCTagItemDescriptor {
+    //             code: ONDCTagItemCode::FinderFeeAmount,
+    //         },
+    //         value: fee_amount.to_string(),
+    //     }
+    // }
 
-    pub fn get_buyer_id_code(id_code: &ONDCBuyerIdType) -> ONDCTagItem {
-        ONDCTagItem {
-            descriptor: ONDCTagItemDescriptor {
-                code: ONDCTagItemCode::BuyerIdCode,
-            },
-            value: id_code.to_string(),
-        }
-    }
-    pub fn get_buyer_id_no(id_no: &str) -> ONDCTagItem {
-        ONDCTagItem {
-            descriptor: ONDCTagItemDescriptor {
-                code: ONDCTagItemCode::BuyerIdNo,
-            },
-            value: id_no.to_string(),
-        }
-    }
+    // pub fn get_buyer_id_code(id_code: &ONDCBuyerIdType) -> ONDCTagItem {
+    //     ONDCTagItem {
+    //         descriptor: ONDCTagItemDescriptor {
+    //             code: ONDCTagItemCode::BuyerIdCode,
+    //         },
+    //         value: id_code.to_string(),
+    //     }
+    // }
+    // pub fn get_buyer_id_no(id_no: &str) -> ONDCTagItem {
+    //     ONDCTagItem {
+    //         descriptor: ONDCTagItemDescriptor {
+    //             code: ONDCTagItemCode::BuyerIdNo,
+    //         },
+    //         value: id_no.to_string(),
+    //     }
+    // }
+
+    // pub fn get_delivery_incoterm(inco_term_type: IncoTermType) -> ONDCTagItem {
+    //     ONDCTagItem {
+    //         descriptor: ONDCTagItemDescriptor {
+    //             code: ONDCTagItemCode::FinderFeeType,
+    //         },
+    //         value: inco_term_type.to_string(),
+    //     }
+    // }
+    // pub fn get_buyer_fee_amount(fee_amount: &str) -> ONDCTagItem {
+    //     ONDCTagItem {
+    //         descriptor: ONDCTagItemDescriptor {
+    //             code: ONDCTagItemCode::FinderFeeAmount,
+    //         },
+    //         value: fee_amount.to_owned(),
+    //     }
+    // }
 }
 
 // #[derive(Debug, Serialize)]
@@ -219,8 +260,11 @@ impl ONDCTag {
                 code: ONDCTagType::BapTerms,
             },
             list: vec![
-                ONDCTagItem::get_buyer_fee_type(finder_fee_type),
-                ONDCTagItem::get_buyer_fee_amount(finder_fee_amount),
+                ONDCTagItem::get_tag_item(
+                    ONDCTagItemCode::FinderFeeType,
+                    &finder_fee_type.to_string(),
+                ),
+                ONDCTagItem::get_tag_item(ONDCTagItemCode::FinderFeeAmount, finder_fee_amount),
             ],
         }
     }
@@ -231,8 +275,32 @@ impl ONDCTag {
                 code: ONDCTagType::BuyerId,
             },
             list: vec![
-                ONDCTagItem::get_buyer_id_code(id_code),
-                ONDCTagItem::get_buyer_id_no(id_no),
+                ONDCTagItem::get_tag_item(ONDCTagItemCode::BuyerIdCode, &id_code.to_string()),
+                ONDCTagItem::get_tag_item(ONDCTagItemCode::BuyerIdNo, id_no),
+            ],
+        }
+    }
+
+    pub fn get_delivery_terms(inco_term: &IncoTermType, place_of_delivery: &str) -> ONDCTag {
+        ONDCTag {
+            descriptor: ONDCTagDescriptor {
+                code: ONDCTagType::DeliveyTerms,
+            },
+            list: vec![
+                ONDCTagItem::get_tag_item(ONDCTagItemCode::IncoTerms, &inco_term.to_string()),
+                ONDCTagItem::get_tag_item(ONDCTagItemCode::BuyerIdNo, place_of_delivery),
+            ],
+        }
+    }
+
+    pub fn get_item_tags(item_terms: &str, packaging_req: &str) -> ONDCTag {
+        ONDCTag {
+            descriptor: ONDCTagDescriptor {
+                code: ONDCTagType::BuyerTerms,
+            },
+            list: vec![
+                ONDCTagItem::get_tag_item(ONDCTagItemCode::PackagingsReq, item_terms),
+                ONDCTagItem::get_tag_item(ONDCTagItemCode::ItemReq, packaging_req),
             ],
         }
     }
@@ -625,10 +693,11 @@ pub struct ONDCOnSearchProviderLocation {
     pub area_code: String,
 }
 
+#[skip_serializing_none]
 #[derive(Debug, Serialize, Deserialize)]
-struct ONDCContact {
-    email: Option<String>,
-    phone: String,
+pub struct ONDCContact {
+    pub email: Option<String>,
+    pub phone: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -918,6 +987,8 @@ pub struct WSSearchProvider<'a> {
 pub struct WSSearchBPP<'a> {
     pub name: &'a str,
     pub code: Option<&'a str>,
+    pub subscriber_id: &'a str,
+    pub subscriber_uri: &'a str,
     pub short_desc: &'a str,
     pub long_desc: &'a str,
     pub images: Vec<&'a str>,
@@ -935,5 +1006,310 @@ pub struct WSSearch<'a> {
     pub transaction_id: Uuid,
     #[schema(value_type = String)]
     pub message_id: Uuid,
-    pub message: WSSearchData<'a>,
+    pub message: &'a WSSearchData<'a>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+
+pub struct ONDCPerson {
+    creds: Vec<ONDCCredential>,
+    name: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCCustomer {
+    person: ONDCPerson,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCLocationIds {
+    pub id: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ONDCSelectProvider {
+    pub id: String,
+    pub locations: Vec<ONDCLocationIds>,
+    pub ttl: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCQuantityCountInt {
+    pub count: i32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCQuantitySelect {
+    pub selected: ONDCQuantityCountInt,
+}
+
+#[skip_serializing_none]
+#[derive(Debug, Serialize)]
+pub struct ONDCItemAddOns {
+    id: String,
+}
+#[derive(Debug, Serialize)]
+pub struct ONDCSelectPaymentType {
+    pub r#type: ONDCPaymentType,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ONDCCity {
+    pub name: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ONDCState {
+    pub name: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ONDCCountry {
+    pub code: CountryCode,
+}
+#[derive(Debug, Serialize)]
+pub struct ONDCSelectFulfillmentLocation {
+    pub gps: String,
+    pub area_code: String,
+    pub city: ONDCCity,
+    pub country: ONDCCountry,
+    pub state: ONDCState,
+    // pub contact: ONDCContact,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ONDCInitFulfillmentLocation {
+    gps: String,
+    area_code: String,
+    address: String,
+    city: ONDCCity,
+    country: ONDCCountry,
+    state: ONDCState,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ONDCOrderFulfillmentEnd<T> {
+    pub r#type: ONDCFulfillmentStopType,
+    pub location: T,
+    pub contact: ONDCContact,
+}
+
+#[skip_serializing_none]
+#[derive(Debug, Serialize)]
+pub struct ONDCFulfillment<T> {
+    pub id: String,
+    pub r#type: ONDCFulfillmentType,
+    pub stops: Option<Vec<ONDCOrderFulfillmentEnd<T>>>,
+    pub tags: Option<Vec<ONDCTag>>,
+    pub customer: Option<ONDCCustomer>,
+}
+
+#[skip_serializing_none]
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCSelectedItem {
+    pub id: String,
+    pub location_ids: Vec<String>,
+    pub fulfillment_ids: Vec<String>,
+    pub quantity: ONDCQuantitySelect,
+
+    pub tags: Option<Vec<ONDCTag>>,
+}
+
+#[derive(Debug, Serialize)]
+#[skip_serializing_none]
+pub struct ONDCSelectOrder {
+    pub provider: ONDCSelectProvider,
+    pub items: Vec<ONDCSelectedItem>,
+    pub add_ons: Option<Vec<ONDCItemAddOns>>,
+    pub payments: Vec<ONDCSelectPaymentType>,
+    pub fulfillments: Vec<ONDCFulfillment<ONDCSelectFulfillmentLocation>>,
+    pub tags: Vec<ONDCTag>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ONDCSelectMessage {
+    pub order: ONDCSelectOrder,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ONDCSelectRequest {
+    pub context: ONDCContext,
+    pub message: ONDCSelectMessage,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCOnSelectProvider {
+    pub id: String,
+    pub locations: Vec<ONDCLocationIds>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCOnSelectMessage {
+    order: ONDCOnSelectOrder,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCOnSelectPayment {
+    pub r#type: ONDCPaymentType,
+    pub collected_by: ONDCNetworkType,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum DeliveryType {
+    #[serde(rename = "Standard Delivery")]
+    StandardDelivery,
+    #[serde(rename = "Express Delivery")]
+    ExpressDelivery,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum ServiceableType {
+    #[serde(rename = "Non-serviceable")]
+    NonServiceable,
+    #[serde(rename = "Serviceable")]
+    Serviceable,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCOnSelectFulfillmentDescriptor {
+    code: ServiceableType,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCOnSelectFulfillmentState {
+    descriptor: ONDCOnSelectFulfillmentDescriptor,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCOnSelectFulfillment {
+    id: String,
+    #[serde(rename = "@ondc/org/category")]
+    category: DeliveryType,
+    #[serde(rename = "@ondc/org/TAT")]
+    tat: String,
+    tracking: bool,
+    state: ONDCOnSelectFulfillmentState,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BreakupTitleType {
+    Item,
+    Delivery,
+    Tax,
+    Discount,
+    Packing,
+    Misc,
+    Refund,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCOrderItemQuantity {
+    count: i32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCBreakupItemInfo {
+    price: ONDCAmount,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCBreakUp {
+    title: String,
+    #[serde(rename = "@ondc/org/item_id")]
+    item_id: Option<String>,
+    #[serde(rename = "@ondc/org/title_type")]
+    title_type: BreakupTitleType,
+    price: ONDCAmount,
+    #[serde(rename = "@ondc/org/item_quantity")]
+    quantity: Option<ONDCOrderItemQuantity>,
+    item: Option<ONDCBreakupItemInfo>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCQuote {
+    price: ONDCAmount,
+    ttl: String,
+    breakup: Vec<ONDCBreakUp>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCOnSelectOrder {
+    provider: ONDCOnSelectProvider,
+    payments: Vec<ONDCOnSelectPayment>,
+    items: Vec<ONDCSelectedItem>,
+    fulfillments: Vec<ONDCOnSelectFulfillment>,
+    quote: ONDCQuote,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCOnSelectRequest {
+    pub context: ONDCContext,
+    pub message: ONDCOnSelectMessage,
+    pub error: Option<ONDCResponseErrorBody<ONDCSellerErrorCode>>,
+}
+
+impl FromRequest for ONDCOnSelectRequest {
+    type Error = ONDCBuyerError;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
+
+    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+        let fut = web::Json::<Self>::from_request(req, payload);
+
+        Box::pin(async move {
+            match fut.await {
+                Ok(json) => Ok(json.into_inner()),
+                Err(e) => Err(ONDCBuyerError::InvalidResponseError {
+                    path: None,
+                    message: e.to_string(),
+                }),
+            }
+        })
+    }
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct WSError {
+    pub transaction_id: Uuid,
+    pub message_id: Uuid,
+    pub action_type: WebSocketActionType,
+    pub error_message: String,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct WSSelect {
+    pub transaction_id: Uuid,
+    pub message_id: Uuid,
+    pub action_type: WebSocketActionType,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ONDCOrderParams {
+    pub transaction_id: Uuid,
+    pub message_id: Uuid,
+    pub device_id: Option<String>,
+    pub user_id: Option<Uuid>,
+    pub business_id: Option<Uuid>,
+}
+
+impl WSKeyTrait for ONDCOrderParams {
+    fn get_key(&self) -> String {
+        format!(
+            "{}#{}#{}",
+            self.user_id.map_or("NA".to_string(), |id| id.to_string()),
+            self.business_id
+                .map_or("NA".to_string(), |id| id.to_string()),
+            self.device_id.clone().unwrap_or("NA".to_string())
+        )
+    }
+}
+
+pub struct BulkSellerProductInfo<'a> {
+    pub seller_subscriber_ids: Vec<&'a str>,
+    pub provider_ids: Vec<&'a str>,
+    pub provider_names: Vec<&'a str>,
+    pub product_codes: Vec<&'a str>,
+    pub product_names: Vec<&'a str>,
+    pub tax_rates: Vec<BigDecimal>,
+    pub image_objs: Vec<Value>,
 }

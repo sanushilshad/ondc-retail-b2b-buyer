@@ -1,7 +1,7 @@
 // use crate::{redis::RedisClient, websocket::MyWs};
 use crate::{
     redis::RedisClient,
-    schemas::WebSocketParam,
+    schemas::{WSKeyTrait, WebSocketParam},
     websocket::{Server, WebSocketSession},
 };
 // use crate::routes::utils::get_customer_dbs;

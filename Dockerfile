@@ -6,4 +6,4 @@ RUN chmod +x env.sh && /bin/bash -c "./env.sh"
 RUN echo $PATH
 RUN cargo build --release
 # RUN chmod -R 755 /app
-CMD ["./target/release/ondc_b2b_buyer"]
+CMD ["./target/release/ondc-retail-b2b-buyer"]
