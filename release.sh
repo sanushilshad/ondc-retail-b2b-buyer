@@ -47,5 +47,6 @@ else
 fi
 
 echo "Successfully executed build script."
+"$directory/$executable_name" -- migrate
 "$directory/$executable_name"
 
