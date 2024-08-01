@@ -1,4 +1,8 @@
-use std::{collections::HashMap, time::Duration};
+use std::{
+    collections::HashMap,
+    fmt::{Display, Formatter},
+    time::Duration,
+};
 
 use crate::errors::RequestMetaError;
 use crate::routes::user::schemas::AuthData;
@@ -581,6 +585,12 @@ pub enum ONDCNetworkType {
     Bpp,
 }
 
+impl PgHasArrayType for ONDCNetworkType {
+    fn array_type_info() -> sqlx::postgres::PgTypeInfo {
+        sqlx::postgres::PgTypeInfo::with_name("_ondc_network_participant_type")
+    }
+}
+
 #[derive(Debug)]
 pub struct ONDCAuthParams {
     pub created_time: i64,
@@ -591,8 +601,15 @@ pub struct ONDCAuthParams {
     pub signature: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, Clone, ToSchema, sqlx::Type)]
+#[sqlx(type_name = "currency_code_type", rename_all = "UPPERCASE")]
 #[serde(rename_all = "UPPERCASE")]
 pub enum CurrencyType {
     Inr,
+}
+
+impl Display for CurrencyType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", &format!("{:?}", self).to_lowercase())
+    }
 }

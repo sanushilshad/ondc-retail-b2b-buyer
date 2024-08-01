@@ -12,6 +12,6 @@ pub fn ondc_buyer_route(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::resource("/on_select")
             .route(web::post().to(on_select))
-            .wrap(SellerHeaderVerification),
+            .wrap(SellerHeaderVerification), // .wrap(SellerHeaderVerification),
     );
 }
