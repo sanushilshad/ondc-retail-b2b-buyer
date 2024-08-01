@@ -13,13 +13,27 @@ The progress can be tracked here: [milestones](##MILESTONES)
 | Database | PostgreSQL |
 | Caching | Redis, MeileiSeach |
 | Email Service | Amazon Email Service |
+| API Documention | OpenAPI Swagger |
 
 
-## CUSTOM MIGRATION COMMAND:
+## CUSTOM MIGRATION COMMAND FOR DEBUG:
 
 ```
 cargo run --bin ondc-retail-b2b-buyer -- migrate
 ```
+
+## CUSTOM MIGRATION COMMAND FOR RELEASE:
+
+```
+cargo run --release --bin  ondc-retail-b2b-buyer -- migrate
+```
+
+OR 
+
+```
+  ./target/release/ondc-retail-b2b-buyer migrate
+```
+
 ## SQLX OFFLINE MODE:
 
 ```
@@ -112,6 +126,9 @@ bash dev_run.sh
 bash release.sh
 ```
 
+## API DOCUMENTATION:
+The API Docmentation can be found at `https://{{domain}}/docs/` after running the server.
+
 ## MILESTONES
 ### MILESTONE 1:
 * [x] Set up basic actix web server
@@ -150,12 +167,15 @@ bash release.sh
 * [ ] Develop ondc on status API
 * [ ] Develop update API
 * [ ] Develop ondc on update API
+* [ ] Develop cancel API
+* [ ] Develop ONDC on cancel API
 * [ ] Develop IGM issue API
 * [ ] Develop ondc on issue API
 * [ ] Develop IGM issue_status API
 * [ ] Develop ondc on issue_status API
 * [ ] Develop IGM issue close API
 * [ ] Integrate permission flow
+
 
 ### MILESTONE 3:
 * [ ] Integrate permission flow
