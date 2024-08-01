@@ -450,7 +450,7 @@ CREATE TYPE commerce_fulfillment_status_type AS ENUM(
   'cancelled'
 );
 
-CREATE TABLE IF NOT EXISTS commerce_fulfillment_data(
+CREATE TABLE IF NOT EXISTS buyer_commerce_fulfillment_data(
   id uuid PRIMARY KEY,
   commerce_data_id uuid NOT NULL,
   fulfillment_id TEXT NOT NULL,
@@ -463,7 +463,7 @@ ALTER TABLE commerce_fulfillment_data ADD CONSTRAINT commerce_fulfillment_fk FOR
 ALTER TABLE commerce_fulfillment_data ADD CONSTRAINT commerce_fulfillment_data_uq UNIQUE (commerce_data_id, fulfillment_id);
 
 
-CREATE TABLE IF NOT EXISTS commerce_fulfillment_data_line(
+CREATE TABLE IF NOT EXISTS buyer_commerce_fulfillment_data_line(
   id uuid PRIMARY KEY,
   commerce_fulfillment_id uuid NOT NULL,
   item_code TEXT NOT NULL,
@@ -475,7 +475,7 @@ ALTER TABLE commerce_fulfillment_data_line ADD CONSTRAINT commerce_fulfillment_r
 
 
 
-CREATE TABLE IF NOT EXISTS  order_status_history(
+CREATE TABLE IF NOT EXISTS  buyer_order_status_history(
   id uuid PRIMARY KEY,
   order_id TEXT NOT NULL,
   fulfillment_id TEXT,
