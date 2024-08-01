@@ -2,7 +2,7 @@
 # ONDC RETAIL B2B BUYER APP
  
 Backend server for an ONDC B2B Buyer App.
-The progress can be tracked here: [milestones](## MILESTONES)
+The progress can be tracked here: [milestones](##MILESTONES)
 
 
 ## Tech Stack
