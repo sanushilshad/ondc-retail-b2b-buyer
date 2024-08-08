@@ -17,11 +17,11 @@ use super::schemas::{
     ONDCSearchItem, ONDCSearchLocation, ONDCSearchMessage, ONDCSearchPayment, ONDCSearchRequest,
     ONDCSearchStop, ONDCSelectFulfillmentLocation, ONDCSelectMessage, ONDCSelectOrder,
     ONDCSelectPaymentType, ONDCSelectProvider, ONDCSelectRequest, ONDCSelectedItem, ONDCState,
-    ONDCTag, ONDCTagItemCode, ONDCTagType, OnSearchContentType, TagTrait, UnitizedProductQty,
-    WSCreatorContactData, WSItemPayment, WSProductCategory, WSProductCreator, WSSearch,
-    WSSearchBPP, WSSearchCity, WSSearchCountry, WSSearchData, WSSearchItem, WSSearchItemPrice,
-    WSSearchItemQty, WSSearchItemQtyMeasure, WSSearchItemQuantity, WSSearchProductProvider,
-    WSSearchProvider, WSSearchProviderLocation, WSSearchState,
+    ONDCTag, ONDCTagItemCode, ONDCTagType, OnSearchContentType, SellerProductInfo, TagTrait,
+    UnitizedProductQty, WSCreatorContactData, WSItemPayment, WSProductCategory, WSProductCreator,
+    WSSearch, WSSearchBPP, WSSearchCity, WSSearchCountry, WSSearchData, WSSearchItem,
+    WSSearchItemPrice, WSSearchItemQty, WSSearchItemQtyMeasure, WSSearchItemQuantity,
+    WSSearchProductProvider, WSSearchProvider, WSSearchProviderLocation, WSSearchState,
 };
 use uuid::Uuid;
 
@@ -703,7 +703,7 @@ fn get_ondc_select_item_tags(
     order_type: &OrderType,
     buyer_terms: &Option<BuyerTerms>,
 ) -> Option<Vec<ONDCTag>> {
-    if order_type == &OrderType::Rfq {
+    if order_type == &OrderType::PurchaseOrder {
         if let Some(terms) = buyer_terms {
             return Some(vec![ONDCTag::get_item_tags(
                 &terms.item_req,
@@ -723,7 +723,7 @@ fn get_ondc_select_order_item(
 
     for item in items {
         ondc_item_objs.push(ONDCSelectedItem {
-            id: item.item_code.clone(),
+            id: item.item_id.clone(),
             location_ids: item.location_ids.clone(),
             fulfillment_ids: item.fulfillment_ids.clone(),
             quantity: ONDCQuantitySelect {
@@ -863,12 +863,15 @@ pub fn get_ondc_select_payload(
 }
 
 #[tracing::instrument(name = "save ondc seller product info", skip())]
-pub fn get_bulk_seller_product_info_objs<'a>(body: &'a WSSearchData) -> BulkSellerProductInfo<'a> {
+pub fn create_bulk_seller_product_info_objs<'a>(
+    body: &'a WSSearchData,
+) -> BulkSellerProductInfo<'a> {
     let mut seller_subscriber_ids: Vec<&str> = vec![];
     let mut provider_ids: Vec<&str> = vec![];
     let mut provider_names: Vec<&str> = vec![];
-    let mut product_codes: Vec<&str> = vec![];
-    let mut product_names: Vec<&str> = vec![];
+    let mut item_codes: Vec<Option<&str>> = vec![];
+    let mut item_names: Vec<&str> = vec![];
+    let mut item_ids: Vec<&str> = vec![];
     let mut tax_rates: Vec<BigDecimal> = vec![];
     let mut image_objs: Vec<Value> = vec![];
     for provider in &body.providers {
@@ -876,8 +879,9 @@ pub fn get_bulk_seller_product_info_objs<'a>(body: &'a WSSearchData) -> BulkSell
             seller_subscriber_ids.push(body.bpp.subscriber_id);
             provider_ids.push(provider.provider_detail.id);
             provider_names.push(provider.provider_detail.name);
-            product_codes.push(item.id);
-            product_names.push(item.name);
+            item_ids.push(item.id);
+            item_codes.push(item.code);
+            item_names.push(item.name);
             tax_rates.push(item.tax_rate.clone());
             // for image_url in item.images.iter() {
             image_objs.push(serde_json::to_value(&item.images).unwrap());
@@ -890,8 +894,9 @@ pub fn get_bulk_seller_product_info_objs<'a>(body: &'a WSSearchData) -> BulkSell
         seller_subscriber_ids,
         provider_ids,
         provider_names,
-        product_codes,
-        product_names,
+        item_codes,
+        item_ids,
+        item_names,
         tax_rates,
         image_objs,
     };
@@ -902,15 +907,16 @@ pub async fn save_ondc_seller_product_info<'a>(
     pool: &PgPool,
     data: &'a WSSearchData<'a>,
 ) -> Result<(), anyhow::Error> {
-    let product_data = get_bulk_seller_product_info_objs(data);
+    let product_data = create_bulk_seller_product_info_objs(data);
     sqlx::query!(
         r#"
         INSERT INTO ondc_seller_product_info (
             seller_subscriber_id,
             provider_id,
             provider_name,
-            product_code,
-            product_name,
+            item_id,
+            item_code,
+            item_name,
             tax_rate,
             images
         )
@@ -921,20 +927,22 @@ pub async fn save_ondc_seller_product_info<'a>(
             $3::text[], 
             $4::text[], 
             $5::text[], 
-            $6::decimal[],
-            $7::jsonb[]
+            $6::text[], 
+            $7::decimal[],
+            $8::jsonb[]
         )
-        ON CONFLICT (seller_subscriber_id, provider_id, product_code) 
+        ON CONFLICT (seller_subscriber_id, provider_id, item_id) 
         DO UPDATE SET 
-            product_name = EXCLUDED.product_name,
+            item_name = EXCLUDED.item_name,
             tax_rate = EXCLUDED.tax_rate,
             images = EXCLUDED.images;
         "#,
         &product_data.seller_subscriber_ids[..] as &[&str],
         &product_data.provider_ids[..] as &[&str],
         &product_data.provider_names[..] as &[&str],
-        &product_data.product_codes[..] as &[&str],
-        &product_data.product_names[..] as &[&str],
+        &product_data.item_ids[..] as &[&str],
+        &product_data.item_codes[..] as &[Option<&str>],
+        &product_data.item_names[..] as &[&str],
         &product_data.tax_rates[..] as &[BigDecimal],
         &product_data.image_objs[..],
     )
@@ -947,4 +955,52 @@ pub async fn save_ondc_seller_product_info<'a>(
     })?;
 
     Ok(())
+}
+
+pub async fn fetch_ondc_seller_product_info(
+    pool: &PgPool,
+    bpp_id: &str,
+    provider_id: &str,
+    item_id_list: &Vec<&str>,
+) -> Result<Vec<SellerProductInfo>, anyhow::Error> {
+    let row: Vec<SellerProductInfo> = sqlx::query_as!(
+        SellerProductInfo,
+        r#"SELECT item_name, item_id, item_code, seller_subscriber_id, provider_id, provider_name, tax_rate, images  from ondc_seller_product_info where 
+        provider_id  = $1 AND seller_subscriber_id=$2 AND item_id::text = ANY($3)"#,
+        provider_id,
+        bpp_id,
+        item_id_list as &Vec<&str>
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(row)
+}
+
+pub fn get_ondc_seller_mapping_key(bpp_id: &str, provider_id: &str, item_code: &str) -> String {
+    format!("{}_{}_{}", bpp_id, provider_id, item_code)
+}
+
+#[tracing::instrument(name = "fetch ondc seller product info mapping", skip(pool))]
+pub async fn get_ondc_seller_product_info_mapping(
+    pool: &PgPool,
+    bpp_id: &str,
+    provider_id: &str,
+    item_id_list: &Vec<&str>,
+) -> Result<HashMap<String, SellerProductInfo>, anyhow::Error> {
+    let seller_product_info =
+        fetch_ondc_seller_product_info(&pool, bpp_id, provider_id, item_id_list).await?;
+    let seller_product_map: HashMap<String, SellerProductInfo> = seller_product_info
+        .into_iter()
+        .map(|obj| {
+            (
+                get_ondc_seller_mapping_key(
+                    &obj.seller_subscriber_id,
+                    &obj.provider_id,
+                    &obj.item_id,
+                ),
+                obj,
+            )
+        })
+        .collect();
+    Ok(seller_product_map)
 }

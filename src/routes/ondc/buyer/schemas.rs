@@ -1308,8 +1308,21 @@ pub struct BulkSellerProductInfo<'a> {
     pub seller_subscriber_ids: Vec<&'a str>,
     pub provider_ids: Vec<&'a str>,
     pub provider_names: Vec<&'a str>,
-    pub product_codes: Vec<&'a str>,
-    pub product_names: Vec<&'a str>,
+    pub item_codes: Vec<Option<&'a str>>,
+    pub item_ids: Vec<&'a str>,
+    pub item_names: Vec<&'a str>,
     pub tax_rates: Vec<BigDecimal>,
     pub image_objs: Vec<Value>,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct SellerProductInfo {
+    pub item_name: String,
+    pub item_code: Option<String>,
+    pub item_id: String,
+    pub seller_subscriber_id: String,
+    pub provider_id: String,
+    pub provider_name: Option<String>,
+    pub tax_rate: BigDecimal,
+    pub images: Value,
 }

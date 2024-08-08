@@ -5,6 +5,7 @@ use crate::{errors::GenericError, schemas::CountryCode};
 use actix_web::{dev::Payload, web, FromRequest, HttpRequest};
 use futures_util::future::LocalBoxFuture;
 use serde::{Deserialize, Serialize};
+use sqlx::postgres::PgHasArrayType;
 use utoipa::ToSchema;
 use uuid::Uuid;
 #[derive(Debug, Deserialize, Serialize, ToSchema, sqlx::Type)]
@@ -14,6 +15,12 @@ pub enum PaymentType {
     PrePaid,
     CashOnDelivery,
     Credit,
+}
+
+impl PgHasArrayType for PaymentType {
+    fn array_type_info() -> sqlx::postgres::PgTypeInfo {
+        sqlx::postgres::PgTypeInfo::with_name("_payment_type")
+    }
 }
 
 impl PaymentType {

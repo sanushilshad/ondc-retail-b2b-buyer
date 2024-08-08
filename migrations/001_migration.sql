@@ -345,13 +345,14 @@ CREATE TABLE IF NOT EXISTS ondc_seller_product_info (
     seller_subscriber_id TEXT NOT NULL,
     provider_id TEXT NOT NULL,
     provider_name TEXT,
-    product_code TEXT NOT NULL,
-    product_name TEXT NOT NULL,
+    item_id TEXT NOT NULL,
+    item_code TEXT NOT NULL,
+    item_name TEXT NOT NULL,
     tax_rate DECIMAL(5, 2) NOT NULL,
     images JSONB NOT NULL,
     created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-ALTER TABLE ondc_seller_product_info ADD CONSTRAINT ondc_seller_product_info_constraint UNIQUE (seller_subscriber_id, provider_id, product_code);
+ALTER TABLE ondc_seller_product_info ADD CONSTRAINT ondc_seller_product_info_constraint UNIQUE (seller_subscriber_id, provider_id, item_id);
 
 CREATE TABLE IF NOT EXISTS ondc_buyer_order_req (
     id SERIAL NOT NULL PRIMARY KEY,
@@ -367,14 +368,15 @@ CREATE TABLE IF NOT EXISTS ondc_buyer_order_req (
 
 
 CREATE TYPE commerce_data_type AS ENUM (
-  'order'
+  'sales_order',
+  'purchase_order'
 );
 
 CREATE TYPE  tax_type AS ENUM(
   'gst'
 );
 
-CREATE TYPE buyer_commerce_status_type AS ENUM(
+CREATE TYPE buyer_commerce_status AS ENUM(
   'quote_requested',
   'quote_accepted',
   'quote_rejected',
@@ -390,31 +392,31 @@ CREATE TYPE buyer_commerce_status_type AS ENUM(
 CREATE TABLE IF NOT EXISTS buyer_commerce_data(
   id uuid PRIMARY KEY,
   urn TEXT,
-  external_urn TEXT NOT NULL,
-  record_type buyer_commerce_status_type NOT NULL,
+  external_urn external_urn NOT NULL,
+  record_type commerce_data_type NOT NULL,
   record_status buyer_commerce_status NOT NULL,
+  domain_category_code TEXT NOT NULL,
   buyer_id uuid NOT NULL,
   seller_id TEXT NOT NULL,
   buyer_name TEXT NOT NULL,
   seller_name TEXT,
-  buyer_data_json JSONB NOT NULL,
-  seller_data_json JSONB NOT NULL,
   payment_data_json JSONB,
-  total_item_count int NOT NULL,
   source data_source NOT NULL,
   created_at timestamptz NOT NULL,
   updated_at timestamptz,
   deleted_at timestamptz,
   is_deleted BOOLEAN DEFAULT false,
-  status_json JSONB,
   created_by_json JSON NOT NULL,
   created_by uuid NOT NULL,
   grand_total DECIMAL(20, 2),
-  buyer_app_fee DECIMAL (20, 2) DEFAULT 0.00 NOT NULL,
-  buyer_app_fee_type ondc_np_fee_type NOT NULL,
-  version INTEGER NOT NULL,
   buyer_chat_link TEXT,
-  seller_chat_link TEXT
+  seller_chat_link TEXT,
+  bpp_id TEXT NOT NULL,
+  bpp_uri TEXT NOT NULL,
+  tsp_id TEXT NOT NULL,
+  is_import BOOLEAN NOT NULL,
+  quote_ttl TEXT NOT NULL,
+  payment_types payment_type[]
 );
 
 ALTER TABLE buyer_commerce_data ADD CONSTRAINT buyer_commerce_data_uq UNIQUE (external_urn);
@@ -423,16 +425,15 @@ CREATE TABLE IF NOT EXISTS buyer_commerce_data_line(
   id uuid PRIMARY KEY,
   commerce_data_id uuid NOT NULL,
   item_id TEXT NOT NULL,
+  item_image TEXT NOT NULL,
   item_name TEXT NOT NULL,
-  item_code TEXT NOT NULL,
-  item_count int NOT NULL,
+  item_code TEXT,
   currency_code TEXT NOT NULL,
   qty DECIMAL(20, 2) NOT NULL,
-  tax_type tax_type NOT NULL,
-  tax_percentage DECIMAL(5, 2) NOT NULL,
-  item_tax_value DECIMAL(20, 2) NOT NULL,
-  location_ids TEXT[],
-  fulfillemnt_ids TEXT[]
+  tax_percentage DECIMAL(5, 2) NOT NULL DEFAULT 0.0,
+  item_tax_value DECIMAL(20, 2) NOT NULL DEFAULT 0.0,
+  location_ids JSONB,
+  fulfillment_ids JSONB
 );
 
 ALTER TABLE buyer_commerce_data_line ADD CONSTRAINT commerce_data_fk FOREIGN KEY ("commerce_data_id") REFERENCES buyer_commerce_data ("id") ON DELETE CASCADE;
@@ -454,30 +455,37 @@ CREATE TABLE IF NOT EXISTS buyer_commerce_fulfillment_data(
   id uuid PRIMARY KEY,
   commerce_data_id uuid NOT NULL,
   fulfillment_id TEXT NOT NULL,
-  status commerce_fulfillment_status_type DEFAULT 'pending'::commerce_fulfillment_status_type NOT NULL,
+  fufillment_status commerce_fulfillment_status_type DEFAULT 'pending'::commerce_fulfillment_status_type NOT NULL,
+  fufillment_type fulfillment_type NOT NULL,
+  locations JSONB,
+  inco_terms TEXT,
+  place_of_delivery TEXT,
   vectors jsonb NOT NULL,
   remark TEXT NOT NULL,
   created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-ALTER TABLE commerce_fulfillment_data ADD CONSTRAINT commerce_fulfillment_fk FOREIGN KEY ("commerce_data_id") REFERENCES buyer_commerce_data ("id") ON DELETE CASCADE;
-ALTER TABLE commerce_fulfillment_data ADD CONSTRAINT commerce_fulfillment_data_uq UNIQUE (commerce_data_id, fulfillment_id);
+
+ALTER TABLE buyer_commerce_fulfillment_data ADD CONSTRAINT commerce_fulfillment_fk FOREIGN KEY ("commerce_data_id") REFERENCES buyer_commerce_data ("id") ON DELETE CASCADE;
+ALTER TABLE buyer_commerce_fulfillment_data ADD CONSTRAINT buyer_commerce_fulfillment_data_uq UNIQUE (commerce_data_id, fulfillment_id);
 
 
 CREATE TABLE IF NOT EXISTS buyer_commerce_fulfillment_data_line(
   id uuid PRIMARY KEY,
   commerce_fulfillment_id uuid NOT NULL,
+  seller_id TEXT NOT NULL,
   item_code TEXT NOT NULL,
   item_count int NOT NULL
 );
 
-ALTER TABLE commerce_fulfillment_data_line ADD CONSTRAINT commerce_fulfillment_raw_fk FOREIGN KEY ("commerce_fulfillment_id") REFERENCES commerce_fulfillment_data ("id") ON DELETE CASCADE;
-ALTER TABLE commerce_fulfillment_data_line ADD CONSTRAINT commerce_fulfillment_raw_data_uq UNIQUE (commerce_fulfillment_id, item_code);
+ALTER TABLE buyer_commerce_fulfillment_data_line ADD CONSTRAINT commerce_fulfillment_raw_fk FOREIGN KEY ("commerce_fulfillment_id") REFERENCES buyer_commerce_fulfillment_data ("id") ON DELETE CASCADE;
+ALTER TABLE buyer_commerce_fulfillment_data_line ADD CONSTRAINT commerce_fulfillment_raw_data_uq UNIQUE (commerce_fulfillment_id, seller_id, item_code);
 
 
 
 CREATE TABLE IF NOT EXISTS  buyer_order_status_history(
   id uuid PRIMARY KEY,
   order_id TEXT NOT NULL,
+  seller_id TEXT NOT NULL,
   fulfillment_id TEXT,
   status TEXT NOT NULL,
   created_on TEXT NOT NULL

@@ -12,7 +12,7 @@ use crate::schemas::{GenericResponse, ONDCNPType, ONDCNetworkType, RequestMetaDa
 use sqlx::PgPool;
 
 use super::schemas::OrderSelectRequest;
-use super::utils::save_ondc_order_request;
+use super::utils::{save_ondc_order_request, save_select_rfq};
 #[utoipa::path(
     post,
     path = "/order/select",
@@ -96,6 +96,24 @@ pub async fn order_select(
         ONDCActionType::Select,
     );
     futures::future::join(task_3, task_4).await.1?;
+    match save_select_rfq(
+        &pool,
+        &user_account,
+        &business_account,
+        &body,
+        &meta_data.domain_uri,
+        &bpp_detail,
+    )
+    .await
+    {
+        Err(e) => {
+            return Err(GenericError::DatabaseError(
+                "Something went wrong while commiting order to database".to_string(),
+                e,
+            ));
+        }
+        Ok(_) => (),
+    };
     Ok(web::Json(GenericResponse::success(
         "Successfully send select request",
         Some(()),

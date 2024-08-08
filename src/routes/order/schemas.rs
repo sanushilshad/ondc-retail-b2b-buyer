@@ -5,6 +5,7 @@ use crate::schemas::CountryCode;
 use crate::utils::deserialize_non_empty_vector;
 use actix_http::Payload;
 use actix_web::{web, FromRequest, HttpRequest};
+
 use futures_util::future::LocalBoxFuture;
 use serde::Deserialize;
 use utoipa::ToSchema;
@@ -19,7 +20,7 @@ pub struct BuyerTerms {
 #[derive(Deserialize, Debug, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct OrderSelectItem {
-    pub item_code: String,
+    pub item_id: String,
     pub location_ids: Vec<String>,
     pub qty: i32,
     pub buyer_term: Option<BuyerTerms>,
@@ -91,10 +92,19 @@ pub struct OrderSelectFulfillment {
     pub delivery_terms: Option<OrderDeliveyTerm>,
 }
 
-#[derive(Deserialize, Debug, ToSchema, PartialEq)]
+// #[derive(Deserialize, Debug, sqlx::Type)]
+// #[sqlx(type_name = "commerce_data_type", rename_all = "snake_case")]
+// #[serde(rename_all = "snake_case")]
+// pub enum CommerceDataType {
+//     Order,
+//     PurchaseOrder,
+// }
+
+#[derive(Deserialize, Debug, ToSchema, PartialEq, sqlx::Type)]
+#[sqlx(type_name = "commerce_data_type", rename_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
 pub enum OrderType {
-    Rfq,
+    PurchaseOrder,
     Sale,
 }
 
@@ -131,3 +141,24 @@ impl FromRequest for OrderSelectRequest {
         })
     }
 }
+
+#[derive(Deserialize, Debug, sqlx::Type)]
+#[sqlx(type_name = "buyer_commerce_status", rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
+pub enum CommerceStatusType {
+    QuoteRequested,
+    QuoteAccepted,
+    QuoteRejected,
+    Initialized,
+    Created,
+    Accepted,
+    InProgress,
+    Completed,
+    Cancelled,
+}
+
+// #[derive(Deserialize, Debug)]
+// pub struct OrderStatusHistory {
+//     created_on: DateTime<Utc>,
+//     status: CommerceStatusType,
+// }
