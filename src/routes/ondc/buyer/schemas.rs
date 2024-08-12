@@ -794,6 +794,7 @@ pub struct ONDCOnSearchMessage {
 pub struct ONDCOnSearchRequest {
     pub context: ONDCContext,
     pub message: ONDCOnSearchMessage,
+    #[allow(dead_code)]
     pub error: Option<ONDCResponseErrorBody<ONDCSellerErrorCode>>,
 }
 
@@ -1284,6 +1285,7 @@ pub struct WSSelect {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct ONDCOrderParams {
     pub transaction_id: Uuid,
     pub message_id: Uuid,
@@ -1312,6 +1314,8 @@ pub struct BulkSellerProductInfo<'a> {
     pub item_ids: Vec<&'a str>,
     pub item_names: Vec<&'a str>,
     pub tax_rates: Vec<BigDecimal>,
+    pub mrps: Vec<BigDecimal>,
+    pub unit_prices: Vec<BigDecimal>,
     pub image_objs: Vec<Value>,
 }
 
@@ -1324,5 +1328,7 @@ pub struct SellerProductInfo {
     pub provider_id: String,
     pub provider_name: Option<String>,
     pub tax_rate: BigDecimal,
+    pub mrp: BigDecimal,
+    pub unit_price: BigDecimal,
     pub images: Value,
 }

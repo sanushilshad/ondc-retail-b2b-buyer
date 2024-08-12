@@ -350,6 +350,8 @@ CREATE TABLE IF NOT EXISTS ondc_seller_product_info (
     item_name TEXT NOT NULL,
     tax_rate DECIMAL(5, 2) NOT NULL,
     images JSONB NOT NULL,
+    mrp DECIMAL(20, 2) NOT NULL DEFAULT 0.0,
+    unit_price DECIMAL(20, 2) NOT NULL DEFAULT 0.0,
     created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 ALTER TABLE ondc_seller_product_info ADD CONSTRAINT ondc_seller_product_info_constraint UNIQUE (seller_subscriber_id, provider_id, item_id);
@@ -374,6 +376,13 @@ CREATE TYPE commerce_data_type AS ENUM (
 
 CREATE TYPE  tax_type AS ENUM(
   'gst'
+);
+
+CREATE TYPE currency_code_type AS ENUM (
+  'INR',
+  'SGD',
+  'AED',
+  'GHS'
 );
 
 CREATE TYPE buyer_commerce_status AS ENUM(
@@ -428,12 +437,14 @@ CREATE TABLE IF NOT EXISTS buyer_commerce_data_line(
   item_image TEXT NOT NULL,
   item_name TEXT NOT NULL,
   item_code TEXT,
-  currency_code TEXT NOT NULL,
+  currency_code currency_code_type,
   qty DECIMAL(20, 2) NOT NULL,
-  tax_percentage DECIMAL(5, 2) NOT NULL DEFAULT 0.0,
+  tax_rate DECIMAL(5, 2) NOT NULL DEFAULT 0.0,
   item_tax_value DECIMAL(20, 2) NOT NULL DEFAULT 0.0,
   location_ids JSONB,
-  fulfillment_ids JSONB
+  fulfillment_ids JSONB,
+  mrp DECIMAL(20, 2) NOT NULL DEFAULT 0.0,
+  unit_price DECIMAL(20, 2) NOT NULL DEFAULT 0.0,
 );
 
 ALTER TABLE buyer_commerce_data_line ADD CONSTRAINT commerce_data_fk FOREIGN KEY ("commerce_data_id") REFERENCES buyer_commerce_data ("id") ON DELETE CASCADE;

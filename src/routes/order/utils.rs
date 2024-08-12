@@ -1,4 +1,4 @@
-use crate::routes::ondc::buyer::schemas::SellerProductInfo;
+use crate::routes::ondc::buyer::schemas::{ONDCOnSelectRequest, SellerProductInfo};
 use crate::routes::ondc::buyer::utils::{
     get_ondc_seller_mapping_key, get_ondc_seller_product_info_mapping,
 };
@@ -18,6 +18,7 @@ use validator::HasLen;
 
 use super::schemas::OrderSelectRequest;
 
+#[allow(clippy::too_many_arguments)]
 #[tracing::instrument(name = "Save Product Search Request", skip(pool))]
 pub async fn save_ondc_order_request(
     pool: &PgPool,
@@ -100,16 +101,16 @@ pub async fn save_rfq_order(
     Ok(order_id)
 }
 
-#[tracing::instrument(name = "save rfq fulfillment", skip(transaction))]
+#[tracing::instrument(name = "save rfq fulfillment", skip(_transaction))]
 pub async fn save_rfq_fulfillment(
-    transaction: &mut Transaction<'_, Postgres>,
+    _transaction: &mut Transaction<'_, Postgres>,
     select_request: &OrderSelectRequest,
 ) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
 #[tracing::instrument(name = "save rfq items", skip(transaction))]
-pub async fn save_rfq_items(
+pub async fn save_order_select_items(
     transaction: &mut Transaction<'_, Postgres>,
     order_id: &Uuid,
     select_request: &OrderSelectRequest,
@@ -125,7 +126,9 @@ pub async fn save_rfq_items(
     let mut fulfillment_id_list = vec![];
     let mut item_image_list = vec![];
     let mut qty_list = vec![];
-    let mut currency_list = vec![];
+    let mut mrp_list = vec![];
+    let mut unit_price_list = vec![];
+    let mut tax_rate_list = vec![];
     for item in &select_request.items {
         let key = get_ondc_seller_mapping_key(
             &select_request.bpp_id,
@@ -143,12 +146,17 @@ pub async fn save_rfq_items(
                     .and_then(|image| image.as_str())
                     .unwrap_or(""),
             );
+            mrp_list.push(seller_item_obj.mrp.clone());
+            unit_price_list.push(seller_item_obj.unit_price.clone());
+            tax_rate_list.push(seller_item_obj.tax_rate.clone());
         } else {
             item_code_list.push(None);
             item_name_list.push("");
             item_image_list.push("");
+            mrp_list.push(BigDecimal::from(0));
+            unit_price_list.push(BigDecimal::from(0));
+            tax_rate_list.push(BigDecimal::from(0));
         }
-
         // let item_name = '';
         // let item_image = ''.as_str();
         item_id_list.push(item.item_id.as_str());
@@ -157,14 +165,13 @@ pub async fn save_rfq_items(
         fulfillment_id_list.push(serde_json::to_value(&item.fulfillment_ids)?);
 
         qty_list.push(BigDecimal::from(item.qty));
-        currency_list.push("INR");
     }
     let query = sqlx::query!(
         r#"
         INSERT INTO buyer_commerce_data_line (id, commerce_data_id, item_id, item_name, item_code, item_image, 
-            currency_code, qty, location_ids, fulfillment_ids)
+            qty, location_ids, fulfillment_ids, tax_rate, mrp, unit_price)
             SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::text[], $4::text[], $5::text[], $6::text[],
-            $7::text[], $8::decimal[], $9::jsonb[], $10::jsonb[])
+             $7::decimal[], $8::jsonb[], $9::jsonb[], $10::decimal[], $11::decimal[], $12::decimal[])
         ON CONFLICT (commerce_data_id, item_code) 
         DO NOTHING
         "#,
@@ -174,10 +181,12 @@ pub async fn save_rfq_items(
         &item_name_list[..] as &[&str],
         &item_code_list[..] as &[Option<&str>], //change
         &item_image_list[..] as &[&str],        //change
-        &currency_list[..] as &[&str],          //change
         &qty_list[..] as &[BigDecimal],
         &location_id_list as &[Value],
-        &fulfillment_id_list as &[Value]
+        &fulfillment_id_list as &[Value],
+        &tax_rate_list[..] as &[BigDecimal],
+        &mrp_list[..] as &[BigDecimal],
+        &unit_price_list[..] as &[BigDecimal],
     );
 
     transaction.execute(query).await.map_err(|e| {
@@ -212,7 +221,7 @@ pub async fn delete_order(
     Ok(())
 }
 #[tracing::instrument(name = "save request for quote", skip(pool))]
-pub async fn save_select_rfq(
+pub async fn initialize_order_select(
     pool: &PgPool,
     user_account: &UserAccount,
     business_account: &BusinessAccount,
@@ -226,7 +235,7 @@ pub async fn save_select_rfq(
         .map(|item| item.item_id.as_str()) // Assuming item_id is a String
         .collect();
     let seller_product_map = get_ondc_seller_product_info_mapping(
-        &pool,
+        pool,
         &bpp_detail.subscriber_id,
         &select_request.provider_id,
         &item_code_list,
@@ -250,17 +259,78 @@ pub async fn save_select_rfq(
         business_account,
         bpp_detail,
         tsp_id,
-        &provider_name,
+        provider_name,
     )
     .await?;
 
-    save_rfq_items(
+    save_order_select_items(
         &mut transaction,
         &order_id,
-        &select_request,
+        select_request,
         &seller_product_map,
     )
     .await?;
+
+    transaction
+        .commit()
+        .await
+        .context("Failed to commit SQL transaction to store a order")?;
+
+    Ok(())
+}
+
+#[tracing::instrument(name = "save request for quote", skip(pool))]
+pub async fn initialize_order_on_select(
+    pool: &PgPool,
+    user_account: &UserAccount,
+    business_account: &BusinessAccount,
+    on_select_request: &ONDCOnSelectRequest,
+    tsp_id: &str,
+    bpp_detail: &LookupData,
+) -> Result<(), anyhow::Error> {
+    // let item_code_list: Vec<&str> = select_request
+    //     .items
+    //     .iter()
+    //     .map(|item| item.item_id.as_str()) // Assuming item_id is a String
+    //     .collect();
+    // let seller_product_map = get_ondc_seller_product_info_mapping(
+    //     &pool,
+    //     &bpp_detail.subscriber_id,
+    //     &select_request.provider_id,
+    //     &item_code_list,
+    // )
+    // .await?;
+    // let provider_name = seller_product_map
+    //     .values()
+    //     .next()
+    //     .and_then(|obj| obj.provider_name.as_deref())
+    //     .unwrap_or_default();
+
+    // delete_order(&mut transaction, &select_request.transaction_id).await?;
+
+    // let order_id = save_rfq_order(
+    //     &mut transaction,
+    //     select_request,
+    //     user_account,
+    //     business_account,
+    //     bpp_detail,
+    //     tsp_id,
+    //     &provider_name,
+    // )
+    // .await?;
+
+    // save_order_select_items(
+    //     &mut transaction,
+    //     &order_id,
+    //     &select_request,
+    //     &seller_product_map,
+    // )
+    // .await?;
+
+    let transaction = pool
+        .begin()
+        .await
+        .context("Failed to acquire a Postgres connection from the pool")?;
 
     transaction
         .commit()

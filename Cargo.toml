@@ -77,7 +77,7 @@ path = "src/main.rs"
 name = "ondc-retail-b2b-buyer"
 
 [profile.release]
-opt-level = 3
+opt-level = 3 # 3 for release and 0 for dev
 strip = "symbols"
 
 
