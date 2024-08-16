@@ -18,10 +18,6 @@ use super::schemas::{
     ONDCSearchStop, ONDCSelectFulfillmentLocation, ONDCSelectMessage, ONDCSelectOrder,
     ONDCSelectPaymentType, ONDCSelectProvider, ONDCSelectRequest, ONDCSelectedItem, ONDCState,
     ONDCTag, ONDCTagItemCode, ONDCTagType, OnSearchContentType, SellerProductInfo, TagTrait,
-    UnitizedProductQty, WSCreatorContactData, WSItemPayment, WSProductCategory, WSProductCreator,
-    WSSearch, WSSearchBPP, WSSearchCity, WSSearchCountry, WSSearchData, WSSearchItem,
-    WSSearchItemPrice, WSSearchItemQty, WSSearchItemQtyMeasure, WSSearchItemQuantity,
-    WSSearchProductProvider, WSSearchProvider, WSSearchProviderLocation, WSSearchState,
 };
 use uuid::Uuid;
 
@@ -39,7 +35,11 @@ use crate::routes::order::schemas::{
 };
 use crate::routes::product::schemas::{
     CategoryDomain, FulfillmentType, PaymentType, ProductFulFillmentLocations,
-    ProductSearchRequest, ProductSearchType, SearchRequestModel,
+    ProductSearchRequest, ProductSearchType, SearchRequestModel, UnitizedProductQty,
+    WSCreatorContactData, WSItemPayment, WSProductCategory, WSProductCreator, WSSearch,
+    WSSearchBPP, WSSearchCity, WSSearchCountry, WSSearchData, WSSearchItem, WSSearchItemPrice,
+    WSSearchItemQty, WSSearchItemQtyMeasure, WSSearchItemQuantity, WSSearchProductProvider,
+    WSSearchProvider, WSSearchProviderLocation, WSSearchState,
 };
 use crate::routes::product::ProductSearchError;
 use crate::routes::user::schemas::{BusinessAccount, UserAccount};

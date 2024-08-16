@@ -279,6 +279,57 @@ pub async fn initialize_order_select(
     Ok(())
 }
 
+// #[tracing::instrument(name = "save order on select", skip(transaction))]
+// pub async fn save_order_on_select(
+//     transaction: &mut Transaction<'_, Postgres>,
+//     on_select_req: &ONDCOnSelectRequest,
+//     user_account: &UserAccount,
+//     business_account: &BusinessAccount,
+//     bpp_detail: &LookupData,
+//     domain_uri: &str,
+//     provider_name: &str,
+// ) -> Result<Uuid, anyhow::Error> {
+//     let order_id = Uuid::new_v4();
+//     // let payment_type = on_select_req.message.order.payments.iter()
+//     let order_type
+//     let query = sqlx::query!(
+//         r#"
+//         INSERT INTO buyer_commerce_data (id, external_urn, record_type, record_status,
+//         domain_category_code, buyer_id, seller_id, seller_name, buyer_name, source, created_at, created_by, bpp_id, bpp_uri, tsp_id, is_import, quote_ttl, payment_types)
+//         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+//         ON CONFLICT (external_urn)
+//         DO UPDATE SET
+//         domain_category_code = EXCLUDED.domain_category_code,
+//         seller_id = EXCLUDED.seller_id
+//         "#,
+//         order_id,
+//         &on_select_req.context.transaction_id,
+//         &order_type as &OrderType,
+//         CommerceStatusType::QuoteAccepted as CommerceStatusType,
+//         &on_select_req.context.domain.get_category_domain(),
+//         &business_account.id,
+//         &on_select_req.message.order.provider.id,
+//         &provider_name,
+//         &business_account.company_name,
+//         DataSource::PlaceOrder as DataSource,
+//         Utc::now(),
+//         &user_account.id,
+//         &bpp_detail.subscriber_id,
+//         bpp_detail.subscriber_url,
+//         domain_uri,
+//         &select_request.is_import,
+//         &on_select_req.context.ttl,
+//         &select_request.payment_types as &[PaymentType]
+//     );
+
+//     transaction.execute(query).await.map_err(|e| {
+//         tracing::error!("Failed to execute query: {:?}", e);
+//         anyhow::Error::new(e)
+//             .context("A database failure occurred while saving RFQ to database request")
+//     })?;
+//     Ok(order_id)
+// }
+
 #[tracing::instrument(name = "save request for quote", skip(pool))]
 pub async fn initialize_order_on_select(
     pool: &PgPool,

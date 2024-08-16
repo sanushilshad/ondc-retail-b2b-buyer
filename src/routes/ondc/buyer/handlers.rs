@@ -9,9 +9,9 @@ use super::utils::{
     get_search_ws_body, get_websocket_params_from_search_req, save_ondc_seller_product_info,
 };
 use crate::routes::ondc::{ONDCActionType, ONDCBuyerErrorCode, ONDCResponse};
+use crate::routes::product::schemas::WSSearchData;
 use crate::schemas::WSKeyTrait;
 use crate::websocket::{MessageToClient, Server, WebSocketActionType};
-
 #[tracing::instrument(name = "ONDC On Search Payload", skip(pool, body), fields())]
 pub async fn on_search(
     pool: web::Data<PgPool>,
@@ -27,12 +27,10 @@ pub async fn on_search(
     .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
     let extracted_search_obj =
         search_obj.ok_or(ONDCBuyerError::BuyerResponseSequenceError { path: None })?;
-    let product_objs: Option<super::schemas::WSSearchData<'_>> =
-        get_product_from_on_search_request(&body).map_err(|e| {
-            ONDCBuyerError::InvalidResponseError {
-                path: None,
-                message: e.to_string(),
-            }
+    let product_objs: Option<WSSearchData<'_>> = get_product_from_on_search_request(&body)
+        .map_err(|e| ONDCBuyerError::InvalidResponseError {
+            path: None,
+            message: e.to_string(),
         })?;
 
     if let Some(product_objs) = product_objs {
