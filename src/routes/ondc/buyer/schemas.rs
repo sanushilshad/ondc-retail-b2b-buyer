@@ -1,7 +1,7 @@
 use super::errors::ONDCBuyerError;
 use crate::routes::ondc::schemas::{ONDCContext, ONDCResponseErrorBody};
 use crate::routes::ondc::{ONDCItemUOM, ONDCSellerErrorCode};
-use crate::routes::order::schemas::IncoTermType;
+use crate::routes::order::schemas::{IncoTermType, Payment};
 use crate::routes::product::schemas::{FulfillmentType, PaymentType};
 use crate::schemas::{CountryCode, CurrencyType, FeeType, ONDCNetworkType, WSKeyTrait};
 use crate::utils::pascal_to_snake_case;
@@ -639,9 +639,9 @@ struct ONDCReturnTerm {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct ONDCAmount {
-    currency: CurrencyType,
-    value: String,
+pub struct ONDCAmount {
+    pub currency: CurrencyType,
+    pub value: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -849,7 +849,7 @@ pub struct ONDCLocationIds {
     pub id: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCSelectProvider {
     pub id: String,
     pub locations: Vec<ONDCLocationIds>,
@@ -867,30 +867,30 @@ pub struct ONDCQuantitySelect {
 }
 
 #[skip_serializing_none]
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCItemAddOns {
     id: String,
 }
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCSelectPaymentType {
     pub r#type: ONDCPaymentType,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCCity {
     pub name: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCState {
     pub name: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCCountry {
     pub code: CountryCode,
 }
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCSelectFulfillmentLocation {
     pub gps: String,
     pub area_code: String,
@@ -910,7 +910,7 @@ pub struct ONDCInitFulfillmentLocation {
     state: ONDCState,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCOrderFulfillmentEnd<T> {
     pub r#type: ONDCFulfillmentStopType,
     pub location: T,
@@ -918,7 +918,7 @@ pub struct ONDCOrderFulfillmentEnd<T> {
 }
 
 #[skip_serializing_none]
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCFulfillment<T> {
     pub id: String,
     pub r#type: ONDCFulfillmentType,
@@ -938,7 +938,7 @@ pub struct ONDCSelectedItem {
     pub tags: Option<Vec<ONDCTag>>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[skip_serializing_none]
 pub struct ONDCSelectOrder {
     pub provider: ONDCSelectProvider,
@@ -949,12 +949,12 @@ pub struct ONDCSelectOrder {
     pub tags: Vec<ONDCTag>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCSelectMessage {
     pub order: ONDCSelectOrder,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCSelectRequest {
     pub context: ONDCContext,
     pub message: ONDCSelectMessage,
@@ -975,6 +975,15 @@ pub struct ONDCOnSelectMessage {
 pub struct ONDCOnSelectPayment {
     pub r#type: ONDCPaymentType,
     pub collected_by: ONDCNetworkType,
+}
+
+impl From<&ONDCOnSelectPayment> for Payment {
+    fn from(ondc_payment_obj: &ONDCOnSelectPayment) -> Self {
+        Payment {
+            r#type: ondc_payment_obj.r#type.get_payment(),
+            collected_by: Some(ondc_payment_obj.collected_by.clone()),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -1051,7 +1060,7 @@ pub struct ONDCBreakUp {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCQuote {
-    price: ONDCAmount,
+    pub price: ONDCAmount,
     ttl: String,
     breakup: Vec<ONDCBreakUp>,
 }
@@ -1059,10 +1068,10 @@ pub struct ONDCQuote {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCOnSelectOrder {
     pub provider: ONDCOnSelectProvider,
-    payments: Vec<ONDCOnSelectPayment>,
-    items: Vec<ONDCSelectedItem>,
+    pub payments: Vec<ONDCOnSelectPayment>,
+    pub items: Vec<ONDCSelectedItem>,
     fulfillments: Vec<ONDCOnSelectFulfillment>,
-    quote: ONDCQuote,
+    pub quote: ONDCQuote,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -1102,10 +1111,11 @@ pub struct WSError {
 
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct WSSelect {
+pub struct WSSelect<'a> {
     pub transaction_id: Uuid,
     pub message_id: Uuid,
     pub action_type: WebSocketActionType,
+    pub error: Option<&'a str>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1155,4 +1165,14 @@ pub struct SellerProductInfo {
     pub mrp: BigDecimal,
     pub unit_price: BigDecimal,
     pub images: Value,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCRequestModel {
+    pub transaction_id: Uuid,
+    pub message_id: Uuid,
+    pub user_id: Option<Uuid>,
+    pub business_id: Option<Uuid>,
+    pub device_id: Option<String>,
+    pub request_payload: Value,
 }

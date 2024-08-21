@@ -155,8 +155,8 @@ where
                 .to_owned();
 
             let business_account = get_business_account_by_customer_type(
-                user_account.id,
-                business_id,
+                &user_account.id,
+                &business_id,
                 customer_type_list,
                 db_pool,
             )

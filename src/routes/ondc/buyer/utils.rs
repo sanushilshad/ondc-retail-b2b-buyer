@@ -13,11 +13,12 @@ use super::schemas::{
     ONDCOnSearchItemPrice, ONDCOnSearchItemQuantity, ONDCOnSearchItemTag, ONDCOnSearchPayment,
     ONDCOnSearchProviderDescriptor, ONDCOnSearchProviderLocation, ONDCOnSearchRequest,
     ONDCOrderFulfillmentEnd, ONDCOrderParams, ONDCQuantityCountInt, ONDCQuantitySelect,
-    ONDCSearchCategory, ONDCSearchDescriptor, ONDCSearchFulfillment, ONDCSearchIntent,
-    ONDCSearchItem, ONDCSearchLocation, ONDCSearchMessage, ONDCSearchPayment, ONDCSearchRequest,
-    ONDCSearchStop, ONDCSelectFulfillmentLocation, ONDCSelectMessage, ONDCSelectOrder,
-    ONDCSelectPaymentType, ONDCSelectProvider, ONDCSelectRequest, ONDCSelectedItem, ONDCState,
-    ONDCTag, ONDCTagItemCode, ONDCTagType, OnSearchContentType, SellerProductInfo, TagTrait,
+    ONDCRequestModel, ONDCSearchCategory, ONDCSearchDescriptor, ONDCSearchFulfillment,
+    ONDCSearchIntent, ONDCSearchItem, ONDCSearchLocation, ONDCSearchMessage, ONDCSearchPayment,
+    ONDCSearchRequest, ONDCSearchStop, ONDCSelectFulfillmentLocation, ONDCSelectMessage,
+    ONDCSelectOrder, ONDCSelectPaymentType, ONDCSelectProvider, ONDCSelectRequest,
+    ONDCSelectedItem, ONDCState, ONDCTag, ONDCTagItemCode, ONDCTagType, OnSearchContentType,
+    SellerProductInfo, TagTrait,
 };
 use uuid::Uuid;
 
@@ -312,7 +313,7 @@ pub async fn get_product_search_params(
         SearchRequestModel,
         r#"SELECT transaction_id, user_id, business_id, device_id, update_cache
         FROM search_request
-        WHERE transaction_id = $1 AND message_id = $2 ORDER BY created_at DESC
+        WHERE transaction_id = $1 AND message_id = $2 ORDER BY created_on DESC
         "#,
         transaction_id,
         message_id
@@ -344,6 +345,16 @@ pub async fn get_ondc_order_params(
     .await?;
 
     Ok(row)
+}
+
+pub fn get_ondc_order_param_from_req(ondc_req: &ONDCRequestModel) -> ONDCOrderParams {
+    return ONDCOrderParams {
+        transaction_id: ondc_req.transaction_id,
+        message_id: ondc_req.message_id,
+        device_id: ondc_req.device_id.clone(),
+        user_id: ondc_req.user_id,
+        business_id: ondc_req.business_id,
+    };
 }
 
 #[tracing::instrument(name = "get price obj from ondc price obj", skip())]
@@ -1009,4 +1020,27 @@ pub async fn get_ondc_seller_product_info_mapping(
         })
         .collect();
     Ok(seller_product_map)
+}
+
+#[tracing::instrument(name = "Fetch Product Search Params", skip(pool))]
+pub async fn fetch_ondc_select_request(
+    pool: &PgPool,
+    transaction_id: &Uuid,
+    message_id: &Uuid,
+    action_type: &ONDCActionType,
+) -> Result<Option<ONDCRequestModel>, anyhow::Error> {
+    let row = sqlx::query_as!(
+        ONDCRequestModel,
+        r#"SELECT transaction_id, message_id, user_id, business_id, device_id, request_payload
+        FROM ondc_buyer_order_req
+        WHERE transaction_id = $1 AND message_id = $2 AND action_type = $3 ORDER BY created_on DESC
+        "#,
+        transaction_id,
+        message_id,
+        &action_type.to_string() as &str
+    )
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(row)
 }

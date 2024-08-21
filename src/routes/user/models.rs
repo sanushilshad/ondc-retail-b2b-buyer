@@ -59,7 +59,7 @@ pub struct UserRoleModel {
     pub id: Uuid,
     pub role_name: String,
     pub role_status: Status,
-    pub created_at: DateTime<Utc>,
+    pub created_on: DateTime<Utc>,
     pub created_by: String,
     pub is_deleted: bool,
 }

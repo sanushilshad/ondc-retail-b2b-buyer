@@ -76,9 +76,9 @@ CREATE TABLE IF NOT EXISTS auth_mechanism (
   secret TEXT,
   valid_upto TIMESTAMPTZ,
   is_active status DEFAULT 'active'::status NOT NULL,
-  created_at TIMESTAMPTZ,
-  updated_at TIMESTAMPTZ,
-  deleted_at TIMESTAMPTZ,
+  created_on TIMESTAMPTZ,
+  updated_on TIMESTAMPTZ,
+  deleted_on TIMESTAMPTZ,
   created_by TEXT,
   updated_by TEXT,
   deleted_by TEXT,
@@ -107,9 +107,9 @@ CREATE TABLE IF NOT EXISTS role (
   id uuid PRIMARY KEY,
   role_name TEXT NOT NULL,
   role_status status  NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL,
-  updated_at TIMESTAMPTZ,
-  deleted_at TIMESTAMPTZ,
+  created_on TIMESTAMPTZ NOT NULL,
+  updated_on TIMESTAMPTZ,
+  deleted_on TIMESTAMPTZ,
   created_by uuid NOT NULL,
   updated_by uuid,
   deleted_by uuid,
@@ -122,9 +122,9 @@ CREATE TABLE IF NOT EXISTS user_role (
   id uuid PRIMARY KEY,
   user_id uuid NOT NULL,
   role_id uuid NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL,
-  updated_at TIMESTAMPTZ,
-  deleted_at TIMESTAMPTZ,
+  created_on TIMESTAMPTZ NOT NULL,
+  updated_on TIMESTAMPTZ,
+  deleted_on TIMESTAMPTZ,
   created_by uuid NOT NULL,
   updated_by uuid,
   deleted_by uuid,
@@ -139,9 +139,9 @@ CREATE TABLE IF NOT EXISTS permission (
   id uuid PRIMARY KEY,
   permission_name TEXT,
   permission_description TEXT,
-  created_at TIMESTAMPTZ,
-  updated_at TIMESTAMPTZ,
-  deleted_at TIMESTAMPTZ,
+  created_on TIMESTAMPTZ,
+  updated_on TIMESTAMPTZ,
+  deleted_on TIMESTAMPTZ,
   created_by uuid,
   updated_by uuid,
   deleted_by uuid,
@@ -152,9 +152,9 @@ CREATE TABLE IF NOT EXISTS role_permission (
   id uuid PRIMARY KEY,
   role_id uuid,
   permission_id uuid,
-  created_at TIMESTAMPTZ,
-  updated_at TIMESTAMPTZ,
-  deleted_at TIMESTAMPTZ,
+  created_on TIMESTAMPTZ,
+  updated_on TIMESTAMPTZ,
+  deleted_on TIMESTAMPTZ,
   created_by uuid,
   updated_by uuid,
   deleted_by uuid,
@@ -171,7 +171,7 @@ ALTER TABLE role_permission ADD CONSTRAINT permission_role_id UNIQUE (permission
 CREATE TABLE IF NOT EXISTS communication (
   id uuid PRIMARY KEY,
   message TEXT NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL,
+  created_on TIMESTAMPTZ NOT NULL,
   created_by TEXT NOT NULL,
   media_list TEXT[]
 );
@@ -219,11 +219,11 @@ CREATE TABLE IF NOT EXISTS business_account (
   kyc_completed_by uuid,
   metadata_json jsonb,
   created_by  uuid NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL,
+  created_on TIMESTAMPTZ NOT NULL,
   updated_by uuid,
-  updated_at TIMESTAMPTZ,
+  updated_on TIMESTAMPTZ,
   deleted_by uuid,
-  deleted_at TIMESTAMPTZ,
+  deleted_on TIMESTAMPTZ,
   is_deleted BOOLEAN NOT NULL DEFAULT false,
   is_test_account BOOLEAN NOT NULL DEFAULT false,
   subscriber_id TEXT NOT NULL
@@ -236,8 +236,8 @@ CREATE TABLE IF NOT EXISTS business_user_relationship (
   business_id uuid NOT NULL,
   role_id uuid NOT NULL,
   verified BOOLEAN NOT NULL DEFAULT false,
-  created_at TIMESTAMPTZ NOT NULL,
-  updated_at TIMESTAMPTZ,
+  created_on TIMESTAMPTZ NOT NULL,
+  updated_on TIMESTAMPTZ,
   created_by uuid NOT NULL,
   updated_by uuid
 );
@@ -275,7 +275,7 @@ CREATE TABLE IF NOT EXISTS registered_network_participant (
   created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   created_by uuid NOT NULL,
   fee_type ondc_np_fee_type DEFAULT 'percent'::ondc_np_fee_type NOT NULL,
-  fee_value DECIMAL(20, 2) NOT NULL DEFAULT 0.00
+  fee_value DECIMAL(20, 3) NOT NULL DEFAULT 0.00
 );
 
 ALTER TABLE registered_network_participant ADD CONSTRAINT registered_network_participant_constraint UNIQUE (subscriber_id, network_participant_type);
@@ -309,7 +309,7 @@ CREATE TABLE IF NOT EXISTS search_request (
   business_id uuid NOT NULL,
   user_id uuid NOT NULL,
   device_id TEXT NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL,
+  created_on TIMESTAMPTZ NOT NULL,
   update_cache BOOLEAN DEFAULT false NOT NULL,
   query TEXT NOT NULL,
   payment_type payment_type,
@@ -350,8 +350,8 @@ CREATE TABLE IF NOT EXISTS ondc_seller_product_info (
     item_name TEXT NOT NULL,
     tax_rate DECIMAL(5, 2) NOT NULL,
     images JSONB NOT NULL,
-    mrp DECIMAL(20, 2) NOT NULL DEFAULT 0.0,
-    unit_price DECIMAL(20, 2) NOT NULL DEFAULT 0.0,
+    mrp DECIMAL(20, 3) NOT NULL DEFAULT 0.0,
+    unit_price DECIMAL(20, 3) NOT NULL DEFAULT 0.0,
     created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 ALTER TABLE ondc_seller_product_info ADD CONSTRAINT ondc_seller_product_info_constraint UNIQUE (seller_subscriber_id, provider_id, item_id);
@@ -411,13 +411,12 @@ CREATE TABLE IF NOT EXISTS buyer_commerce_data(
   seller_name TEXT,
   payment_data_json JSONB,
   source data_source NOT NULL,
-  created_at timestamptz NOT NULL,
-  updated_at timestamptz,
-  deleted_at timestamptz,
+  created_on timestamptz NOT NULL,
+  updated_on timestamptz,
+  deleted_on timestamptz,
   is_deleted BOOLEAN DEFAULT false,
-  created_by_json JSON NOT NULL,
   created_by uuid NOT NULL,
-  grand_total DECIMAL(20, 2),
+  grand_total DECIMAL(20, 3),
   buyer_chat_link TEXT,
   seller_chat_link TEXT,
   bpp_id TEXT NOT NULL,
@@ -425,7 +424,7 @@ CREATE TABLE IF NOT EXISTS buyer_commerce_data(
   tsp_id TEXT NOT NULL,
   is_import BOOLEAN NOT NULL,
   quote_ttl TEXT NOT NULL,
-  payment_types payment_type[]
+  currency_code currency_code_type
 );
 
 ALTER TABLE buyer_commerce_data ADD CONSTRAINT buyer_commerce_data_uq UNIQUE (external_urn);
@@ -440,11 +439,11 @@ CREATE TABLE IF NOT EXISTS buyer_commerce_data_line(
   currency_code currency_code_type,
   qty DECIMAL(20, 2) NOT NULL,
   tax_rate DECIMAL(5, 2) NOT NULL DEFAULT 0.0,
-  item_tax_value DECIMAL(20, 2) NOT NULL DEFAULT 0.0,
+  item_tax_value DECIMAL(20, 3) NOT NULL DEFAULT 0.0,
   location_ids JSONB,
   fulfillment_ids JSONB,
-  mrp DECIMAL(20, 2) NOT NULL DEFAULT 0.0,
-  unit_price DECIMAL(20, 2) NOT NULL DEFAULT 0.0,
+  mrp DECIMAL(20, 3) NOT NULL DEFAULT 0.0,
+  unit_price DECIMAL(20, 3) NOT NULL DEFAULT 0.0,
 );
 
 ALTER TABLE buyer_commerce_data_line ADD CONSTRAINT commerce_data_fk FOREIGN KEY ("commerce_data_id") REFERENCES buyer_commerce_data ("id") ON DELETE CASCADE;

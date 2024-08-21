@@ -1,13 +1,13 @@
 use crate::errors::GenericError;
 use crate::routes::product::schemas::FulfillmentType;
 use crate::routes::product::schemas::{CategoryDomain, PaymentType};
-use crate::schemas::CountryCode;
+use crate::schemas::{CountryCode, ONDCNetworkType};
 use crate::utils::deserialize_non_empty_vector;
 use actix_http::Payload;
 use actix_web::{web, FromRequest, HttpRequest};
 
 use futures_util::future::LocalBoxFuture;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use uuid::Uuid;
 #[derive(Deserialize, Debug, ToSchema)]
@@ -162,3 +162,10 @@ pub enum CommerceStatusType {
 //     created_on: DateTime<Utc>,
 //     status: CommerceStatusType,
 // }
+
+#[derive(Deserialize, Debug, Serialize, sqlx::Encode)]
+#[serde(rename_all = "camelCase")]
+pub struct Payment {
+    pub collected_by: Option<ONDCNetworkType>,
+    pub r#type: PaymentType,
+}
