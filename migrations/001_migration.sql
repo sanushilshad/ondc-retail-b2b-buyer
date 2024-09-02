@@ -524,6 +524,10 @@ CREATE TABLE IF NOT EXISTS buyer_commerce_payment(
 ALTER TABLE buyer_commerce_payment ADD CONSTRAINT buyer_commerce_payment_fk FOREIGN KEY ("commerce_data_id") REFERENCES buyer_commerce_data ("id") ON DELETE CASCADE;
 
 
+ALTER TABLE buyer_commerce_fulfillment_data_line ADD CONSTRAINT commerce_fulfillment_raw_data_uq UNIQUE (commerce_fulfillment_id, item_code);
+
+
+
 CREATE TABLE IF NOT EXISTS  buyer_order_status_history(
   id uuid PRIMARY KEY,
   order_id TEXT NOT NULL,
