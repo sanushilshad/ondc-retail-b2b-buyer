@@ -9,6 +9,7 @@ use super::utils::{
     get_product_search_params, get_search_ws_body, get_websocket_params_from_search_req,
     save_ondc_seller_product_info,
 };
+use crate::constants::ONDC_TTL;
 use crate::routes::ondc::{ONDCActionType, ONDCBuyerErrorCode, ONDCResponse};
 use crate::routes::order::utils::initialize_order_on_select;
 use crate::routes::product::schemas::WSSearchData;
@@ -76,7 +77,7 @@ pub async fn on_select(
             .as_ref()
             .map_or_else(|| None, |s| Some(s.message.as_str())),
     };
-    let ondc_select_req = fetch_ondc_select_request(
+    let ondc_select_model = fetch_ondc_select_request(
         &pool,
         &body.context.transaction_id,
         &body.context.message_id,
@@ -87,29 +88,29 @@ pub async fn on_select(
     .ok_or(ONDCBuyerError::BuyerResponseSequenceError { path: None })?;
     // let ws_param_obj = ONDCOrderParams{};
     let ws_json = serde_json::to_value(ws_obj).unwrap();
-    let ws_params_obj = get_ondc_order_param_from_req(&ondc_select_req);
+    let ws_params_obj = get_ondc_order_param_from_req(&ondc_select_model);
     let msg = MessageToClient::new(
         WebSocketActionType::Select,
         ws_json,
         Some(ws_params_obj.get_key()),
     );
-    if body.error.is_none() {
-        let user_id = &ondc_select_req.user_id.unwrap();
-        let business_id = &ondc_select_req.business_id.unwrap();
+    let ondc_select_req =
+        serde_json::from_value::<ONDCSelectRequest>(ondc_select_model.request_payload).unwrap();
+    let is_rfq = ondc_select_req.context.ttl != ONDC_TTL;
+    if (is_rfq) || body.error.is_none() {
+        let user_id = &ondc_select_model.user_id.unwrap();
+        let business_id = &ondc_select_model.business_id.unwrap();
         let user = get_user(vec![&user_id.to_string()], &pool)
             .await
             .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
-        let business_account = get_business_account(&pool, &user_id, &business_id)
+        let business_account = get_business_account(&pool, user_id, business_id)
             .await
             .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?
             .ok_or(ONDCBuyerError::BuyerInternalServerError { path: None })?;
 
-        let ondc_select_req =
-            serde_json::from_value::<ONDCSelectRequest>(ondc_select_req.request_payload).unwrap();
-        let _ =
-            initialize_order_on_select(&pool, &body, &user, &business_account, &ondc_select_req)
-                .await
-                .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
+        initialize_order_on_select(&pool, &body, &user, &business_account, &ondc_select_req)
+            .await
+            .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
     };
     websocket_srv.do_send(msg);
     Ok(web::Json(ONDCResponse::successful_response(None)))

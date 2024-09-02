@@ -143,22 +143,21 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [x] Setting the codebase structure similar to django
 * [x] Develop JWT creation and verification middleware
 * [x] Integrate openapi swagger
-* [x] Integrate redis
-* [x] Integrate websocket 
+* [x] Integrate Redis
+* [x] Integrate Websocket 
 * [x] Add business verification middleware
-* [x] Add tsp changes into user account and business account
 * [x] Add generic header validation middleware
 * [x] Add realtime search API
 * [x] Add seller auth header validation middleware
-* [x] Add ondc on search api
+* [x] Add ondc on search API
 * [x] Fix integration test + add unit test cases for the apis in milestone 1
 * [x] Add application release + debug + kill bash scripts 
 
 
 
 ### MILESTONE 2:
-* [ ] Develop select API
-* [ ] Develop ondc on select API
+* [x] Develop select API
+* [x] Develop ondc on select API
 * [ ] Develop init API
 * [ ] Develop ondc on init API
 * [ ] Develop confirm API
@@ -174,12 +173,21 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [ ] Develop IGM issue_status API
 * [ ] Develop ondc on issue_status API
 * [ ] Develop IGM issue close API
-* [ ] Integrate permission flow
 
 
 ### MILESTONE 3:
-* [ ] Integrate permission flow
-* [ ] Develop permission flow
+* [ ] Develop Business Account fetch API
+* [ ] Develop User Account fetch API
+* [ ] Develop Business Account Update API
+* [ ] Develop User Account Update API
+* [ ] Develop Password Reset API
+* [ ] Develop Order Fetch API
+* [ ] Develop & Integrate permission flow
+* [ ] Develop Permission assignment API
+* [ ] Integrate MeileiSeach
+* [ ] Integrate Redis PubSub With Webocket
+* [ ] Integrate Pulser/Kafka/RabbitMQ
+* [ ] Integrate with notification microservice to enable WhatsApp, Email and SMS functionality
 
 ### MILESTONE 4:
 * [ ] Complete validation for business_account registration
@@ -187,15 +195,16 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [ ] Complete validation for product search registration
 * [ ] Complete validation ondc on search registration
 
+
 ### OPTIONAL
 
 * [ ] Integrate SMS
 * [ ] Integrate Whatsapp
-* [ ] Develop email verfication apis for user and business account
-* [ ] Develop mobile verfication apis for user and business account
-* [ ] Develop sms otp api
-* [ ] Develop email otp api
+* [ ] Develop email verfication APIs for user and business account
+* [ ] Develop mobile verfication APIs for user and business account
+* [ ] Develop sms otp API
+* [ ] Develop email otp API
 * [ ] Design product caching
 * [ ] Develop new config fetch (will be given the last priority)
-* [ ] Intergrate etcd for tsp flow (when i have nothing better to do: probably never)
+* [ ] Intergrate etcd for TSP flow (when i have nothing better to do: probably never)
 ### THE MILESTONES ARE SUSCEPTIBLE TO CHANGES ╰(*°▽°*)╯

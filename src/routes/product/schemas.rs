@@ -47,6 +47,12 @@ pub enum FulfillmentType {
     SelfPickup,
 }
 
+impl PgHasArrayType for &FulfillmentType {
+    fn array_type_info() -> sqlx::postgres::PgTypeInfo {
+        sqlx::postgres::PgTypeInfo::with_name("_fulfillment_type")
+    }
+}
+
 impl FulfillmentType {
     pub fn get_ondc_fulfillment_type(&self) -> ONDCFulfillmentType {
         match self {

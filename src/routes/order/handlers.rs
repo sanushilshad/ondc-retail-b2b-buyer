@@ -102,7 +102,7 @@ pub async fn order_select(
             &user_account,
             &business_account,
             &body,
-            &meta_data.domain_uri,
+            &bap_detail,
             &bpp_detail,
         )
         .await

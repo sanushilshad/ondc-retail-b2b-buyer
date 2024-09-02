@@ -8,6 +8,7 @@ use actix_web::{web, FromRequest, HttpRequest};
 
 use futures_util::future::LocalBoxFuture;
 use serde::{Deserialize, Serialize};
+use sqlx::postgres::PgHasArrayType;
 use utoipa::ToSchema;
 use uuid::Uuid;
 #[derive(Deserialize, Debug, ToSchema)]
@@ -27,19 +28,19 @@ pub struct OrderSelectItem {
     pub fulfillment_ids: Vec<String>,
 }
 
-#[derive(Deserialize, Debug, ToSchema)]
+#[derive(Deserialize, Debug, ToSchema, Serialize)]
 pub struct Country {
     pub code: CountryCode,
     pub name: String,
 }
 
-#[derive(Deserialize, Debug, ToSchema)]
+#[derive(Deserialize, Debug, ToSchema, Serialize)]
 pub struct City {
     pub code: String,
     pub name: String,
 }
 
-#[derive(Deserialize, Debug, ToSchema)]
+#[derive(Deserialize, Debug, ToSchema, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FulfillmentLocation {
     pub gps: String,
@@ -51,7 +52,8 @@ pub struct FulfillmentLocation {
     pub contact_mobile_no: String,
 }
 
-#[derive(Deserialize, Debug, ToSchema)]
+#[derive(Deserialize, Debug, ToSchema, sqlx::Type)]
+#[sqlx(type_name = "inco_term_type", rename_all = "UPPERCASE")]
 #[serde(rename_all = "UPPERCASE")]
 pub enum IncoTermType {
     Exw,
@@ -59,6 +61,12 @@ pub enum IncoTermType {
     Fob,
     Dap,
     Ddp,
+}
+
+impl PgHasArrayType for &IncoTermType {
+    fn array_type_info() -> sqlx::postgres::PgTypeInfo {
+        sqlx::postgres::PgTypeInfo::with_name("_inco_term_type")
+    }
 }
 
 impl std::fmt::Display for IncoTermType {
@@ -105,7 +113,46 @@ pub struct OrderSelectFulfillment {
 #[serde(rename_all = "snake_case")]
 pub enum OrderType {
     PurchaseOrder,
-    Sale,
+    SaleOrder,
+}
+
+#[derive(Debug, Serialize, Deserialize, sqlx::Type)]
+#[sqlx(
+    type_name = "fulfillment_servicability_status_type",
+    rename_all = "snake_case"
+)]
+pub enum ServiceableType {
+    #[serde(rename = "non_serviceable")]
+    NonServiceable,
+    #[serde(rename = "serviceable")]
+    Serviceable,
+}
+impl PgHasArrayType for ServiceableType {
+    fn array_type_info() -> sqlx::postgres::PgTypeInfo {
+        sqlx::postgres::PgTypeInfo::with_name("_fulfillment_servicability_status_type")
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum FulfillmentCategoryType {
+    #[serde(rename = "standard_delivery")]
+    StandardDelivery,
+    #[serde(rename = "express_delivery")]
+    ExpressDelivery,
+    #[serde(rename = "self_pickup")]
+    SelfPickup,
+}
+
+impl std::fmt::Display for FulfillmentCategoryType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            FulfillmentCategoryType::StandardDelivery => "standard_delivery",
+            FulfillmentCategoryType::ExpressDelivery => "express_delivery",
+            FulfillmentCategoryType::SelfPickup => "self_pickup",
+        };
+
+        write!(f, "{}", s)
+    }
 }
 
 #[derive(Deserialize, Debug, ToSchema)]
@@ -168,4 +215,25 @@ pub enum CommerceStatusType {
 pub struct Payment {
     pub collected_by: Option<ONDCNetworkType>,
     pub r#type: PaymentType,
+}
+
+#[derive(Deserialize, Debug, Serialize)]
+pub struct DropOffLocation {
+    pub gps: String,
+    pub area_code: String,
+    pub address: Option<String>,
+    pub city: String,
+    pub country: CountryCode,
+    pub state: String,
+}
+#[derive(Deserialize, Debug, Serialize)]
+pub struct DropOffContact {
+    pub mobile_no: String,
+    pub email: Option<String>,
+}
+
+#[derive(Deserialize, Debug, Serialize)]
+pub struct DropOffData {
+    pub location: DropOffLocation,
+    pub contact: DropOffContact,
 }

@@ -16,9 +16,9 @@ use super::schemas::{
     ONDCRequestModel, ONDCSearchCategory, ONDCSearchDescriptor, ONDCSearchFulfillment,
     ONDCSearchIntent, ONDCSearchItem, ONDCSearchLocation, ONDCSearchMessage, ONDCSearchPayment,
     ONDCSearchRequest, ONDCSearchStop, ONDCSelectFulfillmentLocation, ONDCSelectMessage,
-    ONDCSelectOrder, ONDCSelectPaymentType, ONDCSelectProvider, ONDCSelectRequest,
-    ONDCSelectedItem, ONDCState, ONDCTag, ONDCTagItemCode, ONDCTagType, OnSearchContentType,
-    SellerProductInfo, TagTrait,
+    ONDCSelectOrder, ONDCSelectPayment, ONDCSelectProvider, ONDCSelectRequest, ONDCSelectedItem,
+    ONDCState, ONDCTag, ONDCTagItemCode, ONDCTagType, OnSearchContentType, SellerProductInfo,
+    TagTrait,
 };
 use uuid::Uuid;
 
@@ -348,13 +348,13 @@ pub async fn get_ondc_order_params(
 }
 
 pub fn get_ondc_order_param_from_req(ondc_req: &ONDCRequestModel) -> ONDCOrderParams {
-    return ONDCOrderParams {
+    ONDCOrderParams {
         transaction_id: ondc_req.transaction_id,
         message_id: ondc_req.message_id,
         device_id: ondc_req.device_id.clone(),
         user_id: ondc_req.user_id,
         business_id: ondc_req.business_id,
-    };
+    }
 }
 
 #[tracing::instrument(name = "get price obj from ondc price obj", skip())]
@@ -689,10 +689,10 @@ fn get_ondc_select_order_provider(
     }
 }
 
-fn get_ondc_select_payment_obs(payment_types: &[PaymentType]) -> Vec<ONDCSelectPaymentType> {
+fn get_ondc_select_payment_obs(payment_types: &[PaymentType]) -> Vec<ONDCSelectPayment> {
     payment_types
         .iter()
-        .map(|payment| ONDCSelectPaymentType {
+        .map(|payment| ONDCSelectPayment {
             r#type: payment.get_ondc_payment(),
         })
         .collect()
@@ -761,6 +761,7 @@ fn get_ondc_select_fulfillment_end(
             r#type: ONDCFulfillmentStopType::End,
             location: ONDCSelectFulfillmentLocation {
                 gps: location.gps.clone(),
+                address: Some(location.address.to_string()),
                 area_code: location.area_code.clone(),
                 city: ONDCCity {
                     name: location.city.name.clone(),
@@ -992,7 +993,7 @@ pub async fn fetch_ondc_seller_product_info(
     .await?;
     Ok(row)
 }
-
+/// Key for for the seller mapping key
 pub fn get_ondc_seller_mapping_key(bpp_id: &str, provider_id: &str, item_code: &str) -> String {
     format!("{}_{}_{}", bpp_id, provider_id, item_code)
 }

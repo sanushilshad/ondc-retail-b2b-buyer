@@ -1,7 +1,9 @@
 use super::errors::ONDCBuyerError;
 use crate::routes::ondc::schemas::{ONDCContext, ONDCResponseErrorBody};
 use crate::routes::ondc::{ONDCItemUOM, ONDCSellerErrorCode};
-use crate::routes::order::schemas::{IncoTermType, Payment};
+use crate::routes::order::schemas::{
+    FulfillmentCategoryType, IncoTermType, Payment, ServiceableType,
+};
 use crate::routes::product::schemas::{FulfillmentType, PaymentType};
 use crate::schemas::{CountryCode, CurrencyType, FeeType, ONDCNetworkType, WSKeyTrait};
 use crate::utils::pascal_to_snake_case;
@@ -137,7 +139,7 @@ pub struct ONDCTagItem {
 }
 
 impl ONDCTagItem {
-    pub fn get_tag_item(descriptor_code: ONDCTagItemCode, tag_item_code: &str) -> ONDCTagItem {
+    pub fn set_tag_item(descriptor_code: ONDCTagItemCode, tag_item_code: &str) -> ONDCTagItem {
         ONDCTagItem {
             descriptor: ONDCTagItemDescriptor {
                 code: descriptor_code,
@@ -258,11 +260,11 @@ impl ONDCTag {
                 code: ONDCTagType::BapTerms,
             },
             list: vec![
-                ONDCTagItem::get_tag_item(
+                ONDCTagItem::set_tag_item(
                     ONDCTagItemCode::FinderFeeType,
                     &finder_fee_type.to_string(),
                 ),
-                ONDCTagItem::get_tag_item(ONDCTagItemCode::FinderFeeAmount, finder_fee_amount),
+                ONDCTagItem::set_tag_item(ONDCTagItemCode::FinderFeeAmount, finder_fee_amount),
             ],
         }
     }
@@ -273,8 +275,8 @@ impl ONDCTag {
                 code: ONDCTagType::BuyerId,
             },
             list: vec![
-                ONDCTagItem::get_tag_item(ONDCTagItemCode::BuyerIdCode, &id_code.to_string()),
-                ONDCTagItem::get_tag_item(ONDCTagItemCode::BuyerIdNo, id_no),
+                ONDCTagItem::set_tag_item(ONDCTagItemCode::BuyerIdCode, &id_code.to_string()),
+                ONDCTagItem::set_tag_item(ONDCTagItemCode::BuyerIdNo, id_no),
             ],
         }
     }
@@ -285,8 +287,8 @@ impl ONDCTag {
                 code: ONDCTagType::DeliveyTerms,
             },
             list: vec![
-                ONDCTagItem::get_tag_item(ONDCTagItemCode::IncoTerms, &inco_term.to_string()),
-                ONDCTagItem::get_tag_item(ONDCTagItemCode::BuyerIdNo, place_of_delivery),
+                ONDCTagItem::set_tag_item(ONDCTagItemCode::IncoTerms, &inco_term.to_string()),
+                ONDCTagItem::set_tag_item(ONDCTagItemCode::NamedPlaceOfDelivery, place_of_delivery),
             ],
         }
     }
@@ -297,8 +299,8 @@ impl ONDCTag {
                 code: ONDCTagType::BuyerTerms,
             },
             list: vec![
-                ONDCTagItem::get_tag_item(ONDCTagItemCode::PackagingsReq, item_terms),
-                ONDCTagItem::get_tag_item(ONDCTagItemCode::ItemReq, packaging_req),
+                ONDCTagItem::set_tag_item(ONDCTagItemCode::PackagingsReq, item_terms),
+                ONDCTagItem::set_tag_item(ONDCTagItemCode::ItemReq, packaging_req),
             ],
         }
     }
@@ -872,7 +874,7 @@ pub struct ONDCItemAddOns {
     id: String,
 }
 #[derive(Debug, Serialize, Deserialize)]
-pub struct ONDCSelectPaymentType {
+pub struct ONDCSelectPayment {
     pub r#type: ONDCPaymentType,
 }
 
@@ -893,6 +895,7 @@ pub struct ONDCCountry {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCSelectFulfillmentLocation {
     pub gps: String,
+    pub address: Option<String>,
     pub area_code: String,
     pub city: ONDCCity,
     pub country: ONDCCountry,
@@ -944,7 +947,7 @@ pub struct ONDCSelectOrder {
     pub provider: ONDCSelectProvider,
     pub items: Vec<ONDCSelectedItem>,
     pub add_ons: Option<Vec<ONDCItemAddOns>>,
-    pub payments: Vec<ONDCSelectPaymentType>,
+    pub payments: Vec<ONDCSelectPayment>,
     pub fulfillments: Vec<ONDCFulfillment<ONDCSelectFulfillmentLocation>>,
     pub tags: Vec<ONDCTag>,
 }
@@ -986,44 +989,71 @@ impl From<&ONDCOnSelectPayment> for Payment {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub enum DeliveryType {
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+pub enum ONDCFulfillmentCategoryType {
     #[serde(rename = "Standard Delivery")]
     StandardDelivery,
     #[serde(rename = "Express Delivery")]
     ExpressDelivery,
+    #[serde(rename = "Self-Pickup")]
+    SelfPickup,
+}
+
+impl ONDCFulfillmentCategoryType {
+    pub fn get_category_type(&self) -> FulfillmentCategoryType {
+        match self {
+            ONDCFulfillmentCategoryType::StandardDelivery => {
+                FulfillmentCategoryType::StandardDelivery
+            }
+            ONDCFulfillmentCategoryType::ExpressDelivery => {
+                FulfillmentCategoryType::ExpressDelivery
+            }
+            ONDCFulfillmentCategoryType::SelfPickup => FulfillmentCategoryType::SelfPickup,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub enum ServiceableType {
+pub enum ONDCServiceableType {
     #[serde(rename = "Non-serviceable")]
     NonServiceable,
     #[serde(rename = "Serviceable")]
     Serviceable,
 }
 
+impl ONDCServiceableType {
+    pub fn get_servicable_type(&self) -> ServiceableType {
+        match self {
+            ONDCServiceableType::NonServiceable => ServiceableType::NonServiceable,
+            ONDCServiceableType::Serviceable => ServiceableType::Serviceable,
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCOnSelectFulfillmentDescriptor {
-    code: ServiceableType,
+    pub code: ONDCServiceableType,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCOnSelectFulfillmentState {
-    descriptor: ONDCOnSelectFulfillmentDescriptor,
+    pub descriptor: ONDCOnSelectFulfillmentDescriptor,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCOnSelectFulfillment {
-    id: String,
+    pub id: String,
+    #[serde(rename = "@ondc/org/provider_name")]
+    pub provider_name: Option<String>,
     #[serde(rename = "@ondc/org/category")]
-    category: DeliveryType,
+    pub category: ONDCFulfillmentCategoryType,
     #[serde(rename = "@ondc/org/TAT")]
-    tat: String,
-    tracking: bool,
-    state: ONDCOnSelectFulfillmentState,
+    pub tat: String,
+    pub tracking: bool,
+    pub state: ONDCOnSelectFulfillmentState,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum BreakupTitleType {
     Item,
@@ -1037,32 +1067,32 @@ pub enum BreakupTitleType {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCOrderItemQuantity {
-    count: i32,
+    pub count: i32,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCBreakupItemInfo {
-    price: ONDCAmount,
+    pub price: ONDCAmount,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCBreakUp {
     title: String,
     #[serde(rename = "@ondc/org/item_id")]
-    item_id: Option<String>,
+    pub item_id: Option<String>,
     #[serde(rename = "@ondc/org/title_type")]
-    title_type: BreakupTitleType,
-    price: ONDCAmount,
+    pub title_type: BreakupTitleType,
+    pub price: ONDCAmount,
     #[serde(rename = "@ondc/org/item_quantity")]
-    quantity: Option<ONDCOrderItemQuantity>,
-    item: Option<ONDCBreakupItemInfo>,
+    pub quantity: Option<ONDCOrderItemQuantity>,
+    pub item: Option<ONDCBreakupItemInfo>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCQuote {
     pub price: ONDCAmount,
     ttl: String,
-    breakup: Vec<ONDCBreakUp>,
+    pub breakup: Vec<ONDCBreakUp>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -1070,7 +1100,7 @@ pub struct ONDCOnSelectOrder {
     pub provider: ONDCOnSelectProvider,
     pub payments: Vec<ONDCOnSelectPayment>,
     pub items: Vec<ONDCSelectedItem>,
-    fulfillments: Vec<ONDCOnSelectFulfillment>,
+    pub fulfillments: Vec<ONDCOnSelectFulfillment>,
     pub quote: ONDCQuote,
 }
 
