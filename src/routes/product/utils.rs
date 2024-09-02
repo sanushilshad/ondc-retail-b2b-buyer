@@ -15,7 +15,7 @@ pub async fn save_search_request(
 ) -> Result<(), anyhow::Error> {
     sqlx::query!(
         r#"
-        INSERT INTO search_request (message_id, transaction_id, device_id, business_id,  user_id, created_at, update_cache, query, payment_type, domain_category_code, search_type, fulfillment_type)
+        INSERT INTO search_request (message_id, transaction_id, device_id, business_id,  user_id, created_on, update_cache, query, payment_type, domain_category_code, search_type, fulfillment_type)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         "#,
         &search_request.message_id,

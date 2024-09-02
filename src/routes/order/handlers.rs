@@ -11,8 +11,8 @@ use crate::utils::{create_authorization_header, get_np_detail};
 use crate::schemas::{GenericResponse, ONDCNPType, ONDCNetworkType, RequestMetaData};
 use sqlx::PgPool;
 
-use super::schemas::OrderSelectRequest;
-use super::utils::save_ondc_order_request;
+use super::schemas::{OrderSelectRequest, OrderType};
+use super::utils::{initialize_order_select, save_ondc_order_request};
 #[utoipa::path(
     post,
     path = "/order/select",
@@ -96,6 +96,24 @@ pub async fn order_select(
         ONDCActionType::Select,
     );
     futures::future::join(task_3, task_4).await.1?;
+    if body.order_type == OrderType::PurchaseOrder {
+        if let Err(e) = initialize_order_select(
+            &pool,
+            &user_account,
+            &business_account,
+            &body,
+            &bap_detail,
+            &bpp_detail,
+        )
+        .await
+        {
+            return Err(GenericError::DatabaseError(
+                "Something went wrong while commiting order to database".to_string(),
+                e,
+            ));
+        };
+    }
+
     Ok(web::Json(GenericResponse::success(
         "Successfully send select request",
         Some(()),
