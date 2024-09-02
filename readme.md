@@ -150,7 +150,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [x] Add generic header validation middleware
 * [x] Add realtime search API
 * [x] Add seller auth header validation middleware
-* [x] Add ondc on search api
+* [x] Add ONDC on search api
 * [x] Fix integration test + add unit test cases for the apis in milestone 1
 * [x] Add application release + debug + kill bash scripts 
 
@@ -158,21 +158,21 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 
 ### MILESTONE 2:
 * [ ] Develop select API
-* [ ] Develop ondc on select API
+* [ ] Develop ONDC on select API
 * [ ] Develop init API
-* [ ] Develop ondc on init API
+* [ ] Develop ONDC on init API
 * [ ] Develop confirm API
-* [ ] Develop ondc on on_confirm API
+* [ ] Develop ONDC on on_confirm API
 * [ ] Develop status API
-* [ ] Develop ondc on status API
+* [ ] Develop ONDC on status API
 * [ ] Develop update API
-* [ ] Develop ondc on update API
+* [ ] Develop ONDC on update API
 * [ ] Develop cancel API
 * [ ] Develop ONDC on cancel API
 * [ ] Develop IGM issue API
-* [ ] Develop ondc on issue API
+* [ ] Develop ONDC on issue API
 * [ ] Develop IGM issue_status API
-* [ ] Develop ondc on issue_status API
+* [ ] Develop ONDC on issue_status API
 * [ ] Develop IGM issue close API
 * [ ] Integrate permission flow
 
@@ -185,7 +185,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [ ] Complete validation for business_account registration
 * [ ] Complete validation for user_account registration
 * [ ] Complete validation for product search registration
-* [ ] Complete validation ondc on search registration
+* [ ] Complete validation ONDC on search registration
 
 ### OPTIONAL
 
