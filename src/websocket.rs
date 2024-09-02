@@ -28,6 +28,7 @@ pub enum WebSocketActionType {
 pub struct Message(pub String);
 
 #[derive(ActixMessage, Serialize)]
+#[serde(rename_all = "camelCase")]
 #[rtype(result = "()")]
 pub struct MessageToClient {
     pub id: Option<String>,

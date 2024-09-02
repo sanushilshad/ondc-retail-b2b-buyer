@@ -327,7 +327,7 @@ pub async fn save_user(
 pub async fn get_role_model(pool: &PgPool, role_type: &UserType) -> Result<Option<UserRoleModel>, anyhow::Error> {
     let row: Option<UserRoleModel> = sqlx::query_as!(
         UserRoleModel,
-        r#"SELECT id, role_name, role_status as "role_status!:Status", created_at, created_by, is_deleted from role where role_name  = $1"#,
+        r#"SELECT id, role_name, role_status as "role_status!:Status", created_on, created_by, is_deleted from role where role_name  = $1"#,
         role_type.to_lowercase_string()    
     )
     .fetch_optional(pool)
@@ -364,7 +364,7 @@ pub async fn save_user_role(
     let user_role_id = Uuid::new_v4();
     let query = sqlx::query!(
         r#"
-        INSERT INTO user_role (id, user_id, role_id, created_at, created_by)
+        INSERT INTO user_role (id, user_id, role_id, created_on, created_by)
         VALUES ($1, $2, $3, $4, $5)
         "#,
         user_role_id,
@@ -494,7 +494,7 @@ pub async fn save_auth_mechanism(
 ) -> Result<(), anyhow::Error> {
     let query = sqlx::query!(
         r#"
-        INSERT INTO auth_mechanism (id, user_id, auth_scope, auth_identifier, secret, auth_context, is_active, created_at, created_by)
+        INSERT INTO auth_mechanism (id, user_id, auth_scope, auth_identifier, secret, auth_context, is_active, created_on, created_by)
         SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::user_auth_identifier_scope[], $4::text[], $5::text[], $6::auth_context_type[], $7::status[], $8::TIMESTAMP[], $9::text[])
         ON CONFLICT (user_id, auth_scope, auth_context) DO NOTHING;
         "#,
@@ -617,7 +617,7 @@ pub async fn save_business_account(transaction: &mut Transaction<'_, Postgres>, 
     // let proofs = vec![];
     let query = sqlx::query!(
         r#"
-        INSERT INTO business_account (id, business_account_number, alt_business_account_number, company_name, vectors, proofs, customer_type, merchant_type, trade, source, created_by,  created_at, subscriber_id, default_vector_type)
+        INSERT INTO business_account (id, business_account_number, alt_business_account_number, company_name, vectors, proofs, customer_type, merchant_type, trade, source, created_by,  created_on, subscriber_id, default_vector_type)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         "#,
         business_account_id,
@@ -652,7 +652,7 @@ pub async fn save_user_business_relation(transaction: &mut Transaction<'_, Postg
     let user_role_id = Uuid::new_v4();
     let query = sqlx::query!(
         r#"
-        INSERT INTO business_user_relationship (id, user_id, business_id, role_id, created_by, created_at)
+        INSERT INTO business_user_relationship (id, user_id, business_id, role_id, created_by, created_on)
         VALUES ($1, $2, $3, $4, $5, $6)
         "#,
         user_role_id,
@@ -769,8 +769,8 @@ pub async fn fetch_business_account_model_by_user_account(
 
 #[tracing::instrument(name = "Get Business Account By User Id and customer type", skip(pool))]
 pub async fn fetch_business_account_model_by_customer_type(
-    user_id: Uuid,
-    business_account_id: Uuid,
+    user_id: &Uuid,
+    business_account_id: &Uuid,
     customer_type_list: Vec<CustomerType>,
     pool: &PgPool,
 ) -> Result<Option<UserBusinessRelationAccountModel>, anyhow::Error> {
@@ -795,6 +795,30 @@ pub async fn fetch_business_account_model_by_customer_type(
 
 
 
+#[tracing::instrument(name = "Get Business Account By User Id", skip(pool))]
+pub async fn fetch_business_account_model(
+    user_id: &Uuid,
+    business_account_id: &Uuid,
+    pool: &PgPool,
+) -> Result<Option<UserBusinessRelationAccountModel>, anyhow::Error> {
+
+    let row: Option<UserBusinessRelationAccountModel> = sqlx::query_as!(
+        UserBusinessRelationAccountModel,
+        r#"SELECT 
+        ba.id, ba.company_name, ba.customer_type as "customer_type: CustomerType", vectors as "vectors!:sqlx::types::Json<Vec<UserVector>>", ba.is_active as "is_active: Status", 
+        ba.kyc_status as "kyc_status: KycStatus", bur.verified, ba.is_deleted, ba.default_vector_type as "default_vector_type: VectorType" FROM business_user_relationship as bur
+            INNER JOIN business_account ba ON bur.business_id = ba.id
+        WHERE bur.user_id = $1 AND bur.business_id= $2
+        "#,
+        user_id,
+        business_account_id,
+    ).fetch_optional(pool)
+    .await?;
+
+    Ok(row)
+}
+
+
 #[tracing::instrument(name = "Get Business Account from model")]
 pub fn get_business_account_from_model(business_model: &UserBusinessRelationAccountModel) -> Result<BusinessAccount, anyhow::Error> {
     return Ok(BusinessAccount {
@@ -812,7 +836,7 @@ pub fn get_business_account_from_model(business_model: &UserBusinessRelationAcco
 
 
 #[tracing::instrument(name = "Get Business Account by Customer Type")]
-pub async fn get_business_account_by_customer_type(user_id: Uuid, business_account_id: Uuid, customer_type_list: Vec<CustomerType>, pool: &PgPool) -> Result<Option<BusinessAccount>, anyhow::Error> {
+pub async fn get_business_account_by_customer_type(user_id: &Uuid, business_account_id: &Uuid, customer_type_list: Vec<CustomerType>, pool: &PgPool) -> Result<Option<BusinessAccount>, anyhow::Error> {
     let  business_account_model = fetch_business_account_model_by_customer_type(user_id, business_account_id, customer_type_list, pool).await?;
     match business_account_model {
         Some(model) => {
@@ -823,6 +847,21 @@ pub async fn get_business_account_by_customer_type(user_id: Uuid, business_accou
     }
     
 }
+
+
+#[tracing::instrument(name = "Get Business Account by Customer Type")]
+pub async fn get_business_account( pool: &PgPool, user_id: &Uuid, business_account_id: &Uuid) -> Result<Option<BusinessAccount>, anyhow::Error> {
+    let  business_account_model = fetch_business_account_model(user_id, business_account_id, pool).await?;
+    match business_account_model {
+        Some(model) => {
+            let business_account = get_business_account_from_model(&model)?;
+            Ok(Some(business_account))
+        },
+        None => Ok(None),
+    }
+    
+}
+
 
 #[tracing::instrument(name = "Get Basic Business Account from Business Model")]
 pub fn get_basic_business_account_from_model(business_model: &BusinessAccountModel) -> Result<BasicBusinessAccount, anyhow::Error> {

@@ -1,10 +1,16 @@
+use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 
 use crate::routes::ondc::buyer::schemas::{ONDCFulfillmentType, ONDCPaymentType};
+use crate::routes::ondc::ONDCItemUOM;
+use crate::schemas::{CurrencyType, ONDCNetworkType};
 use crate::{errors::GenericError, schemas::CountryCode};
 use actix_web::{dev::Payload, web, FromRequest, HttpRequest};
+use bigdecimal::BigDecimal;
 use futures_util::future::LocalBoxFuture;
 use serde::{Deserialize, Serialize};
+use serde_with::skip_serializing_none;
+use sqlx::postgres::PgHasArrayType;
 use utoipa::ToSchema;
 use uuid::Uuid;
 #[derive(Debug, Deserialize, Serialize, ToSchema, sqlx::Type)]
@@ -14,6 +20,12 @@ pub enum PaymentType {
     PrePaid,
     CashOnDelivery,
     Credit,
+}
+
+impl PgHasArrayType for PaymentType {
+    fn array_type_info() -> sqlx::postgres::PgTypeInfo {
+        sqlx::postgres::PgTypeInfo::with_name("_payment_type")
+    }
 }
 
 impl PaymentType {
@@ -33,6 +45,12 @@ impl PaymentType {
 pub enum FulfillmentType {
     Delivery,
     SelfPickup,
+}
+
+impl PgHasArrayType for &FulfillmentType {
+    fn array_type_info() -> sqlx::postgres::PgTypeInfo {
+        sqlx::postgres::PgTypeInfo::with_name("_fulfillment_type")
+    }
 }
 
 impl FulfillmentType {
@@ -145,4 +163,200 @@ pub struct SearchRequestModel {
     pub user_id: Uuid,
     pub business_id: Uuid,
     pub device_id: String,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WSSearchItemPrice {
+    pub currency: CurrencyType,
+    #[schema(value_type = f64)]
+    pub value: BigDecimal,
+    #[schema(value_type =Option<f64>)]
+    pub offered_value: Option<BigDecimal>,
+    #[schema(value_type = f64)]
+    pub maximum_value: BigDecimal,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WSCreatorContactData<'a> {
+    pub name: &'a str,
+    pub address: &'a str,
+    pub phone: &'a str,
+    pub email: &'a str,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WSProductCreator<'a> {
+    pub name: &'a str,
+    pub contact: WSCreatorContactData<'a>,
+}
+
+// #[derive(Debug, Serialize)]
+// struct ProviderLocation {
+//     id: String,
+//     gps: String,
+//     address: String,
+//     city: String,
+//     state: String,
+//     country: CountryCode,
+//     area_code: String,
+// }
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WSSearchItemQty {
+    pub measure: WSSearchItemQtyMeasure,
+    pub count: u32,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WSSearchItemQtyMeasure {
+    pub unit: ONDCItemUOM,
+    #[schema(value_type = f64)]
+    pub value: BigDecimal,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct UnitizedProductQty {
+    pub unit: ONDCItemUOM,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WSSearchItemQuantity {
+    pub unitized: UnitizedProductQty,
+    pub available: WSSearchItemQty,
+    pub maximum: WSSearchItemQty,
+    pub minimum: Option<WSSearchItemQty>,
+}
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WSSearchProductProvider<'a> {
+    pub id: &'a str,
+    pub rating: Option<&'a str>,
+    pub name: &'a str,
+    pub code: &'a str,
+    pub short_desc: &'a str,
+    pub long_desc: &'a str,
+    pub videos: Vec<&'a str>,
+    pub images: Vec<&'a str>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WSSearchProductNpDeatils {
+    pub name: String,
+    pub code: Option<String>,
+    pub short_desc: String,
+    pub long_desc: String,
+    pub images: Vec<String>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WSProductCategory {
+    pub code: String,
+    pub name: String,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WSItemPayment<'a> {
+    pub r#type: PaymentType,
+    pub collected_by: &'a ONDCNetworkType,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[skip_serializing_none]
+#[serde(rename_all = "camelCase")]
+pub struct WSSearchItem<'a> {
+    pub id: &'a str,
+    pub name: &'a str,
+    pub code: Option<&'a str>,
+    pub domain_category: CategoryDomain,
+    pub price: WSSearchItemPrice,
+    pub parent_item_id: Option<&'a str>,
+    pub recommended: bool,
+    pub payment_types: Vec<WSItemPayment<'a>>,
+    pub fullfillment_type: Vec<FulfillmentType>,
+    pub location_ids: Vec<&'a str>,
+    pub creator: WSProductCreator<'a>,
+    pub quantity: WSSearchItemQuantity,
+    pub categories: Vec<WSProductCategory>,
+    pub tax_rate: BigDecimal,
+    // pub country_of_origin: CountryCode,
+    pub images: Vec<&'a str>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WSSearchCountry<'a> {
+    pub code: &'a str,
+    pub name: Option<&'a str>,
+}
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WSSearchState<'a> {
+    pub code: &'a str,
+    pub name: Option<&'a str>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WSSearchCity<'a> {
+    pub code: &'a str,
+    pub name: Option<&'a str>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WSSearchProviderLocation<'a> {
+    pub id: &'a str,
+    pub gps: &'a str,
+    pub address: &'a str,
+    pub city: WSSearchCity<'a>,
+    pub country: WSSearchCountry<'a>,
+    pub state: WSSearchState<'a>,
+    pub area_code: &'a str,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WSSearchProvider<'a> {
+    pub items: Vec<WSSearchItem<'a>>,
+    pub provider_detail: WSSearchProductProvider<'a>,
+    pub locations: HashMap<String, WSSearchProviderLocation<'a>>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WSSearchBPP<'a> {
+    pub name: &'a str,
+    pub code: Option<&'a str>,
+    pub subscriber_id: &'a str,
+    pub subscriber_uri: &'a str,
+    pub short_desc: &'a str,
+    pub long_desc: &'a str,
+    pub images: Vec<&'a str>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WSSearchData<'a> {
+    pub bpp: WSSearchBPP<'a>,
+    pub providers: Vec<WSSearchProvider<'a>>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WSSearch<'a> {
+    #[schema(value_type = String)]
+    pub transaction_id: Uuid,
+    #[schema(value_type = String)]
+    pub message_id: Uuid,
+    pub message: &'a WSSearchData<'a>,
 }

@@ -28,7 +28,7 @@ impl Application {
     // `Application`.
     pub async fn build(configuration: Settings) -> Result<Self, anyhow::Error> {
         let connection_pool = get_connection_pool(&configuration.database);
-
+        // println!("{:?}", connection_pool);
         let email_pool = Arc::new(
             SmtpEmailClient::new(&configuration.email_client)
                 .expect("Failed to create SmtpEmailClient"),
@@ -65,6 +65,7 @@ impl Application {
 pub fn get_connection_pool(configuration: &DatabaseSettings) -> PgPool {
     PgPoolOptions::new()
         // .acquire_timeout(std::time::Duration::from_secs(2))
+        // .min_connections(2)
         .connect_lazy_with(configuration.with_db())
 }
 
