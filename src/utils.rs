@@ -361,6 +361,24 @@ pub fn pascal_to_snake_case(pascal_case: &str) -> String {
 
     snake_case
 }
+
+pub fn pascal_to_uppercase(pascal_case: &str) -> String {
+    let mut uppercase_with_underscores = String::new();
+    let mut is_first_word = true;
+
+    for c in pascal_case.chars() {
+        if c.is_uppercase() {
+            if !is_first_word {
+                uppercase_with_underscores.push('_');
+            }
+            is_first_word = false;
+        }
+        uppercase_with_underscores.push(c.to_ascii_uppercase());
+    }
+
+    uppercase_with_underscores
+}
+
 #[tracing::instrument(name = "Get network participant detail model", skip(pool))]
 pub async fn get_network_participant_detail_model(
     pool: &PgPool,

@@ -383,6 +383,7 @@ pub struct BulkAuthMechanismInsert<'a> {
 
 #[derive(Serialize, Deserialize, Debug, sqlx::Type, ToSchema)]
 #[serde(rename_all = "camelCase")]
+
 pub struct KYCProof {
     pub key: VectorType,
     pub kyc_id: String,

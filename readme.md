@@ -176,6 +176,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 
 
 ### MILESTONE 3:
+* [ ] Add Chat Functionality
 * [ ] Develop Business Account fetch API
 * [ ] Develop User Account fetch API
 * [ ] Develop Business Account Update API

@@ -1,11 +1,11 @@
 use serde::{
     de::{self, Visitor},
-    Deserialize, Deserializer,
+    Deserialize, Deserializer, Serialize,
 };
 use utoipa::ToSchema;
 use validator::validate_email;
 
-#[derive(Debug, Clone, Deserialize, PartialEq, ToSchema)]
+#[derive(Debug, Clone, Deserialize, PartialEq, ToSchema, Serialize)]
 pub struct EmailObject(String);
 
 impl EmailObject {

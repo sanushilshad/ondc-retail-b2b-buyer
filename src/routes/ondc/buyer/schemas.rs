@@ -1,4 +1,5 @@
 use super::errors::ONDCBuyerError;
+use crate::domain::EmailObject;
 use crate::routes::ondc::schemas::{ONDCContext, ONDCResponseErrorBody};
 use crate::routes::ondc::{ONDCItemUOM, ONDCSellerErrorCode};
 use crate::routes::order::schemas::{
@@ -47,7 +48,7 @@ pub struct ONDCTagDescriptor {
     pub code: ONDCTagType,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum ONDCTagItemCode {
     BuyerIdCode,
@@ -120,7 +121,7 @@ enum ONDCFulfillmentState {
     Cancelled,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum ONDCFulfillmentStopType {
     Start,
@@ -847,14 +848,14 @@ pub struct ONDCCustomer {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct ONDCLocationIds {
+pub struct ONDCLocationId {
     pub id: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCSelectProvider {
     pub id: String,
-    pub locations: Vec<ONDCLocationIds>,
+    pub locations: Vec<ONDCLocationId>,
     pub ttl: String,
 }
 
@@ -966,7 +967,7 @@ pub struct ONDCSelectRequest {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCOnSelectProvider {
     pub id: String,
-    pub locations: Vec<ONDCLocationIds>,
+    pub locations: Vec<ONDCLocationId>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -1051,6 +1052,7 @@ pub struct ONDCOnSelectFulfillment {
     pub tat: String,
     pub tracking: bool,
     pub state: ONDCOnSelectFulfillmentState,
+    pub stops: Option<Vec<ONDCOrderFulfillmentEnd<ONDCSelectFulfillmentLocation>>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
@@ -1205,4 +1207,74 @@ pub struct ONDCRequestModel {
     pub business_id: Option<Uuid>,
     pub device_id: Option<String>,
     pub request_payload: Value,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCOnInitRequest {
+    pub context: ONDCContext,
+    pub error: Option<ONDCResponseErrorBody<ONDCSellerErrorCode>>,
+}
+
+impl FromRequest for ONDCOnInitRequest {
+    type Error = ONDCBuyerError;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
+
+    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+        let fut = web::Json::<Self>::from_request(req, payload);
+
+        Box::pin(async move {
+            match fut.await {
+                Ok(json) => Ok(json.into_inner()),
+                Err(e) => Err(ONDCBuyerError::InvalidResponseError {
+                    path: None,
+                    message: e.to_string(),
+                }),
+            }
+        })
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCInitPayment {
+    pub r#type: ONDCPaymentType,
+    pub collected_by: ONDCNetworkType,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCBilling {
+    pub name: String,
+    pub address: String,
+    pub state: ONDCState,
+    pub city: ONDCCity,
+    pub tax_id: String,
+    pub email: EmailObject,
+    pub phone: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCInitProvider {
+    pub id: String,
+    pub locations: Vec<ONDCLocationId>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCInitOrder {
+    pub provider: ONDCInitProvider,
+    pub items: Vec<ONDCSelectedItem>,
+    pub add_ons: Option<Vec<ONDCItemAddOns>>,
+    pub billing: ONDCBilling,
+    pub payments: Vec<ONDCInitPayment>,
+    pub fulfillments: Vec<ONDCFulfillment<ONDCSelectFulfillmentLocation>>,
+    pub tags: Vec<ONDCTag>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCInitMessage {
+    pub order: ONDCInitOrder,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCInitRequest {
+    pub context: ONDCContext,
+    pub message: ONDCInitMessage,
 }

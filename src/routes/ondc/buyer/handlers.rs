@@ -115,3 +115,12 @@ pub async fn on_select(
     websocket_srv.do_send(msg);
     Ok(web::Json(ONDCResponse::successful_response(None)))
 }
+
+#[tracing::instrument(name = "ONDC On Init Payload", skip(_pool), fields())]
+pub async fn on_init(
+    _pool: web::Data<PgPool>,
+    body: ONDCOnSelectRequest,
+    websocket_srv: web::Data<Addr<Server>>,
+) -> Result<web::Json<ONDCResponse<ONDCBuyerErrorCode>>, ONDCBuyerError> {
+    Ok(web::Json(ONDCResponse::successful_response(None)))
+}

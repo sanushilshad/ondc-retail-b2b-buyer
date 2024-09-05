@@ -2,7 +2,9 @@ use actix_web::web;
 // use anyhow::Context;
 use crate::configuration::ONDCSetting;
 use crate::errors::GenericError;
-use crate::routes::ondc::buyer::utils::{get_ondc_select_payload, send_ondc_payload};
+use crate::routes::ondc::buyer::utils::{
+    get_ondc_init_payload, get_ondc_select_payload, send_ondc_payload,
+};
 use crate::routes::ondc::utils::get_lookup_data_from_db;
 use crate::routes::ondc::{ONDCActionType, ONDCDomain};
 use crate::routes::user::schemas::{BusinessAccount, UserAccount};
@@ -11,8 +13,8 @@ use crate::utils::{create_authorization_header, get_np_detail};
 use crate::schemas::{GenericResponse, ONDCNPType, ONDCNetworkType, RequestMetaData};
 use sqlx::PgPool;
 
-use super::schemas::{OrderSelectRequest, OrderType};
-use super::utils::{initialize_order_select, save_ondc_order_request};
+use super::schemas::{OrderInitRequest, OrderSelectRequest, OrderType};
+use super::utils::{fetch_order_by_id, initialize_order_select, save_ondc_order_request};
 #[utoipa::path(
     post,
     path = "/order/select",
@@ -116,6 +118,78 @@ pub async fn order_select(
 
     Ok(web::Json(GenericResponse::success(
         "Successfully send select request",
+        Some(()),
+    )))
+}
+
+#[tracing::instrument(name = "order init", skip(pool), fields(transaction_id=body.transaction_id.to_string()))]
+pub async fn order_init(
+    body: OrderInitRequest,
+    pool: web::Data<PgPool>,
+    ondc_obj: web::Data<ONDCSetting>,
+    user_account: UserAccount,
+    business_account: BusinessAccount,
+    meta_data: RequestMetaData,
+) -> Result<web::Json<GenericResponse<()>>, GenericError> {
+    let order = match fetch_order_by_id(&pool, &body.transaction_id).await {
+        Ok(Some(order_detail)) => order_detail,
+        Ok(None) => {
+            return Err(GenericError::ValidationError(format!(
+                "{} is not found in datbase",
+                &body.transaction_id
+            )))
+        }
+        Err(e) => {
+            return Err(GenericError::DatabaseError(
+                "Something went wrong while fetching Order detail".to_string(),
+                e,
+            ));
+        }
+    };
+
+    let bap_detail = match get_np_detail(&pool, &meta_data.domain_uri, &ONDCNPType::Buyer).await {
+        Ok(Some(bap_detail)) => bap_detail,
+        Ok(None) => {
+            return Err(GenericError::ValidationError(format!(
+                "{} is not a registered ONDC registered domain",
+                meta_data.domain_uri
+            )))
+        }
+        Err(e) => {
+            return Err(GenericError::DatabaseError(
+                "Something went wrong while fetching NP credentials".to_string(),
+                e,
+            ));
+        }
+    };
+
+    let ondc_init_payload = get_ondc_init_payload(&user_account, &business_account, &order, &body)?;
+
+    let ondc_init_payload_str = serde_json::to_string(&ondc_init_payload).map_err(|e| {
+        GenericError::SerializationError(format!("Failed to serialize ONDC select payload: {}", e))
+    })?;
+    let header = create_authorization_header(&ondc_init_payload_str, &bap_detail, None, None)?;
+    let select_json_obj = serde_json::to_value(&ondc_init_payload)?;
+    let task_3 = save_ondc_order_request(
+        &pool,
+        &user_account,
+        &business_account,
+        &meta_data,
+        &select_json_obj,
+        body.transaction_id,
+        body.message_id,
+        ONDCActionType::Init,
+    );
+    let task_4 = send_ondc_payload(
+        &order.bpp.uri,
+        &ondc_init_payload_str,
+        &header,
+        ONDCActionType::Init,
+    );
+    futures::future::join(task_3, task_4).await.1?;
+
+    Ok(web::Json(GenericResponse::success(
+        "Successfully send init request",
         Some(()),
     )))
 }
