@@ -158,7 +158,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 ### MILESTONE 2:
 * [x] Develop select API
 * [x] Develop ondc on select API
-* [ ] Develop init API
+* [x] Develop init API
 * [ ] Develop ONDC on init API
 * [ ] Develop confirm API
 * [ ] Develop ONDC on on_confirm API
