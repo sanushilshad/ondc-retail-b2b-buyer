@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS user_account(
     display_name TEXT NOT NULL,
     user_account_number TEXT NOT NULL,
     alt_user_account_number TEXT NOT NULL,
-    is_active status DEFAULT 'active'::status,
+    is_active status DEFAULT 'active'::status NOT NULL,
     created_by uuid NOT NULL,
     vectors jsonb NOT NULL,
     updated_by uuid,
@@ -106,7 +106,7 @@ CREATE TYPE customer_type AS ENUM (
 CREATE TABLE IF NOT EXISTS role (
   id uuid PRIMARY KEY,
   role_name TEXT NOT NULL,
-  role_status status  NOT NULL,
+  role_status status NOT NULL,
   created_on TIMESTAMPTZ NOT NULL,
   updated_on TIMESTAMPTZ,
   deleted_on TIMESTAMPTZ,
@@ -669,12 +669,11 @@ CREATE TABLE IF NOT EXISTS buyer_commerce_data(
   seller_id TEXT NOT NULL,
   buyer_name TEXT NOT NULL,
   seller_name TEXT,
-  payment_data_json JSONB,
   source data_source NOT NULL,
   created_on timestamptz NOT NULL,
   updated_on timestamptz,
   deleted_on timestamptz,
-  is_deleted BOOLEAN DEFAULT false,
+  is_deleted BOOLEAN NOT NULL DEFAULT false,
   created_by uuid NOT NULL,
   grand_total DECIMAL(20, 3),
   buyer_chat_link TEXT,
@@ -711,7 +710,6 @@ CREATE TABLE IF NOT EXISTS buyer_commerce_data_line(
   discount_amount DECIMAL(20, 2) NOT NULL DEFAULT 0.0,
   item_req TEXT,
   packaging_req TEXT
-
 );
 
 ALTER TABLE buyer_commerce_data_line ADD CONSTRAINT commerce_data_fk FOREIGN KEY ("commerce_data_id") REFERENCES buyer_commerce_data ("id") ON DELETE CASCADE;
@@ -762,7 +760,7 @@ CREATE TABLE IF NOT EXISTS buyer_commerce_fulfillment_data(
   tat TEXT,
   tracking BOOLEAN,
   category fulfillment_category_type,
-  servicable_status fulfillment_servicability_status_type,
+  servicable_status fulfillment_servicability_status,
   pickup_data JSONB,
   drop_off_data JSONB,
   created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -792,9 +790,6 @@ CREATE TABLE IF NOT EXISTS buyer_commerce_payment(
   payment_type payment_type
 );
 ALTER TABLE buyer_commerce_payment ADD CONSTRAINT buyer_commerce_payment_fk FOREIGN KEY ("commerce_data_id") REFERENCES buyer_commerce_data ("id") ON DELETE CASCADE;
-
-
-ALTER TABLE buyer_commerce_fulfillment_data_line ADD CONSTRAINT commerce_fulfillment_raw_data_uq UNIQUE (commerce_fulfillment_id, item_code);
 
 
 

@@ -612,6 +612,9 @@ pub struct ONDCAuthParams {
 #[serde(rename_all = "UPPERCASE")]
 pub enum CurrencyType {
     Inr,
+    Sgd,
+    Aed,
+    Ghs,
 }
 
 impl Display for CurrencyType {

@@ -1,6 +1,9 @@
 use super::schemas::{
-    BuyerCommerce, DropOffContact, DropOffData, DropOffLocation, FulfillmentLocation,
-    OrderSelectFulfillment, OrderSelectRequest, PickUpData,
+    BasicNetWorkData, BuyerCommerce, BuyerCommerceDataModel, BuyerCommerceFulfillment,
+    BuyerCommerceFulfillmentModel, BuyerCommerceItem, BuyerCommerceItemModel, BuyerCommercePayment,
+    BuyerCommercePaymentModel, BuyerCommerceSeller, BuyerTerm, DropOffContact, DropOffData,
+    DropOffLocation, ExtDropOffData, ExtFulfillmentContact, ExtFulfillmentLocation, ExtPickUpData,
+    FulfillmentLocation, OrderSelectFulfillment, OrderSelectRequest, PickUpData,
 };
 use crate::constants::ONDC_TTL;
 use crate::routes::ondc::buyer::schemas::{
@@ -14,7 +17,8 @@ use crate::routes::ondc::buyer::utils::{
 };
 use crate::routes::ondc::{LookupData, ONDCActionType};
 use crate::routes::order::schemas::{
-    CommerceStatusType, FulfillmentCategoryType, IncoTermType, OrderType, ServiceableType,
+    CommerceFulfillmentStatusType, CommerceStatusType, DeliveryTerm, FulfillmentCategoryType,
+    IncoTermType, OrderType, ServiceableType,
 };
 use crate::routes::product::schemas::{CategoryDomain, FulfillmentType, PaymentType};
 use crate::routes::user::schemas::{BusinessAccount, DataSource, UserAccount};
@@ -25,6 +29,7 @@ use anyhow::Context;
 use bigdecimal::BigDecimal;
 use chrono::Utc;
 use serde_json::Value;
+use sqlx::types::Json;
 use sqlx::{Executor, PgPool, Postgres, Transaction};
 use std::collections::HashMap;
 use std::str::FromStr;
@@ -430,7 +435,7 @@ pub async fn initialize_order_select(
 }
 
 pub fn create_drop_off_from_ondc_select_fulfullment(
-    ondc_select_fulfillment: &Vec<ONDCFulfillment<ONDCSelectFulfillmentLocation>>,
+    ondc_select_fulfillment: &[ONDCFulfillment<ONDCSelectFulfillmentLocation>],
     // contact: &ONDCContact,
 ) -> Option<DropOffData> {
     if let Some(stops) = &ondc_select_fulfillment[0].stops {
@@ -504,7 +509,7 @@ pub async fn save_on_select_fulfillment(
     let mut category_list = vec![];
     let mut servicable_status_list = vec![];
     let mut tracking_list = vec![];
-    let drop_off_data = create_drop_off_from_ondc_select_fulfullment(&select_fulfillment);
+    let drop_off_data = create_drop_off_from_ondc_select_fulfullment(select_fulfillment);
     let drop_off_data_json = serde_json::to_value(drop_off_data).unwrap_or_default();
     let mut pickup_data_list = vec![];
 
@@ -522,11 +527,11 @@ pub async fn save_on_select_fulfillment(
         );
         incoterms_list.push(select_fulfillment[0].tags.as_ref().map(|e| {
             e[0].get_tag_value(&ONDCTagItemCode::IncoTerms.to_string())
-                .unwrap_or_else(|| "")
+                .unwrap_or("")
         }));
         delivery_place_list.push(select_fulfillment[0].tags.as_ref().map(|e| {
             e[0].get_tag_value(&ONDCTagItemCode::NamedPlaceOfDelivery.to_string())
-                .unwrap_or_else(|| "")
+                .unwrap_or("")
         }));
         provider_name_list.push(fulfillment.provider_name.as_deref());
         tat_list.push(fulfillment.tat.as_str());
@@ -890,7 +895,7 @@ pub async fn save_order_on_select_items(
         tax_amount_list.push(tax_amount);
         packaging_req_list.push(item.tags.as_ref().map(|tag| {
             get_tag_value_from_list(
-                &tag,
+                tag,
                 ONDCTagType::BuyerTerms,
                 &ONDCTagItemCode::PackagingsReq.to_string(),
             )
@@ -898,7 +903,7 @@ pub async fn save_order_on_select_items(
         }));
         item_req_list.push(item.tags.as_ref().map(|tag| {
             get_tag_value_from_list(
-                &tag,
+                tag,
                 ONDCTagType::BuyerTerms,
                 &ONDCTagItemCode::ItemReq.to_string(),
             )
@@ -993,11 +998,340 @@ pub async fn save_order_on_select_items(
     Ok(())
 }
 
+// let row: Option<AuthMechanismModel> = sqlx::query_as!(AuthMechanismModel,
+//     r#"SELECT a.id as id, user_id, auth_identifier, secret, a.is_active as "is_active: Status", auth_scope as "auth_scope: AuthenticationScope", auth_context as "auth_context: AuthContextType", valid_upto from auth_mechanism
+//     as a inner join user_account as b on a.user_id = b.id where (b.username = $1 OR b.mobile_no = $1 OR  b.email = $1)  AND auth_scope = $2 AND auth_context = $3"#,
+//     username,
+//     scope as &AuthenticationScope,
+//     &auth_context as &AuthContextType
+// )
+
+#[tracing::instrument(name = "fetch buyer commerce data", skip(pool))]
+async fn get_buyer_commerce_data(
+    pool: &PgPool,
+    transaction_id: &Uuid,
+) -> Result<Option<BuyerCommerceDataModel>, anyhow::Error> {
+    let record = sqlx::query_as!(
+        BuyerCommerceDataModel,
+        r#"
+        
+        SELECT id, urn, external_urn, record_type as "record_type:OrderType", 
+           record_status as "record_status:CommerceStatusType",
+           domain_category_code as "domain_category_code:CategoryDomain", 
+           buyer_id, seller_id, buyer_name, seller_name, source as "source:DataSource", 
+           created_on, updated_on, deleted_on, is_deleted, created_by, grand_total, 
+           bpp_id, bpp_uri, bap_id, bap_uri, is_import, quote_ttl,
+           currency_code as "currency_code?:CurrencyType", city_code,
+           country_code as "country_code:CountryCode"
+        FROM buyer_commerce_data where external_urn= $1;"#,
+        transaction_id
+    )
+    .fetch_optional(pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to execute query: {:?}", e);
+        anyhow::Error::new(e).context(
+            "A database failure occurred while saving fetching buyer_commerce data from database",
+        )
+    })?;
+
+    Ok(record)
+}
+
+#[tracing::instrument(name = "fetch buyer commerce data line", skip(pool))]
+async fn get_buyer_commerce_data_line(
+    pool: &PgPool,
+    order_id: &Uuid,
+) -> Result<Vec<BuyerCommerceItemModel>, anyhow::Error> {
+    let records = sqlx::query_as!(
+        BuyerCommerceItemModel,
+        r#"
+        SELECT 
+            id, 
+            item_id, 
+            commerce_data_id, 
+            item_name, 
+            item_code, 
+            item_image, 
+            qty, 
+            packaging_req, 
+            item_req,
+            tax_rate, 
+            tax_value, 
+            unit_price, 
+            gross_total, 
+            available_qty, 
+            discount_amount, 
+            location_ids as "location_ids?: Json<Vec<String>>", 
+            fulfillment_ids as "fulfillment_ids?: Json<Vec<String>>"
+        FROM buyer_commerce_data_line 
+        WHERE commerce_data_id = $1
+        "#,
+        order_id
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to execute query: {:?}", e);
+        anyhow::Error::new(e).context(
+            "A database failure occurred while fetching buyer_commerce data line from database",
+        )
+    })?;
+
+    Ok(records)
+}
+
+#[tracing::instrument(name = "fetch buyer commerce payments", skip(pool))]
+async fn get_buyer_commerce_payments(
+    pool: &PgPool,
+    order_id: &Uuid,
+) -> Result<Vec<BuyerCommercePaymentModel>, anyhow::Error> {
+    let records = sqlx::query_as!(
+        BuyerCommercePaymentModel,
+        r#"
+        SELECT 
+            id, 
+            collected_by as "collected_by?: ONDCNetworkType",
+            payment_type as "payment_type!: PaymentType", 
+            commerce_data_id
+        FROM buyer_commerce_payment 
+        WHERE commerce_data_id = $1
+        "#,
+        order_id
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to execute query: {:?}", e);
+        anyhow::Error::new(e).context(
+            "A database failure occurred while fetching buyer_commerce data payment from database",
+        )
+    })?;
+
+    Ok(records)
+}
+
+#[tracing::instrument(name = "fetch buyer commerce fulfillments", skip(pool))]
+async fn get_buyer_commerce_fulfillments(
+    pool: &PgPool,
+    order_id: &Uuid,
+) -> Result<Vec<BuyerCommerceFulfillmentModel>, anyhow::Error> {
+    let records = sqlx::query_as!(
+        BuyerCommerceFulfillmentModel,
+        r#"
+        SELECT 
+            id,
+            commerce_data_id,
+            fulfillment_id,
+            tat,
+            fulfillment_type as "fulfillment_type: FulfillmentType",
+            fulfillment_status as "fulfillment_status: CommerceFulfillmentStatusType",
+            inco_terms as "inco_terms?: IncoTermType",
+            place_of_delivery,
+            provider_name,
+            category as "category?: FulfillmentCategoryType",
+            servicable_status as "servicable_status?: ServiceableType", 
+            drop_off_data as "drop_off?: Json<DropOffData>",
+            pickup_data as "pickup?:  Json<PickUpData>",
+            tracking
+        FROM buyer_commerce_fulfillment_data 
+        WHERE commerce_data_id = $1
+        "#,
+        order_id
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to execute query: {:?}", e);
+        anyhow::Error::new(e).context(
+            "A database failure occurred while fetching buyer_commerce data fulfillments from database",
+        )
+    })?;
+
+    Ok(records)
+}
+
+fn get_order_payment_from_model(
+    payments: Vec<BuyerCommercePaymentModel>,
+) -> Vec<BuyerCommercePayment> {
+    let mut payment_obj = vec![];
+    for payment in payments {
+        payment_obj.push(BuyerCommercePayment {
+            id: payment.id,
+            collected_by: payment.collected_by,
+            payment_type: payment.payment_type,
+        })
+    }
+    payment_obj
+}
+
+fn get_order_items_from_model(items: Vec<BuyerCommerceItemModel>) -> Vec<BuyerCommerceItem> {
+    let mut item_obj = vec![];
+    for item in items {
+        let buyer_term = if item.item_req.is_some() && item.packaging_req.is_some() {
+            Some(BuyerTerm {
+                item_req: item.item_req.unwrap(),
+                packaging_req: item.packaging_req.unwrap(),
+            })
+        } else {
+            None
+        };
+        let location_ids = item
+            .location_ids
+            .map(|json| json.0)
+            .unwrap_or_else(Vec::new);
+        let fulfillment_ids = item
+            .fulfillment_ids
+            .map(|json| json.0)
+            .unwrap_or_else(Vec::new);
+        item_obj.push(BuyerCommerceItem {
+            id: item.id,
+            item_id: item.item_id,
+            item_name: item.item_name,
+            item_code: item.item_code,
+            item_image: item.item_image,
+            qty: item.qty,
+            buyer_terms: buyer_term,
+            tax_rate: item.tax_rate,
+            tax_value: item.tax_value,
+            unit_price: item.unit_price,
+            gross_total: item.gross_total,
+            available_qty: item.available_qty,
+            discount_amount: item.discount_amount,
+            location_ids,
+            fulfillment_ids,
+        })
+    }
+    item_obj
+}
+
+fn get_drop_off_from_model(drop_off: DropOffData) -> ExtDropOffData {
+    ExtDropOffData {
+        location: ExtFulfillmentLocation {
+            gps: drop_off.location.gps,
+            area_code: drop_off.location.area_code,
+            address: drop_off.location.address,
+            city: drop_off.location.city,
+            country: drop_off.location.country,
+            state: drop_off.location.state,
+        },
+        contact: ExtFulfillmentContact {
+            mobile_no: drop_off.contact.mobile_no,
+            email: drop_off.contact.email,
+        },
+    }
+}
+
+fn get_pick_up_from_model(pick_up: PickUpData) -> ExtPickUpData {
+    ExtPickUpData {
+        location: ExtFulfillmentLocation {
+            gps: pick_up.location.gps,
+            area_code: pick_up.location.area_code,
+            address: pick_up.location.address,
+            city: pick_up.location.city,
+            country: pick_up.location.country,
+            state: pick_up.location.state,
+        },
+        contact: ExtFulfillmentContact {
+            mobile_no: pick_up.contact.mobile_no,
+            email: pick_up.contact.email,
+        },
+    }
+}
+
+fn get_order_fulfillment_from_model(
+    fulfillments: Vec<BuyerCommerceFulfillmentModel>,
+) -> Vec<BuyerCommerceFulfillment> {
+    let mut fulfillment_obj = vec![];
+    for fulfillment in fulfillments {
+        let delivery_term =
+            if fulfillment.inco_terms.is_some() && fulfillment.place_of_delivery.is_some() {
+                Some(DeliveryTerm {
+                    inco_terms: fulfillment.inco_terms.unwrap(),
+                    place_of_delivery: fulfillment.place_of_delivery.unwrap(),
+                })
+            } else {
+                None
+            };
+        fulfillment_obj.push(BuyerCommerceFulfillment {
+            id: fulfillment.id,
+            fulfillment_id: fulfillment.fulfillment_id,
+            fulfillment_type: fulfillment.fulfillment_type,
+            tat: fulfillment.tat,
+            fulfillment_status: fulfillment.fulfillment_status,
+            delivery_term,
+            provider_name: fulfillment.provider_name,
+            category: fulfillment.category,
+            servicable_status: fulfillment.servicable_status,
+            tracking: fulfillment.tracking,
+            drop_off: fulfillment
+                .drop_off
+                .map(|json| get_drop_off_from_model(json.0)),
+            pickup: fulfillment
+                .pickup
+                .map(|json| get_pick_up_from_model(json.0)),
+        })
+    }
+    fulfillment_obj
+}
+
+#[tracing::instrument(name = "model to struct", skip())]
+fn get_order_from_model(
+    order: BuyerCommerceDataModel,
+    lines: Vec<BuyerCommerceItemModel>,
+    payments: Vec<BuyerCommercePaymentModel>,
+    fulfillments: Vec<BuyerCommerceFulfillmentModel>,
+) -> BuyerCommerce {
+    BuyerCommerce {
+        id: order.id,
+        urn: order.urn,
+        external_urn: order.external_urn,
+        record_type: order.record_type,
+        record_status: order.record_status,
+        domain_category_code: order.domain_category_code,
+        seller: BuyerCommerceSeller {
+            id: order.seller_id,
+            name: order.seller_name,
+        },
+        source: order.source,
+        created_on: order.created_on,
+        updated_on: order.updated_on,
+        created_by: order.created_by,
+        grand_total: order.grand_total,
+        bap: BasicNetWorkData {
+            id: order.bap_id,
+            uri: order.bap_uri,
+        },
+        bpp: BasicNetWorkData {
+            id: order.bpp_id,
+            uri: order.bpp_uri,
+        },
+        is_import: order.is_import,
+        quote_ttl: order.quote_ttl,
+        city_code: order.city_code,
+        country_code: order.country_code,
+        payments: get_order_payment_from_model(payments),
+        items: get_order_items_from_model(lines),
+        fulfillments: get_order_fulfillment_from_model(fulfillments),
+    }
+}
+
 #[tracing::instrument(name = "fetch order", skip(pool))]
 pub async fn fetch_order_by_id(
     pool: &PgPool,
     transaction_id: &Uuid,
 ) -> Result<Option<BuyerCommerce>, anyhow::Error> {
-    todo!("This function is not yet implemented");
-    // Ok(Some(()))
+    if let Some(order_data) = get_buyer_commerce_data(pool, transaction_id).await? {
+        let lines = get_buyer_commerce_data_line(pool, &order_data.id).await?;
+        let payments = get_buyer_commerce_payments(pool, &order_data.id).await?;
+        let fulfillmets = get_buyer_commerce_fulfillments(pool, &order_data.id).await?;
+        Ok(Some(get_order_from_model(
+            order_data,
+            lines,
+            payments,
+            fulfillmets,
+        )))
+    } else {
+        Ok(None)
+    }
 }

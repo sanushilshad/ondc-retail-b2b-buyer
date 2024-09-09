@@ -4,7 +4,7 @@ use crate::errors::GenericError;
 use crate::routes::product::schemas::FulfillmentType;
 use crate::routes::product::schemas::{CategoryDomain, PaymentType};
 use crate::routes::user::schemas::DataSource;
-use crate::schemas::{CountryCode, ONDCNetworkType};
+use crate::schemas::{CountryCode, CurrencyType, ONDCNetworkType};
 // use crate::utils::deserialize_non_empty_vector;
 use actix_http::Payload;
 use actix_web::{web, FromRequest, HttpRequest};
@@ -14,6 +14,7 @@ use chrono::{DateTime, Utc};
 use futures_util::future::LocalBoxFuture;
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgHasArrayType;
+use sqlx::FromRow;
 use utoipa::ToSchema;
 use uuid::Uuid;
 #[derive(Deserialize, Debug, ToSchema)]
@@ -229,7 +230,7 @@ pub struct Payment {
     pub r#type: PaymentType,
 }
 
-#[derive(Deserialize, Debug, Serialize)]
+#[derive(Deserialize, Debug, Serialize, sqlx::FromRow)]
 pub struct DropOffLocation {
     pub gps: String,
     pub area_code: String,
@@ -238,19 +239,20 @@ pub struct DropOffLocation {
     pub country: CountryCode,
     pub state: String,
 }
-#[derive(Deserialize, Debug, Serialize)]
+
+#[derive(Deserialize, Debug, Serialize, sqlx::FromRow)]
 pub struct DropOffContact {
     pub mobile_no: String,
     pub email: Option<String>,
 }
 
-#[derive(Deserialize, Debug, Serialize)]
+#[derive(Deserialize, Debug, Serialize, sqlx::FromRow)]
 pub struct DropOffData {
     pub location: DropOffLocation,
     pub contact: DropOffContact,
 }
 
-#[derive(Deserialize, Debug, Serialize)]
+#[derive(Deserialize, Debug, Serialize, sqlx::FromRow)]
 pub struct PickUpData {
     pub location: DropOffLocation,
     pub contact: DropOffContact,
@@ -294,25 +296,25 @@ impl FromRequest for OrderInitRequest {
     }
 }
 
-#[derive(Debug)]
+#[derive(Deserialize, Debug, ToSchema)]
 pub struct BuyerCommerceSeller {
     pub id: String,
-    pub name: String,
+    pub name: Option<String>,
 }
 
-#[derive(Debug)]
+#[derive(Deserialize, Debug, ToSchema)]
 pub struct BasicNetWorkData {
     pub id: String,
     pub uri: String,
 }
-#[derive(Debug)]
+#[derive(Deserialize, Debug, ToSchema)]
 pub struct BuyerCommercePayment {
     pub id: Uuid,
     pub collected_by: Option<ONDCNetworkType>,
     pub payment_type: PaymentType,
 }
 
-#[derive(Debug, sqlx::Type)]
+#[derive(Deserialize, Debug, ToSchema, sqlx::Type)]
 #[sqlx(type_name = "commerce_fulfillment_status_type")]
 #[sqlx(rename_all = "snake_case")]
 pub enum CommerceFulfillmentStatusType {
@@ -326,12 +328,44 @@ pub enum CommerceFulfillmentStatusType {
     Cancelled,
 }
 
-#[derive(Debug)]
+#[derive(Deserialize, Debug, ToSchema)]
 pub struct DeliveryTerm {
     pub inco_terms: IncoTermType,
     pub place_of_delivery: String,
 }
-#[derive(Debug)]
+
+#[derive(Deserialize, Debug, Serialize, sqlx::FromRow)]
+pub struct ExtFulfillmentLocation {
+    pub gps: String,
+    pub area_code: String,
+    pub address: Option<String>,
+    pub city: String,
+    pub country: CountryCode,
+    pub state: String,
+}
+
+#[derive(Deserialize, Debug, Serialize, sqlx::FromRow)]
+pub struct ExtFulfillmentContact {
+    pub mobile_no: String,
+    pub email: Option<String>,
+}
+#[derive(Deserialize, Debug, Serialize, sqlx::FromRow)]
+pub struct ExtOffContact {
+    pub mobile_no: String,
+    pub email: Option<String>,
+}
+
+#[derive(Deserialize, Debug, Serialize, sqlx::FromRow)]
+pub struct ExtDropOffData {
+    pub location: ExtFulfillmentLocation,
+    pub contact: ExtFulfillmentContact,
+}
+#[derive(Deserialize, Debug, Serialize, sqlx::FromRow)]
+pub struct ExtPickUpData {
+    pub location: ExtFulfillmentLocation,
+    pub contact: ExtFulfillmentContact,
+}
+#[derive(Deserialize, Debug, ToSchema)]
 pub struct BuyerCommerceFulfillment {
     pub id: String,
     pub fulfillment_id: String,
@@ -340,25 +374,25 @@ pub struct BuyerCommerceFulfillment {
     pub fulfillment_status: CommerceFulfillmentStatusType,
     pub delivery_term: Option<DeliveryTerm>,
     pub provider_name: Option<String>,
-    pub category: FulfillmentCategoryType,
+    pub category: Option<FulfillmentCategoryType>,
     pub servicable_status: Option<ServiceableType>,
-    pub drop_off: Option<DropOffData>,
-    pub pickup: Option<PickUpData>,
-    tracking: Option<bool>,
+    pub drop_off: Option<ExtDropOffData>,
+    pub pickup: Option<ExtPickUpData>,
+    pub tracking: Option<bool>,
 }
 
-#[derive(Debug)]
+#[derive(Deserialize, Debug, ToSchema)]
 pub struct BuyerTerm {
     pub item_req: String,
     pub packaging_req: String,
 }
 
-#[derive(Debug)]
+#[derive(Deserialize, Debug, ToSchema)]
 pub struct BuyerCommerceItem {
     pub id: Uuid,
     pub item_id: String,
     pub item_name: String,
-    pub item_code: String,
+    pub item_code: Option<String>,
     pub item_image: String,
     pub qty: BigDecimal,
     pub buyer_terms: Option<BuyerTerm>,
@@ -366,16 +400,16 @@ pub struct BuyerCommerceItem {
     pub tax_value: BigDecimal,
     pub unit_price: BigDecimal,
     pub gross_total: BigDecimal,
-    pub available_qty: BigDecimal,
+    pub available_qty: Option<BigDecimal>,
     pub discount_amount: BigDecimal,
     pub location_ids: Vec<String>,
     pub fulfillment_ids: Vec<String>,
 }
 
-#[derive(Debug)]
+#[derive(Deserialize, Debug, ToSchema)]
 pub struct BuyerCommerce {
     pub id: Uuid,
-    pub urn: Option<Uuid>,
+    pub urn: Option<String>,
     pub external_urn: Uuid,
     pub record_type: OrderType,
     pub record_status: CommerceStatusType,
@@ -407,4 +441,85 @@ impl BuyerCommerce {
             .filter(|id| unique_ids.insert(*id))
             .collect()
     }
+}
+
+#[allow(dead_code)]
+#[derive(Deserialize, Debug, FromRow)]
+pub struct BuyerCommerceDataModel {
+    pub id: Uuid,
+    pub urn: Option<String>,
+    pub external_urn: Uuid,
+    pub record_type: OrderType,
+    pub record_status: CommerceStatusType,
+    pub domain_category_code: CategoryDomain,
+    pub buyer_id: Uuid,
+    pub seller_id: String,
+    pub buyer_name: Option<String>,
+    pub seller_name: Option<String>,
+    pub source: DataSource,
+    pub created_on: DateTime<Utc>,
+    pub updated_on: Option<DateTime<Utc>>,
+    pub deleted_on: Option<DateTime<Utc>>,
+    pub is_deleted: bool,
+    pub created_by: Uuid,
+    pub grand_total: Option<BigDecimal>,
+    pub bpp_id: String,
+    pub bpp_uri: String,
+    pub bap_id: String,
+    pub bap_uri: String,
+    pub is_import: bool,
+    pub quote_ttl: String,
+    pub currency_code: Option<CurrencyType>,
+    pub city_code: String,
+    pub country_code: CountryCode,
+}
+
+#[allow(dead_code)]
+#[derive(Deserialize, Debug, FromRow)]
+pub struct BuyerCommerceItemModel {
+    pub id: Uuid,
+    pub item_id: String,
+    pub commerce_data_id: Uuid,
+    pub item_name: String,
+    pub item_code: Option<String>,
+    pub item_image: String,
+    pub qty: BigDecimal,
+    pub item_req: Option<String>,
+    pub packaging_req: Option<String>,
+    pub tax_rate: BigDecimal,
+    pub tax_value: BigDecimal,
+    pub unit_price: BigDecimal,
+    pub gross_total: BigDecimal,
+    pub available_qty: Option<BigDecimal>,
+    pub discount_amount: BigDecimal,
+    pub location_ids: Option<sqlx::types::Json<Vec<String>>>,
+    pub fulfillment_ids: Option<sqlx::types::Json<Vec<String>>>,
+}
+
+#[allow(dead_code)]
+#[derive(Deserialize, Debug)]
+pub struct BuyerCommercePaymentModel {
+    pub id: Uuid,
+    pub collected_by: Option<ONDCNetworkType>,
+    pub payment_type: PaymentType,
+    pub commerce_data_id: Uuid,
+}
+
+#[allow(dead_code)]
+#[derive(Deserialize, Debug)]
+pub struct BuyerCommerceFulfillmentModel {
+    pub id: String,
+    pub commerce_data_id: Uuid,
+    pub fulfillment_id: String,
+    pub fulfillment_type: FulfillmentType,
+    pub tat: Option<String>,
+    pub fulfillment_status: CommerceFulfillmentStatusType,
+    pub inco_terms: Option<IncoTermType>,
+    pub place_of_delivery: Option<String>,
+    pub provider_name: Option<String>,
+    pub category: Option<FulfillmentCategoryType>,
+    pub servicable_status: Option<ServiceableType>,
+    pub drop_off: Option<sqlx::types::Json<DropOffData>>,
+    pub pickup: Option<sqlx::types::Json<PickUpData>>,
+    pub tracking: Option<bool>,
 }
