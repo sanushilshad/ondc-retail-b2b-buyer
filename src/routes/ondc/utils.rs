@@ -57,7 +57,7 @@ pub async fn get_lookup_data_from_db(
 ) -> Result<Option<LookupData>, anyhow::Error> {
     let row = sqlx::query_as!(
         LookupData,
-        r#"SELECT br_id, subscriber_id, signing_public_key, subscriber_url, encr_public_key, uk_id, domain as "domain!: ONDCDomain", type as "type!: ONDCNetworkType"  FROM network_participant
+        r#"SELECT br_id, subscriber_id, signing_public_key, subscriber_url, encr_public_key, uk_id, domain as "domain: ONDCDomain", type as "type: ONDCNetworkType"  FROM network_participant
         WHERE subscriber_id = $1 AND type = $2 AND domain = $3
         "#,
         subscriber_id,

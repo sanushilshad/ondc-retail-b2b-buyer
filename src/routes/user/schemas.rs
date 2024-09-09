@@ -372,7 +372,7 @@ pub struct BulkAuthMechanismInsert<'a> {
     pub id: Vec<Uuid>,
     pub user_id_list: Vec<Uuid>,
     pub auth_scope: Vec<AuthenticationScope>,
-    #[serde(borrow)]
+    // #[serde(borrow)]
     pub auth_identifier: Vec<&'a str>,
     pub secret: Vec<String>,
     pub is_active: Vec<Status>,
@@ -381,14 +381,33 @@ pub struct BulkAuthMechanismInsert<'a> {
     pub auth_context: Vec<AuthContextType>,
 }
 
-#[derive(Serialize, Deserialize, Debug, sqlx::Type, ToSchema)]
+#[derive(Serialize, Deserialize, Debug, sqlx::Type, ToSchema, Clone)]
 #[serde(rename_all = "camelCase")]
+
+pub struct CreateKYCProof {
+    pub key: VectorType,
+    pub kyc_id: String,
+    pub value: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, sqlx::Type, ToSchema)]
+#[serde(rename_all = "snake_case")]
+
 pub struct KYCProof {
     pub key: VectorType,
     pub kyc_id: String,
     pub value: Vec<String>,
 }
 
+impl From<CreateKYCProof> for KYCProof {
+    fn from(create: CreateKYCProof) -> Self {
+        KYCProof {
+            key: create.key,
+            kyc_id: create.kyc_id,
+            value: create.value,
+        }
+    }
+}
 #[allow(dead_code)]
 #[derive(Deserialize, Debug, ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -403,7 +422,7 @@ pub struct CreateBusinessAccount {
     pub merchant_type: MerchantType,
     pub opening_time: Option<NaiveTime>,
     pub closing_time: Option<NaiveTime>,
-    pub proofs: Vec<KYCProof>,
+    pub proofs: Vec<CreateKYCProof>,
     pub default_vector_type: VectorType,
 }
 

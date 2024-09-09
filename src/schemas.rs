@@ -48,9 +48,8 @@ impl<D> GenericResponse<D> {
 }
 
 #[derive(Serialize, Deserialize, Debug, sqlx::Type, Clone, PartialEq, ToSchema)]
-#[sqlx(rename_all = "lowercase")]
+#[sqlx(rename_all = "lowercase", type_name = "status")]
 #[serde(rename_all = "lowercase")]
-#[sqlx(type_name = "status")]
 pub enum Status {
     Active,
     Inactive,
@@ -76,7 +75,8 @@ pub struct JWTClaims {
     pub exp: usize,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, ToSchema)]
+#[derive(Debug, Deserialize, Serialize, Clone, ToSchema, sqlx::Type)]
+#[sqlx(rename_all = "UPPERCASE", type_name = "country_code")]
 #[serde(rename_all = "UPPERCASE")]
 pub enum CountryCode {
     AFG, // Afghanistan
@@ -326,6 +326,12 @@ pub enum CountryCode {
     ZMB, // Zambia
     ZWE, // Zimbabwe
 }
+
+// impl std::fmt::Display for CountryCode {
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         write!(f, "{}", pascal_to_uppercase(&format!("{:?}", self)))
+//     }
+// }
 
 #[derive(Debug, Clone)]
 pub struct RequestMetaData {
@@ -606,6 +612,9 @@ pub struct ONDCAuthParams {
 #[serde(rename_all = "UPPERCASE")]
 pub enum CurrencyType {
     Inr,
+    Sgd,
+    Aed,
+    Ghs,
 }
 
 impl Display for CurrencyType {

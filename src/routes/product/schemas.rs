@@ -13,7 +13,7 @@ use serde_with::skip_serializing_none;
 use sqlx::postgres::PgHasArrayType;
 use utoipa::ToSchema;
 use uuid::Uuid;
-#[derive(Debug, Deserialize, Serialize, ToSchema, sqlx::Type)]
+#[derive(Debug, Deserialize, Serialize, ToSchema, sqlx::Type, Clone)]
 #[serde(rename_all = "snake_case")]
 #[sqlx(type_name = "payment_type", rename_all = "snake_case")]
 pub enum PaymentType {
@@ -115,24 +115,34 @@ impl FromRequest for ProductSearchRequest {
 }
 
 #[derive(Debug, Serialize, Deserialize, sqlx::Type, ToSchema)]
+#[sqlx(type_name = "domain_category")]
 pub enum CategoryDomain {
     #[serde(rename = "RET10")]
+    #[sqlx(rename = "RET10")]
     Grocery,
     #[serde(rename = "RET12")]
+    #[sqlx(rename = "RET12")]
     Fashion,
     #[serde(rename = "RET13")]
+    #[sqlx(rename = "RET13")]
     Bpc,
     #[serde(rename = "RET14")]
+    #[sqlx(rename = "RET14")]
     Electronics,
     #[serde(rename = "RET15")]
+    #[sqlx(rename = "RET15")]
     Appliances,
     #[serde(rename = "RET16")]
+    #[sqlx(rename = "RET16")]
     HomeAndKitchen,
     #[serde(rename = "RET1A")]
+    #[sqlx(rename = "RET1A")]
     AutoComponentsAndAccessories,
     #[serde(rename = "RET1B")]
+    #[sqlx(rename = "RET1B")]
     HardwareAndIndustrialEquipments,
     #[serde(rename = "RET1C")]
+    #[sqlx(rename = "RET1C")]
     BuildingAndConstructionSupplies,
 }
 

@@ -3,10 +3,10 @@ use core::str;
 use super::errors::{AuthError, BusinessAccountError, UserRegistrationError};
 use super::models::{AuthMechanismModel, BusinessAccountModel, UserAccountModel, UserBusinessRelationAccountModel, UserRoleModel};
 use super::schemas::{
-    AccountRole, AuthContextType, AuthData, AuthMechanism, AuthenticateRequest, AuthenticationScope, BasicBusinessAccount, BulkAuthMechanismInsert, BusinessAccount, CreateBusinessAccount, CreateUserAccount, DataSource, KYCProof, MaskingType, UserAccount, UserType, UserVector, VectorType,
+    AccountRole, AuthContextType, AuthData, AuthMechanism, AuthenticateRequest, AuthenticationScope, BasicBusinessAccount, BulkAuthMechanismInsert, BusinessAccount, CreateBusinessAccount, CreateUserAccount, DataSource, MaskingType, UserAccount, UserType, UserVector, VectorType,
 };
 use crate::configuration::JWT;
-use crate::routes::user::schemas::{CustomerType, TradeType, MerchantType};
+use crate::routes::user::schemas::{CustomerType, TradeType, MerchantType, KYCProof};
 // use crate::routes::schemas::{CustomerType, MerchantType, TradeType};
 use crate::schemas::{KycStatus, Status};
 use crate::utils::{generate_jwt_token_for_user, spawn_blocking_with_tracing};
@@ -222,7 +222,7 @@ pub async fn fetch_user(
         UserAccountModel,
         r#"SELECT 
             ua.id, username, is_test_user, mobile_no, email, is_active as "is_active!:Status", 
-            vectors as "vectors!:sqlx::types::Json<Vec<Option<UserVector>>>", display_name, 
+            vectors as "vectors:sqlx::types::Json<Vec<Option<UserVector>>>", display_name, 
             international_dialing_code, user_account_number, alt_user_account_number, ua.is_deleted, r.role_name FROM user_account as ua
             INNER JOIN user_role ur ON ua.id = ur.user_id
             INNER JOIN role r ON ur.role_id = r.id
@@ -609,12 +609,19 @@ pub fn create_vector_from_business_account(
     return Ok(vector_list)
 }
 
+
 #[tracing::instrument(name = "create user business relation", skip(transaction))]
 pub async fn save_business_account(transaction: &mut Transaction<'_, Postgres>, user_account: &UserAccount,  create_business_obj: &CreateBusinessAccount, subscriber_id: &str) -> Result<uuid::Uuid,  BusinessAccountError>{
     let business_account_id = Uuid::new_v4();
     let business_account_number = create_business_obj.company_name.replace(' ', "-").to_lowercase();
     let vector_list = create_vector_from_business_account(create_business_obj)?;
-    // let proofs = vec![];
+    let proofs: Vec<KYCProof> = create_business_obj
+    .proofs
+    .iter()
+    .cloned()
+    .map(KYCProof::from)
+    .collect();
+
     let query = sqlx::query!(
         r#"
         INSERT INTO business_account (id, business_account_number, alt_business_account_number, company_name, vectors, proofs, customer_type, merchant_type, trade, source, created_by,  created_on, subscriber_id, default_vector_type)
@@ -625,7 +632,7 @@ pub async fn save_business_account(transaction: &mut Transaction<'_, Postgres>, 
         business_account_number,
         create_business_obj.company_name,
         sqlx::types::Json(vector_list) as sqlx::types::Json<Vec<UserVector>>,
-        sqlx::types::Json(&create_business_obj.proofs) as sqlx::types::Json<&Vec<KYCProof>>,
+        sqlx::types::Json(&proofs) as sqlx::types::Json<&Vec<KYCProof>>,
         &create_business_obj.customer_type as &CustomerType,
         &create_business_obj.merchant_type as &MerchantType,
         &create_business_obj.trade_type as &Vec<TradeType>,
@@ -755,7 +762,7 @@ pub async fn fetch_business_account_model_by_user_account(
     let row: Vec<BusinessAccountModel> = sqlx::query_as!(
         BusinessAccountModel,
         r#"SELECT 
-        ba.id, ba.company_name, ba.customer_type as "customer_type: CustomerType", vectors as "vectors!:sqlx::types::Json<Vec<UserVector>>", ba.is_active as "is_active: Status",  ba.kyc_status as "kyc_status: KycStatus"
+        ba.id, ba.company_name, ba.customer_type as "customer_type: CustomerType", vectors as "vectors:sqlx::types::Json<Vec<UserVector>>", ba.is_active as "is_active: Status",  ba.kyc_status as "kyc_status: KycStatus"
          FROM business_user_relationship as bur
             INNER JOIN business_account ba ON bur.business_id = ba.id
         WHERE bur.user_id = $1
@@ -779,7 +786,7 @@ pub async fn fetch_business_account_model_by_customer_type(
     let row: Option<UserBusinessRelationAccountModel> = sqlx::query_as!(
         UserBusinessRelationAccountModel,
         r#"SELECT 
-        ba.id, ba.company_name, ba.customer_type as "customer_type: CustomerType", vectors as "vectors!:sqlx::types::Json<Vec<UserVector>>", ba.is_active as "is_active: Status", 
+        ba.id, ba.company_name, ba.customer_type as "customer_type: CustomerType", vectors as "vectors:sqlx::types::Json<Vec<UserVector>>", ba.is_active as "is_active: Status", 
         ba.kyc_status as "kyc_status: KycStatus", bur.verified, ba.is_deleted, ba.default_vector_type as "default_vector_type: VectorType" FROM business_user_relationship as bur
             INNER JOIN business_account ba ON bur.business_id = ba.id
         WHERE bur.user_id = $1 AND bur.business_id= $2 AND ba.customer_type::text = ANY($3)
@@ -805,7 +812,7 @@ pub async fn fetch_business_account_model(
     let row: Option<UserBusinessRelationAccountModel> = sqlx::query_as!(
         UserBusinessRelationAccountModel,
         r#"SELECT 
-        ba.id, ba.company_name, ba.customer_type as "customer_type: CustomerType", vectors as "vectors!:sqlx::types::Json<Vec<UserVector>>", ba.is_active as "is_active: Status", 
+        ba.id, ba.company_name, ba.customer_type as "customer_type: CustomerType", vectors as "vectors:sqlx::types::Json<Vec<UserVector>>", ba.is_active as "is_active: Status", 
         ba.kyc_status as "kyc_status: KycStatus", bur.verified, ba.is_deleted, ba.default_vector_type as "default_vector_type: VectorType" FROM business_user_relationship as bur
             INNER JOIN business_account ba ON bur.business_id = ba.id
         WHERE bur.user_id = $1 AND bur.business_id= $2
