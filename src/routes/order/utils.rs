@@ -1,16 +1,19 @@
 use super::schemas::{
-    BasicNetWorkData, BuyerCommerce, BuyerCommerceDataModel, BuyerCommerceFulfillment,
-    BuyerCommerceFulfillmentModel, BuyerCommerceItem, BuyerCommerceItemModel, BuyerCommercePayment,
-    BuyerCommercePaymentModel, BuyerCommerceSeller, BuyerTerm, DropOffContact, DropOffData,
-    DropOffLocation, ExtDropOffData, ExtFulfillmentContact, ExtFulfillmentLocation, ExtPickUpData,
-    FulfillmentLocation, OrderSelectFulfillment, OrderSelectRequest, PickUpData,
+    BPPTermsModel, BasicNetWorkData, BuyerCommerce, BuyerCommerceDataModel,
+    BuyerCommerceFulfillment, BuyerCommerceFulfillmentModel, BuyerCommerceItem,
+    BuyerCommerceItemModel, BuyerCommercePayment, BuyerCommercePaymentModel, BuyerCommerceSeller,
+    BuyerTerm, DropOffContactModel, DropOffData, DropOffDataModel, DropOffLocationModel,
+    FulfillmentContact, FulfillmentLocation, OrderBillingModel, OrderCancellationFeeModel,
+    OrderCancellationTermModel, OrderSelectFulfillment, OrderSelectRequest,
+    PaymentSettlementDetailModel, PickUpData, PickUpDataModel, SelectFulfillmentLocation,
 };
 use crate::constants::ONDC_TTL;
 use crate::routes::ondc::buyer::schemas::{
-    BreakupTitleType, ONDCBreakUp, ONDCFulfillment, ONDCFulfillmentCategoryType,
-    ONDCFulfillmentStopType, ONDCOnSelectFulfillment, ONDCOnSelectPayment, ONDCOnSelectRequest,
-    ONDCOrderFulfillmentEnd, ONDCSelectFulfillmentLocation, ONDCSelectRequest, ONDCTagItemCode,
-    ONDCTagType, SellerProductInfo, TagTrait,
+    BreakupTitleType, ONDCBilling, ONDCBreakUp, ONDCFulfillment, ONDCFulfillmentCategoryType,
+    ONDCFulfillmentStopType, ONDCOnInitPayment, ONDCOnInitRequest, ONDCOnSelectFulfillment,
+    ONDCOnSelectPayment, ONDCOnSelectRequest, ONDCOrderCancellationTerm, ONDCOrderFulfillmentEnd,
+    ONDCSelectFulfillmentLocation, ONDCSelectRequest, ONDCTag, ONDCTagItemCode, ONDCTagType,
+    SellerProductInfo, SettlementBasis, TagTrait,
 };
 use crate::routes::ondc::buyer::utils::{
     get_ondc_seller_mapping_key, get_ondc_seller_product_info_mapping, get_tag_value_from_list,
@@ -23,7 +26,8 @@ use crate::routes::order::schemas::{
 use crate::routes::product::schemas::{CategoryDomain, FulfillmentType, PaymentType};
 use crate::routes::user::schemas::{BusinessAccount, DataSource, UserAccount};
 use crate::schemas::{
-    CountryCode, CurrencyType, ONDCNetworkType, RegisteredNetworkParticipant, RequestMetaData,
+    CountryCode, CurrencyType, FeeType, ONDCNetworkType, RegisteredNetworkParticipant,
+    RequestMetaData,
 };
 use anyhow::Context;
 use bigdecimal::BigDecimal;
@@ -145,12 +149,12 @@ pub async fn delete_fulfillment_by_order_id(
 }
 
 pub fn create_drop_off_from_rfq_select_fulfullment(
-    fulfillment: &FulfillmentLocation,
-) -> DropOffData {
+    fulfillment: &SelectFulfillmentLocation,
+) -> DropOffDataModel {
     // let mut drop_list = vec![];
     // for fulfillment in select_fulfillments {
-    DropOffData {
-        location: DropOffLocation {
+    DropOffDataModel {
+        location: DropOffLocationModel {
             gps: fulfillment.gps.clone(),
             area_code: fulfillment.area_code.clone(),
             address: Some(fulfillment.address.clone()),
@@ -158,7 +162,7 @@ pub fn create_drop_off_from_rfq_select_fulfullment(
             country: fulfillment.country.code.clone(),
             state: fulfillment.state.clone(),
         },
-        contact: DropOffContact {
+        contact: DropOffContactModel {
             mobile_no: fulfillment.contact_mobile_no.clone(),
             email: None,
         },
@@ -437,12 +441,12 @@ pub async fn initialize_order_select(
 pub fn create_drop_off_from_ondc_select_fulfullment(
     ondc_select_fulfillment: &[ONDCFulfillment<ONDCSelectFulfillmentLocation>],
     // contact: &ONDCContact,
-) -> Option<DropOffData> {
+) -> Option<DropOffDataModel> {
     if let Some(stops) = &ondc_select_fulfillment[0].stops {
         let location = &stops[0].location;
         let contact = &stops[0].contact;
-        Some(DropOffData {
-            location: DropOffLocation {
+        Some(DropOffDataModel {
+            location: DropOffLocationModel {
                 gps: location.gps.clone(),
                 area_code: location.area_code.clone(),
                 address: location.address.clone(),
@@ -450,7 +454,7 @@ pub fn create_drop_off_from_ondc_select_fulfullment(
                 country: location.country.code.clone(),
                 state: location.state.name.clone(),
             },
-            contact: DropOffContact {
+            contact: DropOffContactModel {
                 mobile_no: contact.phone.clone(),
                 email: contact.email.clone(),
             },
@@ -465,12 +469,12 @@ pub fn create_pick_off_from_ondc_select_fulfillment(
         Vec<ONDCOrderFulfillmentEnd<ONDCSelectFulfillmentLocation>>,
     >,
     // contact: &ONDCContact,
-) -> Option<PickUpData> {
+) -> Option<PickUpDataModel> {
     if let Some(ondc_select_fulfillment_end_res) = ondc_select_fulfillment_ends {
         for ondc_select_fulfillment_end in ondc_select_fulfillment_end_res {
             if ondc_select_fulfillment_end.r#type == ONDCFulfillmentStopType::Start {
-                return Some(PickUpData {
-                    location: DropOffLocation {
+                return Some(PickUpDataModel {
+                    location: DropOffLocationModel {
                         gps: ondc_select_fulfillment_end.location.gps.clone(),
                         area_code: ondc_select_fulfillment_end.location.area_code.clone(),
                         address: ondc_select_fulfillment_end.location.address.clone(),
@@ -478,7 +482,7 @@ pub fn create_pick_off_from_ondc_select_fulfillment(
                         country: ondc_select_fulfillment_end.location.country.code.clone(),
                         state: ondc_select_fulfillment_end.location.state.name.clone(),
                     },
-                    contact: DropOffContact {
+                    contact: DropOffContactModel {
                         mobile_no: ondc_select_fulfillment_end.contact.phone.clone(),
                         email: ondc_select_fulfillment_end.contact.email.clone(),
                     },
@@ -1130,9 +1134,9 @@ async fn get_buyer_commerce_fulfillments(
             place_of_delivery,
             provider_name,
             category as "category?: FulfillmentCategoryType",
-            servicable_status as "servicable_status?: ServiceableType", 
-            drop_off_data as "drop_off?: Json<DropOffData>",
-            pickup_data as "pickup?:  Json<PickUpData>",
+            servicable_status as "servicable_status!: ServiceableType", 
+            drop_off_data as "drop_off_data!:  Json<Option<DropOffDataModel>>",
+            pickup_data as "pickup_data!:  Json<Option<PickUpDataModel>>",
             tracking
         FROM buyer_commerce_fulfillment_data 
         WHERE commerce_data_id = $1
@@ -1205,9 +1209,9 @@ fn get_order_items_from_model(items: Vec<BuyerCommerceItemModel>) -> Vec<BuyerCo
     item_obj
 }
 
-fn get_drop_off_from_model(drop_off: DropOffData) -> ExtDropOffData {
-    ExtDropOffData {
-        location: ExtFulfillmentLocation {
+fn get_drop_off_from_model(drop_off: DropOffDataModel) -> DropOffData {
+    DropOffData {
+        location: FulfillmentLocation {
             gps: drop_off.location.gps,
             area_code: drop_off.location.area_code,
             address: drop_off.location.address,
@@ -1215,16 +1219,16 @@ fn get_drop_off_from_model(drop_off: DropOffData) -> ExtDropOffData {
             country: drop_off.location.country,
             state: drop_off.location.state,
         },
-        contact: ExtFulfillmentContact {
+        contact: FulfillmentContact {
             mobile_no: drop_off.contact.mobile_no,
             email: drop_off.contact.email,
         },
     }
 }
 
-fn get_pick_up_from_model(pick_up: PickUpData) -> ExtPickUpData {
-    ExtPickUpData {
-        location: ExtFulfillmentLocation {
+fn get_pick_up_from_model(pick_up: PickUpDataModel) -> PickUpData {
+    PickUpData {
+        location: FulfillmentLocation {
             gps: pick_up.location.gps,
             area_code: pick_up.location.area_code,
             address: pick_up.location.address,
@@ -1232,7 +1236,7 @@ fn get_pick_up_from_model(pick_up: PickUpData) -> ExtPickUpData {
             country: pick_up.location.country,
             state: pick_up.location.state,
         },
-        contact: ExtFulfillmentContact {
+        contact: FulfillmentContact {
             mobile_no: pick_up.contact.mobile_no,
             email: pick_up.contact.email,
         },
@@ -1265,11 +1269,15 @@ fn get_order_fulfillment_from_model(
             servicable_status: fulfillment.servicable_status,
             tracking: fulfillment.tracking,
             drop_off: fulfillment
-                .drop_off
-                .map(|json| get_drop_off_from_model(json.0)),
+                .drop_off_data
+                .as_ref()
+                .clone()
+                .map(get_drop_off_from_model),
             pickup: fulfillment
-                .pickup
-                .map(|json| get_pick_up_from_model(json.0)),
+                .pickup_data
+                .as_ref()
+                .clone()
+                .map(get_pick_up_from_model),
         })
     }
     fulfillment_obj
@@ -1334,4 +1342,265 @@ pub async fn fetch_order_by_id(
     } else {
         Ok(None)
     }
+}
+
+#[tracing::instrument(name = "delete payment on on_init", skip(transaction))]
+async fn delete_payment_in_on_init(
+    transaction: &mut Transaction<'_, Postgres>,
+    transaction_id: &Uuid,
+) -> Result<Uuid, anyhow::Error> {
+    let query = sqlx::query!(
+        r#"
+        DELETE FROM buyer_commerce_payment USING buyer_commerce_data 
+        WHERE buyer_commerce_payment.commerce_data_id = buyer_commerce_data.id 
+        AND buyer_commerce_data.external_urn = $1 
+        RETURNING buyer_commerce_data.id AS bc_id;
+        "#,
+        transaction_id // Pass the parameter here
+    );
+
+    let result = query.fetch_one(&mut **transaction).await.map_err(|e| {
+        tracing::error!("Failed to execute query: {:?}", e);
+        anyhow::Error::new(e)
+            .context("A database failure occurred while saving RFQ to database request")
+    })?;
+    Ok(result.bc_id)
+}
+
+#[tracing::instrument(name = "save payment on on_init", skip(transaction))]
+pub async fn initialize_payment_on_init(
+    transaction: &mut Transaction<'_, Postgres>,
+    commerce_id: &Uuid,
+    payments: &Vec<ONDCOnInitPayment>,
+) -> Result<(), anyhow::Error> {
+    let mut id_list = vec![];
+    let mut commerce_data_id_list = vec![];
+    let mut collected_by_list = vec![];
+    let mut payment_type_list = vec![];
+    let mut buyer_fee_type_list = vec![];
+    let mut buyer_fee_amount_list = vec![];
+    let mut settlement_window_list = vec![];
+    let mut withholding_amount_list = vec![];
+    let mut seller_payment_uri_list = vec![];
+    let mut settlement_basis_list = vec![];
+    let mut seller_payment_ttl = vec![];
+    let mut seller_payment_dsa_list = vec![];
+    let mut seller_payment_signature_list = vec![];
+    let mut settlement_detail_list = vec![];
+    for payment in payments {
+        id_list.push(Uuid::new_v4());
+        commerce_data_id_list.push(*commerce_id);
+        collected_by_list.push(payment.collected_by.clone());
+        payment_type_list.push(payment.r#type.get_payment());
+        buyer_fee_type_list.push(&payment.buyer_app_finder_fee_type);
+        buyer_fee_amount_list
+            .push(BigDecimal::from_str(&payment.buyer_app_finder_fee_amount).unwrap());
+        settlement_window_list.push(payment.settlement_window.as_str());
+        withholding_amount_list.push(BigDecimal::from_str(&payment.withholding_amount).unwrap());
+        seller_payment_uri_list.push(payment.uri.as_deref());
+        settlement_basis_list.push(&payment.settlement_basis);
+        seller_payment_ttl.push(payment.tags.as_ref().map(|tag| {
+            get_tag_value_from_list(
+                tag,
+                ONDCTagType::BPPPayment,
+                &ONDCTagItemCode::Ttl.to_string(),
+            )
+            .unwrap_or_default()
+        }));
+        seller_payment_dsa_list.push(payment.tags.as_ref().map(|tag| {
+            get_tag_value_from_list(
+                tag,
+                ONDCTagType::BPPPayment,
+                &ONDCTagItemCode::Dsa.to_string(),
+            )
+            .unwrap_or_default()
+        }));
+        seller_payment_signature_list.push(payment.tags.as_ref().map(|tag| {
+            get_tag_value_from_list(
+                tag,
+                ONDCTagType::BPPPayment,
+                &ONDCTagItemCode::Signature.to_string(),
+            )
+            .unwrap_or_default()
+        }));
+        let settlement_details: Option<Vec<PaymentSettlementDetailModel>> = payment
+            .settlement_details
+            .as_ref() // Borrow the Option<Vec<ONDCPaymentSettlementDetail>>
+            .map(|details| {
+                details
+                    .iter()
+                    .map(|e| e.to_payment_settlement_detail())
+                    .collect::<Vec<PaymentSettlementDetailModel>>()
+            });
+        settlement_detail_list.push(serde_json::to_value(settlement_details).unwrap());
+    }
+    let query = sqlx::query!(
+        r#"
+        INSERT INTO buyer_commerce_payment(id, commerce_data_id, collected_by, payment_type, buyer_fee_type,
+             buyer_fee_amount, settlement_window, withholding_amount, seller_payment_uri, settlement_basis,
+             seller_payment_ttl, seller_payment_dsa, seller_payment_signature, settlement_details)
+            SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::ondc_network_participant_type[],
+            $4::payment_type[], $5::ondc_np_fee_type[], $6::decimal[], $7::text[], $8::decimal[],
+            $9::text[], $10::settlement_basis_type[], $11::text[], $12::text[],  $13::text[],$14::jsonb[])
+        "#,
+        &id_list[..] as &[Uuid],
+        &commerce_data_id_list[..] as &[Uuid],
+        &collected_by_list[..] as &[ONDCNetworkType],
+        &payment_type_list[..] as &[PaymentType],
+        &buyer_fee_type_list[..] as &[&FeeType],
+        &buyer_fee_amount_list[..] as &[BigDecimal],
+        &settlement_window_list[..] as &[&str],
+        &withholding_amount_list[..] as &[BigDecimal],
+        &seller_payment_uri_list[..] as &[Option<&str>],
+        &settlement_basis_list[..] as &[&SettlementBasis],
+        &seller_payment_ttl[..] as &[Option<&str>],
+        &seller_payment_dsa_list[..] as &[Option<&str>],
+        &seller_payment_signature_list[..] as &[Option<&str>],
+        &settlement_detail_list[..] as &[Value],
+    );
+
+    transaction.execute(query).await.map_err(|e| {
+        tracing::error!("Failed to execute query: {:?}", e);
+        anyhow::Error::new(e)
+            .context("A database failure occurred while saving RFQ to database request")
+    })?;
+    Ok(())
+}
+
+#[tracing::instrument(name = "update buyer commerce data on on_init", skip())]
+fn convert_ondc_billing_to_model_billing(billing: &ONDCBilling) -> OrderBillingModel {
+    OrderBillingModel {
+        name: billing.name.clone(),
+        address: billing.address.clone(),
+        state: billing.state.name.clone(),
+        city: billing.city.name.clone(),
+        tax_id: billing.tax_id.clone(),
+        email: billing.email.clone(),
+        phone: billing.phone.clone(),
+    }
+}
+
+pub fn get_bpp_term_model_from_tag(tags: &[ONDCTag]) -> BPPTermsModel {
+    let max_liability = get_tag_value_from_list(
+        tags,
+        ONDCTagType::BppTerms,
+        &ONDCTagItemCode::MaxLiability.to_string(),
+    )
+    .unwrap_or_default()
+    .to_owned();
+
+    let max_liability_cap = get_tag_value_from_list(
+        tags,
+        ONDCTagType::BppTerms,
+        &ONDCTagItemCode::MaxLiabilityCap.to_string(),
+    )
+    .unwrap_or_default()
+    .to_owned();
+
+    let mandatory_arbitration = get_tag_value_from_list(
+        tags,
+        ONDCTagType::BppTerms,
+        &ONDCTagItemCode::MandatoryArbitration.to_string(),
+    )
+    .unwrap_or_default()
+        == "false";
+
+    let court_jurisdiction = get_tag_value_from_list(
+        tags,
+        ONDCTagType::BppTerms,
+        &ONDCTagItemCode::CourtJurisdiction.to_string(),
+    )
+    .unwrap_or_default()
+    .to_owned();
+    let delay_interest = get_tag_value_from_list(
+        tags,
+        ONDCTagType::BppTerms,
+        &ONDCTagItemCode::DelayInterest.to_string(),
+    )
+    .unwrap_or_default()
+    .to_owned();
+    BPPTermsModel {
+        max_liability,
+        max_liability_cap,
+        mandatory_arbitration,
+        court_jurisdiction,
+        delay_interest,
+    }
+}
+
+pub fn get_cancel_term_model_from_ondc_cancel_term(
+    cancellation_terms: &Vec<ONDCOrderCancellationTerm>,
+) -> Vec<OrderCancellationTermModel> {
+    let mut cancelletion_list = vec![];
+    for cancellation_term in cancellation_terms {
+        cancelletion_list.push(OrderCancellationTermModel {
+            fulfillment_state: cancellation_term
+                .fulfillment_state
+                .descriptor
+                .code
+                .get_fulfillment_state(),
+            reason_required: cancellation_term.reason_required,
+            cancellation_fee: OrderCancellationFeeModel {
+                r#type: cancellation_term.cancellation_fee.get_type(),
+                val: cancellation_term.cancellation_fee.get_amount(),
+            },
+        })
+    }
+    cancelletion_list
+}
+
+#[tracing::instrument(name = "update buyer commerce data on on_init", skip(transaction))]
+async fn update_buyer_commerce_in_on_init(
+    transaction: &mut Transaction<'_, Postgres>,
+    on_init_request: &ONDCOnInitRequest,
+) -> Result<(), anyhow::Error> {
+    let billing = convert_ondc_billing_to_model_billing(&on_init_request.message.order.billing);
+    let bpp_terms = get_bpp_term_model_from_tag(&on_init_request.message.order.tags);
+    let cancellation_terms = get_cancel_term_model_from_ondc_cancel_term(
+        &on_init_request.message.order.cancellation_terms,
+    );
+
+    let query = sqlx::query!(
+        r#"
+        UPDATE buyer_commerce_data SET billing=$1, bpp_terms=$2, record_status=$3, cancellation_terms=$4 WHERE external_urn=$5
+        "#,
+        serde_json::to_value(billing).unwrap(),
+        serde_json::to_value(bpp_terms).unwrap(),
+        CommerceStatusType::Initialized as CommerceStatusType,
+        serde_json::to_value(cancellation_terms).unwrap(),
+        on_init_request.context.transaction_id,
+    );
+
+    transaction.execute(query).await.map_err(|e| {
+        tracing::error!("Failed to execute query: {:?}", e);
+        anyhow::Error::new(e)
+            .context("A database failure occurred while saving on_init buyer commerce to database")
+    })?;
+    Ok(())
+}
+
+#[tracing::instrument(name = "save order on on_init", skip(pool))]
+pub async fn initialize_order_on_init(
+    pool: &PgPool,
+    on_init_request: &ONDCOnInitRequest,
+) -> Result<(), anyhow::Error> {
+    let mut transaction = pool
+        .begin()
+        .await
+        .context("Failed to acquire a Postgres connection from the pool")?;
+    let commerce_id =
+        delete_payment_in_on_init(&mut transaction, &on_init_request.context.transaction_id)
+            .await?;
+    initialize_payment_on_init(
+        &mut transaction,
+        &commerce_id,
+        &on_init_request.message.order.payments,
+    )
+    .await?;
+    update_buyer_commerce_in_on_init(&mut transaction, on_init_request).await?;
+    transaction
+        .commit()
+        .await
+        .context("Failed to commit SQL transaction to update order on init")?;
+    Ok(())
 }

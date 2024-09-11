@@ -3,7 +3,9 @@ use crate::domain::EmailObject;
 use crate::routes::ondc::schemas::{ONDCContext, ONDCResponseErrorBody};
 use crate::routes::ondc::{ONDCItemUOM, ONDCSellerErrorCode};
 use crate::routes::order::schemas::{
-    FulfillmentCategoryType, IncoTermType, Payment, ServiceableType,
+    CancellationFeeType, CommerceFulfillmentStatusType, FulfillmentCategoryType, IncoTermType,
+    Payment, PaymentSettlementCounterparty, PaymentSettlementDetailModel, PaymentSettlementPhase,
+    PaymentSettlementType, ServiceableType,
 };
 use crate::routes::product::schemas::{FulfillmentType, PaymentType};
 use crate::schemas::{CountryCode, CurrencyType, FeeType, ONDCNetworkType, WSKeyTrait};
@@ -15,8 +17,11 @@ use futures_util::future::LocalBoxFuture;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use serde_with::skip_serializing_none;
+use sqlx::postgres::PgHasArrayType;
+use std::str::FromStr;
 use utoipa::ToSchema;
 use uuid::Uuid;
+
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum ONDCTagType {
@@ -41,6 +46,9 @@ pub enum ONDCTagType {
     DeliveyTerms,
     #[serde(rename = "BUYER_TERMS")]
     BuyerTerms,
+    #[serde(rename = "BPP_payment")]
+    BPPPayment,
+    BppTerms,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -92,6 +100,14 @@ pub enum ONDCTagItemCode {
     ItemReq,
     #[serde(rename = "PACKAGING_REQ")]
     PackagingsReq,
+    Ttl,
+    Signature,
+    Dsa,
+    MaxLiability,
+    MaxLiabilityCap,
+    MandatoryArbitration,
+    CourtJurisdiction,
+    DelayInterest,
 }
 
 impl std::fmt::Display for ONDCTagItemCode {
@@ -102,7 +118,7 @@ impl std::fmt::Display for ONDCTagItemCode {
 
 #[derive(Debug, Serialize, Deserialize)]
 
-enum ONDCFulfillmentState {
+pub enum ONDCFulfillmentState {
     #[serde(rename = "Agent-assigned")]
     AgentAssigned,
     #[serde(rename = "Packed")]
@@ -119,6 +135,23 @@ enum ONDCFulfillmentState {
     OrderDelivered,
     #[serde(rename = "Cancelled")]
     Cancelled,
+}
+
+impl ONDCFulfillmentState {
+    pub fn get_fulfillment_state(&self) -> CommerceFulfillmentStatusType {
+        match self {
+            ONDCFulfillmentState::AgentAssigned => CommerceFulfillmentStatusType::AgentAssigned,
+            ONDCFulfillmentState::Packed => CommerceFulfillmentStatusType::Packed,
+            ONDCFulfillmentState::OutForDelivery => CommerceFulfillmentStatusType::OutForDelivery,
+            ONDCFulfillmentState::OrderPickedUp => CommerceFulfillmentStatusType::OrderPickedUp,
+            ONDCFulfillmentState::SearchingForAgent => {
+                CommerceFulfillmentStatusType::SearchingForAgent
+            }
+            ONDCFulfillmentState::Pending => CommerceFulfillmentStatusType::Pending,
+            ONDCFulfillmentState::OrderDelivered => CommerceFulfillmentStatusType::OrderDelivered,
+            ONDCFulfillmentState::Cancelled => CommerceFulfillmentStatusType::Cancelled,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
@@ -612,13 +645,13 @@ struct ONDCItemReplacementTerm {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct ONDCFulfillmentDescriptor {
-    code: ONDCFulfillmentState,
+pub struct ONDCFulfillmentDescriptor {
+    pub code: ONDCFulfillmentState,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct FulfillmentState {
-    descriptor: ONDCFulfillmentDescriptor,
+pub struct FulfillmentState {
+    pub descriptor: ONDCFulfillmentDescriptor,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -1210,28 +1243,134 @@ pub struct ONDCRequestModel {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct ONDCOnInitRequest {
-    pub context: ONDCContext,
-    pub error: Option<ONDCResponseErrorBody<ONDCSellerErrorCode>>,
+pub struct OrderRequestParamsModel {
+    pub transaction_id: Uuid,
+    pub message_id: Uuid,
+    pub user_id: Option<Uuid>,
+    pub business_id: Option<Uuid>,
+    pub device_id: Option<String>,
 }
 
-impl FromRequest for ONDCOnInitRequest {
-    type Error = ONDCBuyerError;
-    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCOnInitProvider {
+    pub id: String,
+}
 
-    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
-        let fut = web::Json::<Self>::from_request(req, payload);
+#[derive(Debug, Serialize, Deserialize, sqlx::Type)]
+#[serde(rename_all = "snake_case")]
+#[sqlx(type_name = "settlement_basis_type", rename_all = "snake_case")]
+pub enum SettlementBasis {
+    ReturnWindowExpiry,
+    Shipment,
+    Delivery,
+}
 
-        Box::pin(async move {
-            match fut.await {
-                Ok(json) => Ok(json.into_inner()),
-                Err(e) => Err(ONDCBuyerError::InvalidResponseError {
-                    path: None,
-                    message: e.to_string(),
-                }),
-            }
-        })
+impl PgHasArrayType for &SettlementBasis {
+    fn array_type_info() -> sqlx::postgres::PgTypeInfo {
+        sqlx::postgres::PgTypeInfo::with_name("_settlement_basis_type")
     }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum ONDCPaymentSettlementCounterparty {
+    #[serde(rename = "buyer-app")]
+    BuyerApp,
+    #[serde(rename = "seller-app")]
+    SellerApp,
+}
+
+impl ONDCPaymentSettlementCounterparty {
+    pub fn get_settlement_counterparty(&self) -> PaymentSettlementCounterparty {
+        match self {
+            ONDCPaymentSettlementCounterparty::BuyerApp => PaymentSettlementCounterparty::BuyerApp,
+            ONDCPaymentSettlementCounterparty::SellerApp => {
+                PaymentSettlementCounterparty::SellerApp
+            }
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum ONDCPaymentSettlementPhase {
+    #[serde(rename = "sale-amount")]
+    SaleAmount,
+}
+impl ONDCPaymentSettlementPhase {
+    pub fn get_settlement_phase(&self) -> PaymentSettlementPhase {
+        match self {
+            ONDCPaymentSettlementPhase::SaleAmount => PaymentSettlementPhase::SaleAmount,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ONDCPaymentSettlementType {
+    Neft,
+}
+
+impl ONDCPaymentSettlementType {
+    pub fn get_fee_type(&self) -> PaymentSettlementType {
+        match self {
+            ONDCPaymentSettlementType::Neft => PaymentSettlementType::Neft,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCPaymentSettlementDetail {
+    pub settlement_counterparty: ONDCPaymentSettlementCounterparty,
+    pub settlement_phase: ONDCPaymentSettlementPhase,
+    pub settlement_type: ONDCPaymentSettlementType,
+    pub settlement_bank_account_no: String,
+    pub settlement_ifsc_code: String,
+    pub beneficiary_name: String,
+    pub bank_name: String,
+}
+impl ONDCPaymentSettlementDetail {
+    pub fn to_payment_settlement_detail(&self) -> PaymentSettlementDetailModel {
+        PaymentSettlementDetailModel {
+            settlement_counterparty: self.settlement_counterparty.get_settlement_counterparty(),
+            settlement_phase: self.settlement_phase.get_settlement_phase(),
+            settlement_type: self.settlement_type.get_fee_type(),
+            settlement_bank_account_no: self.settlement_bank_account_no.clone(),
+            settlement_ifsc_code: self.settlement_ifsc_code.clone(),
+            beneficiary_name: self.beneficiary_name.clone(),
+            bank_name: self.bank_name.clone(),
+        }
+    }
+}
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCOnInitPayment {
+    pub r#type: ONDCPaymentType,
+    pub collected_by: ONDCNetworkType,
+    #[serde(rename = "@ondc/org/buyer_app_finder_fee_type")]
+    pub buyer_app_finder_fee_type: FeeType,
+    #[serde(rename = "@ondc/org/buyer_app_finder_fee_amount")]
+    pub buyer_app_finder_fee_amount: String,
+    #[serde(rename = "@ondc/org/settlement_basis")]
+    pub settlement_basis: SettlementBasis,
+    #[serde(rename = "@ondc/org/settlement_window")]
+    pub settlement_window: String,
+    #[serde(rename = "@ondc/org/withholding_amount")]
+    pub withholding_amount: String,
+    #[serde(rename = "@ondc/org/settlement_details")]
+    pub settlement_details: Option<Vec<ONDCPaymentSettlementDetail>>,
+    pub uri: Option<String>,
+    pub tags: Option<Vec<ONDCTag>>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCOnInitFulfillment {
+    pub id: String,
+    pub tracking: bool,
+    pub r#type: ONDCFulfillmentType,
+    pub stops: Option<Vec<ONDCOrderFulfillmentEnd<ONDCSelectFulfillmentLocation>>>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ProviderLocation {
+    id: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -1258,6 +1397,39 @@ pub struct ONDCInitProvider {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ONDCOrderCancellationFee {
+    Percent { percentage: String },
+    Amount { amount: ONDCAmount },
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCOrderCancellationTerm {
+    pub fulfillment_state: FulfillmentState,
+    pub reason_required: bool,
+    pub cancellation_fee: ONDCOrderCancellationFee,
+}
+impl ONDCOrderCancellationFee {
+    pub fn get_type(&self) -> CancellationFeeType {
+        match self {
+            ONDCOrderCancellationFee::Percent { .. } => CancellationFeeType::Percent,
+            ONDCOrderCancellationFee::Amount { .. } => CancellationFeeType::Amount,
+        }
+    }
+
+    pub fn get_amount(&self) -> BigDecimal {
+        match self {
+            ONDCOrderCancellationFee::Percent { percentage } => {
+                BigDecimal::from_str(percentage).unwrap()
+            }
+            ONDCOrderCancellationFee::Amount { amount } => {
+                BigDecimal::from_str(&amount.value).unwrap()
+            }
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCInitOrder {
     pub provider: ONDCInitProvider,
     pub items: Vec<ONDCSelectedItem>,
@@ -1277,4 +1449,64 @@ pub struct ONDCInitMessage {
 pub struct ONDCInitRequest {
     pub context: ONDCContext,
     pub message: ONDCInitMessage,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WSInitData<'a> {
+    pub payment_links: Vec<&'a str>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WSInit<'a> {
+    pub transaction_id: Uuid,
+    pub message_id: Uuid,
+    pub action_type: WebSocketActionType,
+    pub error: Option<&'a str>,
+    pub data: Option<WSInitData<'a>>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCOnInitOrder {
+    pub provider: ONDCOnInitProvider,
+    pub provider_location: ProviderLocation,
+    pub items: Vec<ONDCSelectedItem>,
+    pub payments: Vec<ONDCOnInitPayment>,
+    pub tags: Vec<ONDCTag>,
+    pub quote: ONDCQuote,
+    pub billing: ONDCBilling,
+    pub cancellation_terms: Vec<ONDCOrderCancellationTerm>,
+    pub fulfillments: Vec<ONDCOnInitFulfillment>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCOnInitMessage {
+    pub order: ONDCOnInitOrder,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCOnInitRequest {
+    pub context: ONDCContext,
+    pub message: ONDCOnInitMessage,
+    pub error: Option<ONDCResponseErrorBody<ONDCSellerErrorCode>>,
+}
+
+impl FromRequest for ONDCOnInitRequest {
+    type Error = ONDCBuyerError;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
+
+    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+        let fut = web::Json::<Self>::from_request(req, payload);
+
+        Box::pin(async move {
+            match fut.await {
+                Ok(json) => Ok(json.into_inner()),
+                Err(e) => Err(ONDCBuyerError::InvalidResponseError {
+                    path: None,
+                    message: e.to_string(),
+                }),
+            }
+        })
+    }
 }

@@ -6,7 +6,7 @@ use super::schemas::{
     AccountRole, AuthContextType, AuthData, AuthMechanism, AuthenticateRequest, AuthenticationScope, BasicBusinessAccount, BulkAuthMechanismInsert, BusinessAccount, CreateBusinessAccount, CreateUserAccount, DataSource, MaskingType, UserAccount, UserType, UserVector, VectorType,
 };
 use crate::configuration::JWT;
-use crate::routes::user::schemas::{CustomerType, TradeType, MerchantType, KYCProof};
+use crate::routes::user::schemas::{CustomerType, TradeType, MerchantType, KYCProofModel};
 // use crate::routes::schemas::{CustomerType, MerchantType, TradeType};
 use crate::schemas::{KycStatus, Status};
 use crate::utils::{generate_jwt_token_for_user, spawn_blocking_with_tracing};
@@ -615,11 +615,11 @@ pub async fn save_business_account(transaction: &mut Transaction<'_, Postgres>, 
     let business_account_id = Uuid::new_v4();
     let business_account_number = create_business_obj.company_name.replace(' ', "-").to_lowercase();
     let vector_list = create_vector_from_business_account(create_business_obj)?;
-    let proofs: Vec<KYCProof> = create_business_obj
+    let proofs: Vec<KYCProofModel> = create_business_obj
     .proofs
     .iter()
     .cloned()
-    .map(KYCProof::from)
+    .map(KYCProofModel::from)
     .collect();
 
     let query = sqlx::query!(
@@ -632,7 +632,7 @@ pub async fn save_business_account(transaction: &mut Transaction<'_, Postgres>, 
         business_account_number,
         create_business_obj.company_name,
         sqlx::types::Json(vector_list) as sqlx::types::Json<Vec<UserVector>>,
-        sqlx::types::Json(&proofs) as sqlx::types::Json<&Vec<KYCProof>>,
+        sqlx::types::Json(&proofs) as sqlx::types::Json<&Vec<KYCProofModel>>,
         &create_business_obj.customer_type as &CustomerType,
         &create_business_obj.merchant_type as &MerchantType,
         &create_business_obj.trade_type as &Vec<TradeType>,

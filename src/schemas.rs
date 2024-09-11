@@ -522,12 +522,17 @@ impl NetworkCall {
     }
 }
 
-#[derive(Debug, Deserialize, sqlx::Type)]
+#[derive(Debug, Deserialize, sqlx::Type, Serialize)]
 #[serde(rename_all = "snake_case")]
 #[sqlx(type_name = "ondc_np_fee_type", rename_all = "snake_case")]
 pub enum FeeType {
     Percent,
     Amount,
+}
+impl PgHasArrayType for &FeeType {
+    fn array_type_info() -> sqlx::postgres::PgTypeInfo {
+        sqlx::postgres::PgTypeInfo::with_name("_ondc_np_fee_type")
+    }
 }
 
 impl std::fmt::Display for FeeType {

@@ -9,6 +9,7 @@ use crate::schemas::{CountryCode, CurrencyType, ONDCNetworkType};
 use actix_http::Payload;
 use actix_web::{web, FromRequest, HttpRequest};
 
+use crate::domain::EmailObject;
 use bigdecimal::BigDecimal;
 use chrono::{DateTime, Utc};
 use futures_util::future::LocalBoxFuture;
@@ -48,7 +49,7 @@ pub struct City {
 
 #[derive(Deserialize, Debug, ToSchema, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct FulfillmentLocation {
+pub struct SelectFulfillmentLocation {
     pub gps: String,
     pub area_code: String,
     pub address: String,
@@ -102,7 +103,7 @@ pub struct OrderSelectFulfillment {
     pub id: String,
     pub r#type: FulfillmentType,
     // #[serde(deserialize_with = "deserialize_non_empty_vector")]
-    pub location: FulfillmentLocation,
+    pub location: SelectFulfillmentLocation,
     pub delivery_terms: Option<OrderDeliveyTerm>,
 }
 
@@ -230,8 +231,8 @@ pub struct Payment {
     pub r#type: PaymentType,
 }
 
-#[derive(Deserialize, Debug, Serialize, sqlx::FromRow)]
-pub struct DropOffLocation {
+#[derive(Deserialize, Debug, Serialize, sqlx::FromRow, Clone)]
+pub struct DropOffLocationModel {
     pub gps: String,
     pub area_code: String,
     pub address: Option<String>,
@@ -240,22 +241,22 @@ pub struct DropOffLocation {
     pub state: String,
 }
 
-#[derive(Deserialize, Debug, Serialize, sqlx::FromRow)]
-pub struct DropOffContact {
+#[derive(Deserialize, Debug, Serialize, sqlx::FromRow, Clone)]
+pub struct DropOffContactModel {
     pub mobile_no: String,
     pub email: Option<String>,
 }
 
-#[derive(Deserialize, Debug, Serialize, sqlx::FromRow)]
-pub struct DropOffData {
-    pub location: DropOffLocation,
-    pub contact: DropOffContact,
+#[derive(Deserialize, Debug, Serialize, sqlx::FromRow, Clone)]
+pub struct DropOffDataModel {
+    pub location: DropOffLocationModel,
+    pub contact: DropOffContactModel,
 }
 
-#[derive(Deserialize, Debug, Serialize, sqlx::FromRow)]
-pub struct PickUpData {
-    pub location: DropOffLocation,
-    pub contact: DropOffContact,
+#[derive(Deserialize, Debug, Serialize, sqlx::FromRow, Clone)]
+pub struct PickUpDataModel {
+    pub location: DropOffLocationModel,
+    pub contact: DropOffContactModel,
 }
 
 #[derive(Deserialize, Debug, ToSchema)]
@@ -314,7 +315,7 @@ pub struct BuyerCommercePayment {
     pub payment_type: PaymentType,
 }
 
-#[derive(Deserialize, Debug, ToSchema, sqlx::Type)]
+#[derive(Deserialize, Debug, ToSchema, sqlx::Type, Serialize)]
 #[sqlx(type_name = "commerce_fulfillment_status_type")]
 #[sqlx(rename_all = "snake_case")]
 pub enum CommerceFulfillmentStatusType {
@@ -335,7 +336,7 @@ pub struct DeliveryTerm {
 }
 
 #[derive(Deserialize, Debug, Serialize, sqlx::FromRow)]
-pub struct ExtFulfillmentLocation {
+pub struct FulfillmentLocation {
     pub gps: String,
     pub area_code: String,
     pub address: Option<String>,
@@ -345,7 +346,7 @@ pub struct ExtFulfillmentLocation {
 }
 
 #[derive(Deserialize, Debug, Serialize, sqlx::FromRow)]
-pub struct ExtFulfillmentContact {
+pub struct FulfillmentContact {
     pub mobile_no: String,
     pub email: Option<String>,
 }
@@ -356,14 +357,14 @@ pub struct ExtOffContact {
 }
 
 #[derive(Deserialize, Debug, Serialize, sqlx::FromRow)]
-pub struct ExtDropOffData {
-    pub location: ExtFulfillmentLocation,
-    pub contact: ExtFulfillmentContact,
+pub struct DropOffData {
+    pub location: FulfillmentLocation,
+    pub contact: FulfillmentContact,
 }
 #[derive(Deserialize, Debug, Serialize, sqlx::FromRow)]
-pub struct ExtPickUpData {
-    pub location: ExtFulfillmentLocation,
-    pub contact: ExtFulfillmentContact,
+pub struct PickUpData {
+    pub location: FulfillmentLocation,
+    pub contact: FulfillmentContact,
 }
 #[derive(Deserialize, Debug, ToSchema)]
 pub struct BuyerCommerceFulfillment {
@@ -376,8 +377,8 @@ pub struct BuyerCommerceFulfillment {
     pub provider_name: Option<String>,
     pub category: Option<FulfillmentCategoryType>,
     pub servicable_status: Option<ServiceableType>,
-    pub drop_off: Option<ExtDropOffData>,
-    pub pickup: Option<ExtPickUpData>,
+    pub drop_off: Option<DropOffData>,
+    pub pickup: Option<PickUpData>,
     pub tracking: Option<bool>,
 }
 
@@ -519,7 +520,78 @@ pub struct BuyerCommerceFulfillmentModel {
     pub provider_name: Option<String>,
     pub category: Option<FulfillmentCategoryType>,
     pub servicable_status: Option<ServiceableType>,
-    pub drop_off: Option<sqlx::types::Json<DropOffData>>,
-    pub pickup: Option<sqlx::types::Json<PickUpData>>,
+    pub drop_off_data: sqlx::types::Json<Option<DropOffDataModel>>,
+    pub pickup_data: sqlx::types::Json<Option<PickUpDataModel>>,
     pub tracking: Option<bool>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PaymentSettlementCounterparty {
+    #[serde(rename = "buyer-app")]
+    BuyerApp,
+    #[serde(rename = "seller-app")]
+    SellerApp,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum PaymentSettlementPhase {
+    #[serde(rename = "sale-amount")]
+    SaleAmount,
+}
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PaymentSettlementType {
+    Neft,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PaymentSettlementDetailModel {
+    pub settlement_counterparty: PaymentSettlementCounterparty,
+    pub settlement_phase: PaymentSettlementPhase,
+    pub settlement_type: PaymentSettlementType,
+    pub settlement_bank_account_no: String,
+    pub settlement_ifsc_code: String,
+    pub beneficiary_name: String,
+    pub bank_name: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct OrderBillingModel {
+    pub name: String,
+    pub address: String,
+    pub state: String,
+    pub city: String,
+    pub tax_id: String,
+    pub email: EmailObject,
+    pub phone: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct BPPTermsModel {
+    pub max_liability: String,
+    pub max_liability_cap: String,
+    pub mandatory_arbitration: bool,
+    pub court_jurisdiction: String,
+    pub delay_interest: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CancellationFeeType {
+    Percent,
+    Amount,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct OrderCancellationFeeModel {
+    pub r#type: CancellationFeeType,
+    pub val: BigDecimal,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct OrderCancellationTermModel {
+    pub fulfillment_state: CommerceFulfillmentStatusType,
+    pub reason_required: bool,
+    pub cancellation_fee: OrderCancellationFeeModel,
 }
