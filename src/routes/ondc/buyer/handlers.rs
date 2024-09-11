@@ -3,15 +3,18 @@ use actix_web::web;
 use sqlx::PgPool;
 
 use super::errors::ONDCBuyerError;
-use super::schemas::{ONDCOnSearchRequest, ONDCOnSelectRequest, ONDCSelectRequest, WSSelect};
+use super::schemas::{
+    ONDCOnInitRequest, ONDCOnSearchRequest, ONDCOnSelectRequest, ONDCSelectRequest, WSInit,
+    WSInitData, WSSelect,
+};
 use super::utils::{
-    fetch_ondc_select_request, get_ondc_order_param_from_req, get_product_from_on_search_request,
+    fetch_ondc_order_request, get_ondc_order_param_from_req, get_product_from_on_search_request,
     get_product_search_params, get_search_ws_body, get_websocket_params_from_search_req,
     save_ondc_seller_product_info,
 };
 use crate::constants::ONDC_TTL;
 use crate::routes::ondc::{ONDCActionType, ONDCBuyerErrorCode, ONDCResponse};
-use crate::routes::order::utils::initialize_order_on_select;
+use crate::routes::order::utils::{initialize_order_on_init, initialize_order_on_select};
 use crate::routes::product::schemas::WSSearchData;
 
 use crate::routes::user::utils::{get_business_account, get_user};
@@ -77,7 +80,7 @@ pub async fn on_select(
             .as_ref()
             .map_or_else(|| None, |s| Some(s.message.as_str())),
     };
-    let ondc_select_model = fetch_ondc_select_request(
+    let ondc_select_model = fetch_ondc_order_request(
         &pool,
         &body.context.transaction_id,
         &body.context.message_id,
@@ -116,11 +119,52 @@ pub async fn on_select(
     Ok(web::Json(ONDCResponse::successful_response(None)))
 }
 
-#[tracing::instrument(name = "ONDC On Init Payload", skip(_pool), fields())]
+#[tracing::instrument(name = "ONDC On Init Payload", skip(pool), fields())]
 pub async fn on_init(
-    _pool: web::Data<PgPool>,
-    body: ONDCOnSelectRequest,
+    pool: web::Data<PgPool>,
+    body: ONDCOnInitRequest,
     websocket_srv: web::Data<Addr<Server>>,
 ) -> Result<web::Json<ONDCResponse<ONDCBuyerErrorCode>>, ONDCBuyerError> {
+    let order_request_model = fetch_ondc_order_request(
+        &pool,
+        &body.context.transaction_id,
+        &body.context.message_id,
+        &ONDCActionType::Init,
+    )
+    .await
+    .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?
+    .ok_or(ONDCBuyerError::BuyerResponseSequenceError { path: None })?;
+    let payment_links: Vec<&str> = body
+        .message
+        .order
+        .payments
+        .iter()
+        .filter_map(|payment| payment.uri.as_deref())
+        .collect();
+    let ws_init_data = (!payment_links.is_empty()).then_some(WSInitData { payment_links });
+    let ws_obj = WSInit {
+        transaction_id: body.context.transaction_id,
+        message_id: body.context.message_id,
+        action_type: WebSocketActionType::Init,
+        error: body
+            .error
+            .as_ref()
+            .map_or_else(|| None, |s| Some(s.message.as_str())),
+        data: ws_init_data,
+    };
+    let ws_json = serde_json::to_value(ws_obj).unwrap();
+    let ws_params_obj = get_ondc_order_param_from_req(&order_request_model);
+    let msg = MessageToClient::new(
+        WebSocketActionType::Init,
+        ws_json,
+        Some(ws_params_obj.get_key()),
+    );
+
+    initialize_order_on_init(&pool, &body)
+        .await
+        .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
+
+    websocket_srv.do_send(msg);
+
     Ok(web::Json(ONDCResponse::successful_response(None)))
 }

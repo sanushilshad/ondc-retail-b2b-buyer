@@ -686,7 +686,10 @@ CREATE TABLE IF NOT EXISTS buyer_commerce_data(
   quote_ttl TEXT NOT NULL,
   currency_code currency_code_type,
   city_code TEXT NOT NULL,
-  country_code country_code NOT NULL
+  country_code country_code NOT NULL,
+  billing JSON,
+  bpp_terms JSON,
+  cancellation_terms JSON
 );
 
 ALTER TABLE buyer_commerce_data ADD CONSTRAINT buyer_commerce_data_uq UNIQUE (external_urn);
@@ -782,12 +785,27 @@ ALTER TABLE buyer_commerce_fulfillment_data_line ADD CONSTRAINT commerce_fulfill
 ALTER TABLE buyer_commerce_fulfillment_data_line ADD CONSTRAINT commerce_fulfillment_raw_data_uq UNIQUE (commerce_fulfillment_id, seller_id, item_code);
 
 
+CREATE TYPE settlement_basis_type AS ENUM (
+  'return_window_expiry',
+  'shipment',
+  'delivery'
+);
 
 CREATE TABLE IF NOT EXISTS buyer_commerce_payment(
   id uuid PRIMARY KEY,
   commerce_data_id uuid NOT NULL,
   collected_by ondc_network_participant_type,
-  payment_type payment_type
+  payment_type payment_type,
+  buyer_fee_type ondc_np_fee_type,
+  buyer_fee_amount DECIMAL(20, 3),
+  settlement_window TEXT,
+  withholding_amount DECIMAL(20, 3),
+  settlement_basis settlement_basis_type,
+  settlement_details JSONB,
+  seller_payment_uri TEXT,
+  seller_payment_signature TEXT,
+  seller_payment_dsa TEXT,
+  seller_payment_ttl TEXT
 );
 ALTER TABLE buyer_commerce_payment ADD CONSTRAINT buyer_commerce_payment_fk FOREIGN KEY ("commerce_data_id") REFERENCES buyer_commerce_data ("id") ON DELETE CASCADE;
 

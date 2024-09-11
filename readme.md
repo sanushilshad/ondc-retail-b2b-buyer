@@ -159,15 +159,19 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [x] Develop select API
 * [x] Develop ondc on select API
 * [x] Develop init API
-* [ ] Develop ONDC on init API
+* [x] Develop ONDC on init API
 * [ ] Develop confirm API
 * [ ] Develop ONDC on on_confirm API
 * [ ] Develop status API
 * [ ] Develop ONDC on status API
-* [ ] Develop update API
-* [ ] Develop ONDC on update API
 * [ ] Develop cancel API
 * [ ] Develop ONDC on cancel API
+* [ ] Develop update API
+* [ ] Develop ONDC on update API
+
+
+
+### MILESTONE 3:
 * [ ] Develop IGM issue API
 * [ ] Develop ONDC on issue API
 * [ ] Develop IGM issue_status API
@@ -175,7 +179,10 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [ ] Develop IGM issue close API
 
 
-### MILESTONE 3:
+### MILESTONE 4:
+* [ ] Develop info API
+* [ ] Develop ONDC info API
+* [ ] Integrate Payment Gateway
 * [ ] Add Chat Functionality
 * [ ] Develop Business Account fetch API
 * [ ] Develop User Account fetch API

@@ -384,7 +384,7 @@ pub struct BulkAuthMechanismInsert<'a> {
 #[derive(Serialize, Deserialize, Debug, sqlx::Type, ToSchema, Clone)]
 #[serde(rename_all = "camelCase")]
 
-pub struct CreateKYCProof {
+pub struct KYCProof {
     pub key: VectorType,
     pub kyc_id: String,
     pub value: Vec<String>,
@@ -393,15 +393,15 @@ pub struct CreateKYCProof {
 #[derive(Serialize, Deserialize, Debug, sqlx::Type, ToSchema)]
 #[serde(rename_all = "snake_case")]
 
-pub struct KYCProof {
+pub struct KYCProofModel {
     pub key: VectorType,
     pub kyc_id: String,
     pub value: Vec<String>,
 }
 
-impl From<CreateKYCProof> for KYCProof {
-    fn from(create: CreateKYCProof) -> Self {
-        KYCProof {
+impl From<KYCProof> for KYCProofModel {
+    fn from(create: KYCProof) -> Self {
+        KYCProofModel {
             key: create.key,
             kyc_id: create.kyc_id,
             value: create.value,
@@ -422,7 +422,7 @@ pub struct CreateBusinessAccount {
     pub merchant_type: MerchantType,
     pub opening_time: Option<NaiveTime>,
     pub closing_time: Option<NaiveTime>,
-    pub proofs: Vec<CreateKYCProof>,
+    pub proofs: Vec<KYCProof>,
     pub default_vector_type: VectorType,
 }
 

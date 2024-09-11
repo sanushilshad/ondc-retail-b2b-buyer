@@ -21,6 +21,7 @@ const CLIENT_TIMEOUT: Duration = Duration::from_secs(30);
 pub enum WebSocketActionType {
     Search,
     Select,
+    Init,
 }
 
 #[derive(ActixMessage)]

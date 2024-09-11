@@ -26,6 +26,7 @@ use uuid::Uuid;
 use crate::constants::ONDC_TTL;
 
 use crate::domain::EmailObject;
+use crate::routes::ondc::buyer::schemas::OrderRequestParamsModel;
 use crate::routes::ondc::schemas::{
     ONDCActionType, ONDCContext, ONDCContextCity, ONDCContextCountry, ONDCContextLocation,
     ONDCDomain, ONDCVersion,
@@ -34,8 +35,8 @@ use crate::routes::ondc::{LookupData, ONDCErrorCode, ONDCResponse};
 use crate::routes::order::errors::{InitOrderError, SelectOrderError};
 use crate::routes::order::schemas::{
     BuyerCommerce, BuyerCommerceFulfillment, BuyerCommerceItem, BuyerCommercePayment, BuyerTerms,
-    ExtDropOffData, ExtPickUpData, FulfillmentLocation, OrderDeliveyTerm, OrderInitBilling,
-    OrderInitRequest, OrderSelectFulfillment, OrderSelectItem, OrderSelectRequest, OrderType,
+    DropOffData, OrderDeliveyTerm, OrderInitBilling, OrderInitRequest, OrderSelectFulfillment,
+    OrderSelectItem, OrderSelectRequest, OrderType, PickUpData, SelectFulfillmentLocation,
 };
 use crate::routes::product::schemas::{
     CategoryDomain, FulfillmentType, PaymentType, ProductFulFillmentLocations,
@@ -351,6 +352,16 @@ pub async fn get_ondc_order_params(
 }
 
 pub fn get_ondc_order_param_from_req(ondc_req: &ONDCRequestModel) -> ONDCOrderParams {
+    ONDCOrderParams {
+        transaction_id: ondc_req.transaction_id,
+        message_id: ondc_req.message_id,
+        device_id: ondc_req.device_id.clone(),
+        user_id: ondc_req.user_id,
+        business_id: ondc_req.business_id,
+    }
+}
+
+pub fn _get_order_param_from_param_req(ondc_req: &OrderRequestParamsModel) -> ONDCOrderParams {
     ONDCOrderParams {
         transaction_id: ondc_req.transaction_id,
         message_id: ondc_req.message_id,
@@ -754,7 +765,7 @@ fn get_fulfillment_tags(delivery_terms: &Option<OrderDeliveyTerm>) -> Option<Vec
 
 #[tracing::instrument(name = "getondc select fulfillment end", skip())]
 fn get_ondc_select_fulfillment_end(
-    location: &FulfillmentLocation,
+    location: &SelectFulfillmentLocation,
 ) -> Vec<ONDCOrderFulfillmentEnd<ONDCSelectFulfillmentLocation>> {
     // let mut fulfillment_end: Vec<ONDCOrderFulfillmentEnd<ONDCSelectFulfillmentLocation>> = vec![];
     // for location in locations {
@@ -1018,8 +1029,8 @@ pub async fn get_ondc_seller_product_info_mapping(
     Ok(seller_product_map)
 }
 
-#[tracing::instrument(name = "Fetch Product Search Params", skip(pool))]
-pub async fn fetch_ondc_select_request(
+#[tracing::instrument(name = "Fetch ONDC Order request", skip(pool))]
+pub async fn fetch_ondc_order_request(
     pool: &PgPool,
     transaction_id: &Uuid,
     message_id: &Uuid,
@@ -1028,6 +1039,29 @@ pub async fn fetch_ondc_select_request(
     let row = sqlx::query_as!(
         ONDCRequestModel,
         r#"SELECT transaction_id, message_id, user_id, business_id, device_id, request_payload
+        FROM ondc_buyer_order_req
+        WHERE transaction_id = $1 AND message_id = $2 AND action_type = $3 ORDER BY created_on DESC
+        "#,
+        transaction_id,
+        message_id,
+        &action_type.to_string() as &str
+    )
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(row)
+}
+
+#[tracing::instrument(name = "Fetch order request params", skip(pool))]
+pub async fn fetch_order_params(
+    pool: &PgPool,
+    transaction_id: &Uuid,
+    message_id: &Uuid,
+    action_type: &ONDCActionType,
+) -> Result<Option<OrderRequestParamsModel>, anyhow::Error> {
+    let row = sqlx::query_as!(
+        OrderRequestParamsModel,
+        r#"SELECT transaction_id, message_id, user_id, business_id, device_id
         FROM ondc_buyer_order_req
         WHERE transaction_id = $1 AND message_id = $2 AND action_type = $3 ORDER BY created_on DESC
         "#,
@@ -1115,8 +1149,8 @@ fn get_ondc_init_items(items: &Vec<BuyerCommerceItem>) -> Vec<ONDCSelectedItem> 
 }
 
 fn get_ondc_init_fulfillment_stops(
-    drop_off: &Option<ExtDropOffData>,
-    pickup: &Option<ExtPickUpData>,
+    drop_off: &Option<DropOffData>,
+    pickup: &Option<PickUpData>,
 ) -> Vec<ONDCOrderFulfillmentEnd<ONDCSelectFulfillmentLocation>> {
     let mut fulfillment_ends = vec![];
     if let Some(drop_off) = drop_off {
