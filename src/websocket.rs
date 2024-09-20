@@ -22,6 +22,7 @@ pub enum WebSocketActionType {
     Search,
     Select,
     Init,
+    Confirm,
 }
 
 #[derive(ActixMessage)]

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT \n        ba.id, ba.company_name, ba.customer_type as \"customer_type: CustomerType\", vectors as \"vectors!:sqlx::types::Json<Vec<UserVector>>\", ba.is_active as \"is_active: Status\", \n        ba.kyc_status as \"kyc_status: KycStatus\", bur.verified, ba.is_deleted, ba.default_vector_type as \"default_vector_type: VectorType\" FROM business_user_relationship as bur\n            INNER JOIN business_account ba ON bur.business_id = ba.id\n        WHERE bur.user_id = $1 AND bur.business_id= $2 AND ba.customer_type::text = ANY($3)\n        ",
+  "query": "SELECT \n        ba.id, ba.company_name, ba.customer_type as \"customer_type: CustomerType\", vectors as \"vectors:sqlx::types::Json<Vec<UserVector>>\", ba.is_active as \"is_active: Status\",  ba.kyc_status as \"kyc_status: KycStatus\"\n         FROM business_user_relationship as bur\n            INNER JOIN business_account ba ON bur.business_id = ba.id\n        WHERE bur.user_id = $1\n        ",
   "describe": {
     "columns": [
       {
@@ -36,7 +36,7 @@
       },
       {
         "ordinal": 3,
-        "name": "vectors!:sqlx::types::Json<Vec<UserVector>>",
+        "name": "vectors:sqlx::types::Json<Vec<UserVector>>",
         "type_info": "Jsonb"
       },
       {
@@ -72,28 +72,11 @@
             }
           }
         }
-      },
-      {
-        "ordinal": 6,
-        "name": "verified",
-        "type_info": "Bool"
-      },
-      {
-        "ordinal": 7,
-        "name": "is_deleted",
-        "type_info": "Bool"
-      },
-      {
-        "ordinal": 8,
-        "name": "default_vector_type: VectorType",
-        "type_info": "Text"
       }
     ],
     "parameters": {
       "Left": [
-        "Uuid",
-        "Uuid",
-        "TextArray"
+        "Uuid"
       ]
     },
     "nullable": [
@@ -102,11 +85,8 @@
       false,
       false,
       false,
-      false,
-      false,
-      false,
       false
     ]
   },
-  "hash": "928eb147e4ec1d49a74faff7869cb8be0ce6127a23ca1ff86897591984fc2569"
+  "hash": "ed2ab45c10dd83618273d00fcad5a4c3982fb937190a591a2ba0a9684dffd777"
 }

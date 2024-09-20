@@ -1,5 +1,5 @@
 use super::schemas::{
-    BPPTermsModel, BasicNetWorkData, BuyerCommerce, BuyerCommerceDataModel,
+    BPPTermsModel, BasicNetWorkData, BuyerCommerce, BuyerCommerceBilling, BuyerCommerceDataModel,
     BuyerCommerceFulfillment, BuyerCommerceFulfillmentModel, BuyerCommerceItem,
     BuyerCommerceItemModel, BuyerCommercePayment, BuyerCommercePaymentModel, BuyerCommerceSeller,
     BuyerTerm, DropOffContactModel, DropOffData, DropOffDataModel, DropOffLocationModel,
@@ -12,8 +12,8 @@ use crate::routes::ondc::buyer::schemas::{
     BreakupTitleType, ONDCBilling, ONDCBreakUp, ONDCFulfillment, ONDCFulfillmentCategoryType,
     ONDCFulfillmentStopType, ONDCOnInitPayment, ONDCOnInitRequest, ONDCOnSelectFulfillment,
     ONDCOnSelectPayment, ONDCOnSelectRequest, ONDCOrderCancellationTerm, ONDCOrderFulfillmentEnd,
-    ONDCSelectFulfillmentLocation, ONDCSelectRequest, ONDCTag, ONDCTagItemCode, ONDCTagType,
-    SellerProductInfo, SettlementBasis, TagTrait,
+    ONDCSelectRequest, ONDCTag, ONDCTagItemCode, ONDCTagType, SellerProductInfo, SettlementBasis,
+    TagTrait,
 };
 use crate::routes::ondc::buyer::utils::{
     get_ondc_seller_mapping_key, get_ondc_seller_product_info_mapping, get_tag_value_from_list,
@@ -439,7 +439,7 @@ pub async fn initialize_order_select(
 }
 
 pub fn create_drop_off_from_ondc_select_fulfullment(
-    ondc_select_fulfillment: &[ONDCFulfillment<ONDCSelectFulfillmentLocation>],
+    ondc_select_fulfillment: &[ONDCFulfillment],
     // contact: &ONDCContact,
 ) -> Option<DropOffDataModel> {
     if let Some(stops) = &ondc_select_fulfillment[0].stops {
@@ -465,9 +465,7 @@ pub fn create_drop_off_from_ondc_select_fulfullment(
 }
 
 pub fn create_pick_off_from_ondc_select_fulfillment(
-    ondc_select_fulfillment_ends: &Option<
-        Vec<ONDCOrderFulfillmentEnd<ONDCSelectFulfillmentLocation>>,
-    >,
+    ondc_select_fulfillment_ends: &Option<Vec<ONDCOrderFulfillmentEnd>>,
     // contact: &ONDCContact,
 ) -> Option<PickUpDataModel> {
     if let Some(ondc_select_fulfillment_end_res) = ondc_select_fulfillment_ends {
@@ -497,8 +495,9 @@ pub fn create_pick_off_from_ondc_select_fulfillment(
 pub async fn save_on_select_fulfillment(
     transaction: &mut Transaction<'_, Postgres>,
     order_id: &Uuid,
-    select_fulfillment: &Vec<ONDCFulfillment<ONDCSelectFulfillmentLocation>>,
+    select_fulfillment: &Vec<ONDCFulfillment>,
     on_select_fulfillments: &Vec<ONDCOnSelectFulfillment>,
+    ondc_quote: &Vec<ONDCBreakUp>,
 ) -> Result<(), anyhow::Error> {
     // delete_fulfillment_by_order_id(transaction, order_id).await?;
     let mut id_list = vec![];
@@ -516,7 +515,15 @@ pub async fn save_on_select_fulfillment(
     let drop_off_data = create_drop_off_from_ondc_select_fulfullment(select_fulfillment);
     let drop_off_data_json = serde_json::to_value(drop_off_data).unwrap_or_default();
     let mut pickup_data_list = vec![];
-
+    let mut delivery_charge_list = vec![];
+    let mut packaging_charge_list = vec![];
+    let mut convenience_fee_list = vec![];
+    let delivery_charge_mapping =
+        get_quote_item_value_mapping(&ondc_quote, &BreakupTitleType::Delivery);
+    let packaging_charge_mapping =
+        get_quote_item_value_mapping(&ondc_quote, &BreakupTitleType::Packing);
+    let convenience_fee_mapping =
+        get_quote_item_value_mapping(&ondc_quote, &BreakupTitleType::Misc);
     for fulfillment in on_select_fulfillments {
         order_list.push(*order_id);
         id_list.push(Uuid::new_v4());
@@ -549,13 +556,33 @@ pub async fn save_on_select_fulfillment(
             ))
             .unwrap_or_default(),
         );
+        delivery_charge_list.push(
+            delivery_charge_mapping
+                .get(&fulfillment.id)
+                .cloned()
+                .unwrap_or(BigDecimal::from(0)),
+        );
+        packaging_charge_list.push(
+            packaging_charge_mapping
+                .get(&fulfillment.id)
+                .cloned()
+                .unwrap_or(BigDecimal::from(0)),
+        );
+        convenience_fee_list.push(
+            convenience_fee_mapping
+                .get(&fulfillment.id)
+                .cloned()
+                .unwrap_or(BigDecimal::from(0)),
+        );
     }
     let query = sqlx::query!(
         r#"
         INSERT INTO buyer_commerce_fulfillment_data (id, commerce_data_id, fulfillment_id, fulfillment_type, inco_terms, 
-            place_of_delivery, drop_off_data, pickup_data, provider_name, servicable_status, tracking, tat, category)
+            place_of_delivery, drop_off_data, pickup_data, provider_name, servicable_status, tracking, tat, category, packaging_charge,
+            delivery_charge, convenience_fee)
         SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::text[], $4::fulfillment_type[],$5::inco_term_type [], $6::text[],
-             $7::jsonb[], $8::jsonb[], $9::text[], $10::fulfillment_servicability_status[], $11::bool[], $12::text[], $13::fulfillment_category_type[]);
+             $7::jsonb[], $8::jsonb[], $9::text[], $10::fulfillment_servicability_status[], $11::bool[], $12::text[],
+            $13::fulfillment_category_type[], $14::decimal[], $15::decimal[], $16::decimal[]);
         "#,
         &id_list[..] as &[Uuid],
         &order_list[..] as &[Uuid],
@@ -570,6 +597,9 @@ pub async fn save_on_select_fulfillment(
         &tracking_list[..] as &[bool],
         &tat_list[..] as &[&str],
         &category_list[..] as &[FulfillmentCategoryType],
+        &packaging_charge_list[..] as &[BigDecimal],
+        &delivery_charge_list[..] as &[BigDecimal],
+        &convenience_fee_list[..] as &[BigDecimal]
     );
 
     transaction.execute(query).await.map_err(|e| {
@@ -714,6 +744,7 @@ pub async fn initialize_order_on_select(
         &order_id,
         &ondc_select_req.message.order.fulfillments,
         &on_select_request.message.order.fulfillments,
+        &on_select_request.message.order.quote.breakup,
     )
     .await?;
     transaction
@@ -1026,7 +1057,8 @@ async fn get_buyer_commerce_data(
            created_on, updated_on, deleted_on, is_deleted, created_by, grand_total, 
            bpp_id, bpp_uri, bap_id, bap_uri, is_import, quote_ttl,
            currency_code as "currency_code?:CurrencyType", city_code,
-           country_code as "country_code:CountryCode"
+           country_code as "country_code:CountryCode",
+           billing as "billing!:  Json<Option<OrderBillingModel>>"
         FROM buyer_commerce_data where external_urn= $1;"#,
         transaction_id
     )
@@ -1137,7 +1169,10 @@ async fn get_buyer_commerce_fulfillments(
             servicable_status as "servicable_status!: ServiceableType", 
             drop_off_data as "drop_off_data!:  Json<Option<DropOffDataModel>>",
             pickup_data as "pickup_data!:  Json<Option<PickUpDataModel>>",
-            tracking
+            tracking,
+            packaging_charge,
+            delivery_charge,
+            convenience_fee
         FROM buyer_commerce_fulfillment_data 
         WHERE commerce_data_id = $1
         "#,
@@ -1278,11 +1313,26 @@ fn get_order_fulfillment_from_model(
                 .as_ref()
                 .clone()
                 .map(get_pick_up_from_model),
+            packaging_charge: fulfillment.packaging_charge,
+            delivery_charge: fulfillment.delivery_charge,
+            convenience_fee: fulfillment.convenience_fee,
         })
     }
     fulfillment_obj
 }
 
+#[tracing::instrument(name = "billing model to struct", skip())]
+fn get_order_billing_from_model(billing: &OrderBillingModel) -> BuyerCommerceBilling {
+    BuyerCommerceBilling {
+        name: billing.name.clone(),
+        address: billing.address.clone(),
+        state: billing.state.clone(),
+        city: billing.city.clone(),
+        tax_id: billing.tax_id.clone(),
+        email: billing.email.clone(),
+        phone: billing.phone.clone(),
+    }
+}
 #[tracing::instrument(name = "model to struct", skip())]
 fn get_order_from_model(
     order: BuyerCommerceDataModel,
@@ -1321,6 +1371,11 @@ fn get_order_from_model(
         payments: get_order_payment_from_model(payments),
         items: get_order_items_from_model(lines),
         fulfillments: get_order_fulfillment_from_model(fulfillments),
+        billing: order
+            .billing
+            .as_ref()
+            .clone()
+            .map(|billing| get_order_billing_from_model(&billing)),
     }
 }
 
@@ -1467,7 +1522,6 @@ pub async fn initialize_payment_on_init(
     Ok(())
 }
 
-#[tracing::instrument(name = "update buyer commerce data on on_init", skip())]
 fn convert_ondc_billing_to_model_billing(billing: &ONDCBilling) -> OrderBillingModel {
     OrderBillingModel {
         name: billing.name.clone(),
@@ -1562,12 +1616,13 @@ async fn update_buyer_commerce_in_on_init(
 
     let query = sqlx::query!(
         r#"
-        UPDATE buyer_commerce_data SET billing=$1, bpp_terms=$2, record_status=$3, cancellation_terms=$4 WHERE external_urn=$5
+        UPDATE buyer_commerce_data SET billing=$1, bpp_terms=$2, record_status=$3, cancellation_terms=$4, updated_on=$5 WHERE external_urn=$6
         "#,
         serde_json::to_value(billing).unwrap(),
         serde_json::to_value(bpp_terms).unwrap(),
         CommerceStatusType::Initialized as CommerceStatusType,
         serde_json::to_value(cancellation_terms).unwrap(),
+        &on_init_request.context.timestamp,
         on_init_request.context.transaction_id,
     );
 

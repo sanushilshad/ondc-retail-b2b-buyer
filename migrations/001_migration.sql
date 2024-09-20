@@ -754,6 +754,9 @@ CREATE TABLE IF NOT EXISTS buyer_commerce_fulfillment_data(
   commerce_data_id uuid NOT NULL,
   fulfillment_id TEXT NOT NULL,
   fulfillment_type fulfillment_type NOT NULL,
+  packaging_charge DECIMAL(20, 3) NOT NULL DEFAULT 0.0,
+  delivery_charge DECIMAL(20, 3) NOT NULL DEFAULT 0.0,
+  convenience_fee DECIMAL(20, 3) NOT NULL DEFAULT 0.0,
   fulfillment_status commerce_fulfillment_status_type DEFAULT 'pending'::commerce_fulfillment_status_type NOT NULL,
   inco_terms inco_term_type,
   place_of_delivery TEXT,
@@ -767,6 +770,7 @@ CREATE TABLE IF NOT EXISTS buyer_commerce_fulfillment_data(
   pickup_data JSONB,
   drop_off_data JSONB,
   created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+
 );
 
 ALTER TABLE buyer_commerce_fulfillment_data ADD CONSTRAINT commerce_fulfillment_fk FOREIGN KEY ("commerce_data_id") REFERENCES buyer_commerce_data ("id") ON DELETE CASCADE;

@@ -380,12 +380,26 @@ pub struct BuyerCommerceFulfillment {
     pub drop_off: Option<DropOffData>,
     pub pickup: Option<PickUpData>,
     pub tracking: Option<bool>,
+    pub packaging_charge: BigDecimal,
+    pub delivery_charge: BigDecimal,
+    pub convenience_fee: BigDecimal,
 }
 
 #[derive(Deserialize, Debug, ToSchema)]
 pub struct BuyerTerm {
     pub item_req: String,
     pub packaging_req: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct BuyerCommerceBilling {
+    pub name: String,
+    pub address: String,
+    pub state: String,
+    pub city: String,
+    pub tax_id: String,
+    pub email: Option<EmailObject>,
+    pub phone: String,
 }
 
 #[derive(Deserialize, Debug, ToSchema)]
@@ -430,6 +444,7 @@ pub struct BuyerCommerce {
     pub items: Vec<BuyerCommerceItem>,
     pub payments: Vec<BuyerCommercePayment>,
     pub fulfillments: Vec<BuyerCommerceFulfillment>,
+    pub billing: Option<BuyerCommerceBilling>,
 }
 
 impl BuyerCommerce {
@@ -473,6 +488,7 @@ pub struct BuyerCommerceDataModel {
     pub currency_code: Option<CurrencyType>,
     pub city_code: String,
     pub country_code: CountryCode,
+    pub billing: sqlx::types::Json<Option<OrderBillingModel>>,
 }
 
 #[allow(dead_code)]
@@ -523,6 +539,9 @@ pub struct BuyerCommerceFulfillmentModel {
     pub drop_off_data: sqlx::types::Json<Option<DropOffDataModel>>,
     pub pickup_data: sqlx::types::Json<Option<PickUpDataModel>>,
     pub tracking: Option<bool>,
+    pub packaging_charge: BigDecimal,
+    pub delivery_charge: BigDecimal,
+    pub convenience_fee: BigDecimal,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -556,14 +575,14 @@ pub struct PaymentSettlementDetailModel {
     pub bank_name: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct OrderBillingModel {
     pub name: String,
     pub address: String,
     pub state: String,
     pub city: String,
     pub tax_id: String,
-    pub email: EmailObject,
+    pub email: Option<EmailObject>,
     pub phone: String,
 }
 
@@ -594,4 +613,37 @@ pub struct OrderCancellationTermModel {
     pub fulfillment_state: CommerceFulfillmentStatusType,
     pub reason_required: bool,
     pub cancellation_fee: OrderCancellationFeeModel,
+}
+
+#[derive(Deserialize, Debug, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct OrderConfirmPayment {
+    pub id: String,
+    pub amount: BigDecimal,
+}
+
+#[derive(Deserialize, Debug, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct OrderConfirmRequest {
+    #[schema(value_type = String)]
+    pub transaction_id: Uuid,
+    #[schema(value_type = String)]
+    pub message_id: Uuid,
+    pub payment: OrderConfirmPayment,
+}
+
+impl FromRequest for OrderConfirmRequest {
+    type Error = GenericError;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
+
+    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+        let fut = web::Json::<Self>::from_request(req, payload);
+
+        Box::pin(async move {
+            match fut.await {
+                Ok(json) => Ok(json.into_inner()),
+                Err(e) => Err(GenericError::ValidationError(e.to_string())),
+            }
+        })
+    }
 }

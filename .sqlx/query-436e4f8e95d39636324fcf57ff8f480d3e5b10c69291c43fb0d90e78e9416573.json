@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT transaction_id, user_id, business_id, device_id, update_cache\n        FROM search_request\n        WHERE transaction_id = $1 AND message_id = $2 ORDER BY created_at DESC\n        ",
+  "query": "SELECT transaction_id, user_id, business_id, device_id, update_cache\n        FROM search_request\n        WHERE transaction_id = $1 AND message_id = $2 ORDER BY created_on DESC\n        ",
   "describe": {
     "columns": [
       {
@@ -43,5 +43,5 @@
       false
     ]
   },
-  "hash": "1a0a96164064eb7a8d7268180189b445131c132dee8f920109694e5bfa653961"
+  "hash": "436e4f8e95d39636324fcf57ff8f480d3e5b10c69291c43fb0d90e78e9416573"
 }

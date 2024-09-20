@@ -8,18 +8,19 @@ use serde_json::Value;
 use sqlx::PgPool;
 //use fake::faker::address::raw::Longitude;
 use super::schemas::{
-    BulkSellerProductInfo, ONDCBilling, ONDCCity, ONDCContact, ONDCCountry, ONDCFeeType,
-    ONDCFulfillment, ONDCFulfillmentStopType, ONDCFulfillmentType, ONDCImage, ONDCInitMessage,
-    ONDCInitOrder, ONDCInitPayment, ONDCInitProvider, ONDCInitRequest, ONDCLocationId,
-    ONDCOnSearchItemPrice, ONDCOnSearchItemQuantity, ONDCOnSearchItemTag, ONDCOnSearchPayment,
+    BulkSellerProductInfo, ONDCBilling, ONDCCity, ONDCConfirmMessage, ONDCConfirmProvider,
+    ONDCContact, ONDCCountry, ONDCFeeType, ONDCFulfillment, ONDCFulfillmentStopType,
+    ONDCFulfillmentType, ONDCImage, ONDCInitMessage, ONDCInitOrder, ONDCInitPayment,
+    ONDCInitProvider, ONDCInitRequest, ONDCLocationId, ONDCOnSearchItemPrice,
+    ONDCOnSearchItemQuantity, ONDCOnSearchItemTag, ONDCOnSearchPayment,
     ONDCOnSearchProviderDescriptor, ONDCOnSearchProviderLocation, ONDCOnSearchRequest,
-    ONDCOrderFulfillmentEnd, ONDCOrderParams, ONDCQuantityCountInt, ONDCQuantitySelect,
-    ONDCRequestModel, ONDCSearchCategory, ONDCSearchDescriptor, ONDCSearchFulfillment,
-    ONDCSearchIntent, ONDCSearchItem, ONDCSearchLocation, ONDCSearchMessage, ONDCSearchPayment,
-    ONDCSearchRequest, ONDCSearchStop, ONDCSelectFulfillmentLocation, ONDCSelectMessage,
-    ONDCSelectOrder, ONDCSelectPayment, ONDCSelectProvider, ONDCSelectRequest, ONDCSelectedItem,
-    ONDCState, ONDCTag, ONDCTagItemCode, ONDCTagType, OnSearchContentType, SellerProductInfo,
-    TagTrait,
+    ONDCOrderFulfillmentEnd, ONDCOrderParams, ONDCOrderStatus, ONDCQuantityCountInt,
+    ONDCQuantitySelect, ONDCRequestModel, ONDCSearchCategory, ONDCSearchDescriptor,
+    ONDCSearchFulfillment, ONDCSearchIntent, ONDCSearchItem, ONDCSearchLocation, ONDCSearchMessage,
+    ONDCSearchPayment, ONDCSearchRequest, ONDCSearchStop, ONDCSelectFulfillmentLocation,
+    ONDCSelectMessage, ONDCSelectOrder, ONDCSelectPayment, ONDCSelectProvider, ONDCSelectRequest,
+    ONDCSelectedItem, ONDCState, ONDCTag, ONDCTagItemCode, ONDCTagType, ONDConfirmRequest,
+    OnSearchContentType, SellerProductInfo, TagTrait,
 };
 use uuid::Uuid;
 
@@ -32,11 +33,12 @@ use crate::routes::ondc::schemas::{
     ONDCDomain, ONDCVersion,
 };
 use crate::routes::ondc::{LookupData, ONDCErrorCode, ONDCResponse};
-use crate::routes::order::errors::{InitOrderError, SelectOrderError};
+use crate::routes::order::errors::{ConfirmOrderError, InitOrderError, SelectOrderError};
 use crate::routes::order::schemas::{
-    BuyerCommerce, BuyerCommerceFulfillment, BuyerCommerceItem, BuyerCommercePayment, BuyerTerms,
-    DropOffData, OrderDeliveyTerm, OrderInitBilling, OrderInitRequest, OrderSelectFulfillment,
-    OrderSelectItem, OrderSelectRequest, OrderType, PickUpData, SelectFulfillmentLocation,
+    BuyerCommerce, BuyerCommerceBilling, BuyerCommerceFulfillment, BuyerCommerceItem,
+    BuyerCommercePayment, BuyerTerms, DropOffData, OrderConfirmRequest, OrderDeliveyTerm,
+    OrderInitBilling, OrderInitRequest, OrderSelectFulfillment, OrderSelectItem,
+    OrderSelectRequest, OrderType, PickUpData, SelectFulfillmentLocation,
 };
 use crate::routes::product::schemas::{
     CategoryDomain, FulfillmentType, PaymentType, ProductFulFillmentLocations,
@@ -766,7 +768,7 @@ fn get_fulfillment_tags(delivery_terms: &Option<OrderDeliveyTerm>) -> Option<Vec
 #[tracing::instrument(name = "getondc select fulfillment end", skip())]
 fn get_ondc_select_fulfillment_end(
     location: &SelectFulfillmentLocation,
-) -> Vec<ONDCOrderFulfillmentEnd<ONDCSelectFulfillmentLocation>> {
+) -> Vec<ONDCOrderFulfillmentEnd> {
     // let mut fulfillment_end: Vec<ONDCOrderFulfillmentEnd<ONDCSelectFulfillmentLocation>> = vec![];
     // for location in locations {
     vec![ONDCOrderFulfillmentEnd {
@@ -798,11 +800,11 @@ fn get_ondc_select_fulfillment_end(
 fn get_ondc_select_fulfillments(
     is_import: bool,
     fulfillments: &Vec<OrderSelectFulfillment>,
-) -> Vec<ONDCFulfillment<ONDCSelectFulfillmentLocation>> {
-    let mut fulfillment_objs: Vec<ONDCFulfillment<ONDCSelectFulfillmentLocation>> = vec![];
+) -> Vec<ONDCFulfillment> {
+    let mut fulfillment_objs: Vec<ONDCFulfillment> = vec![];
 
     for fulfillment in fulfillments {
-        let stops: Option<Vec<ONDCOrderFulfillmentEnd<ONDCSelectFulfillmentLocation>>> =
+        let stops: Option<Vec<ONDCOrderFulfillmentEnd>> =
             if fulfillment.r#type == FulfillmentType::Delivery {
                 Some(get_ondc_select_fulfillment_end(&fulfillment.location))
             } else {
@@ -1096,7 +1098,7 @@ fn get_ondc_init_context(
     )
 }
 
-fn get_ondc_billing_from_billing(billing: &OrderInitBilling) -> ONDCBilling {
+fn get_ondc_billing_from_init_billing(billing: &OrderInitBilling) -> ONDCBilling {
     ONDCBilling {
         name: billing.name.clone(),
         address: billing.address.clone(),
@@ -1107,8 +1109,24 @@ fn get_ondc_billing_from_billing(billing: &OrderInitBilling) -> ONDCBilling {
             name: billing.city.name.clone(),
         },
         tax_id: billing.tax_id.clone(),
-        email: EmailObject::new(billing.email.clone()),
+        email: Some(EmailObject::new(billing.email.clone())),
         phone: billing.mobile_no.clone(),
+    }
+}
+
+fn get_ondc_billing_from_order_billing(billing: &BuyerCommerceBilling) -> ONDCBilling {
+    ONDCBilling {
+        name: billing.name.clone(),
+        address: billing.address.clone(),
+        state: ONDCState {
+            name: billing.state.clone(),
+        },
+        city: ONDCCity {
+            name: billing.city.clone(),
+        },
+        tax_id: billing.tax_id.clone(),
+        email: billing.email.clone(),
+        phone: billing.phone.clone(),
     }
 }
 
@@ -1124,7 +1142,7 @@ fn get_ondc_payment_from_order(payments: &Vec<BuyerCommercePayment>) -> Vec<ONDC
 }
 
 #[tracing::instrument(name = "get ondc init items", skip())]
-fn get_ondc_init_items(items: &Vec<BuyerCommerceItem>) -> Vec<ONDCSelectedItem> {
+fn get_ondc_items_from_order(items: &Vec<BuyerCommerceItem>) -> Vec<ONDCSelectedItem> {
     let mut ondc_item = vec![];
 
     for item in items {
@@ -1151,7 +1169,7 @@ fn get_ondc_init_items(items: &Vec<BuyerCommerceItem>) -> Vec<ONDCSelectedItem> 
 fn get_ondc_init_fulfillment_stops(
     drop_off: &Option<DropOffData>,
     pickup: &Option<PickUpData>,
-) -> Vec<ONDCOrderFulfillmentEnd<ONDCSelectFulfillmentLocation>> {
+) -> Vec<ONDCOrderFulfillmentEnd> {
     let mut fulfillment_ends = vec![];
     if let Some(drop_off) = drop_off {
         fulfillment_ends.push(ONDCOrderFulfillmentEnd {
@@ -1205,7 +1223,7 @@ fn get_ondc_init_fulfillment_stops(
 #[tracing::instrument(name = "get ondc init fulfillment", skip())]
 fn get_get_ondc_init_fulfillment(
     fulfillments: &Vec<BuyerCommerceFulfillment>,
-) -> Vec<ONDCFulfillment<ONDCSelectFulfillmentLocation>> {
+) -> Vec<ONDCFulfillment> {
     fulfillments
         .iter()
         .map(|fulfillment| {
@@ -1246,10 +1264,10 @@ fn get_ondc_init_message(
                     .map(|e| ONDCLocationId { id: e.to_string() })
                     .collect(),
             },
-            billing: get_ondc_billing_from_billing(&init_request.billing),
+            billing: get_ondc_billing_from_init_billing(&init_request.billing),
             add_ons: None,
             payments: get_ondc_payment_from_order(&order.payments),
-            items: get_ondc_init_items(&order.items),
+            items: get_ondc_items_from_order(&order.items),
 
             tags: vec![get_buyer_id_tag(business_account)?],
             fulfillments: get_get_ondc_init_fulfillment(&order.fulfillments),
@@ -1288,4 +1306,65 @@ pub fn get_tag_value_from_list<'a>(
     // .flat_map(|tag| tag.list.iter())
     // .find(|item| item.descriptor.code == item_code)
     // .map(|item| item.value.as_str())
+}
+
+#[tracing::instrument(name = "get ondc confirm message body", skip())]
+fn get_ondc_confirm_message(
+    business_account: &BusinessAccount,
+    order: &BuyerCommerce,
+) -> Result<ONDCConfirmMessage, ConfirmOrderError> {
+    let location_ids = order.get_ondc_location_ids();
+    Ok(ONDCConfirmMessage {
+        id: "RAP:001".to_string(),
+        state: ONDCOrderStatus::Created,
+        provider: ONDCConfirmProvider {
+            id: order.seller.id.clone(),
+            locations: location_ids
+                .iter()
+                .map(|e| ONDCLocationId { id: e.to_string() })
+                .collect(),
+        },
+        items: get_ondc_items_from_order(&order.items),
+        fulfillments: get_get_ondc_init_fulfillment(&order.fulfillments),
+        billing: get_ondc_billing_from_order_billing(order.billing.as_ref().unwrap()),
+
+        payments: todo!(),
+        quote: todo!(),
+        tags: todo!(),
+        cancellation_terms: todo!(),
+    })
+    // Ok(ONDCConfirmMessage {
+    //     order: ONDCConfirmOrder {
+    // provider: ONDCInitProvider {
+    //     id: order.seller.id.clone(),
+    //     locations: location_ids
+    //         .iter()
+    //         .map(|e| ONDCLocationId { id: e.to_string() })
+    //         .collect(),
+    // },
+    //         billing: get_ondc_billing_from_billing(&init_request.billing),
+    //         add_ons: None,
+    //         payments: get_ondc_payment_from_order(&order.payments),
+    //         items: get_ondc_init_items(&order.items),
+
+    //         tags: vec![get_buyer_id_tag(business_account)?],
+    //         fulfillments: get_get_ondc_init_fulfillment(&order.fulfillments),
+    //     },
+    // })
+}
+
+#[tracing::instrument(name = "get ondc confirm payload", skip())]
+pub fn get_ondc_confirm_payload(
+    user_account: &UserAccount,
+    business_account: &BusinessAccount,
+    order: &BuyerCommerce,
+    confirm_request: &OrderConfirmRequest,
+) -> Result<ONDConfirmRequest, ConfirmOrderError> {
+    let context = get_ondc_init_context(
+        &confirm_request.transaction_id,
+        &confirm_request.message_id,
+        order,
+    )?;
+    let message = get_ondc_confirm_message(business_account, order)?;
+    Ok(ONDConfirmRequest { context, message })
 }

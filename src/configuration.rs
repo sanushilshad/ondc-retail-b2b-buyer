@@ -81,6 +81,9 @@ pub struct DatabaseSettings {
     pub host: String,
     pub name: String,
     pub test_name: String,
+    pub max_connections: u32,
+    pub min_connections: u32,
+    pub acquire_timeout: u64,
 }
 
 impl DatabaseSettings {

@@ -64,8 +64,11 @@ impl Application {
 
 pub fn get_connection_pool(configuration: &DatabaseSettings) -> PgPool {
     PgPoolOptions::new()
-        // .acquire_timeout(std::time::Duration::from_secs(2))
-        // .min_connections(2)
+        .acquire_timeout(std::time::Duration::from_secs(
+            configuration.acquire_timeout,
+        ))
+        .max_connections(configuration.max_connections)
+        .min_connections(configuration.min_connections)
         .connect_lazy_with(configuration.with_db())
 }
 

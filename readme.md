@@ -52,6 +52,9 @@ export DATABASE__HOST=""
 export DATABASE__NAME=""
 export DATABASE__USERNAME="postgres"
 export DATABASE__DATABASE_URL="postgres://postgres:{password}@{host}:{port}/{db_name}"
+export DATABASE__ACQUIRE_TIMEOUT=2
+export DATABASE__MAX_CONNECTIONS=500
+export DATABASE__MIN_CONNECTIONS=10
 
 ## EMAIL VARIABLES
 export EMAIL_CLIENT__USERNAME=""
@@ -194,7 +197,6 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [ ] Develop Permission assignment API
 * [ ] Integrate MeileiSeach
 * [ ] Integrate Redis PubSub With Webocket
-* [ ] Integrate Pulser/Kafka/RabbitMQ
 * [ ] Integrate with notification microservice to enable WhatsApp, Email and SMS functionality
 
 ### MILESTONE 4:
@@ -205,7 +207,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 
 
 ### OPTIONAL
-
+* [ ] Integrate Pulser/Kafka/RabbitMQ
 * [ ] Integrate SMS
 * [ ] Integrate Whatsapp
 * [ ] Develop email verfication APIs for user and business account

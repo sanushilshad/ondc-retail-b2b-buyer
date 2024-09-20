@@ -4,8 +4,8 @@ use sqlx::PgPool;
 
 use super::errors::ONDCBuyerError;
 use super::schemas::{
-    ONDCOnInitRequest, ONDCOnSearchRequest, ONDCOnSelectRequest, ONDCSelectRequest, WSInit,
-    WSInitData, WSSelect,
+    ONDCOnConfirmRequest, ONDCOnInitRequest, ONDCOnSearchRequest, ONDCOnSelectRequest,
+    ONDCSelectRequest, WSConfirm, WSConfirmData, WSInit, WSInitData, WSSelect,
 };
 use super::utils::{
     fetch_ondc_order_request, get_ondc_order_param_from_req, get_product_from_on_search_request,
@@ -163,6 +163,56 @@ pub async fn on_init(
     initialize_order_on_init(&pool, &body)
         .await
         .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
+
+    websocket_srv.do_send(msg);
+
+    Ok(web::Json(ONDCResponse::successful_response(None)))
+}
+
+#[tracing::instrument(name = "ONDC On confirm Payload", skip(pool), fields())]
+pub async fn on_confirm(
+    pool: web::Data<PgPool>,
+    body: ONDCOnConfirmRequest,
+    websocket_srv: web::Data<Addr<Server>>,
+) -> Result<web::Json<ONDCResponse<ONDCBuyerErrorCode>>, ONDCBuyerError> {
+    let order_request_model = fetch_ondc_order_request(
+        &pool,
+        &body.context.transaction_id,
+        &body.context.message_id,
+        &ONDCActionType::Confirm,
+    )
+    .await
+    .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?
+    .ok_or(ONDCBuyerError::BuyerResponseSequenceError { path: None })?;
+    let payment_links: Vec<&str> = body
+        .message
+        .order
+        .payments
+        .iter()
+        .filter_map(|payment| payment.uri.as_deref())
+        .collect();
+    let ws_init_data = (!payment_links.is_empty()).then_some(WSConfirmData { payment_links });
+    let ws_obj = WSConfirm {
+        transaction_id: body.context.transaction_id,
+        message_id: body.context.message_id,
+        action_type: WebSocketActionType::Confirm,
+        error: body
+            .error
+            .as_ref()
+            .map_or_else(|| None, |s| Some(s.message.as_str())),
+        data: ws_init_data,
+    };
+    let ws_json = serde_json::to_value(ws_obj).unwrap();
+    let ws_params_obj = get_ondc_order_param_from_req(&order_request_model);
+    let msg = MessageToClient::new(
+        WebSocketActionType::Confirm,
+        ws_json,
+        Some(ws_params_obj.get_key()),
+    );
+
+    // initialize_order_on_init(&pool, &body)
+    //     .await
+    //     .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
 
     websocket_srv.do_send(msg);
 
