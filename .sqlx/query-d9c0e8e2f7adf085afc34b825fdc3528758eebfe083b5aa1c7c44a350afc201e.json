@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        \n        SELECT id, urn, external_urn, record_type as \"record_type:OrderType\", \n           record_status as \"record_status:CommerceStatusType\",\n           domain_category_code as \"domain_category_code:CategoryDomain\", \n           buyer_id, seller_id, buyer_name, seller_name, source as \"source:DataSource\", \n           created_on, updated_on, deleted_on, is_deleted, created_by, grand_total, \n           bpp_id, bpp_uri, bap_id, bap_uri, is_import, quote_ttl,\n           currency_code as \"currency_code?:CurrencyType\", city_code,\n           country_code as \"country_code:CountryCode\"\n        FROM buyer_commerce_data where external_urn= $1;",
+  "query": "\n        \n        SELECT id, urn, external_urn, record_type as \"record_type:OrderType\", \n           record_status as \"record_status:CommerceStatusType\",\n           domain_category_code as \"domain_category_code:CategoryDomain\", \n           buyer_id, seller_id, buyer_name, seller_name, source as \"source:DataSource\", \n           created_on, updated_on, deleted_on, is_deleted, created_by, grand_total, \n           bpp_id, bpp_uri, bap_id, bap_uri, is_import, quote_ttl,\n           currency_code as \"currency_code?:CurrencyType\", city_code,\n           country_code as \"country_code:CountryCode\",\n           billing as \"billing!:  Json<Option<OrderBillingModel>>\",\n           cancellation_terms as \"cancellation_terms!: Json<Vec<OrderCancellationTermModel>>\",\n           bpp_terms as \"bpp_terms!: Json<Option<BuyerCommerceBppTermsModel>>\"\n        FROM buyer_commerce_data where external_urn= $1;",
   "describe": {
     "columns": [
       {
@@ -106,7 +106,6 @@
             "kind": {
               "Enum": [
                 "place_order",
-                "placeorder",
                 "ondc",
                 "rapidor"
               ]
@@ -454,6 +453,21 @@
             }
           }
         }
+      },
+      {
+        "ordinal": 26,
+        "name": "billing!:  Json<Option<OrderBillingModel>>",
+        "type_info": "Json"
+      },
+      {
+        "ordinal": 27,
+        "name": "cancellation_terms!: Json<Vec<OrderCancellationTermModel>>",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 28,
+        "name": "bpp_terms!: Json<Option<BuyerCommerceBppTermsModel>>",
+        "type_info": "Json"
       }
     ],
     "parameters": {
@@ -487,8 +501,11 @@
       false,
       true,
       false,
-      false
+      false,
+      true,
+      true,
+      true
     ]
   },
-  "hash": "6627be1ffbf595d12eba7e4759ef4949eaafd4539b84f28cf240525f7d3819d2"
+  "hash": "d9c0e8e2f7adf085afc34b825fdc3528758eebfe083b5aa1c7c44a350afc201e"
 }

@@ -9,7 +9,7 @@
         "UuidArray",
         {
           "Custom": {
-            "name": "_user_auth_identifier_scope",
+            "name": "user_auth_identifier_scope[]",
             "kind": {
               "Array": {
                 "Custom": {
@@ -37,7 +37,7 @@
         "TextArray",
         {
           "Custom": {
-            "name": "_auth_context_type",
+            "name": "auth_context_type[]",
             "kind": {
               "Array": {
                 "Custom": {
@@ -55,7 +55,7 @@
         },
         {
           "Custom": {
-            "name": "_status",
+            "name": "status[]",
             "kind": {
               "Array": {
                 "Custom": {

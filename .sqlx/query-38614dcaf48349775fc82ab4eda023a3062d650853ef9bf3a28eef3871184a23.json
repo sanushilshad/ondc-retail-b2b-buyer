@@ -9,7 +9,7 @@
         "UuidArray",
         {
           "Custom": {
-            "name": "_ondc_network_participant_type",
+            "name": "ondc_network_participant_type[]",
             "kind": {
               "Array": {
                 "Custom": {
@@ -27,7 +27,7 @@
         },
         {
           "Custom": {
-            "name": "_payment_type",
+            "name": "payment_type[]",
             "kind": {
               "Array": {
                 "Custom": {
@@ -46,7 +46,7 @@
         },
         {
           "Custom": {
-            "name": "_ondc_np_fee_type",
+            "name": "ondc_np_fee_type[]",
             "kind": {
               "Array": {
                 "Custom": {
@@ -68,7 +68,7 @@
         "TextArray",
         {
           "Custom": {
-            "name": "_settlement_basis_type",
+            "name": "settlement_basis_type[]",
             "kind": {
               "Array": {
                 "Custom": {

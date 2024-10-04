@@ -47,7 +47,7 @@
         },
         {
           "Custom": {
-            "name": "_trade_type",
+            "name": "trade_type[]",
             "kind": {
               "Array": {
                 "Custom": {
@@ -69,7 +69,6 @@
             "kind": {
               "Enum": [
                 "place_order",
-                "placeorder",
                 "ondc",
                 "rapidor"
               ]

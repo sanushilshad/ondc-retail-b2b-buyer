@@ -1,11 +1,15 @@
+use super::models::{
+    BuyerCommerceBppTermsModel, BuyerCommerceDataModel, BuyerCommerceFulfillmentModel,
+    BuyerCommerceItemModel, BuyerCommercePaymentModel, OrderCancellationFeeModel,
+    OrderCancellationTermModel,
+};
 use super::schemas::{
-    BPPTermsModel, BasicNetWorkData, BuyerCommerce, BuyerCommerceBilling, BuyerCommerceDataModel,
-    BuyerCommerceFulfillment, BuyerCommerceFulfillmentModel, BuyerCommerceItem,
-    BuyerCommerceItemModel, BuyerCommercePayment, BuyerCommercePaymentModel, BuyerCommerceSeller,
-    BuyerTerm, DropOffContactModel, DropOffData, DropOffDataModel, DropOffLocationModel,
-    FulfillmentContact, FulfillmentLocation, OrderBillingModel, OrderCancellationFeeModel,
-    OrderCancellationTermModel, OrderSelectFulfillment, OrderSelectRequest,
-    PaymentSettlementDetailModel, PickUpData, PickUpDataModel, SelectFulfillmentLocation,
+    BasicNetWorkData, BuyerCommerce, BuyerCommerceBPPTerms, BuyerCommerceBilling,
+    BuyerCommerceCancellationFee, BuyerCommerceCancellationTerm, BuyerCommerceFulfillment,
+    BuyerCommerceItem, BuyerCommercePayment, BuyerCommerceSeller, BuyerTerm, DropOffContactModel,
+    DropOffData, DropOffDataModel, DropOffLocationModel, FulfillmentContact, FulfillmentLocation,
+    OrderBillingModel, OrderSelectFulfillment, OrderSelectRequest, PaymentSettlementDetailModel,
+    PickUpData, PickUpDataModel, SelectFulfillmentLocation,
 };
 use crate::constants::ONDC_TTL;
 use crate::routes::ondc::buyer::schemas::{
@@ -38,7 +42,6 @@ use sqlx::{Executor, PgPool, Postgres, Transaction};
 use std::collections::HashMap;
 use std::str::FromStr;
 use uuid::Uuid;
-use validator::HasLen;
 
 #[allow(clippy::too_many_arguments)]
 #[tracing::instrument(name = "Save Product Search Request", skip(pool))]
@@ -234,7 +237,7 @@ pub async fn save_order_select_items(
     select_request: &OrderSelectRequest,
     product_map: &HashMap<String, SellerProductInfo>,
 ) -> Result<(), anyhow::Error> {
-    let item_count = select_request.items.length();
+    let item_count = select_request.items.len();
     let line_id_list: Vec<Uuid> = (0..item_count).map(|_| Uuid::new_v4()).collect();
     let order_id_list: Vec<Uuid> = vec![*order_id; item_count as usize];
     let mut item_id_list = vec![];
@@ -855,7 +858,7 @@ pub async fn save_order_on_select_items(
     ondc_on_select_request: &ONDCOnSelectRequest,
     product_map: &HashMap<String, SellerProductInfo>,
 ) -> Result<(), anyhow::Error> {
-    let item_count = ondc_on_select_request.message.order.items.length();
+    let item_count = ondc_on_select_request.message.order.items.len();
     let line_id_list: Vec<Uuid> = (0..item_count).map(|_| Uuid::new_v4()).collect();
     let order_id_list: Vec<Uuid> = vec![*order_id; item_count as usize];
     let mut item_id_list = vec![];
@@ -1046,6 +1049,7 @@ async fn get_buyer_commerce_data(
     pool: &PgPool,
     transaction_id: &Uuid,
 ) -> Result<Option<BuyerCommerceDataModel>, anyhow::Error> {
+    //vectors:sqlx::types::Json<Vec<UserVector>>
     let record = sqlx::query_as!(
         BuyerCommerceDataModel,
         r#"
@@ -1058,7 +1062,9 @@ async fn get_buyer_commerce_data(
            bpp_id, bpp_uri, bap_id, bap_uri, is_import, quote_ttl,
            currency_code as "currency_code?:CurrencyType", city_code,
            country_code as "country_code:CountryCode",
-           billing as "billing!:  Json<Option<OrderBillingModel>>"
+           billing as "billing?:  Json<OrderBillingModel>",
+           cancellation_terms as "cancellation_terms?: Json<Vec<OrderCancellationTermModel>>",
+           bpp_terms as "bpp_terms?: Json<BuyerCommerceBppTermsModel>"
         FROM buyer_commerce_data where external_urn= $1;"#,
         transaction_id
     )
@@ -1321,6 +1327,24 @@ fn get_order_fulfillment_from_model(
     fulfillment_obj
 }
 
+fn get_cancelletion_term_from_model(
+    cancellation_term_models: Vec<OrderCancellationTermModel>,
+) -> Vec<BuyerCommerceCancellationTerm> {
+    let mut cancellation_term_objs = vec![];
+    for cancellation_term_model in cancellation_term_models {
+        cancellation_term_objs.push(BuyerCommerceCancellationTerm {
+            fulfillment_state: cancellation_term_model.fulfillment_state.clone(),
+            reason_required: cancellation_term_model.reason_required,
+            cancellation_fee: BuyerCommerceCancellationFee {
+                r#type: cancellation_term_model.cancellation_fee.r#type.clone(),
+                val: cancellation_term_model.cancellation_fee.val.clone(),
+            },
+        });
+    }
+
+    cancellation_term_objs
+}
+
 #[tracing::instrument(name = "billing model to struct", skip())]
 fn get_order_billing_from_model(billing: &OrderBillingModel) -> BuyerCommerceBilling {
     BuyerCommerceBilling {
@@ -1333,6 +1357,17 @@ fn get_order_billing_from_model(billing: &OrderBillingModel) -> BuyerCommerceBil
         phone: billing.phone.clone(),
     }
 }
+
+fn get_bpp_terms_from_model(bpp_model: BuyerCommerceBppTermsModel) -> BuyerCommerceBPPTerms {
+    BuyerCommerceBPPTerms {
+        max_liability: bpp_model.max_liability,
+        max_liability_cap: bpp_model.max_liability_cap,
+        mandatory_arbitration: bpp_model.mandatory_arbitration,
+        court_jurisdiction: bpp_model.court_jurisdiction,
+        delay_interest: bpp_model.delay_interest,
+    }
+}
+
 #[tracing::instrument(name = "model to struct", skip())]
 fn get_order_from_model(
     order: BuyerCommerceDataModel,
@@ -1340,6 +1375,9 @@ fn get_order_from_model(
     payments: Vec<BuyerCommercePaymentModel>,
     fulfillments: Vec<BuyerCommerceFulfillmentModel>,
 ) -> BuyerCommerce {
+    let cancelletion_model_obj = order
+        .cancellation_terms
+        .map(|e| get_cancelletion_term_from_model(e.0));
     BuyerCommerce {
         id: order.id,
         urn: order.urn,
@@ -1376,6 +1414,11 @@ fn get_order_from_model(
             .as_ref()
             .clone()
             .map(|billing| get_order_billing_from_model(&billing)),
+        cancellation_terms: cancelletion_model_obj,
+        currency_type: order.currency_code,
+        bpp_terms: order
+            .bpp_terms
+            .map(|term_model| get_bpp_terms_from_model(term_model.0)),
     }
 }
 
@@ -1534,7 +1577,7 @@ fn convert_ondc_billing_to_model_billing(billing: &ONDCBilling) -> OrderBillingM
     }
 }
 
-pub fn get_bpp_term_model_from_tag(tags: &[ONDCTag]) -> BPPTermsModel {
+pub fn get_bpp_term_model_from_tag(tags: &[ONDCTag]) -> BuyerCommerceBppTermsModel {
     let max_liability = get_tag_value_from_list(
         tags,
         ONDCTagType::BppTerms,
@@ -1573,7 +1616,7 @@ pub fn get_bpp_term_model_from_tag(tags: &[ONDCTag]) -> BPPTermsModel {
     )
     .unwrap_or_default()
     .to_owned();
-    BPPTermsModel {
+    BuyerCommerceBppTermsModel {
         max_liability,
         max_liability_cap,
         mandatory_arbitration,

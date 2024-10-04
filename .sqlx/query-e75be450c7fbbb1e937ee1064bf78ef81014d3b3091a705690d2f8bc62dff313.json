@@ -5,8 +5,8 @@
     "columns": [],
     "parameters": {
       "Left": [
-        "Jsonb",
-        "Jsonb",
+        "Json",
+        "Json",
         {
           "Custom": {
             "name": "buyer_commerce_status",

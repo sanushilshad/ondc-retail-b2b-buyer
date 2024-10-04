@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT \n            id,\n            commerce_data_id,\n            fulfillment_id,\n            tat,\n            fulfillment_type as \"fulfillment_type: FulfillmentType\",\n            fulfillment_status as \"fulfillment_status: CommerceFulfillmentStatusType\",\n            inco_terms as \"inco_terms?: IncoTermType\",\n            place_of_delivery,\n            provider_name,\n            category as \"category?: FulfillmentCategoryType\",\n            servicable_status as \"servicable_status!: ServiceableType\", \n            drop_off_data as \"drop_off_data!:  Json<Option<DropOffDataModel>>\",\n            pickup_data as \"pickup_data!:  Json<Option<PickUpDataModel>>\",\n            tracking\n        FROM buyer_commerce_fulfillment_data \n        WHERE commerce_data_id = $1\n        ",
+  "query": "\n        SELECT \n            id,\n            commerce_data_id,\n            fulfillment_id,\n            tat,\n            fulfillment_type as \"fulfillment_type: FulfillmentType\",\n            fulfillment_status as \"fulfillment_status: CommerceFulfillmentStatusType\",\n            inco_terms as \"inco_terms?: IncoTermType\",\n            place_of_delivery,\n            provider_name,\n            category as \"category?: FulfillmentCategoryType\",\n            servicable_status as \"servicable_status!: ServiceableType\", \n            drop_off_data as \"drop_off_data!:  Json<Option<DropOffDataModel>>\",\n            pickup_data as \"pickup_data!:  Json<Option<PickUpDataModel>>\",\n            tracking,\n            packaging_charge,\n            delivery_charge,\n            convenience_fee\n        FROM buyer_commerce_fulfillment_data \n        WHERE commerce_data_id = $1\n        ",
   "describe": {
     "columns": [
       {
@@ -132,6 +132,21 @@
         "ordinal": 13,
         "name": "tracking",
         "type_info": "Bool"
+      },
+      {
+        "ordinal": 14,
+        "name": "packaging_charge",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 15,
+        "name": "delivery_charge",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 16,
+        "name": "convenience_fee",
+        "type_info": "Numeric"
       }
     ],
     "parameters": {
@@ -153,8 +168,11 @@
       true,
       true,
       true,
-      true
+      true,
+      false,
+      false,
+      false
     ]
   },
-  "hash": "30642ff7b24825452e7e70f393d9c3ee88784ca5f4a58c8bcdf6818a665e0ab3"
+  "hash": "426c756b72b36dada2fd5899084169de729e59b9356cad2fd567c4dd2e904c87"
 }

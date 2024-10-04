@@ -1,5 +1,5 @@
+use actix_http::StatusCode;
 use actix_web::{HttpResponse, ResponseError};
-use reqwest::StatusCode;
 
 use crate::{schemas::GenericResponse, utils::error_chain_fmt};
 

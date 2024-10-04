@@ -2,18 +2,19 @@ use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 
 use bigdecimal::{BigDecimal, ToPrimitive};
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use reqwest::Client;
 use serde_json::Value;
 use sqlx::PgPool;
 //use fake::faker::address::raw::Longitude;
 use super::schemas::{
-    BulkSellerProductInfo, ONDCBilling, ONDCCity, ONDCConfirmMessage, ONDCConfirmProvider,
-    ONDCContact, ONDCCountry, ONDCFeeType, ONDCFulfillment, ONDCFulfillmentStopType,
-    ONDCFulfillmentType, ONDCImage, ONDCInitMessage, ONDCInitOrder, ONDCInitPayment,
-    ONDCInitProvider, ONDCInitRequest, ONDCLocationId, ONDCOnSearchItemPrice,
-    ONDCOnSearchItemQuantity, ONDCOnSearchItemTag, ONDCOnSearchPayment,
-    ONDCOnSearchProviderDescriptor, ONDCOnSearchProviderLocation, ONDCOnSearchRequest,
+    BulkSellerProductInfo, ONDCAmount, ONDCBilling, ONDCCity, ONDCConfirmMessage,
+    ONDCConfirmProvider, ONDCContact, ONDCCountry, ONDCFeeType, ONDCFulfillment,
+    ONDCFulfillmentDescriptor, ONDCFulfillmentState, ONDCFulfillmentStopType, ONDCFulfillmentType,
+    ONDCImage, ONDCInitMessage, ONDCInitOrder, ONDCInitPayment, ONDCInitProvider, ONDCInitRequest,
+    ONDCLocationId, ONDCOnSearchItemPrice, ONDCOnSearchItemQuantity, ONDCOnSearchItemTag,
+    ONDCOnSearchPayment, ONDCOnSearchProviderDescriptor, ONDCOnSearchProviderLocation,
+    ONDCOnSearchRequest, ONDCOrderCancellationFee, ONDCOrderCancellationTerm,
     ONDCOrderFulfillmentEnd, ONDCOrderParams, ONDCOrderStatus, ONDCQuantityCountInt,
     ONDCQuantitySelect, ONDCRequestModel, ONDCSearchCategory, ONDCSearchDescriptor,
     ONDCSearchFulfillment, ONDCSearchIntent, ONDCSearchItem, ONDCSearchLocation, ONDCSearchMessage,
@@ -35,9 +36,10 @@ use crate::routes::ondc::schemas::{
 use crate::routes::ondc::{LookupData, ONDCErrorCode, ONDCResponse};
 use crate::routes::order::errors::{ConfirmOrderError, InitOrderError, SelectOrderError};
 use crate::routes::order::schemas::{
-    BuyerCommerce, BuyerCommerceBilling, BuyerCommerceFulfillment, BuyerCommerceItem,
-    BuyerCommercePayment, BuyerTerms, DropOffData, OrderConfirmRequest, OrderDeliveyTerm,
-    OrderInitBilling, OrderInitRequest, OrderSelectFulfillment, OrderSelectItem,
+    BuyerCommerce, BuyerCommerceBilling, BuyerCommerceCancellationFee,
+    BuyerCommerceCancellationTerm, BuyerCommerceFulfillment, BuyerCommerceItem,
+    BuyerCommercePayment, BuyerTerms, CancellationFeeType, DropOffData, OrderConfirmRequest,
+    OrderDeliveyTerm, OrderInitBilling, OrderInitRequest, OrderSelectFulfillment, OrderSelectItem,
     OrderSelectRequest, OrderType, PickUpData, SelectFulfillmentLocation,
 };
 use crate::routes::product::schemas::{
@@ -52,7 +54,8 @@ use crate::routes::product::ProductSearchError;
 use crate::routes::user::schemas::{BusinessAccount, UserAccount};
 use crate::routes::user::utils::get_default_vector_value;
 use crate::schemas::{
-    CountryCode, NetworkCall, ONDCNetworkType, RegisteredNetworkParticipant, WebSocketParam,
+    CountryCode, CurrencyType, NetworkCall, ONDCNetworkType, RegisteredNetworkParticipant,
+    WebSocketParam,
 };
 use crate::utils::get_gps_string;
 use anyhow::anyhow;
@@ -1291,6 +1294,48 @@ pub fn get_ondc_init_payload(
     Ok(ONDCInitRequest { context, message })
 }
 
+pub fn get_ondc_cancel_fee_from_cancel_fee(
+    currency: &CurrencyType,
+    fee: &BuyerCommerceCancellationFee,
+) -> ONDCOrderCancellationFee {
+    match fee.r#type {
+        CancellationFeeType::Percent => ONDCOrderCancellationFee::Percent {
+            percentage: fee.val.to_string(),
+        },
+        CancellationFeeType::Amount => ONDCOrderCancellationFee::Amount {
+            amount: ONDCAmount {
+                currency: currency.clone(),
+                value: fee.val.to_string(),
+            },
+        },
+    }
+}
+
+pub fn get_ondc_cancellation_from_cancelletion_terms(
+    currency_type: &CurrencyType,
+    cancellation_terms: &Vec<BuyerCommerceCancellationTerm>,
+) -> Vec<ONDCOrderCancellationTerm> {
+    let mut ondc_cancel_objs = vec![];
+    for cancellation_term in cancellation_terms {
+        ondc_cancel_objs.push(ONDCOrderCancellationTerm {
+            fulfillment_state: ONDCFulfillmentState {
+                descriptor: ONDCFulfillmentDescriptor {
+                    code: cancellation_term
+                        .fulfillment_state
+                        .get_ondc_fulfillment_state(),
+                },
+            },
+
+            reason_required: cancellation_term.reason_required,
+            cancellation_fee: get_ondc_cancel_fee_from_cancel_fee(
+                currency_type,
+                &cancellation_term.cancellation_fee,
+            ),
+        })
+    }
+    ondc_cancel_objs
+}
+
 pub fn get_tag_value_from_list<'a>(
     tags: &'a [ONDCTag],
     tag_type: ONDCTagType,
@@ -1302,18 +1347,35 @@ pub fn get_tag_value_from_list<'a>(
         .flat_map(|tag| tag.get_tag_value(item_code))
         .next();
     val
-    // return val;
-    // .flat_map(|tag| tag.list.iter())
-    // .find(|item| item.descriptor.code == item_code)
-    // .map(|item| item.value.as_str())
+}
+
+fn get_ondc_confirm_request_payment(order: &BuyerCommerce, confirm_request: &OrderConfirmRequest) {}
+
+fn get_ondc_confirm_request_tags(
+    order: &BuyerCommerce,
+    business_account: &BusinessAccount,
+) -> Result<Vec<ONDCTag>, anyhow::Error> {
+    let mut confirm_tags = vec![];
+    match get_buyer_id_tag(business_account) {
+        Ok(tag_option) => confirm_tags.push(tag_option),
+        Err(e) => return Err(e),
+    }
+    if let Some(bpp_terms) = &order.bpp_terms {
+        confirm_tags.push(ONDCTag::get_bpp_terms_tag(bpp_terms));
+        confirm_tags.push(ONDCTag::get_bap_agreement_to_bpp_terms_tag("Y"));
+    }
+
+    Ok(confirm_tags)
 }
 
 #[tracing::instrument(name = "get ondc confirm message body", skip())]
 fn get_ondc_confirm_message(
     business_account: &BusinessAccount,
     order: &BuyerCommerce,
+    updated_on: &DateTime<Utc>,
 ) -> Result<ONDCConfirmMessage, ConfirmOrderError> {
     let location_ids = order.get_ondc_location_ids();
+
     Ok(ONDCConfirmMessage {
         id: "RAP:001".to_string(),
         state: ONDCOrderStatus::Created,
@@ -1327,30 +1389,17 @@ fn get_ondc_confirm_message(
         items: get_ondc_items_from_order(&order.items),
         fulfillments: get_get_ondc_init_fulfillment(&order.fulfillments),
         billing: get_ondc_billing_from_order_billing(order.billing.as_ref().unwrap()),
-
+        cancellation_terms: get_ondc_cancellation_from_cancelletion_terms(
+            order.currency_type.as_ref().unwrap_or(&CurrencyType::Inr),
+            order.cancellation_terms.as_ref().unwrap(),
+        ),
+        created_at: order.created_on,
+        updated_at: *updated_on,
+        tags: get_ondc_confirm_request_tags(order, business_account)
+            .map_err(|e| ConfirmOrderError::InvalidDataError(e.to_string()))?,
         payments: todo!(),
         quote: todo!(),
-        tags: todo!(),
-        cancellation_terms: todo!(),
     })
-    // Ok(ONDCConfirmMessage {
-    //     order: ONDCConfirmOrder {
-    // provider: ONDCInitProvider {
-    //     id: order.seller.id.clone(),
-    //     locations: location_ids
-    //         .iter()
-    //         .map(|e| ONDCLocationId { id: e.to_string() })
-    //         .collect(),
-    // },
-    //         billing: get_ondc_billing_from_billing(&init_request.billing),
-    //         add_ons: None,
-    //         payments: get_ondc_payment_from_order(&order.payments),
-    //         items: get_ondc_init_items(&order.items),
-
-    //         tags: vec![get_buyer_id_tag(business_account)?],
-    //         fulfillments: get_get_ondc_init_fulfillment(&order.fulfillments),
-    //     },
-    // })
 }
 
 #[tracing::instrument(name = "get ondc confirm payload", skip())]
@@ -1365,6 +1414,6 @@ pub fn get_ondc_confirm_payload(
         &confirm_request.message_id,
         order,
     )?;
-    let message = get_ondc_confirm_message(business_account, order)?;
+    let message = get_ondc_confirm_message(business_account, order, &context.timestamp)?;
     Ok(ONDConfirmRequest { context, message })
 }

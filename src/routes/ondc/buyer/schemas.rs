@@ -4,9 +4,9 @@ use crate::routes::ondc::schemas::{ONDCContext, ONDCResponseErrorBody};
 use crate::routes::ondc::utils::serialize_timestamp_without_nanos;
 use crate::routes::ondc::{ONDCItemUOM, ONDCSellerErrorCode};
 use crate::routes::order::schemas::{
-    CancellationFeeType, CommerceFulfillmentStatusType, FulfillmentCategoryType, IncoTermType,
-    Payment, PaymentSettlementCounterparty, PaymentSettlementDetailModel, PaymentSettlementPhase,
-    PaymentSettlementType, ServiceableType,
+    BuyerCommerceBPPTerms, CancellationFeeType, CommerceFulfillmentStatusType,
+    FulfillmentCategoryType, IncoTermType, Payment, PaymentSettlementCounterparty,
+    PaymentSettlementDetailModel, PaymentSettlementPhase, PaymentSettlementType, ServiceableType,
 };
 use crate::routes::product::schemas::{FulfillmentType, PaymentType};
 use crate::schemas::{CountryCode, CurrencyType, FeeType, ONDCNetworkType, WSKeyTrait};
@@ -19,7 +19,6 @@ use futures_util::future::LocalBoxFuture;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use serde_with::skip_serializing_none;
-use sqlx::postgres::PgHasArrayType;
 use std::str::FromStr;
 use utoipa::ToSchema;
 use uuid::Uuid;
@@ -342,6 +341,47 @@ impl ONDCTag {
                 ONDCTagItem::set_tag_item(ONDCTagItemCode::PackagingsReq, item_terms),
                 ONDCTagItem::set_tag_item(ONDCTagItemCode::ItemReq, packaging_req),
             ],
+        }
+    }
+
+    pub fn get_bpp_terms_tag(commerce_bpp_term: &BuyerCommerceBPPTerms) -> ONDCTag {
+        ONDCTag {
+            descriptor: ONDCTagDescriptor {
+                code: ONDCTagType::BppTerms,
+            },
+            list: vec![
+                ONDCTagItem::set_tag_item(
+                    ONDCTagItemCode::MaxLiability,
+                    &commerce_bpp_term.max_liability.to_string(),
+                ),
+                ONDCTagItem::set_tag_item(
+                    ONDCTagItemCode::MaxLiabilityCap,
+                    &commerce_bpp_term.max_liability_cap.to_string(),
+                ),
+                ONDCTagItem::set_tag_item(
+                    ONDCTagItemCode::MandatoryArbitration,
+                    &commerce_bpp_term.mandatory_arbitration.to_string(),
+                ),
+                ONDCTagItem::set_tag_item(
+                    ONDCTagItemCode::CourtJurisdiction,
+                    &commerce_bpp_term.court_jurisdiction.to_string(),
+                ),
+                ONDCTagItem::set_tag_item(
+                    ONDCTagItemCode::DelayInterest,
+                    &commerce_bpp_term.delay_interest.to_string(),
+                ),
+            ],
+        }
+    }
+    pub fn get_bap_agreement_to_bpp_terms_tag(agree: &str) -> ONDCTag {
+        ONDCTag {
+            descriptor: ONDCTagDescriptor {
+                code: ONDCTagType::BapTerms,
+            },
+            list: vec![ONDCTagItem::set_tag_item(
+                ONDCTagItemCode::AcceptBppTerms,
+                &agree.to_string(),
+            )],
         }
     }
 }
@@ -1176,7 +1216,9 @@ impl FromRequest for ONDCOnSelectRequest {
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct WSError {
+    #[schema(value_type = String)]
     pub transaction_id: Uuid,
+    #[schema(value_type = String)]
     pub message_id: Uuid,
     pub action_type: WebSocketActionType,
     pub error_message: String,
@@ -1234,8 +1276,11 @@ pub struct SellerProductInfo {
     pub seller_subscriber_id: String,
     pub provider_id: String,
     pub provider_name: Option<String>,
+    #[schema(value_type = f64)]
     pub tax_rate: BigDecimal,
+    #[schema(value_type = f64)]
     pub mrp: BigDecimal,
+    #[schema(value_type = f64)]
     pub unit_price: BigDecimal,
     pub images: Value,
 }
@@ -1273,11 +1318,11 @@ pub enum SettlementBasis {
     Delivery,
 }
 
-impl PgHasArrayType for &SettlementBasis {
-    fn array_type_info() -> sqlx::postgres::PgTypeInfo {
-        sqlx::postgres::PgTypeInfo::with_name("_settlement_basis_type")
-    }
-}
+// impl PgHasArrayType for &SettlementBasis {
+//     fn array_type_info() -> sqlx::postgres::PgTypeInfo {
+//         sqlx::postgres::PgTypeInfo::with_name("_settlement_basis_type")
+//     }
+// }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ONDCPaymentSettlementCounterparty {
@@ -1537,6 +1582,10 @@ pub struct ONDCConfirmMessage {
     pub tags: Vec<ONDCTag>,
     pub cancellation_terms: Vec<ONDCOrderCancellationTerm>,
     pub fulfillments: Vec<ONDCFulfillment>,
+    #[serde(serialize_with = "serialize_timestamp_without_nanos")]
+    pub created_at: DateTime<Utc>,
+    #[serde(serialize_with = "serialize_timestamp_without_nanos")]
+    pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

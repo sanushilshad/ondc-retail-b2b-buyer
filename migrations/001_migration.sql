@@ -687,9 +687,9 @@ CREATE TABLE IF NOT EXISTS buyer_commerce_data(
   currency_code currency_code_type,
   city_code TEXT NOT NULL,
   country_code country_code NOT NULL,
-  billing JSON,
-  bpp_terms JSON,
-  cancellation_terms JSON
+  billing JSONB,
+  bpp_terms JSONB,
+  cancellation_terms JSONB
 );
 
 ALTER TABLE buyer_commerce_data ADD CONSTRAINT buyer_commerce_data_uq UNIQUE (external_urn);

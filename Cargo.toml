@@ -7,54 +7,54 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-actix = "0.13.1"
-actix-web = "4"
-actix-http =  "3"
-actix-web-actors = "4"
+actix = "0.13.5"
+actix-web = "4.9"
+actix-http =  "3.9"
+actix-web-actors = "4.3.0"
 anyhow = "1"
 argon2 = { version = "0.5", default-features = false, features = ["std"] }
 async-trait = "0.1.74"
-bigdecimal = { version = "0.3.1", default-features = false, features = ["serde"] }
-base64 = "0.21.0"
+bigdecimal = { version = "0.4.5", default-features = false, features = ["serde"] }
+base64 = "0.22.1"
 blake2 = "0.10.6"
-clap = { version = "4.3", default-features = false, features=["std"]}
-chrono = { version = "0.4", features = ["serde"] }
-config = { version = "0.13.3", default-features = false, features = ["yaml"] }
+# clap = { version = "4.5", default-features = false, features=["std"]}
+chrono = { version = "0.4.38", features = ["serde"] }
+config = { version = "0.14", default-features = false, features = ["yaml"] }
 dotenv = "0.15.0"
 ed25519-dalek = {version="2.1.0"}
 futures = "0.3"
 futures-util = "0.3"
-geocoding = { version = "0.4"}
+# geocoding = { version = "0.4"}
 hex = "0.4"
-jsonwebtoken = "9.2"
-lazy_static = "1.4"
-lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "tokio1-rustls-tls", "hostname", "builder", "pool", "tracing"] }
-opentelemetry = { version = "*", features = ["rt-tokio"] }
-opentelemetry-jaeger = { version = "*", features = ["rt-tokio"] }
-opentelemetry-otlp = {version="*"}
+jsonwebtoken = "9.3"
+lazy_static = "1.5"
+lettre = { version = "0.11.9", default-features = false, features = ["smtp-transport", "tokio1-rustls-tls", "hostname", "builder", "pool", "tracing"] }
+opentelemetry = { version = "0.20", features = ["rt-tokio"] }
+opentelemetry-jaeger = { version = "0.22.0", features = ["rt-tokio"] }
+opentelemetry-otlp = {version="0.13.0"}
 rand = { version = "0.8", features=["std_rng"] }
-redis = { version = "0.24.0", features = ["tokio-comp", "aio"] }
-regex = "1.10.2"
-reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls"] }
+redis = { version = "0.27.2", features = ["tokio-comp"] }
+regex = "1.11.0"
+reqwest = { version = "0.12.7", default-features = false, features = ["json", "rustls-tls"] }
 secrecy = { version = "0.8", features = ["serde"] }
-serde = { version = "1.0"}
-serde_json = { version = "1.0", default-features = false}
-serde_with = "3.4.0"
-sqlx = { version = "0.7", default-features = false, features = ["runtime-tokio-rustls", "macros", "postgres", "uuid", "chrono", "migrate", "json", "bigdecimal"] }
-thiserror = "1"
-tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
-tracing = { version = "0.1", features = ["log"] }
-tracing-actix-web = "0.7.9"
-tracing-bunyan-formatter = "0.3"
+serde = { version = "1.0.210"}
+serde_json = { version = "1.0.128", default-features = false}
+serde_with = "3.9.0"
+sqlx = { version = "0.8.2", default-features = false, features = ["runtime-tokio-rustls", "macros", "postgres", "uuid", "chrono", "migrate", "json", "bigdecimal"] }
+thiserror = "1.0.64"
+tokio = { version = "1.40", features = ["macros", "rt-multi-thread"] }
+tracing = { version = "0.1.40", features = ["log"] }
+tracing-actix-web = "0.7.13"
+tracing-bunyan-formatter = "0.3.9"
 tracing-log = "0.2"
-tracing-opentelemetry = {version="*"}
+tracing-opentelemetry = {version="0.21.0"}
 tracing-subscriber = { version = "0.3", features = ["registry", "env-filter"] }
-utoipa = {version="4.1.0", features=["actix_extras", "chrono"]}
-utoipa-swagger-ui = {version ="5.0.0", features=["actix-web"]}
-utoipauto = "0.1.3"
-validator = {version="0.16.1", features = ["derive"]}
-uuid = { version = "1.3.4", default-features = false, features = ["v4", "serde"] }
-meilisearch-sdk = "0.24.3"
+utoipa = {version="4.2.3", features=["actix_extras", "chrono"]}
+utoipa-swagger-ui = {version ="7.1.0", features=["actix-web"]}
+utoipauto = "0.1.14"
+validator = {version="0.18.1", features = ["derive"]}
+uuid = { version = "1.10.0", default-features = false, features = ["v4", "serde"] }
+meilisearch-sdk = "0.27.1"
 # strum = "0.24"
 # strum_macros = "0.25"
 # protobuf="3.3"

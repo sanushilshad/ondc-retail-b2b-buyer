@@ -13,7 +13,6 @@ use reqwest::{header, Client};
 use secrecy::Secret;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sqlx::postgres::PgHasArrayType;
 use tokio::time::sleep;
 use utoipa::{openapi::Object, ToSchema};
 use uuid::Uuid;
@@ -57,11 +56,11 @@ pub enum Status {
     Archived,
 }
 
-impl PgHasArrayType for Status {
-    fn array_type_info() -> sqlx::postgres::PgTypeInfo {
-        sqlx::postgres::PgTypeInfo::with_name("_status")
-    }
-}
+// impl PgHasArrayType for Status {
+//     fn array_type_info() -> sqlx::postgres::PgTypeInfo {
+//         sqlx::postgres::PgTypeInfo::with_name("_status")
+//     }
+// }
 
 #[derive(Debug, Eq, PartialEq, Hash, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -529,11 +528,11 @@ pub enum FeeType {
     Percent,
     Amount,
 }
-impl PgHasArrayType for &FeeType {
-    fn array_type_info() -> sqlx::postgres::PgTypeInfo {
-        sqlx::postgres::PgTypeInfo::with_name("_ondc_np_fee_type")
-    }
-}
+// impl PgHasArrayType for &FeeType {
+//     fn array_type_info() -> sqlx::postgres::PgTypeInfo {
+//         sqlx::postgres::PgTypeInfo::with_name("_ondc_np_fee_type")
+//     }
+// }
 
 impl std::fmt::Display for FeeType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -588,7 +587,7 @@ impl WSKeyTrait for WebSocketParam {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, sqlx::Type, Clone)]
+#[derive(Debug, Serialize, Deserialize, sqlx::Type, Clone, ToSchema)]
 #[serde(rename_all = "UPPERCASE")]
 #[sqlx(type_name = "ondc_network_participant_type", rename_all = "UPPERCASE")]
 pub enum ONDCNetworkType {
@@ -596,11 +595,11 @@ pub enum ONDCNetworkType {
     Bpp,
 }
 
-impl PgHasArrayType for ONDCNetworkType {
-    fn array_type_info() -> sqlx::postgres::PgTypeInfo {
-        sqlx::postgres::PgTypeInfo::with_name("_ondc_network_participant_type")
-    }
-}
+// impl PgHasArrayType for ONDCNetworkType {
+//     fn array_type_info() -> sqlx::postgres::PgTypeInfo {
+//         sqlx::postgres::PgTypeInfo::with_name("_ondc_network_participant_type")
+//     }
+// }
 
 #[derive(Debug)]
 pub struct ONDCAuthParams {

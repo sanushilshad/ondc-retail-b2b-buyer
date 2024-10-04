@@ -1,4 +1,4 @@
-use redis::{aio::Connection as connection, RedisResult};
+use redis::{aio::MultiplexedConnection, RedisResult};
 use secrecy::ExposeSecret;
 
 use crate::configuration::RedisSettings;
@@ -16,7 +16,7 @@ impl RedisClient {
         Ok(Self { client })
     }
 
-    pub async fn get_connection(&self) -> RedisResult<connection> {
-        self.client.get_async_connection().await
+    pub async fn get_connection(&self) -> RedisResult<MultiplexedConnection> {
+        self.client.get_multiplexed_tokio_connection().await
     }
 }

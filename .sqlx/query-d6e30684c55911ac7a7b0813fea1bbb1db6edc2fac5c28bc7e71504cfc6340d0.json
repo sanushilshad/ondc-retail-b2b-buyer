@@ -10,7 +10,7 @@
         "TextArray",
         {
           "Custom": {
-            "name": "_fulfillment_type",
+            "name": "fulfillment_type[]",
             "kind": {
               "Array": {
                 "Custom": {
@@ -28,7 +28,7 @@
         },
         {
           "Custom": {
-            "name": "_inco_term_type",
+            "name": "inco_term_type[]",
             "kind": {
               "Array": {
                 "Custom": {
