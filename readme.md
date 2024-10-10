@@ -173,7 +173,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [ ] Develop ONDC on update API
 
 ### MILESTONE 2.5:
-* [ ] Develop BAP payment module.
+* [ ] Integrate BAP Payment Gateway
 * [ ] Develop Business Specific Config Module.
 
 ### MILESTONE 3:
@@ -187,7 +187,6 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 ### MILESTONE 4:
 * [ ] Develop info API
 * [ ] Develop ONDC info API
-* [ ] Integrate Payment Gateway
 * [ ] Add Chat Functionality
 * [ ] Develop Business Account fetch API
 * [ ] Develop User Account fetch API
@@ -198,7 +197,6 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [ ] Develop & Integrate permission flow
 * [ ] Develop Permission assignment API
 * [ ] Integrate MeileiSeach
-* [ ] Integrate Redis PubSub With Webocket
 * [ ] Integrate with notification microservice to enable WhatsApp, Email and SMS functionality
 
 ### MILESTONE 4:
