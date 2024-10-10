@@ -150,9 +150,9 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [x] Integrate Websocket 
 * [x] Add business verification middleware
 * [x] Add generic header validation middleware
-* [x] Add realtime search API
 * [x] Add seller auth header validation middleware
-* [x] Add ONDC on search api
+* [x] Develop realtime search API
+* [x] Develop ONDC on search api
 * [x] Fix integration test + add unit test cases for the apis in milestone 1
 * [x] Add application release + debug + kill bash scripts 
 
