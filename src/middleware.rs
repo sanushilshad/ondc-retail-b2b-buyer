@@ -246,7 +246,7 @@ where
                         {
                             tracing::info!({%response_json}, "HTTP Response");
                             tracing::Span::current()
-                                .record("Response body", &tracing::field::display(&response_str));
+                                .record("Response body", tracing::field::display(&response_str));
 
                             response_str.to_string()
                         } else {

@@ -163,7 +163,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [x] Develop ondc on select API
 * [x] Develop init API
 * [x] Develop ONDC on init API
-* [ ] Develop confirm API
+* [x] Develop confirm API
 * [ ] Develop ONDC on on_confirm API
 * [ ] Develop status API
 * [ ] Develop ONDC on status API
@@ -172,7 +172,9 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [ ] Develop update API
 * [ ] Develop ONDC on update API
 
-
+### MILESTONE 2.5:
+* [ ] Develop BAP payment module.
+* [ ] Develop Business Specific Config Module.
 
 ### MILESTONE 3:
 * [ ] Develop IGM issue API
@@ -180,7 +182,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [ ] Develop IGM issue_status API
 * [ ] Develop ONDC on issue_status API
 * [ ] Develop IGM issue close API
-
+* [ ] Integrate Observability Module
 
 ### MILESTONE 4:
 * [ ] Develop info API

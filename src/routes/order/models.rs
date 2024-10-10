@@ -1,21 +1,17 @@
+use crate::routes::product::schemas::{CategoryDomain, FulfillmentType, PaymentType};
+use crate::routes::user::schemas::DataSource;
+use crate::schemas::{CountryCode, CurrencyType, FeeType, ONDCNetworkType};
 use bigdecimal::BigDecimal;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
-
-use crate::{
-    routes::{
-        product::schemas::{CategoryDomain, FulfillmentType, PaymentType},
-        user::schemas::DataSource,
-    },
-    schemas::{CountryCode, CurrencyType, ONDCNetworkType},
-};
 use uuid::Uuid;
 
 use super::schemas::{
     CancellationFeeType, CommerceFulfillmentStatusType, CommerceStatusType, DropOffDataModel,
-    FulfillmentCategoryType, IncoTermType, OrderBillingModel, OrderType, PickUpDataModel,
-    ServiceableType,
+    FulfillmentCategoryType, IncoTermType, OrderBillingModel, OrderType,
+    PaymentSettlementCounterparty, PaymentSettlementPhase, PaymentSettlementType, PickUpDataModel,
+    ServiceableType, SettlementBasis,
 };
 
 #[derive(Debug, Serialize, Deserialize, FromRow)]
@@ -95,6 +91,17 @@ pub struct BuyerCommerceItemModel {
     pub fulfillment_ids: Option<sqlx::types::Json<Vec<String>>>,
 }
 
+#[derive(Debug, Serialize, Deserialize, FromRow)]
+pub struct PaymentSettlementDetailModel {
+    pub settlement_counterparty: PaymentSettlementCounterparty,
+    pub settlement_phase: PaymentSettlementPhase,
+    pub settlement_type: PaymentSettlementType,
+    pub settlement_bank_account_no: String,
+    pub settlement_ifsc_code: String,
+    pub beneficiary_name: String,
+    pub bank_name: String,
+}
+
 #[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 pub struct BuyerCommercePaymentModel {
@@ -102,6 +109,13 @@ pub struct BuyerCommercePaymentModel {
     pub collected_by: Option<ONDCNetworkType>,
     pub payment_type: PaymentType,
     pub commerce_data_id: Uuid,
+    pub seller_payment_uri: Option<String>,
+    pub buyer_fee_type: Option<FeeType>,
+    pub buyer_fee_amount: Option<BigDecimal>,
+    pub settlement_basis: Option<SettlementBasis>,
+    pub settlement_window: Option<String>,
+    pub withholding_amount: Option<BigDecimal>,
+    pub settlement_details: Option<sqlx::types::Json<Vec<PaymentSettlementDetailModel>>>,
 }
 
 #[allow(dead_code)]

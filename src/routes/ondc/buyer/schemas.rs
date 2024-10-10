@@ -3,10 +3,11 @@ use crate::domain::EmailObject;
 use crate::routes::ondc::schemas::{ONDCContext, ONDCResponseErrorBody};
 use crate::routes::ondc::utils::serialize_timestamp_without_nanos;
 use crate::routes::ondc::{ONDCItemUOM, ONDCSellerErrorCode};
+use crate::routes::order::models::PaymentSettlementDetailModel;
 use crate::routes::order::schemas::{
     BuyerCommerceBPPTerms, CancellationFeeType, CommerceFulfillmentStatusType,
     FulfillmentCategoryType, IncoTermType, Payment, PaymentSettlementCounterparty,
-    PaymentSettlementDetailModel, PaymentSettlementPhase, PaymentSettlementType, ServiceableType,
+    PaymentSettlementPhase, PaymentSettlementType, ServiceableType, SettlementBasis,
 };
 use crate::routes::product::schemas::{FulfillmentType, PaymentType};
 use crate::schemas::{CountryCode, CurrencyType, FeeType, ONDCNetworkType, WSKeyTrait};
@@ -352,11 +353,11 @@ impl ONDCTag {
             list: vec![
                 ONDCTagItem::set_tag_item(
                     ONDCTagItemCode::MaxLiability,
-                    &commerce_bpp_term.max_liability.to_string(),
+                    &commerce_bpp_term.max_liability,
                 ),
                 ONDCTagItem::set_tag_item(
                     ONDCTagItemCode::MaxLiabilityCap,
-                    &commerce_bpp_term.max_liability_cap.to_string(),
+                    &commerce_bpp_term.max_liability_cap,
                 ),
                 ONDCTagItem::set_tag_item(
                     ONDCTagItemCode::MandatoryArbitration,
@@ -364,11 +365,11 @@ impl ONDCTag {
                 ),
                 ONDCTagItem::set_tag_item(
                     ONDCTagItemCode::CourtJurisdiction,
-                    &commerce_bpp_term.court_jurisdiction.to_string(),
+                    &commerce_bpp_term.court_jurisdiction,
                 ),
                 ONDCTagItem::set_tag_item(
                     ONDCTagItemCode::DelayInterest,
-                    &commerce_bpp_term.delay_interest.to_string(),
+                    &commerce_bpp_term.delay_interest,
                 ),
             ],
         }
@@ -380,7 +381,7 @@ impl ONDCTag {
             },
             list: vec![ONDCTagItem::set_tag_item(
                 ONDCTagItemCode::AcceptBppTerms,
-                &agree.to_string(),
+                agree,
             )],
         }
     }
@@ -1160,7 +1161,7 @@ pub struct ONDCBreakupItemInfo {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCBreakUp {
-    title: String,
+    pub title: String,
     #[serde(rename = "@ondc/org/item_id")]
     pub item_id: Option<String>,
     #[serde(rename = "@ondc/org/title_type")]
@@ -1171,10 +1172,30 @@ pub struct ONDCBreakUp {
     pub item: Option<ONDCBreakupItemInfo>,
 }
 
+impl ONDCBreakUp {
+    pub fn create(
+        title: String,
+        item_id: Option<String>,
+        title_type: BreakupTitleType,
+        price: ONDCAmount,
+        quantity: Option<ONDCOrderItemQuantity>,
+        item: Option<ONDCBreakupItemInfo>,
+    ) -> Self {
+        Self {
+            title,
+            item_id,
+            title_type,
+            price,
+            quantity,
+            item,
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCQuote {
     pub price: ONDCAmount,
-    ttl: String,
+    pub ttl: String,
     pub breakup: Vec<ONDCBreakUp>,
 }
 
@@ -1309,13 +1330,22 @@ pub struct ONDCOnInitProvider {
     pub id: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, sqlx::Type)]
+#[derive(Debug, Serialize, Deserialize, sqlx::Type, Clone)]
 #[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "settlement_basis_type", rename_all = "snake_case")]
-pub enum SettlementBasis {
+pub enum ONDCSettlementBasis {
     ReturnWindowExpiry,
     Shipment,
     Delivery,
+}
+
+impl ONDCSettlementBasis {
+    pub fn get_settlement_basis_from_ondc_type(&self) -> SettlementBasis {
+        match self {
+            ONDCSettlementBasis::ReturnWindowExpiry => SettlementBasis::ReturnWindowExpiry,
+            ONDCSettlementBasis::Shipment => SettlementBasis::Shipment,
+            ONDCSettlementBasis::Delivery => SettlementBasis::Delivery,
+        }
+    }
 }
 
 // impl PgHasArrayType for &SettlementBasis {
@@ -1363,7 +1393,7 @@ pub enum ONDCPaymentSettlementType {
 }
 
 impl ONDCPaymentSettlementType {
-    pub fn get_fee_type(&self) -> PaymentSettlementType {
+    pub fn get_settlement_type(&self) -> PaymentSettlementType {
         match self {
             ONDCPaymentSettlementType::Neft => PaymentSettlementType::Neft,
         }
@@ -1385,7 +1415,7 @@ impl ONDCPaymentSettlementDetail {
         PaymentSettlementDetailModel {
             settlement_counterparty: self.settlement_counterparty.get_settlement_counterparty(),
             settlement_phase: self.settlement_phase.get_settlement_phase(),
-            settlement_type: self.settlement_type.get_fee_type(),
+            settlement_type: self.settlement_type.get_settlement_type(),
             settlement_bank_account_no: self.settlement_bank_account_no.clone(),
             settlement_ifsc_code: self.settlement_ifsc_code.clone(),
             beneficiary_name: self.beneficiary_name.clone(),
@@ -1402,7 +1432,7 @@ pub struct ONDCOnInitPayment {
     #[serde(rename = "@ondc/org/buyer_app_finder_fee_amount")]
     pub buyer_app_finder_fee_amount: String,
     #[serde(rename = "@ondc/org/settlement_basis")]
-    pub settlement_basis: SettlementBasis,
+    pub settlement_basis: ONDCSettlementBasis,
     #[serde(rename = "@ondc/org/settlement_window")]
     pub settlement_window: String,
     #[serde(rename = "@ondc/org/withholding_amount")]
@@ -1570,8 +1600,9 @@ pub enum ONDCOrderStatus {
     Accepted,
     Completed,
 }
+
 #[derive(Debug, Serialize, Deserialize)]
-pub struct ONDCConfirmMessage {
+pub struct ONDCConfirmOrder {
     pub id: String,
     pub state: ONDCOrderStatus,
     pub provider: ONDCConfirmProvider,
@@ -1586,6 +1617,11 @@ pub struct ONDCConfirmMessage {
     pub created_at: DateTime<Utc>,
     #[serde(serialize_with = "serialize_timestamp_without_nanos")]
     pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCConfirmMessage {
+    pub order: ONDCConfirmOrder,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -1604,8 +1640,9 @@ pub enum ONDCPaymentStatus {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCPaymentParams {
-    amount: String,
-    currency: CurrencyType,
+    pub amount: String,
+    pub currency: CurrencyType,
+    pub transaction_id: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -1617,7 +1654,7 @@ pub struct ONDCOnConfirmPayment {
     #[serde(rename = "@ondc/org/buyer_app_finder_fee_amount")]
     pub buyer_app_finder_fee_amount: String,
     #[serde(rename = "@ondc/org/settlement_basis")]
-    pub settlement_basis: SettlementBasis,
+    pub settlement_basis: ONDCSettlementBasis,
     #[serde(rename = "@ondc/org/settlement_window")]
     pub settlement_window: String,
     #[serde(rename = "@ondc/org/withholding_amount")]

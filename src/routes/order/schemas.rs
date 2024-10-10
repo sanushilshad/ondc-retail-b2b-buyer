@@ -1,11 +1,14 @@
 use std::collections::HashSet;
 
 use crate::errors::GenericError;
-use crate::routes::ondc::buyer::schemas::ONDCFulfillmentStateType;
+use crate::routes::ondc::buyer::schemas::{
+    ONDCFulfillmentStateType, ONDCPaymentSettlementCounterparty, ONDCPaymentSettlementPhase,
+    ONDCPaymentSettlementType, ONDCSettlementBasis,
+};
 use crate::routes::product::schemas::FulfillmentType;
 use crate::routes::product::schemas::{CategoryDomain, PaymentType};
 use crate::routes::user::schemas::DataSource;
-use crate::schemas::{CountryCode, CurrencyType, ONDCNetworkType};
+use crate::schemas::{CountryCode, CurrencyType, FeeType, ONDCNetworkType};
 // use crate::utils::deserialize_non_empty_vector;
 use actix_http::Payload;
 use actix_web::{web, FromRequest, HttpRequest};
@@ -307,12 +310,50 @@ pub struct BasicNetWorkData {
     pub id: String,
     pub uri: String,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PaymentSettlementDetail {
+    pub settlement_counterparty: PaymentSettlementCounterparty,
+    pub settlement_phase: PaymentSettlementPhase,
+    pub settlement_type: PaymentSettlementType,
+    pub settlement_bank_account_no: String,
+    pub settlement_ifsc_code: String,
+    pub beneficiary_name: String,
+    pub bank_name: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, sqlx::Type, Clone)]
+#[serde(rename_all = "snake_case")]
+#[sqlx(type_name = "settlement_basis_type", rename_all = "snake_case")]
+pub enum SettlementBasis {
+    ReturnWindowExpiry,
+    Shipment,
+    Delivery,
+}
+
+impl SettlementBasis {
+    pub fn get_ondc_settlement_basis(self) -> ONDCSettlementBasis {
+        match self {
+            SettlementBasis::ReturnWindowExpiry => ONDCSettlementBasis::ReturnWindowExpiry,
+            SettlementBasis::Shipment => ONDCSettlementBasis::Shipment,
+            SettlementBasis::Delivery => ONDCSettlementBasis::Delivery,
+        }
+    }
+}
+
 #[derive(Deserialize, Debug, ToSchema)]
 pub struct BuyerCommercePayment {
     #[schema(value_type = String)]
     pub id: Uuid,
     pub collected_by: Option<ONDCNetworkType>,
     pub payment_type: PaymentType,
+    pub buyer_fee_type: Option<FeeType>,
+    pub buyer_fee_amount: Option<String>,
+    pub settlement_basis: Option<SettlementBasis>,
+    pub settlement_window: Option<String>,
+    pub withholding_amount: Option<String>,
+    pub uri: Option<String>,
+    pub settlement_details: Option<Vec<PaymentSettlementDetail>>,
 }
 
 #[derive(Deserialize, Debug, ToSchema, sqlx::Type, Serialize, Clone)]
@@ -524,32 +565,47 @@ impl BuyerCommerce {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PaymentSettlementCounterparty {
-    #[serde(rename = "buyer-app")]
     BuyerApp,
-    #[serde(rename = "seller-app")]
     SellerApp,
 }
 
+impl PaymentSettlementCounterparty {
+    pub fn get_ondc_settlement_counterparty(&self) -> ONDCPaymentSettlementCounterparty {
+        match self {
+            PaymentSettlementCounterparty::BuyerApp => ONDCPaymentSettlementCounterparty::BuyerApp,
+            PaymentSettlementCounterparty::SellerApp => {
+                ONDCPaymentSettlementCounterparty::SellerApp
+            }
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum PaymentSettlementPhase {
-    #[serde(rename = "sale-amount")]
     SaleAmount,
 }
+
+impl PaymentSettlementPhase {
+    pub fn get_ondc_settlement_phase(&self) -> ONDCPaymentSettlementPhase {
+        match self {
+            PaymentSettlementPhase::SaleAmount => ONDCPaymentSettlementPhase::SaleAmount,
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PaymentSettlementType {
     Neft,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct PaymentSettlementDetailModel {
-    pub settlement_counterparty: PaymentSettlementCounterparty,
-    pub settlement_phase: PaymentSettlementPhase,
-    pub settlement_type: PaymentSettlementType,
-    pub settlement_bank_account_no: String,
-    pub settlement_ifsc_code: String,
-    pub beneficiary_name: String,
-    pub bank_name: String,
+impl PaymentSettlementType {
+    pub fn get_ondc_settlement_type(&self) -> ONDCPaymentSettlementType {
+        match self {
+            PaymentSettlementType::Neft => ONDCPaymentSettlementType::Neft,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -570,13 +626,13 @@ pub enum CancellationFeeType {
     Amount,
 }
 
-#[derive(Deserialize, Debug, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct OrderConfirmPayment {
-    pub id: String,
-    #[schema(value_type = f64)]
-    pub amount: BigDecimal,
-}
+// #[derive(Deserialize, Debug, ToSchema)]
+// #[serde(rename_all = "camelCase")]
+// pub struct OrderConfirmPayment {
+//     pub id: String,
+//     #[schema(value_type = f64)]
+//     pub amount: BigDecimal,
+// }
 
 #[derive(Deserialize, Debug, ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -585,7 +641,7 @@ pub struct OrderConfirmRequest {
     pub transaction_id: Uuid,
     #[schema(value_type = String)]
     pub message_id: Uuid,
-    pub payment: OrderConfirmPayment,
+    // pub payment: OrderConfirmPayment,
 }
 
 impl FromRequest for OrderConfirmRequest {

@@ -1,14 +1,14 @@
 use super::models::{
     BuyerCommerceBppTermsModel, BuyerCommerceDataModel, BuyerCommerceFulfillmentModel,
     BuyerCommerceItemModel, BuyerCommercePaymentModel, OrderCancellationFeeModel,
-    OrderCancellationTermModel,
+    OrderCancellationTermModel, PaymentSettlementDetailModel,
 };
 use super::schemas::{
     BasicNetWorkData, BuyerCommerce, BuyerCommerceBPPTerms, BuyerCommerceBilling,
     BuyerCommerceCancellationFee, BuyerCommerceCancellationTerm, BuyerCommerceFulfillment,
     BuyerCommerceItem, BuyerCommercePayment, BuyerCommerceSeller, BuyerTerm, DropOffContactModel,
     DropOffData, DropOffDataModel, DropOffLocationModel, FulfillmentContact, FulfillmentLocation,
-    OrderBillingModel, OrderSelectFulfillment, OrderSelectRequest, PaymentSettlementDetailModel,
+    OrderBillingModel, OrderSelectFulfillment, OrderSelectRequest, PaymentSettlementDetail,
     PickUpData, PickUpDataModel, SelectFulfillmentLocation,
 };
 use crate::constants::ONDC_TTL;
@@ -16,8 +16,7 @@ use crate::routes::ondc::buyer::schemas::{
     BreakupTitleType, ONDCBilling, ONDCBreakUp, ONDCFulfillment, ONDCFulfillmentCategoryType,
     ONDCFulfillmentStopType, ONDCOnInitPayment, ONDCOnInitRequest, ONDCOnSelectFulfillment,
     ONDCOnSelectPayment, ONDCOnSelectRequest, ONDCOrderCancellationTerm, ONDCOrderFulfillmentEnd,
-    ONDCSelectRequest, ONDCTag, ONDCTagItemCode, ONDCTagType, SellerProductInfo, SettlementBasis,
-    TagTrait,
+    ONDCSelectRequest, ONDCTag, ONDCTagItemCode, ONDCTagType, SellerProductInfo, TagTrait,
 };
 use crate::routes::ondc::buyer::utils::{
     get_ondc_seller_mapping_key, get_ondc_seller_product_info_mapping, get_tag_value_from_list,
@@ -25,7 +24,7 @@ use crate::routes::ondc::buyer::utils::{
 use crate::routes::ondc::{LookupData, ONDCActionType};
 use crate::routes::order::schemas::{
     CommerceFulfillmentStatusType, CommerceStatusType, DeliveryTerm, FulfillmentCategoryType,
-    IncoTermType, OrderType, ServiceableType,
+    IncoTermType, OrderType, ServiceableType, SettlementBasis,
 };
 use crate::routes::product::schemas::{CategoryDomain, FulfillmentType, PaymentType};
 use crate::routes::user::schemas::{BusinessAccount, DataSource, UserAccount};
@@ -193,7 +192,7 @@ pub async fn save_rfq_fulfillment(
         fulfillment_type_list.push(&fulfillment.r#type);
         if fulfillment.r#type == FulfillmentType::Delivery {
             drop_off_data_list.push(
-                serde_json::to_value(&create_drop_off_from_rfq_select_fulfullment(
+                serde_json::to_value(create_drop_off_from_rfq_select_fulfullment(
                     &fulfillment.location,
                 ))
                 .unwrap(),
@@ -239,7 +238,7 @@ pub async fn save_order_select_items(
 ) -> Result<(), anyhow::Error> {
     let item_count = select_request.items.len();
     let line_id_list: Vec<Uuid> = (0..item_count).map(|_| Uuid::new_v4()).collect();
-    let order_id_list: Vec<Uuid> = vec![*order_id; item_count as usize];
+    let order_id_list: Vec<Uuid> = vec![*order_id; item_count];
     let mut item_id_list = vec![];
     let mut item_code_list: Vec<Option<&str>> = vec![];
     let mut item_name_list = vec![];
@@ -522,11 +521,10 @@ pub async fn save_on_select_fulfillment(
     let mut packaging_charge_list = vec![];
     let mut convenience_fee_list = vec![];
     let delivery_charge_mapping =
-        get_quote_item_value_mapping(&ondc_quote, &BreakupTitleType::Delivery);
+        get_quote_item_value_mapping(ondc_quote, &BreakupTitleType::Delivery);
     let packaging_charge_mapping =
-        get_quote_item_value_mapping(&ondc_quote, &BreakupTitleType::Packing);
-    let convenience_fee_mapping =
-        get_quote_item_value_mapping(&ondc_quote, &BreakupTitleType::Misc);
+        get_quote_item_value_mapping(ondc_quote, &BreakupTitleType::Packing);
+    let convenience_fee_mapping = get_quote_item_value_mapping(ondc_quote, &BreakupTitleType::Misc);
     for fulfillment in on_select_fulfillments {
         order_list.push(*order_id);
         id_list.push(Uuid::new_v4());
@@ -860,7 +858,7 @@ pub async fn save_order_on_select_items(
 ) -> Result<(), anyhow::Error> {
     let item_count = ondc_on_select_request.message.order.items.len();
     let line_id_list: Vec<Uuid> = (0..item_count).map(|_| Uuid::new_v4()).collect();
-    let order_id_list: Vec<Uuid> = vec![*order_id; item_count as usize];
+    let order_id_list: Vec<Uuid> = vec![*order_id; item_count];
     let mut item_id_list = vec![];
     let mut item_code_list: Vec<Option<&str>> = vec![];
     let mut item_name_list = vec![];
@@ -1114,7 +1112,7 @@ async fn get_buyer_commerce_data_line(
     .fetch_all(pool)
     .await
     .map_err(|e| {
-        tracing::error!("Failed to execute query: {:?}", e);
+        tracing::error!("Failed to execute query: at buyer commerce line{:?}", e);
         anyhow::Error::new(e).context(
             "A database failure occurred while fetching buyer_commerce data line from database",
         )
@@ -1135,7 +1133,14 @@ async fn get_buyer_commerce_payments(
             id, 
             collected_by as "collected_by?: ONDCNetworkType",
             payment_type as "payment_type!: PaymentType", 
-            commerce_data_id
+            commerce_data_id,
+            seller_payment_uri,
+            buyer_fee_type  as "buyer_fee_type?: FeeType",
+            buyer_fee_amount,
+            settlement_window,
+            settlement_basis as "settlement_basis?: SettlementBasis",
+            withholding_amount,
+            settlement_details as "settlement_details?: Json<Vec<PaymentSettlementDetailModel>>"
         FROM buyer_commerce_payment 
         WHERE commerce_data_id = $1
         "#,
@@ -1144,7 +1149,10 @@ async fn get_buyer_commerce_payments(
     .fetch_all(pool)
     .await
     .map_err(|e| {
-        tracing::error!("Failed to execute query: {:?}", e);
+        tracing::error!(
+            "Failed to execute query while fetching buyer_commerce data payment: {:?}",
+            e
+        );
         anyhow::Error::new(e).context(
             "A database failure occurred while fetching buyer_commerce data payment from database",
         )
@@ -1187,7 +1195,7 @@ async fn get_buyer_commerce_fulfillments(
     .fetch_all(pool)
     .await
     .map_err(|e| {
-        tracing::error!("Failed to execute query: {:?}", e);
+        tracing::error!("Failed to execute query for fetch buyer commerce fulfillment fetch: {:?}", e);
         anyhow::Error::new(e).context(
             "A database failure occurred while fetching buyer_commerce data fulfillments from database",
         )
@@ -1201,10 +1209,32 @@ fn get_order_payment_from_model(
 ) -> Vec<BuyerCommercePayment> {
     let mut payment_obj = vec![];
     for payment in payments {
+        let mut settlement_details_list = vec![];
+        if let Some(settlement_details) = payment.settlement_details {
+            for settlement_model in settlement_details.0 {
+                settlement_details_list.push(PaymentSettlementDetail {
+                    settlement_counterparty: settlement_model.settlement_counterparty,
+                    settlement_phase: settlement_model.settlement_phase,
+                    settlement_type: settlement_model.settlement_type,
+                    settlement_bank_account_no: settlement_model.settlement_bank_account_no,
+                    settlement_ifsc_code: settlement_model.settlement_ifsc_code,
+                    beneficiary_name: settlement_model.beneficiary_name,
+                    bank_name: settlement_model.bank_name,
+                })
+            }
+        }
+
         payment_obj.push(BuyerCommercePayment {
             id: payment.id,
             collected_by: payment.collected_by,
             payment_type: payment.payment_type,
+            uri: payment.seller_payment_uri,
+            buyer_fee_type: payment.buyer_fee_type,
+            buyer_fee_amount: payment.buyer_fee_amount.map(|v| v.to_string()),
+            settlement_basis: payment.settlement_basis,
+            settlement_window: payment.settlement_window,
+            withholding_amount: payment.withholding_amount.map(|v| v.to_string()),
+            settlement_details: Some(settlement_details_list),
         })
     }
     payment_obj
@@ -1412,8 +1442,7 @@ fn get_order_from_model(
         billing: order
             .billing
             .as_ref()
-            .clone()
-            .map(|billing| get_order_billing_from_model(&billing)),
+            .map(|billing| get_order_billing_from_model(billing)),
         cancellation_terms: cancelletion_model_obj,
         currency_type: order.currency_code,
         bpp_terms: order
@@ -1429,7 +1458,9 @@ pub async fn fetch_order_by_id(
 ) -> Result<Option<BuyerCommerce>, anyhow::Error> {
     if let Some(order_data) = get_buyer_commerce_data(pool, transaction_id).await? {
         let lines = get_buyer_commerce_data_line(pool, &order_data.id).await?;
+        //let payments_2 = get_buyer_commerce_payments_2(pool, &order_data.id).await?;
         let payments = get_buyer_commerce_payments(pool, &order_data.id).await?;
+
         let fulfillmets = get_buyer_commerce_fulfillments(pool, &order_data.id).await?;
         Ok(Some(get_order_from_model(
             order_data,
@@ -1496,7 +1527,11 @@ pub async fn initialize_payment_on_init(
         settlement_window_list.push(payment.settlement_window.as_str());
         withholding_amount_list.push(BigDecimal::from_str(&payment.withholding_amount).unwrap());
         seller_payment_uri_list.push(payment.uri.as_deref());
-        settlement_basis_list.push(&payment.settlement_basis);
+        settlement_basis_list.push(
+            payment
+                .settlement_basis
+                .get_settlement_basis_from_ondc_type(),
+        );
         seller_payment_ttl.push(payment.tags.as_ref().map(|tag| {
             get_tag_value_from_list(
                 tag,
@@ -1521,16 +1556,25 @@ pub async fn initialize_payment_on_init(
             )
             .unwrap_or_default()
         }));
-        let settlement_details: Option<Vec<PaymentSettlementDetailModel>> = payment
-            .settlement_details
-            .as_ref() // Borrow the Option<Vec<ONDCPaymentSettlementDetail>>
-            .map(|details| {
-                details
-                    .iter()
-                    .map(|e| e.to_payment_settlement_detail())
-                    .collect::<Vec<PaymentSettlementDetailModel>>()
-            });
-        settlement_detail_list.push(serde_json::to_value(settlement_details).unwrap());
+        if let Some(settlement_details) = &payment.settlement_details {
+            let settlement_details: Vec<PaymentSettlementDetailModel> = settlement_details
+                .iter()
+                .map(|e| e.to_payment_settlement_detail())
+                .collect::<Vec<PaymentSettlementDetailModel>>();
+            settlement_detail_list.push(Some(serde_json::to_value(settlement_details).unwrap()));
+        } else {
+            settlement_detail_list.push(None);
+        }
+        // let settlement_details: Option<Vec<PaymentSettlementDetailModel>> = payment
+        //     .settlement_details
+        //     .as_ref() // Borrow the Option<Vec<ONDCPaymentSettlementDetail>>
+        //     .map(|details| {
+        //         details
+        //             .iter()
+        //             .map(|e| e.to_payment_settlement_detail())
+        //             .collect::<Vec<PaymentSettlementDetailModel>>()
+        //     });
+        // settlement_detail_list.push(serde_json::to_value(settlement_details).unwrap());
     }
     let query = sqlx::query!(
         r#"
@@ -1550,11 +1594,11 @@ pub async fn initialize_payment_on_init(
         &settlement_window_list[..] as &[&str],
         &withholding_amount_list[..] as &[BigDecimal],
         &seller_payment_uri_list[..] as &[Option<&str>],
-        &settlement_basis_list[..] as &[&SettlementBasis],
+        &settlement_basis_list[..] as &[SettlementBasis],
         &seller_payment_ttl[..] as &[Option<&str>],
         &seller_payment_dsa_list[..] as &[Option<&str>],
         &seller_payment_signature_list[..] as &[Option<&str>],
-        &settlement_detail_list[..] as &[Value],
+        &settlement_detail_list[..] as &[Option<Value>]
     );
 
     transaction.execute(query).await.map_err(|e| {

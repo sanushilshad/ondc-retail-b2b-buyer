@@ -41,7 +41,7 @@ pub async fn register_user_account(
     } else {
         match register_user(&pool, &body.0, &meta_data.domain_uri).await {
             Ok(uuid) => {
-                tracing::Span::current().record("user_id", &tracing::field::display(&uuid));
+                tracing::Span::current().record("user_id", tracing::field::display(&uuid));
                 Ok(web::Json(GenericResponse::success(
                     "Sucessfully Registered User",
                     Some(()),
@@ -71,10 +71,10 @@ pub async fn authenticate(
     secret_obj: web::Data<SecretSetting>,
 ) -> Result<web::Json<GenericResponse<AuthData>>, GenericError> {
     // tracing::Span::current().record("request_body", &tracing::field::debug(&body));
-    tracing::Span::current().record("identifier", &tracing::field::display(&body.identifier));
+    tracing::Span::current().record("identifier", tracing::field::display(&body.identifier));
     match validate_user_credentials(body.0, &pool).await {
         Ok(Some(user_id)) => {
-            tracing::Span::current().record("user_id", &tracing::field::display(&user_id));
+            tracing::Span::current().record("user_id", tracing::field::display(&user_id));
             match fetch_user(vec![&user_id.to_string()], &pool).await {
                 Ok(Some(user_obj)) => {
                     let auth_obj = get_auth_data(&pool, user_obj, &secret_obj.jwt).await?;
