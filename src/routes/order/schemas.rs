@@ -580,8 +580,9 @@ impl PaymentSettlementCounterparty {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, sqlx::Type)]
 #[serde(rename_all = "snake_case")]
+#[sqlx(type_name = "payment_settlement_type", rename_all = "snake_case")]
 pub enum PaymentSettlementPhase {
     SaleAmount,
 }
@@ -594,8 +595,9 @@ impl PaymentSettlementPhase {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, sqlx::Type)]
 #[serde(rename_all = "snake_case")]
+#[sqlx(type_name = "payment_settlement_phase", rename_all = "snake_case")]
 pub enum PaymentSettlementType {
     Neft,
 }

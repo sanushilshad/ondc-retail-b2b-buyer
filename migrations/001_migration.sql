@@ -259,6 +259,13 @@ CREATE TYPE ondc_np_fee_type AS ENUM (
   'amount'
 );
 
+CREATE TYPE payment_settlement_phase AS ENUM (
+  'sale_amount'
+);
+
+CREATE TYPE payment_settlement_type AS ENUM (
+  'neft'
+);
 
 CREATE TABLE IF NOT EXISTS registered_network_participant (
   id uuid PRIMARY KEY,
@@ -275,7 +282,14 @@ CREATE TABLE IF NOT EXISTS registered_network_participant (
   created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   created_by uuid NOT NULL,
   fee_type ondc_np_fee_type DEFAULT 'percent'::ondc_np_fee_type NOT NULL,
-  fee_value DECIMAL(20, 3) NOT NULL DEFAULT 0.00
+  fee_value DECIMAL(20, 3) NOT NULL DEFAULT 0.00,
+  settlement_phase payment_settlement_phase NOT NULL,
+  settlement_type payment_settlement_type NOT NULL,
+  bank_account_no TEXT NOT NULL,
+  bank_ifsc_code TEXT NOT NULL,
+  bank_beneficiary_name TEXT NOT NULL,
+  bank_name TEXT NOT NULL
+
 );
 
 ALTER TABLE registered_network_participant ADD CONSTRAINT registered_network_participant_constraint UNIQUE (subscriber_id, network_participant_type);

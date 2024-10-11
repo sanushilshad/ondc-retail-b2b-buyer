@@ -4,8 +4,8 @@ use std::{
     time::Duration,
 };
 
-use crate::errors::RequestMetaError;
-use crate::routes::user::schemas::AuthData;
+use crate::routes::{order::schemas::PaymentSettlementType, user::schemas::AuthData};
+use crate::{errors::RequestMetaError, routes::order::schemas::PaymentSettlementPhase};
 use actix_web::{error::ErrorInternalServerError, FromRequest, HttpMessage};
 use bigdecimal::BigDecimal;
 use futures_util::future::{ready, Ready};
@@ -559,6 +559,12 @@ pub struct RegisteredNetworkParticipant {
     pub fee_type: FeeType,
     pub fee_value: BigDecimal,
     pub unique_key_id: String,
+    pub settlement_phase: PaymentSettlementPhase,
+    pub settlement_type: PaymentSettlementType,
+    pub bank_account_no: String,
+    pub bank_ifsc_code: String,
+    pub bank_beneficiary_name: String,
+    pub bank_name: String,
 }
 
 #[derive(Debug, Serialize, sqlx::Type)]
@@ -587,7 +593,7 @@ impl WSKeyTrait for WebSocketParam {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, sqlx::Type, Clone, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, sqlx::Type, Clone, ToSchema, PartialEq)]
 #[serde(rename_all = "UPPERCASE")]
 #[sqlx(type_name = "ondc_network_participant_type", rename_all = "UPPERCASE")]
 pub enum ONDCNetworkType {

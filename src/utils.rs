@@ -4,6 +4,7 @@ use crate::email_client::{GenericEmailService, SmtpEmailClient};
 use crate::errors::CustomJWTTokenError;
 use crate::migration;
 use crate::models::RegisteredNetworkParticipantModel;
+use crate::routes::order::schemas::{PaymentSettlementPhase, PaymentSettlementType};
 use crate::schemas::ONDCAuthParams;
 use crate::schemas::{
     CommunicationType, FeeType, JWTClaims, ONDCNPType, RegisteredNetworkParticipant,
@@ -30,7 +31,6 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::{fmt, fs, io, sync::Arc};
 use uuid::Uuid;
-
 pub fn get_ondc_params_from_header(header: &str) -> Result<ONDCAuthParams, anyhow::Error> {
     let captures = AUTHORIZATION_PATTERN
         .captures(header)
@@ -387,7 +387,11 @@ pub async fn get_network_participant_detail_model(
 ) -> Result<Option<RegisteredNetworkParticipantModel>, anyhow::Error> {
     let row: Option<RegisteredNetworkParticipantModel> = sqlx::query_as!(
         RegisteredNetworkParticipantModel,
-        r#"SELECT id, code, name, logo, unique_key_id, fee_type as "fee_type: FeeType", fee_value, signing_key, subscriber_id, subscriber_uri, long_description, short_description FROM registered_network_participant WHERE subscriber_id = $1 AND network_participant_type = $2"#,
+        r#"SELECT id, code, name, logo, unique_key_id, fee_type as "fee_type: FeeType",
+        fee_value, signing_key, subscriber_id, subscriber_uri, long_description,
+        settlement_phase as "settlement_phase: PaymentSettlementPhase", settlement_type as "settlement_type: PaymentSettlementType",
+        bank_account_no, bank_ifsc_code, bank_beneficiary_name, bank_name, short_description 
+        FROM registered_network_participant WHERE subscriber_id = $1 AND network_participant_type = $2"#,
         subscriber_id,
         &network_participant_type as &ONDCNPType,
     )
@@ -412,6 +416,12 @@ pub fn get_network_participant_detail_from_model(
         fee_type: network_model.fee_type,
         fee_value: BigDecimal::from_str(&network_model.fee_value.to_string()).unwrap(),
         unique_key_id: network_model.unique_key_id,
+        settlement_phase: network_model.settlement_phase,
+        settlement_type: network_model.settlement_type,
+        bank_account_no: network_model.bank_account_no,
+        bank_ifsc_code: network_model.bank_ifsc_code,
+        bank_beneficiary_name: network_model.bank_beneficiary_name,
+        bank_name: network_model.bank_name,
     }
 }
 
@@ -495,6 +505,7 @@ pub mod tests {
 
     use crate::configuration::get_configuration;
     use crate::constants::DUMMY_DOMAIN;
+    use crate::routes::order::schemas::{PaymentSettlementPhase, PaymentSettlementType};
     use crate::routes::user::schemas::{
         BusinessAccount, MaskingType, UserAccount, UserVector, VectorType,
     };
@@ -565,6 +576,12 @@ pub mod tests {
             fee_type: FeeType::Amount,
             fee_value: BigDecimal::from_str("0.0").unwrap(),
             unique_key_id: "SANU".to_owned(),
+            settlement_phase: PaymentSettlementPhase::SaleAmount,
+            settlement_type: PaymentSettlementType::Neft,
+            bank_account_no: "1234567890".to_owned(),
+            bank_ifsc_code: "HDFC0000102".to_owned(),
+            bank_beneficiary_name: "SANU SHILSHAD".to_owned(),
+            bank_name: "SANU BANK".to_owned(),
         }
     }
 }

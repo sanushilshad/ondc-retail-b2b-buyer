@@ -17,13 +17,14 @@ use super::schemas::{
     ONDCOnSearchPayment, ONDCOnSearchProviderDescriptor, ONDCOnSearchProviderLocation,
     ONDCOnSearchRequest, ONDCOrderCancellationFee, ONDCOrderCancellationTerm,
     ONDCOrderFulfillmentEnd, ONDCOrderItemQuantity, ONDCOrderParams, ONDCOrderStatus,
-    ONDCPaymentParams, ONDCPaymentSettlementDetail, ONDCPaymentStatus, ONDCQuantityCountInt,
-    ONDCQuantitySelect, ONDCQuote, ONDCRequestModel, ONDCSearchCategory, ONDCSearchDescriptor,
-    ONDCSearchFulfillment, ONDCSearchIntent, ONDCSearchItem, ONDCSearchLocation, ONDCSearchMessage,
-    ONDCSearchPayment, ONDCSearchRequest, ONDCSearchStop, ONDCSelectFulfillmentLocation,
-    ONDCSelectMessage, ONDCSelectOrder, ONDCSelectPayment, ONDCSelectProvider, ONDCSelectRequest,
-    ONDCSelectedItem, ONDCState, ONDCTag, ONDCTagItemCode, ONDCTagType, ONDConfirmRequest,
-    OnSearchContentType, SellerProductInfo, TagTrait,
+    ONDCPaymentParams, ONDCPaymentSettlementCounterparty, ONDCPaymentSettlementDetail,
+    ONDCPaymentStatus, ONDCQuantityCountInt, ONDCQuantitySelect, ONDCQuote, ONDCRequestModel,
+    ONDCSearchCategory, ONDCSearchDescriptor, ONDCSearchFulfillment, ONDCSearchIntent,
+    ONDCSearchItem, ONDCSearchLocation, ONDCSearchMessage, ONDCSearchPayment, ONDCSearchRequest,
+    ONDCSearchStop, ONDCSelectFulfillmentLocation, ONDCSelectMessage, ONDCSelectOrder,
+    ONDCSelectPayment, ONDCSelectProvider, ONDCSelectRequest, ONDCSelectedItem, ONDCState, ONDCTag,
+    ONDCTagItemCode, ONDCTagType, ONDConfirmRequest, OnSearchContentType, SellerProductInfo,
+    TagTrait,
 };
 use uuid::Uuid;
 
@@ -1351,24 +1352,39 @@ pub fn get_tag_value_from_list<'a>(
     val
 }
 
-fn get_ondc_confirm_request_payment(order: &BuyerCommerce) -> Vec<ONDCOnConfirmPayment> {
+fn get_ondc_confirm_request_payment(
+    order: &BuyerCommerce,
+    bap_detail: &RegisteredNetworkParticipant,
+) -> Vec<ONDCOnConfirmPayment> {
     let mut payment_objs = vec![];
     let currency_type = order.currency_type.as_ref().unwrap_or(&CurrencyType::Inr);
     for payment in &order.payments {
         let mut settlement_detail_objs = vec![];
-        if let Some(settlement_details) = &payment.settlement_details {
-            for settlement in settlement_details {
-                settlement_detail_objs.push(ONDCPaymentSettlementDetail {
-                    settlement_counterparty: settlement
-                        .settlement_counterparty
-                        .get_ondc_settlement_counterparty(),
-                    settlement_phase: settlement.settlement_phase.get_ondc_settlement_phase(),
-                    settlement_type: settlement.settlement_type.get_ondc_settlement_type(),
-                    settlement_bank_account_no: settlement.settlement_bank_account_no.clone(),
-                    settlement_ifsc_code: settlement.settlement_ifsc_code.clone(),
-                    beneficiary_name: settlement.beneficiary_name.clone(),
-                    bank_name: settlement.bank_name.clone(),
-                });
+        if payment.collected_by == Some(ONDCNetworkType::Bpp) {
+            settlement_detail_objs.push(ONDCPaymentSettlementDetail {
+                settlement_counterparty: ONDCPaymentSettlementCounterparty::BuyerApp,
+                settlement_phase: bap_detail.settlement_phase.get_ondc_settlement_phase(),
+                settlement_type: bap_detail.settlement_type.get_ondc_settlement_type(),
+                settlement_bank_account_no: bap_detail.bank_account_no.to_owned(),
+                settlement_ifsc_code: bap_detail.bank_ifsc_code.to_owned(),
+                beneficiary_name: bap_detail.bank_beneficiary_name.to_owned(),
+                bank_name: bap_detail.bank_name.to_owned(),
+            });
+        } else {
+            if let Some(settlement_details) = &payment.settlement_details {
+                for settlement in settlement_details {
+                    settlement_detail_objs.push(ONDCPaymentSettlementDetail {
+                        settlement_counterparty: settlement
+                            .settlement_counterparty
+                            .get_ondc_settlement_counterparty(),
+                        settlement_phase: settlement.settlement_phase.get_ondc_settlement_phase(),
+                        settlement_type: settlement.settlement_type.get_ondc_settlement_type(),
+                        settlement_bank_account_no: settlement.settlement_bank_account_no.clone(),
+                        settlement_ifsc_code: settlement.settlement_ifsc_code.clone(),
+                        beneficiary_name: settlement.beneficiary_name.clone(),
+                        bank_name: settlement.bank_name.clone(),
+                    });
+                }
             }
         }
 
@@ -1537,6 +1553,7 @@ fn get_ondc_confirm_message(
     business_account: &BusinessAccount,
     order: &BuyerCommerce,
     updated_on: &DateTime<Utc>,
+    bap_detail: &RegisteredNetworkParticipant,
 ) -> Result<ONDCConfirmMessage, ConfirmOrderError> {
     let location_ids = order.get_ondc_location_ids();
 
@@ -1563,7 +1580,7 @@ fn get_ondc_confirm_message(
             tags: get_ondc_confirm_request_tags(order, business_account)
                 .map_err(|e| ConfirmOrderError::InvalidDataError(e.to_string()))?,
             quote: get_quote_from_order(order),
-            payments: get_ondc_confirm_request_payment(order),
+            payments: get_ondc_confirm_request_payment(order, bap_detail),
         },
     })
 }
@@ -1595,12 +1612,14 @@ pub fn get_ondc_confirm_payload(
     business_account: &BusinessAccount,
     order: &BuyerCommerce,
     confirm_request: &OrderConfirmRequest,
+    bap_detail: &RegisteredNetworkParticipant,
 ) -> Result<ONDConfirmRequest, ConfirmOrderError> {
     let context = get_ondc_confirm_context(
         &confirm_request.transaction_id,
         &confirm_request.message_id,
         order,
     )?;
-    let message = get_ondc_confirm_message(business_account, order, &context.timestamp)?;
+    let message =
+        get_ondc_confirm_message(business_account, order, &context.timestamp, bap_detail)?;
     Ok(ONDConfirmRequest { context, message })
 }
