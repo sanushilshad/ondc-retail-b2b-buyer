@@ -9,7 +9,6 @@ use anyhow::anyhow;
 use chrono::{DateTime, NaiveTime, Utc};
 use secrecy::{ExposeSecret, Secret};
 use serde::{Deserialize, Serialize};
-use sqlx::postgres::PgHasArrayType;
 use std::fmt::{self, Debug};
 use std::future::{ready, Ready};
 use utoipa::ToSchema;
@@ -95,11 +94,11 @@ pub enum AuthenticationScope {
     Email,
 }
 
-impl PgHasArrayType for AuthenticationScope {
-    fn array_type_info() -> sqlx::postgres::PgTypeInfo {
-        sqlx::postgres::PgTypeInfo::with_name("_user_auth_identifier_scope")
-    }
-}
+// impl PgHasArrayType for AuthenticationScope {
+//     fn array_type_info() -> sqlx::postgres::PgTypeInfo {
+//         sqlx::postgres::PgTypeInfo::with_name("_user_auth_identifier_scope")
+//     }
+// }
 
 #[derive(Deserialize, Debug, ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -199,11 +198,11 @@ pub struct UserVector {
     pub verified: bool,
 }
 
-impl PgHasArrayType for UserVector {
-    fn array_type_info() -> sqlx::postgres::PgTypeInfo {
-        sqlx::postgres::PgTypeInfo::with_name("_vectors")
-    }
-}
+// impl PgHasArrayType for UserVector {
+//     fn array_type_info() -> sqlx::postgres::PgTypeInfo {
+//         sqlx::postgres::PgTypeInfo::with_name("_vectors")
+//     }
+// }
 
 #[derive(Debug, Serialize, Clone, ToSchema)]
 pub struct UserAccount {
@@ -275,11 +274,11 @@ pub enum AuthContextType {
     BusinessAccount,
 }
 
-impl PgHasArrayType for AuthContextType {
-    fn array_type_info() -> sqlx::postgres::PgTypeInfo {
-        sqlx::postgres::PgTypeInfo::with_name("_auth_context_type")
-    }
-}
+// impl PgHasArrayType for AuthContextType {
+//     fn array_type_info() -> sqlx::postgres::PgTypeInfo {
+//         sqlx::postgres::PgTypeInfo::with_name("_auth_context_type")
+//     }
+// }
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -348,11 +347,11 @@ pub enum TradeType {
     Export,
 }
 
-impl PgHasArrayType for TradeType {
-    fn array_type_info() -> sqlx::postgres::PgTypeInfo {
-        sqlx::postgres::PgTypeInfo::with_name("_trade_type")
-    }
-}
+// impl PgHasArrayType for TradeType {
+//     fn array_type_info() -> sqlx::postgres::PgTypeInfo {
+//         sqlx::postgres::PgTypeInfo::with_name("_trade_type")
+//     }
+// }
 #[derive(Serialize, Deserialize, Debug, sqlx::Type, PartialEq, ToSchema)]
 #[sqlx(type_name = "merchant_type", rename_all = "snake_case")]
 #[serde(rename_all = "snake_case")]

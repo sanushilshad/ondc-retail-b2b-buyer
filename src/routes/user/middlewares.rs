@@ -47,7 +47,7 @@ where
             .secret;
 
         if token.is_none() {
-            let error_message = "x-device-id is missing".to_string();
+            let error_message = "Authorization header is missing".to_string();
             let (request, _pl) = req.into_parts();
             let json_error = GenericError::ValidationError(error_message);
             return Box::pin(async { Ok(ServiceResponse::from_err(json_error, request)) });

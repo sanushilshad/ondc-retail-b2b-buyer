@@ -1,0 +1,118 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT \n            id, \n            item_id, \n            commerce_data_id, \n            item_name, \n            item_code, \n            item_image, \n            qty, \n            packaging_req, \n            item_req,\n            tax_rate, \n            tax_value, \n            unit_price, \n            gross_total, \n            available_qty, \n            discount_amount, \n            location_ids as \"location_ids?: Json<Vec<String>>\", \n            fulfillment_ids as \"fulfillment_ids?: Json<Vec<String>>\"\n        FROM buyer_commerce_data_line \n        WHERE commerce_data_id = $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "item_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "commerce_data_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "item_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "item_code",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "item_image",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "qty",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 7,
+        "name": "packaging_req",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "item_req",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "tax_rate",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 10,
+        "name": "tax_value",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 11,
+        "name": "unit_price",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 12,
+        "name": "gross_total",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 13,
+        "name": "available_qty",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 14,
+        "name": "discount_amount",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 15,
+        "name": "location_ids?: Json<Vec<String>>",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 16,
+        "name": "fulfillment_ids?: Json<Vec<String>>",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "b1c9ae545672427265720a0d7637fa3780f49de2c4cd44aafc20f3c3087b3382"
+}

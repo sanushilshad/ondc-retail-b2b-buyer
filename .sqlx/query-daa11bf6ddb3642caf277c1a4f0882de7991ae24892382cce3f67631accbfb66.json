@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT br_id, subscriber_id, signing_public_key, subscriber_url, encr_public_key, uk_id, domain as \"domain!: ONDCDomain\", type as \"type!: ONDCNetworkType\"  FROM network_participant\n        WHERE subscriber_id = $1 AND type = $2 AND domain = $3\n        ",
+  "query": "SELECT br_id, subscriber_id, signing_public_key, subscriber_url, encr_public_key, uk_id, domain as \"domain: ONDCDomain\", type as \"type: ONDCNetworkType\"  FROM network_participant\n        WHERE subscriber_id = $1 AND type = $2 AND domain = $3\n        ",
   "describe": {
     "columns": [
       {
@@ -35,12 +35,12 @@
       },
       {
         "ordinal": 6,
-        "name": "domain!: ONDCDomain",
+        "name": "domain: ONDCDomain",
         "type_info": "Text"
       },
       {
         "ordinal": 7,
-        "name": "type!: ONDCNetworkType",
+        "name": "type: ONDCNetworkType",
         "type_info": {
           "Custom": {
             "name": "ondc_network_participant_type",
@@ -82,5 +82,5 @@
       false
     ]
   },
-  "hash": "1259c426936004e5833d46c95323d8fe73a1748958be94598405afacee543b4f"
+  "hash": "daa11bf6ddb3642caf277c1a4f0882de7991ae24892382cce3f67631accbfb66"
 }

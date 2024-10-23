@@ -4,3 +4,4 @@ mod routes;
 pub(crate) mod schemas;
 pub mod utils;
 pub use routes::order_route;
+pub mod models;

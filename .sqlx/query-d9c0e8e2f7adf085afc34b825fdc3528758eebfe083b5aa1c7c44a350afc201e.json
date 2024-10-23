@@ -1,0 +1,511 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        \n        SELECT id, urn, external_urn, record_type as \"record_type:OrderType\", \n           record_status as \"record_status:CommerceStatusType\",\n           domain_category_code as \"domain_category_code:CategoryDomain\", \n           buyer_id, seller_id, buyer_name, seller_name, source as \"source:DataSource\", \n           created_on, updated_on, deleted_on, is_deleted, created_by, grand_total, \n           bpp_id, bpp_uri, bap_id, bap_uri, is_import, quote_ttl,\n           currency_code as \"currency_code?:CurrencyType\", city_code,\n           country_code as \"country_code:CountryCode\",\n           billing as \"billing!:  Json<Option<OrderBillingModel>>\",\n           cancellation_terms as \"cancellation_terms!: Json<Vec<OrderCancellationTermModel>>\",\n           bpp_terms as \"bpp_terms!: Json<Option<BuyerCommerceBppTermsModel>>\"\n        FROM buyer_commerce_data where external_urn= $1;",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "urn",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "external_urn",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "record_type:OrderType",
+        "type_info": {
+          "Custom": {
+            "name": "commerce_data_type",
+            "kind": {
+              "Enum": [
+                "sale_order",
+                "purchase_order"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "record_status:CommerceStatusType",
+        "type_info": {
+          "Custom": {
+            "name": "buyer_commerce_status",
+            "kind": {
+              "Enum": [
+                "quote_requested",
+                "quote_accepted",
+                "quote_rejected",
+                "initialized",
+                "created",
+                "accepted",
+                "in_progess",
+                "completed",
+                "cancelled"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "domain_category_code:CategoryDomain",
+        "type_info": {
+          "Custom": {
+            "name": "domain_category",
+            "kind": {
+              "Enum": [
+                "RET10",
+                "RET12",
+                "RET13",
+                "RET14",
+                "RET15",
+                "RET16",
+                "RET1A",
+                "RET1B",
+                "RET1C"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "buyer_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 7,
+        "name": "seller_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "buyer_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "seller_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "source:DataSource",
+        "type_info": {
+          "Custom": {
+            "name": "data_source",
+            "kind": {
+              "Enum": [
+                "place_order",
+                "ondc",
+                "rapidor"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "created_on",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 12,
+        "name": "updated_on",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 13,
+        "name": "deleted_on",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 14,
+        "name": "is_deleted",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 15,
+        "name": "created_by",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 16,
+        "name": "grand_total",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 17,
+        "name": "bpp_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 18,
+        "name": "bpp_uri",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 19,
+        "name": "bap_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 20,
+        "name": "bap_uri",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 21,
+        "name": "is_import",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 22,
+        "name": "quote_ttl",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 23,
+        "name": "currency_code?:CurrencyType",
+        "type_info": {
+          "Custom": {
+            "name": "currency_code_type",
+            "kind": {
+              "Enum": [
+                "INR",
+                "SGD",
+                "AED",
+                "GHS"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 24,
+        "name": "city_code",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 25,
+        "name": "country_code:CountryCode",
+        "type_info": {
+          "Custom": {
+            "name": "country_code",
+            "kind": {
+              "Enum": [
+                "AFG",
+                "ALA",
+                "ALB",
+                "DZA",
+                "ASM",
+                "AND",
+                "AGO",
+                "AIA",
+                "ATA",
+                "ATG",
+                "ARG",
+                "ARM",
+                "ABW",
+                "AUS",
+                "AUT",
+                "AZE",
+                "BHS",
+                "BHR",
+                "BGD",
+                "BRB",
+                "BLR",
+                "BEL",
+                "BLZ",
+                "BEN",
+                "BMU",
+                "BTN",
+                "BOL",
+                "BES",
+                "BIH",
+                "BWA",
+                "BVT",
+                "BRA",
+                "IOT",
+                "BRN",
+                "BGR",
+                "BFA",
+                "BDI",
+                "CPV",
+                "KHM",
+                "CMR",
+                "CAN",
+                "CYM",
+                "CAF",
+                "TCD",
+                "CHL",
+                "CHN",
+                "CXR",
+                "CCK",
+                "COL",
+                "COM",
+                "COG",
+                "COD",
+                "COK",
+                "CRI",
+                "CIV",
+                "HRV",
+                "CUB",
+                "CUW",
+                "CYP",
+                "CZE",
+                "DNK",
+                "DJI",
+                "DMA",
+                "DOM",
+                "ECU",
+                "EGY",
+                "SLV",
+                "GNQ",
+                "ERI",
+                "EST",
+                "SWZ",
+                "ETH",
+                "FLK",
+                "FRO",
+                "FJI",
+                "FIN",
+                "FRA",
+                "GUF",
+                "PYF",
+                "ATF",
+                "GAB",
+                "GMB",
+                "GEO",
+                "DEU",
+                "GHA",
+                "GIB",
+                "GRC",
+                "GRL",
+                "GRD",
+                "GLP",
+                "GUM",
+                "GTM",
+                "GGY",
+                "GIN",
+                "GNB",
+                "GUY",
+                "HTI",
+                "HMD",
+                "VAT",
+                "HND",
+                "HKG",
+                "HUN",
+                "ISL",
+                "IND",
+                "IDN",
+                "IRN",
+                "IRQ",
+                "IRL",
+                "IMN",
+                "ISR",
+                "ITA",
+                "JAM",
+                "JPN",
+                "JEY",
+                "JOR",
+                "KAZ",
+                "KEN",
+                "KIR",
+                "PRK",
+                "KOR",
+                "KWT",
+                "KGZ",
+                "LAO",
+                "LVA",
+                "LBN",
+                "LSO",
+                "LBR",
+                "LBY",
+                "LIE",
+                "LTU",
+                "LUX",
+                "MAC",
+                "MDG",
+                "MWI",
+                "MYS",
+                "MDV",
+                "MLI",
+                "MLT",
+                "MHL",
+                "MTQ",
+                "MRT",
+                "MUS",
+                "MYT",
+                "MEX",
+                "FSM",
+                "MDA",
+                "MCO",
+                "MNG",
+                "MNE",
+                "MSR",
+                "MAR",
+                "MOZ",
+                "MMR",
+                "NAM",
+                "NRU",
+                "NPL",
+                "NLD",
+                "NCL",
+                "NZL",
+                "NIC",
+                "NER",
+                "NGA",
+                "NIU",
+                "NFK",
+                "MKD",
+                "MNP",
+                "NOR",
+                "OMN",
+                "PAK",
+                "PLW",
+                "PSE",
+                "PAN",
+                "PNG",
+                "PRY",
+                "PER",
+                "PHL",
+                "PCN",
+                "POL",
+                "PRT",
+                "PRI",
+                "QAT",
+                "ROU",
+                "RUS",
+                "RWA",
+                "REU",
+                "BLM",
+                "SHN",
+                "KNA",
+                "LCA",
+                "MAF",
+                "SPM",
+                "VCT",
+                "WSM",
+                "SMR",
+                "STP",
+                "SAU",
+                "SEN",
+                "SRB",
+                "SYC",
+                "SLE",
+                "SGP",
+                "SXM",
+                "SVK",
+                "SVN",
+                "SLB",
+                "SOM",
+                "ZAF",
+                "SGS",
+                "SSD",
+                "ESP",
+                "LKA",
+                "SDN",
+                "SUR",
+                "SJM",
+                "SWE",
+                "CHE",
+                "SYR",
+                "TWN",
+                "TJK",
+                "TZA",
+                "THA",
+                "TLS",
+                "TGO",
+                "TKL",
+                "TON",
+                "TTO",
+                "TUN",
+                "TUR",
+                "TKM",
+                "TCA",
+                "TUV",
+                "UGA",
+                "UKR",
+                "ARE",
+                "GBR",
+                "USA",
+                "URY",
+                "UZB",
+                "VUT",
+                "VEN",
+                "VNM",
+                "WLF",
+                "ESH",
+                "YEM",
+                "ZMB",
+                "ZWE"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 26,
+        "name": "billing!:  Json<Option<OrderBillingModel>>",
+        "type_info": "Json"
+      },
+      {
+        "ordinal": 27,
+        "name": "cancellation_terms!: Json<Vec<OrderCancellationTermModel>>",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 28,
+        "name": "bpp_terms!: Json<Option<BuyerCommerceBppTermsModel>>",
+        "type_info": "Json"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "d9c0e8e2f7adf085afc34b825fdc3528758eebfe083b5aa1c7c44a350afc201e"
+}

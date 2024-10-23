@@ -1,0 +1,178 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT \n            id,\n            commerce_data_id,\n            fulfillment_id,\n            tat,\n            fulfillment_type as \"fulfillment_type: FulfillmentType\",\n            fulfillment_status as \"fulfillment_status: CommerceFulfillmentStatusType\",\n            inco_terms as \"inco_terms?: IncoTermType\",\n            place_of_delivery,\n            provider_name,\n            category as \"category?: FulfillmentCategoryType\",\n            servicable_status as \"servicable_status!: ServiceableType\", \n            drop_off_data as \"drop_off_data!:  Json<Option<DropOffDataModel>>\",\n            pickup_data as \"pickup_data!:  Json<Option<PickUpDataModel>>\",\n            tracking,\n            packaging_charge,\n            delivery_charge,\n            convenience_fee\n        FROM buyer_commerce_fulfillment_data \n        WHERE commerce_data_id = $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "commerce_data_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "fulfillment_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "tat",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "fulfillment_type: FulfillmentType",
+        "type_info": {
+          "Custom": {
+            "name": "fulfillment_type",
+            "kind": {
+              "Enum": [
+                "delivery",
+                "self_pickup"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "fulfillment_status: CommerceFulfillmentStatusType",
+        "type_info": {
+          "Custom": {
+            "name": "commerce_fulfillment_status_type",
+            "kind": {
+              "Enum": [
+                "agent_assigned",
+                "packed",
+                "out_for_delivery",
+                "order_picked_up",
+                "searching_for_agent",
+                "pending",
+                "order_delivered",
+                "cancelled"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "inco_terms?: IncoTermType",
+        "type_info": {
+          "Custom": {
+            "name": "inco_term_type",
+            "kind": {
+              "Enum": [
+                "EXW",
+                "CIF",
+                "FOB",
+                "DAP",
+                "DDP"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "place_of_delivery",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "provider_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "category?: FulfillmentCategoryType",
+        "type_info": {
+          "Custom": {
+            "name": "fulfillment_category_type",
+            "kind": {
+              "Enum": [
+                "standard_delivery",
+                "express_delivery",
+                "self_pickup"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "servicable_status!: ServiceableType",
+        "type_info": {
+          "Custom": {
+            "name": "fulfillment_servicability_status",
+            "kind": {
+              "Enum": [
+                "serviceable",
+                "non_serviceable"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "drop_off_data!:  Json<Option<DropOffDataModel>>",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 12,
+        "name": "pickup_data!:  Json<Option<PickUpDataModel>>",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 13,
+        "name": "tracking",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 14,
+        "name": "packaging_charge",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 15,
+        "name": "delivery_charge",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 16,
+        "name": "convenience_fee",
+        "type_info": "Numeric"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "426c756b72b36dada2fd5899084169de729e59b9356cad2fd567c4dd2e904c87"
+}

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO auth_mechanism (id, user_id, auth_scope, auth_identifier, secret, auth_context, is_active, created_at, created_by)\n        SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::user_auth_identifier_scope[], $4::text[], $5::text[], $6::auth_context_type[], $7::status[], $8::TIMESTAMP[], $9::text[])\n        ON CONFLICT (user_id, auth_scope, auth_context) DO NOTHING;\n        ",
+  "query": "\n        INSERT INTO auth_mechanism (id, user_id, auth_scope, auth_identifier, secret, auth_context, is_active, created_on, created_by)\n        SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::user_auth_identifier_scope[], $4::text[], $5::text[], $6::auth_context_type[], $7::status[], $8::TIMESTAMP[], $9::text[])\n        ON CONFLICT (user_id, auth_scope, auth_context) DO NOTHING;\n        ",
   "describe": {
     "columns": [],
     "parameters": {
@@ -9,7 +9,7 @@
         "UuidArray",
         {
           "Custom": {
-            "name": "_user_auth_identifier_scope",
+            "name": "user_auth_identifier_scope[]",
             "kind": {
               "Array": {
                 "Custom": {
@@ -37,7 +37,7 @@
         "TextArray",
         {
           "Custom": {
-            "name": "_auth_context_type",
+            "name": "auth_context_type[]",
             "kind": {
               "Array": {
                 "Custom": {
@@ -55,7 +55,7 @@
         },
         {
           "Custom": {
-            "name": "_status",
+            "name": "status[]",
             "kind": {
               "Array": {
                 "Custom": {
@@ -79,5 +79,5 @@
     },
     "nullable": []
   },
-  "hash": "a687944e188bfe93056ca6275e3201f246c425ca80956259143be0516a4ba011"
+  "hash": "f1bd99ed90ce8a184fa7144bfbf3c40d4b45ce50a8fa018c00cca62e0da55bbb"
 }

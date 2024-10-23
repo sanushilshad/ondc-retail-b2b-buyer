@@ -2,41 +2,48 @@ use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 
 use bigdecimal::{BigDecimal, ToPrimitive};
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use reqwest::Client;
 use serde_json::Value;
 use sqlx::PgPool;
 //use fake::faker::address::raw::Longitude;
 use super::schemas::{
-    BulkSellerProductInfo, ONDCBilling, ONDCCity, ONDCContact, ONDCCountry, ONDCFeeType,
-    ONDCFulfillment, ONDCFulfillmentStopType, ONDCFulfillmentType, ONDCImage, ONDCInitMessage,
-    ONDCInitOrder, ONDCInitPayment, ONDCInitProvider, ONDCInitRequest, ONDCLocationId,
-    ONDCOnSearchItemPrice, ONDCOnSearchItemQuantity, ONDCOnSearchItemTag, ONDCOnSearchPayment,
-    ONDCOnSearchProviderDescriptor, ONDCOnSearchProviderLocation, ONDCOnSearchRequest,
-    ONDCOrderFulfillmentEnd, ONDCOrderParams, ONDCQuantityCountInt, ONDCQuantitySelect,
-    ONDCRequestModel, ONDCSearchCategory, ONDCSearchDescriptor, ONDCSearchFulfillment,
+    BreakupTitleType, BulkSellerInfo, BulkSellerLocationInfo, BulkSellerProductInfo, ONDCAmount,
+    ONDCBilling, ONDCBreakUp, ONDCBreakupItemInfo, ONDCCity, ONDCConfirmMessage, ONDCConfirmOrder,
+    ONDCConfirmProvider, ONDCContact, ONDCCountry, ONDCCustomer, ONDCFeeType, ONDCFulfillment,
+    ONDCFulfillmentDescriptor, ONDCFulfillmentState, ONDCFulfillmentStopType, ONDCFulfillmentType,
+    ONDCImage, ONDCInitMessage, ONDCInitOrder, ONDCInitPayment, ONDCInitProvider, ONDCInitRequest,
+    ONDCLocationId, ONDCOnConfirmPayment, ONDCOnSearchItemPrice, ONDCOnSearchItemQuantity,
+    ONDCOnSearchItemTag, ONDCOnSearchPayment, ONDCOnSearchProviderDescriptor,
+    ONDCOnSearchProviderLocation, ONDCOnSearchRequest, ONDCOrderCancellationFee,
+    ONDCOrderCancellationTerm, ONDCOrderFulfillmentEnd, ONDCOrderItemQuantity, ONDCOrderParams,
+    ONDCOrderStatus, ONDCPaymentParams, ONDCPaymentSettlementCounterparty,
+    ONDCPaymentSettlementDetail, ONDCPaymentStatus, ONDCQuantityCountInt, ONDCQuantitySelect,
+    ONDCQuote, ONDCRequestModel, ONDCSearchCategory, ONDCSearchDescriptor, ONDCSearchFulfillment,
     ONDCSearchIntent, ONDCSearchItem, ONDCSearchLocation, ONDCSearchMessage, ONDCSearchPayment,
     ONDCSearchRequest, ONDCSearchStop, ONDCSelectFulfillmentLocation, ONDCSelectMessage,
     ONDCSelectOrder, ONDCSelectPayment, ONDCSelectProvider, ONDCSelectRequest, ONDCSelectedItem,
-    ONDCState, ONDCTag, ONDCTagItemCode, ONDCTagType, OnSearchContentType, SellerProductInfo,
-    TagTrait,
+    ONDCSellerLocationInfo, ONDCSellerProductInfo, ONDCState, ONDCTag, ONDCTagItemCode,
+    ONDCTagType, ONDConfirmRequest, OnSearchContentType, TagTrait,
 };
 use uuid::Uuid;
 
 use crate::constants::ONDC_TTL;
 
 use crate::domain::EmailObject;
-use crate::routes::ondc::buyer::schemas::OrderRequestParamsModel;
+use crate::routes::ondc::buyer::schemas::{ONDCPerson, ONDCSellerInfo, OrderRequestParamsModel};
 use crate::routes::ondc::schemas::{
     ONDCActionType, ONDCContext, ONDCContextCity, ONDCContextCountry, ONDCContextLocation,
     ONDCDomain, ONDCVersion,
 };
 use crate::routes::ondc::{LookupData, ONDCErrorCode, ONDCResponse};
-use crate::routes::order::errors::{InitOrderError, SelectOrderError};
+use crate::routes::order::errors::{ConfirmOrderError, InitOrderError, SelectOrderError};
 use crate::routes::order::schemas::{
-    BuyerCommerce, BuyerCommerceFulfillment, BuyerCommerceItem, BuyerCommercePayment, BuyerTerms,
-    DropOffData, OrderDeliveyTerm, OrderInitBilling, OrderInitRequest, OrderSelectFulfillment,
-    OrderSelectItem, OrderSelectRequest, OrderType, PickUpData, SelectFulfillmentLocation,
+    BuyerTerms, CancellationFeeType, Commerce, CommerceBilling, CommerceCancellationFee,
+    CommerceCancellationTerm, CommerceFulfillment, CommerceItem, CommercePayment, DropOffData,
+    OrderConfirmRequest, OrderDeliveyTerm, OrderInitBilling, OrderInitRequest,
+    OrderSelectFulfillment, OrderSelectItem, OrderSelectRequest, OrderType, PickUpData,
+    SelectFulfillmentLocation, SettlementBasis,
 };
 use crate::routes::product::schemas::{
     CategoryDomain, FulfillmentType, PaymentType, ProductFulFillmentLocations,
@@ -50,7 +57,8 @@ use crate::routes::product::ProductSearchError;
 use crate::routes::user::schemas::{BusinessAccount, UserAccount};
 use crate::routes::user::utils::get_default_vector_value;
 use crate::schemas::{
-    CountryCode, NetworkCall, ONDCNetworkType, RegisteredNetworkParticipant, WebSocketParam,
+    CountryCode, CurrencyType, FeeType, NetworkCall, ONDCNetworkType, RegisteredNetworkParticipant,
+    WebSocketParam,
 };
 use crate::utils::get_gps_string;
 use anyhow::anyhow;
@@ -396,7 +404,7 @@ fn get_ws_location_mapping(
         address: &ondc_location.address,
         city: WSSearchCity {
             code: &ondc_location.city.code,
-            name: ondc_location.city.name.as_deref(),
+            name: ondc_location.city.name.as_str(),
         },
         country: WSSearchCountry {
             code: &ondc_location.country.code,
@@ -766,7 +774,7 @@ fn get_fulfillment_tags(delivery_terms: &Option<OrderDeliveyTerm>) -> Option<Vec
 #[tracing::instrument(name = "getondc select fulfillment end", skip())]
 fn get_ondc_select_fulfillment_end(
     location: &SelectFulfillmentLocation,
-) -> Vec<ONDCOrderFulfillmentEnd<ONDCSelectFulfillmentLocation>> {
+) -> Vec<ONDCOrderFulfillmentEnd> {
     // let mut fulfillment_end: Vec<ONDCOrderFulfillmentEnd<ONDCSelectFulfillmentLocation>> = vec![];
     // for location in locations {
     vec![ONDCOrderFulfillmentEnd {
@@ -798,11 +806,11 @@ fn get_ondc_select_fulfillment_end(
 fn get_ondc_select_fulfillments(
     is_import: bool,
     fulfillments: &Vec<OrderSelectFulfillment>,
-) -> Vec<ONDCFulfillment<ONDCSelectFulfillmentLocation>> {
-    let mut fulfillment_objs: Vec<ONDCFulfillment<ONDCSelectFulfillmentLocation>> = vec![];
+) -> Vec<ONDCFulfillment> {
+    let mut fulfillment_objs: Vec<ONDCFulfillment> = vec![];
 
     for fulfillment in fulfillments {
-        let stops: Option<Vec<ONDCOrderFulfillmentEnd<ONDCSelectFulfillmentLocation>>> =
+        let stops: Option<Vec<ONDCOrderFulfillmentEnd>> =
             if fulfillment.r#type == FulfillmentType::Delivery {
                 Some(get_ondc_select_fulfillment_end(&fulfillment.location))
             } else {
@@ -878,7 +886,6 @@ pub fn create_bulk_seller_product_info_objs<'a>(
 ) -> BulkSellerProductInfo<'a> {
     let mut seller_subscriber_ids: Vec<&str> = vec![];
     let mut provider_ids: Vec<&str> = vec![];
-    let mut provider_names: Vec<&str> = vec![];
     let mut item_codes: Vec<Option<&str>> = vec![];
     let mut item_names: Vec<&str> = vec![];
     let mut item_ids: Vec<&str> = vec![];
@@ -890,7 +897,6 @@ pub fn create_bulk_seller_product_info_objs<'a>(
         for item in &provider.items {
             seller_subscriber_ids.push(body.bpp.subscriber_id);
             provider_ids.push(provider.provider_detail.id);
-            provider_names.push(provider.provider_detail.name);
             item_ids.push(item.id);
             item_codes.push(item.code);
             item_names.push(item.name);
@@ -907,7 +913,6 @@ pub fn create_bulk_seller_product_info_objs<'a>(
     return BulkSellerProductInfo {
         seller_subscriber_ids,
         provider_ids,
-        provider_names,
         item_codes,
         item_ids,
         item_names,
@@ -929,7 +934,6 @@ pub async fn save_ondc_seller_product_info<'a>(
         INSERT INTO ondc_seller_product_info (
             seller_subscriber_id,
             provider_id,
-            provider_name,
             item_id,
             item_code,
             item_name,
@@ -945,11 +949,10 @@ pub async fn save_ondc_seller_product_info<'a>(
             $3::text[], 
             $4::text[], 
             $5::text[], 
-            $6::text[], 
-            $7::decimal[],
-            $8::jsonb[],
-            $9::decimal[],
-            $10::decimal[]
+            $6::decimal[],
+            $7::jsonb[],
+            $8::decimal[],
+            $9::decimal[]
         )
         ON CONFLICT (seller_subscriber_id, provider_id, item_id) 
         DO UPDATE SET 
@@ -961,7 +964,6 @@ pub async fn save_ondc_seller_product_info<'a>(
         "#,
         &product_data.seller_subscriber_ids[..] as &[&str],
         &product_data.provider_ids[..] as &[&str],
-        &product_data.provider_names[..] as &[&str],
         &product_data.item_ids[..] as &[&str],
         &product_data.item_codes[..] as &[Option<&str>],
         &product_data.item_names[..] as &[&str],
@@ -986,10 +988,10 @@ pub async fn fetch_ondc_seller_product_info(
     bpp_id: &str,
     provider_id: &str,
     item_id_list: &Vec<&str>,
-) -> Result<Vec<SellerProductInfo>, anyhow::Error> {
-    let row: Vec<SellerProductInfo> = sqlx::query_as!(
-        SellerProductInfo,
-        r#"SELECT item_name, item_id, item_code, seller_subscriber_id, provider_id, provider_name, tax_rate, unit_price, mrp, images  from ondc_seller_product_info where 
+) -> Result<Vec<ONDCSellerProductInfo>, anyhow::Error> {
+    let row: Vec<ONDCSellerProductInfo> = sqlx::query_as!(
+        ONDCSellerProductInfo,
+        r#"SELECT item_name, item_id, item_code, seller_subscriber_id, provider_id, tax_rate, unit_price, mrp, images  from ondc_seller_product_info where 
         provider_id  = $1 AND seller_subscriber_id=$2 AND item_id::text = ANY($3)"#,
         provider_id,
         bpp_id,
@@ -1000,7 +1002,11 @@ pub async fn fetch_ondc_seller_product_info(
     Ok(row)
 }
 /// Key for for the seller mapping key
-pub fn get_ondc_seller_mapping_key(bpp_id: &str, provider_id: &str, item_code: &str) -> String {
+pub fn get_ondc_seller_product_mapping_key(
+    bpp_id: &str,
+    provider_id: &str,
+    item_code: &str,
+) -> String {
     format!("{}_{}_{}", bpp_id, provider_id, item_code)
 }
 
@@ -1010,14 +1016,14 @@ pub async fn get_ondc_seller_product_info_mapping(
     bpp_id: &str,
     provider_id: &str,
     item_id_list: &Vec<&str>,
-) -> Result<HashMap<String, SellerProductInfo>, anyhow::Error> {
+) -> Result<HashMap<String, ONDCSellerProductInfo>, anyhow::Error> {
     let seller_product_info =
         fetch_ondc_seller_product_info(pool, bpp_id, provider_id, item_id_list).await?;
-    let seller_product_map: HashMap<String, SellerProductInfo> = seller_product_info
+    let seller_product_map: HashMap<String, ONDCSellerProductInfo> = seller_product_info
         .into_iter()
         .map(|obj| {
             (
-                get_ondc_seller_mapping_key(
+                get_ondc_seller_product_mapping_key(
                     &obj.seller_subscriber_id,
                     &obj.provider_id,
                     &obj.item_id,
@@ -1079,7 +1085,7 @@ pub async fn fetch_order_params(
 fn get_ondc_init_context(
     tranaction_id: &Uuid,
     message_id: &Uuid,
-    order: &BuyerCommerce,
+    order: &Commerce,
 ) -> Result<ONDCContext, anyhow::Error> {
     get_common_context(
         tranaction_id,
@@ -1096,7 +1102,7 @@ fn get_ondc_init_context(
     )
 }
 
-fn get_ondc_billing_from_billing(billing: &OrderInitBilling) -> ONDCBilling {
+fn get_ondc_billing_from_init_billing(billing: &OrderInitBilling) -> ONDCBilling {
     ONDCBilling {
         name: billing.name.clone(),
         address: billing.address.clone(),
@@ -1107,12 +1113,28 @@ fn get_ondc_billing_from_billing(billing: &OrderInitBilling) -> ONDCBilling {
             name: billing.city.name.clone(),
         },
         tax_id: billing.tax_id.clone(),
-        email: EmailObject::new(billing.email.clone()),
+        email: Some(EmailObject::new(billing.email.clone())),
         phone: billing.mobile_no.clone(),
     }
 }
 
-fn get_ondc_payment_from_order(payments: &Vec<BuyerCommercePayment>) -> Vec<ONDCInitPayment> {
+fn get_ondc_billing_from_order_billing(billing: &CommerceBilling) -> ONDCBilling {
+    ONDCBilling {
+        name: billing.name.clone(),
+        address: billing.address.clone(),
+        state: ONDCState {
+            name: billing.state.clone(),
+        },
+        city: ONDCCity {
+            name: billing.city.clone(),
+        },
+        tax_id: billing.tax_id.clone(),
+        email: billing.email.clone(),
+        phone: billing.phone.clone(),
+    }
+}
+
+fn get_ondc_payment_from_order(payments: &Vec<CommercePayment>) -> Vec<ONDCInitPayment> {
     let mut payment_list = vec![];
     for payment in payments {
         payment_list.push(ONDCInitPayment {
@@ -1124,7 +1146,7 @@ fn get_ondc_payment_from_order(payments: &Vec<BuyerCommercePayment>) -> Vec<ONDC
 }
 
 #[tracing::instrument(name = "get ondc init items", skip())]
-fn get_ondc_init_items(items: &Vec<BuyerCommerceItem>) -> Vec<ONDCSelectedItem> {
+fn get_ondc_items_from_order(items: &Vec<CommerceItem>) -> Vec<ONDCSelectedItem> {
     let mut ondc_item = vec![];
 
     for item in items {
@@ -1149,9 +1171,10 @@ fn get_ondc_init_items(items: &Vec<BuyerCommerceItem>) -> Vec<ONDCSelectedItem> 
 }
 
 fn get_ondc_init_fulfillment_stops(
+    fulfillment_type: &FulfillmentType,
     drop_off: &Option<DropOffData>,
-    pickup: &Option<PickUpData>,
-) -> Vec<ONDCOrderFulfillmentEnd<ONDCSelectFulfillmentLocation>> {
+    pickup: &PickUpData,
+) -> Vec<ONDCOrderFulfillmentEnd> {
     let mut fulfillment_ends = vec![];
     if let Some(drop_off) = drop_off {
         fulfillment_ends.push(ONDCOrderFulfillmentEnd {
@@ -1176,7 +1199,8 @@ fn get_ondc_init_fulfillment_stops(
             },
         });
     }
-    if let Some(pickup) = pickup {
+    if fulfillment_type == &FulfillmentType::SelfPickup {
+        // if let Some(pickup) = pickup {
         fulfillment_ends.push(ONDCOrderFulfillmentEnd {
             r#type: ONDCFulfillmentStopType::Start,
             contact: ONDCContact {
@@ -1185,7 +1209,7 @@ fn get_ondc_init_fulfillment_stops(
             },
             location: ONDCSelectFulfillmentLocation {
                 gps: pickup.location.gps.clone(),
-                address: pickup.location.address.clone(),
+                address: Some(pickup.location.address.clone()),
                 area_code: pickup.location.area_code.clone(),
                 city: ONDCCity {
                     name: pickup.location.city.clone(),
@@ -1198,14 +1222,17 @@ fn get_ondc_init_fulfillment_stops(
                 },
             },
         });
+        // }
     }
+
     fulfillment_ends
 }
 
 #[tracing::instrument(name = "get ondc init fulfillment", skip())]
 fn get_get_ondc_init_fulfillment(
-    fulfillments: &Vec<BuyerCommerceFulfillment>,
-) -> Vec<ONDCFulfillment<ONDCSelectFulfillmentLocation>> {
+    fulfillments: &Vec<CommerceFulfillment>,
+    business_account: &BusinessAccount,
+) -> Vec<ONDCFulfillment> {
     fulfillments
         .iter()
         .map(|fulfillment| {
@@ -1217,11 +1244,17 @@ fn get_get_ondc_init_fulfillment(
             });
 
             ONDCFulfillment {
-                id: fulfillment.id.clone(),
+                id: fulfillment.fulfillment_id.clone(),
                 r#type: fulfillment.fulfillment_type.get_ondc_fulfillment_type(),
                 tags: tags_result,
-                customer: None,
+                customer: Some(ONDCCustomer {
+                    person: ONDCPerson {
+                        creds: None,
+                        name: business_account.company_name.clone(),
+                    },
+                }),
                 stops: Some(get_ondc_init_fulfillment_stops(
+                    &fulfillment.fulfillment_type,
                     &fulfillment.drop_off,
                     &fulfillment.pickup,
                 )),
@@ -1234,7 +1267,7 @@ fn get_get_ondc_init_fulfillment(
 fn get_ondc_init_message(
     business_account: &BusinessAccount,
     init_request: &OrderInitRequest,
-    order: &BuyerCommerce,
+    order: &Commerce,
 ) -> Result<ONDCInitMessage, InitOrderError> {
     let location_ids = order.get_ondc_location_ids();
     Ok(ONDCInitMessage {
@@ -1246,13 +1279,13 @@ fn get_ondc_init_message(
                     .map(|e| ONDCLocationId { id: e.to_string() })
                     .collect(),
             },
-            billing: get_ondc_billing_from_billing(&init_request.billing),
+            billing: get_ondc_billing_from_init_billing(&init_request.billing),
             add_ons: None,
             payments: get_ondc_payment_from_order(&order.payments),
-            items: get_ondc_init_items(&order.items),
+            items: get_ondc_items_from_order(&order.items),
 
             tags: vec![get_buyer_id_tag(business_account)?],
-            fulfillments: get_get_ondc_init_fulfillment(&order.fulfillments),
+            fulfillments: get_get_ondc_init_fulfillment(&order.fulfillments, business_account),
         },
     })
 }
@@ -1261,7 +1294,7 @@ fn get_ondc_init_message(
 pub fn get_ondc_init_payload(
     user_account: &UserAccount,
     business_account: &BusinessAccount,
-    order: &BuyerCommerce,
+    order: &Commerce,
     init_request: &OrderInitRequest,
 ) -> Result<ONDCInitRequest, InitOrderError> {
     let context = get_ondc_init_context(
@@ -1271,6 +1304,48 @@ pub fn get_ondc_init_payload(
     )?;
     let message = get_ondc_init_message(business_account, init_request, order)?;
     Ok(ONDCInitRequest { context, message })
+}
+
+pub fn get_ondc_cancel_fee_from_cancel_fee(
+    currency: &CurrencyType,
+    fee: &CommerceCancellationFee,
+) -> ONDCOrderCancellationFee {
+    match fee.r#type {
+        CancellationFeeType::Percent => ONDCOrderCancellationFee::Percent {
+            percentage: fee.val.to_string(),
+        },
+        CancellationFeeType::Amount => ONDCOrderCancellationFee::Amount {
+            amount: ONDCAmount {
+                currency: currency.clone(),
+                value: fee.val.to_string(),
+            },
+        },
+    }
+}
+
+pub fn get_ondc_cancellation_from_cancelletion_terms(
+    currency_type: &CurrencyType,
+    cancellation_terms: &Vec<CommerceCancellationTerm>,
+) -> Vec<ONDCOrderCancellationTerm> {
+    let mut ondc_cancel_objs = vec![];
+    for cancellation_term in cancellation_terms {
+        ondc_cancel_objs.push(ONDCOrderCancellationTerm {
+            fulfillment_state: ONDCFulfillmentState {
+                descriptor: ONDCFulfillmentDescriptor {
+                    code: cancellation_term
+                        .fulfillment_state
+                        .get_ondc_fulfillment_state(),
+                },
+            },
+
+            reason_required: cancellation_term.reason_required,
+            cancellation_fee: get_ondc_cancel_fee_from_cancel_fee(
+                currency_type,
+                &cancellation_term.cancellation_fee,
+            ),
+        })
+    }
+    ondc_cancel_objs
 }
 
 pub fn get_tag_value_from_list<'a>(
@@ -1284,8 +1359,535 @@ pub fn get_tag_value_from_list<'a>(
         .flat_map(|tag| tag.get_tag_value(item_code))
         .next();
     val
-    // return val;
-    // .flat_map(|tag| tag.list.iter())
-    // .find(|item| item.descriptor.code == item_code)
-    // .map(|item| item.value.as_str())
+}
+
+fn get_ondc_confirm_request_payment(
+    order: &Commerce,
+    bap_detail: &RegisteredNetworkParticipant,
+) -> Vec<ONDCOnConfirmPayment> {
+    let mut payment_objs = vec![];
+    let currency_type = order.currency_type.as_ref().unwrap_or(&CurrencyType::Inr);
+    for payment in &order.payments {
+        let mut settlement_detail_objs = vec![];
+        if payment.collected_by == Some(ONDCNetworkType::Bpp) {
+            settlement_detail_objs.push(ONDCPaymentSettlementDetail {
+                settlement_counterparty: ONDCPaymentSettlementCounterparty::BuyerApp,
+                settlement_phase: bap_detail.settlement_phase.get_ondc_settlement_phase(),
+                settlement_type: bap_detail.settlement_type.get_ondc_settlement_type(),
+                settlement_bank_account_no: bap_detail.bank_account_no.to_owned(),
+                settlement_ifsc_code: bap_detail.bank_ifsc_code.to_owned(),
+                beneficiary_name: bap_detail.bank_beneficiary_name.to_owned(),
+                bank_name: bap_detail.bank_name.to_owned(),
+            });
+        } else if let Some(settlement_details) = &payment.settlement_details {
+            for settlement in settlement_details {
+                settlement_detail_objs.push(ONDCPaymentSettlementDetail {
+                    settlement_counterparty: settlement
+                        .settlement_counterparty
+                        .get_ondc_settlement_counterparty(),
+                    settlement_phase: settlement.settlement_phase.get_ondc_settlement_phase(),
+                    settlement_type: settlement.settlement_type.get_ondc_settlement_type(),
+                    settlement_bank_account_no: settlement.settlement_bank_account_no.clone(),
+                    settlement_ifsc_code: settlement.settlement_ifsc_code.clone(),
+                    beneficiary_name: settlement.beneficiary_name.clone(),
+                    bank_name: settlement.bank_name.clone(),
+                });
+            }
+        }
+
+        payment_objs.push(ONDCOnConfirmPayment {
+            r#type: payment.payment_type.get_ondc_payment(),
+            collected_by: payment.collected_by.clone().unwrap_or(ONDCNetworkType::Bpp),
+            uri: None,
+            tags: None,
+            params: ONDCPaymentParams {
+                amount: order.grand_total.clone().unwrap_or_default().to_string(),
+                currency: currency_type.clone(),
+                transaction_id: None,
+            },
+            buyer_app_finder_fee_type: payment.buyer_fee_type.clone().unwrap_or(FeeType::Amount),
+            buyer_app_finder_fee_amount: payment
+                .buyer_fee_amount
+                .clone()
+                .unwrap_or("0.00".to_owned()),
+            settlement_basis: payment
+                .settlement_basis
+                .clone()
+                .unwrap_or(SettlementBasis::Delivery)
+                .get_ondc_settlement_basis(),
+            settlement_window: payment
+                .settlement_window
+                .clone()
+                .unwrap_or("P1D".to_owned()),
+            withholding_amount: payment
+                .withholding_amount
+                .clone()
+                .unwrap_or("0.0".to_owned()),
+            settlement_details: Some(settlement_detail_objs),
+            status: ONDCPaymentStatus::NotPaid,
+        })
+    }
+    payment_objs
+}
+
+fn get_item_breakup(currency_type: &CurrencyType, items: &Vec<CommerceItem>) -> Vec<ONDCBreakUp> {
+    let mut break_up_list = vec![];
+    for line in items {
+        break_up_list.push(ONDCBreakUp::create(
+            line.item_name.clone(),
+            Some(line.item_id.clone()),
+            BreakupTitleType::Item,
+            ONDCAmount {
+                currency: currency_type.clone(),
+                value: line.gross_total.to_string(),
+            },
+            Some(ONDCOrderItemQuantity {
+                count: line.qty.to_i32().unwrap_or_default(),
+            }),
+            Some(ONDCBreakupItemInfo {
+                price: ONDCAmount {
+                    currency: currency_type.clone(),
+                    value: line.unit_price.to_string(),
+                },
+            }),
+        ));
+        break_up_list.push(ONDCBreakUp::create(
+            "Tax".to_owned(),
+            Some(line.item_id.clone()),
+            BreakupTitleType::Tax,
+            ONDCAmount {
+                currency: currency_type.clone(),
+                value: line.tax_value.to_string(),
+            },
+            None,
+            None,
+        ));
+        break_up_list.push(ONDCBreakUp::create(
+            "Discount".to_owned(),
+            Some(line.item_id.clone()),
+            BreakupTitleType::Discount,
+            ONDCAmount {
+                currency: currency_type.clone(),
+                value: line.discount_amount.to_string(),
+            },
+            None,
+            None,
+        ));
+    }
+    break_up_list
+}
+
+fn get_fulfillment_breakup(
+    currency_type: &CurrencyType,
+    fulfillments: &Vec<CommerceFulfillment>,
+) -> Vec<ONDCBreakUp> {
+    let mut break_up_list = vec![];
+    for fulfillment in fulfillments {
+        break_up_list.push(ONDCBreakUp::create(
+            "Packing".to_owned(),
+            Some(fulfillment.fulfillment_id.clone()),
+            BreakupTitleType::Packing,
+            ONDCAmount {
+                currency: currency_type.clone(),
+                value: fulfillment.packaging_charge.to_string(),
+            },
+            None,
+            None,
+        ));
+        break_up_list.push(ONDCBreakUp::create(
+            "Delivery Charge".to_owned(),
+            Some(fulfillment.fulfillment_id.clone()),
+            BreakupTitleType::Delivery,
+            ONDCAmount {
+                currency: currency_type.clone(),
+                value: fulfillment.delivery_charge.to_string(),
+            },
+            None,
+            None,
+        ));
+        break_up_list.push(ONDCBreakUp::create(
+            "Convenience Fee".to_owned(),
+            Some(fulfillment.fulfillment_id.clone()),
+            BreakupTitleType::Misc,
+            ONDCAmount {
+                currency: currency_type.clone(),
+                value: fulfillment.convenience_fee.to_string(),
+            },
+            None,
+            None,
+        ));
+    }
+    break_up_list
+}
+
+fn get_quote_from_order(order: &Commerce) -> ONDCQuote {
+    let currency_type = order.currency_type.as_ref().unwrap_or(&CurrencyType::Inr);
+    let mut breakup = get_fulfillment_breakup(currency_type, &order.fulfillments);
+    breakup.extend(get_item_breakup(currency_type, &order.items));
+    ONDCQuote {
+        ttl: order.quote_ttl.clone(),
+        price: ONDCAmount {
+            currency: order.currency_type.clone().unwrap_or(CurrencyType::Inr),
+            value: order.grand_total.clone().unwrap_or_default().to_string(),
+        },
+
+        breakup,
+    }
+}
+
+fn get_ondc_confirm_request_tags(
+    order: &Commerce,
+    business_account: &BusinessAccount,
+) -> Result<Vec<ONDCTag>, anyhow::Error> {
+    let mut confirm_tags = vec![];
+    match get_buyer_id_tag(business_account) {
+        Ok(tag_option) => confirm_tags.push(tag_option),
+        Err(e) => return Err(e),
+    }
+    if let Some(bpp_terms) = &order.bpp_terms {
+        confirm_tags.push(ONDCTag::get_bpp_terms_tag(bpp_terms));
+        confirm_tags.push(ONDCTag::get_bap_agreement_to_bpp_terms_tag("Y"));
+    }
+
+    Ok(confirm_tags)
+}
+
+#[tracing::instrument(name = "get ondc confirm message body", skip())]
+fn get_ondc_confirm_message(
+    business_account: &BusinessAccount,
+    order: &Commerce,
+    updated_on: &DateTime<Utc>,
+    bap_detail: &RegisteredNetworkParticipant,
+) -> Result<ONDCConfirmMessage, ConfirmOrderError> {
+    let location_ids = order.get_ondc_location_ids();
+    let billing = order.billing.as_ref().ok_or_else(|| {
+        ConfirmOrderError::ValidationError("Billing Address not found".to_string())
+    })?;
+    Ok(ONDCConfirmMessage {
+        order: ONDCConfirmOrder {
+            id: "RAP:001".to_string(),
+            state: ONDCOrderStatus::Created,
+            provider: ONDCConfirmProvider {
+                id: order.seller.id.clone(),
+                locations: location_ids
+                    .iter()
+                    .map(|e| ONDCLocationId { id: e.to_string() })
+                    .collect(),
+            },
+            items: get_ondc_items_from_order(&order.items),
+            fulfillments: get_get_ondc_init_fulfillment(&order.fulfillments, business_account),
+            billing: get_ondc_billing_from_order_billing(billing),
+            cancellation_terms: get_ondc_cancellation_from_cancelletion_terms(
+                order.currency_type.as_ref().unwrap_or(&CurrencyType::Inr),
+                order.cancellation_terms.as_ref().unwrap(),
+            ),
+            created_at: order.created_on,
+            updated_at: *updated_on,
+            tags: get_ondc_confirm_request_tags(order, business_account)
+                .map_err(|e| ConfirmOrderError::InvalidDataError(e.to_string()))?,
+            quote: get_quote_from_order(order),
+            payments: get_ondc_confirm_request_payment(order, bap_detail),
+        },
+    })
+}
+
+#[tracing::instrument(name = "get confirm context", skip())]
+fn get_ondc_confirm_context(
+    tranaction_id: &Uuid,
+    message_id: &Uuid,
+    order: &Commerce,
+) -> Result<ONDCContext, anyhow::Error> {
+    get_common_context(
+        tranaction_id,
+        message_id,
+        &order.domain_category_code,
+        ONDCActionType::Init,
+        &order.bap.id,
+        &order.bap.uri,
+        Some(&order.bpp.id),
+        Some(&order.bpp.uri),
+        &order.country_code,
+        &order.city_code,
+        Some(ONDC_TTL),
+    )
+}
+
+#[tracing::instrument(name = "get ondc confirm payload", skip())]
+pub fn get_ondc_confirm_payload(
+    user_account: &UserAccount,
+    business_account: &BusinessAccount,
+    order: &Commerce,
+    confirm_request: &OrderConfirmRequest,
+    bap_detail: &RegisteredNetworkParticipant,
+) -> Result<ONDConfirmRequest, ConfirmOrderError> {
+    let context = get_ondc_confirm_context(
+        &confirm_request.transaction_id,
+        &confirm_request.message_id,
+        order,
+    )?;
+    let message =
+        get_ondc_confirm_message(business_account, order, &context.timestamp, bap_detail)?;
+    Ok(ONDConfirmRequest { context, message })
+}
+
+#[tracing::instrument(name = "save ondc seller location info", skip())]
+pub fn create_bulk_seller_location_info_objs<'a>(
+    body: &'a WSSearchData,
+) -> BulkSellerLocationInfo<'a> {
+    let mut seller_subscriber_ids: Vec<&str> = vec![];
+    let mut provider_ids = vec![];
+    let mut location_ids = vec![];
+    let mut latitudes = vec![];
+    let mut longitudes = vec![];
+    let mut addresses = vec![];
+    let mut city_codes = vec![];
+    let mut city_names = vec![];
+    let mut state_codes = vec![];
+    let mut state_names = vec![];
+    let mut country_names = vec![];
+    let mut country_codes = vec![];
+    let mut area_codes = vec![];
+    for provider in &body.providers {
+        for (key, location) in &provider.locations {
+            let gps_data = location
+                .gps
+                .split(',')
+                .map(|s| BigDecimal::from_str(s).unwrap_or_else(|_| BigDecimal::from(0).clone()))
+                .collect::<Vec<_>>();
+
+            seller_subscriber_ids.push(body.bpp.subscriber_id);
+            provider_ids.push(provider.provider_detail.id);
+            location_ids.push(key.as_str());
+            latitudes.push(gps_data.first().cloned().unwrap_or(BigDecimal::from(0)));
+            longitudes.push(gps_data.get(1).cloned().unwrap_or(BigDecimal::from(0)));
+            addresses.push(location.address);
+            city_codes.push(location.city.code);
+            city_names.push(location.city.name);
+            state_codes.push(location.state.code);
+            state_names.push(location.state.name);
+            country_names.push(location.country.name);
+            country_codes.push(location.country.code);
+            area_codes.push(location.area_code);
+        }
+    }
+
+    return BulkSellerLocationInfo {
+        seller_subscriber_ids,
+        provider_ids,
+        location_ids,
+        longitudes,
+        latitudes,
+        addresses,
+        city_codes,
+        city_names,
+        state_codes,
+        state_names,
+        country_names,
+        country_codes,
+        area_codes,
+    };
+}
+
+#[tracing::instrument(name = "save ondc seller location info", skip(pool, data))]
+pub async fn save_ondc_seller_location_info<'a>(
+    pool: &PgPool,
+    data: &'a WSSearchData<'a>,
+) -> Result<(), anyhow::Error> {
+    let seller_data = create_bulk_seller_location_info_objs(data);
+    sqlx::query!(
+        r#"
+        INSERT INTO ondc_seller_location_info (
+            seller_subscriber_id,
+            provider_id,
+            location_id,
+            latitude,
+            longitude,
+            address,
+            city_code,
+            city_name,
+            state_code,
+            state_name,
+            country_code,
+            country_name,
+            area_code 
+        )
+        SELECT *
+        FROM UNNEST(
+            $1::text[], 
+            $2::text[], 
+            $3::text[], 
+            $4::decimal[], 
+            $5::decimal[], 
+            $6::text[], 
+            $7::text[],
+            $8::text[],
+            $9::text[],
+            $10::text[],
+            $11::country_code[],
+            $12::text[],
+            $13::text[]
+        )
+        ON CONFLICT (seller_subscriber_id, provider_id, location_id) 
+        DO UPDATE SET 
+            latitude = EXCLUDED.latitude,
+            longitude = EXCLUDED.longitude,
+            address = EXCLUDED.address,
+            city_code = EXCLUDED.city_code,
+            city_name =  EXCLUDED.city_name,
+            state_code =  EXCLUDED.state_code,
+            state_name =  EXCLUDED.state_name,
+            country_code =  EXCLUDED.country_code,
+            country_name =  EXCLUDED.country_name,
+            area_code = EXCLUDED.area_code
+        "#,
+        &seller_data.seller_subscriber_ids[..] as &[&str],
+        &seller_data.provider_ids[..] as &[&str],
+        &seller_data.location_ids[..] as &[&str],
+        &seller_data.latitudes[..] as &[BigDecimal],
+        &seller_data.longitudes[..] as &[BigDecimal],
+        &seller_data.addresses[..] as &[&str],
+        &seller_data.city_codes[..] as &[&str],
+        &seller_data.city_names[..] as &[&str],
+        &seller_data.state_codes[..] as &[&str],
+        &seller_data.state_names[..] as &[Option<&str>],
+        &seller_data.country_codes[..] as &[&CountryCode],
+        &seller_data.country_names[..] as &[Option<&str>],
+        &seller_data.area_codes[..] as &[&str],
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to execute query: {:?}", e);
+        anyhow::Error::new(e)
+            .context("A database failure occurred while saving ONDC seller location info")
+    })?;
+
+    Ok(())
+}
+
+pub fn get_ondc_seller_location_mapping_key(
+    bpp_id: &str,
+    provider_id: &str,
+    location_id: &str,
+) -> String {
+    format!("{}_{}_{}", bpp_id, provider_id, location_id)
+}
+
+pub async fn fetch_ondc_seller_location_info(
+    pool: &PgPool,
+    bpp_id: &str,
+    provider_id: &str,
+    location_id_list: &Vec<String>,
+) -> Result<Vec<ONDCSellerLocationInfo>, anyhow::Error> {
+    let row: Vec<ONDCSellerLocationInfo> = sqlx::query_as!(
+        ONDCSellerLocationInfo,
+        r#"SELECT location_id, seller_subscriber_id, provider_id, latitude, longitude,
+        address, city_code, city_name, state_code, state_name, country_code  as "country_code:CountryCode", area_code,
+        country_name from ondc_seller_location_info where 
+        provider_id  = $1 AND seller_subscriber_id=$2 AND location_id::text = ANY($3)"#,
+        provider_id,
+        bpp_id,
+        location_id_list as &Vec<String>
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(row)
+}
+
+#[tracing::instrument(name = "fetch ondc seller product info mapping", skip(pool))]
+pub async fn get_ondc_seller_location_info_mapping(
+    pool: &PgPool,
+    bpp_id: &str,
+    provider_id: &str,
+    location_id_list: &Vec<String>,
+) -> Result<HashMap<String, ONDCSellerLocationInfo>, anyhow::Error> {
+    let seller_product_info =
+        fetch_ondc_seller_location_info(pool, bpp_id, provider_id, location_id_list).await?;
+    let seller_product_map: HashMap<String, ONDCSellerLocationInfo> = seller_product_info
+        .into_iter()
+        .map(|obj| {
+            (
+                get_ondc_seller_location_mapping_key(
+                    &obj.seller_subscriber_id,
+                    &obj.provider_id,
+                    &obj.location_id,
+                ),
+                obj,
+            )
+        })
+        .collect();
+    Ok(seller_product_map)
+}
+
+#[tracing::instrument(name = "save ondc seller info", skip())]
+pub fn create_bulk_seller_info_objs<'a>(body: &'a WSSearchData) -> BulkSellerInfo<'a> {
+    let mut seller_subscriber_ids: Vec<&str> = vec![];
+    let mut provider_ids = vec![];
+    let mut provider_names = vec![];
+
+    for provider in &body.providers {
+        seller_subscriber_ids.push(body.bpp.subscriber_id);
+        provider_ids.push(provider.provider_detail.id);
+        provider_names.push(provider.provider_detail.name);
+    }
+
+    return BulkSellerInfo {
+        seller_subscriber_ids,
+        provider_ids,
+        provider_names,
+    };
+}
+
+#[tracing::instrument(name = "save ondc seller info", skip(pool, data))]
+pub async fn save_ondc_seller_info<'a>(
+    pool: &PgPool,
+    data: &'a WSSearchData<'a>,
+) -> Result<(), anyhow::Error> {
+    let seller_data = create_bulk_seller_info_objs(data);
+    sqlx::query!(
+        r#"
+        INSERT INTO ondc_seller_info (
+            seller_subscriber_id,
+            provider_id,
+            provider_name
+        )
+        SELECT *
+        FROM UNNEST(
+            $1::text[], 
+            $2::text[], 
+            $3::text[]
+        )
+        ON CONFLICT (seller_subscriber_id, provider_id) 
+        DO UPDATE SET 
+            provider_name = EXCLUDED.provider_name
+        "#,
+        &seller_data.seller_subscriber_ids[..] as &[&str],
+        &seller_data.provider_ids[..] as &[&str],
+        &seller_data.provider_names[..] as &[&str]
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to execute query: {:?}", e);
+        anyhow::Error::new(e).context("A database failure occurred while saving ONDC seller info")
+    })?;
+
+    Ok(())
+}
+
+pub async fn fetch_ondc_seller_info(
+    pool: &PgPool,
+    bpp_id: &str,
+    provider_id: &str,
+) -> Result<ONDCSellerInfo, anyhow::Error> {
+    let row: ONDCSellerInfo = sqlx::query_as!(
+        ONDCSellerInfo,
+        r#"SELECT  seller_subscriber_id, provider_id, provider_name from ondc_seller_info where 
+        provider_id  = $1 AND seller_subscriber_id=$2"#,
+        provider_id,
+        bpp_id,
+    )
+    .fetch_one(pool)
+    .await?;
+    Ok(row)
 }

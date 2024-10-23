@@ -5,6 +5,7 @@ use serde::Serialize;
 use serde_json::{error::Result as SerdeResult, to_string, Value};
 use std::time::{Duration, Instant};
 use tracing::{error, info, warn};
+use utoipa::ToSchema;
 
 use actix::{
     fut,
@@ -16,12 +17,13 @@ use actix_web_actors::ws;
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(30);
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum WebSocketActionType {
     Search,
     Select,
     Init,
+    Confirm,
 }
 
 #[derive(ActixMessage)]

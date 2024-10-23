@@ -169,6 +169,7 @@ mod tests {
             "testuser@123",
         )
         .await;
+        eprintln!("wwww{:?}", user_res);
         assert!(user_res.is_ok());
         let user_id = &user_res.unwrap();
         let business_res = setup_business(&pool, mobile_no, "business@example.com").await;

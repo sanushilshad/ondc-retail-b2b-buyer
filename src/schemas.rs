@@ -4,8 +4,8 @@ use std::{
     time::Duration,
 };
 
-use crate::errors::RequestMetaError;
-use crate::routes::user::schemas::AuthData;
+use crate::routes::{order::schemas::PaymentSettlementType, user::schemas::AuthData};
+use crate::{errors::RequestMetaError, routes::order::schemas::PaymentSettlementPhase};
 use actix_web::{error::ErrorInternalServerError, FromRequest, HttpMessage};
 use bigdecimal::BigDecimal;
 use futures_util::future::{ready, Ready};
@@ -13,7 +13,6 @@ use reqwest::{header, Client};
 use secrecy::Secret;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sqlx::postgres::PgHasArrayType;
 use tokio::time::sleep;
 use utoipa::{openapi::Object, ToSchema};
 use uuid::Uuid;
@@ -57,11 +56,11 @@ pub enum Status {
     Archived,
 }
 
-impl PgHasArrayType for Status {
-    fn array_type_info() -> sqlx::postgres::PgTypeInfo {
-        sqlx::postgres::PgTypeInfo::with_name("_status")
-    }
-}
+// impl PgHasArrayType for Status {
+//     fn array_type_info() -> sqlx::postgres::PgTypeInfo {
+//         sqlx::postgres::PgTypeInfo::with_name("_status")
+//     }
+// }
 
 #[derive(Debug, Eq, PartialEq, Hash, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -522,18 +521,18 @@ impl NetworkCall {
     }
 }
 
-#[derive(Debug, Deserialize, sqlx::Type, Serialize)]
+#[derive(Debug, Deserialize, sqlx::Type, Serialize, Clone, ToSchema)]
 #[serde(rename_all = "snake_case")]
 #[sqlx(type_name = "ondc_np_fee_type", rename_all = "snake_case")]
 pub enum FeeType {
     Percent,
     Amount,
 }
-impl PgHasArrayType for &FeeType {
-    fn array_type_info() -> sqlx::postgres::PgTypeInfo {
-        sqlx::postgres::PgTypeInfo::with_name("_ondc_np_fee_type")
-    }
-}
+// impl PgHasArrayType for &FeeType {
+//     fn array_type_info() -> sqlx::postgres::PgTypeInfo {
+//         sqlx::postgres::PgTypeInfo::with_name("_ondc_np_fee_type")
+//     }
+// }
 
 impl std::fmt::Display for FeeType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -560,6 +559,12 @@ pub struct RegisteredNetworkParticipant {
     pub fee_type: FeeType,
     pub fee_value: BigDecimal,
     pub unique_key_id: String,
+    pub settlement_phase: PaymentSettlementPhase,
+    pub settlement_type: PaymentSettlementType,
+    pub bank_account_no: String,
+    pub bank_ifsc_code: String,
+    pub bank_beneficiary_name: String,
+    pub bank_name: String,
 }
 
 #[derive(Debug, Serialize, sqlx::Type)]
@@ -588,7 +593,7 @@ impl WSKeyTrait for WebSocketParam {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, sqlx::Type, Clone)]
+#[derive(Debug, Serialize, Deserialize, sqlx::Type, Clone, ToSchema, PartialEq)]
 #[serde(rename_all = "UPPERCASE")]
 #[sqlx(type_name = "ondc_network_participant_type", rename_all = "UPPERCASE")]
 pub enum ONDCNetworkType {
@@ -596,11 +601,11 @@ pub enum ONDCNetworkType {
     Bpp,
 }
 
-impl PgHasArrayType for ONDCNetworkType {
-    fn array_type_info() -> sqlx::postgres::PgTypeInfo {
-        sqlx::postgres::PgTypeInfo::with_name("_ondc_network_participant_type")
-    }
-}
+// impl PgHasArrayType for ONDCNetworkType {
+//     fn array_type_info() -> sqlx::postgres::PgTypeInfo {
+//         sqlx::postgres::PgTypeInfo::with_name("_ondc_network_participant_type")
+//     }
+// }
 
 #[derive(Debug)]
 pub struct ONDCAuthParams {

@@ -1,0 +1,101 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO buyer_commerce_fulfillment_data (id, commerce_data_id, fulfillment_id, fulfillment_type, inco_terms, \n            place_of_delivery, drop_off_data, pickup_data, provider_name, servicable_status, tracking, tat, category, packaging_charge,\n            delivery_charge, convenience_fee)\n        SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::text[], $4::fulfillment_type[],$5::inco_term_type [], $6::text[],\n             $7::jsonb[], $8::jsonb[], $9::text[], $10::fulfillment_servicability_status[], $11::bool[], $12::text[],\n            $13::fulfillment_category_type[], $14::decimal[], $15::decimal[], $16::decimal[]);\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "UuidArray",
+        "TextArray",
+        {
+          "Custom": {
+            "name": "fulfillment_type[]",
+            "kind": {
+              "Array": {
+                "Custom": {
+                  "name": "fulfillment_type",
+                  "kind": {
+                    "Enum": [
+                      "delivery",
+                      "self_pickup"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "Custom": {
+            "name": "inco_term_type[]",
+            "kind": {
+              "Array": {
+                "Custom": {
+                  "name": "inco_term_type",
+                  "kind": {
+                    "Enum": [
+                      "EXW",
+                      "CIF",
+                      "FOB",
+                      "DAP",
+                      "DDP"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "TextArray",
+        "JsonbArray",
+        "JsonbArray",
+        "TextArray",
+        {
+          "Custom": {
+            "name": "fulfillment_servicability_status[]",
+            "kind": {
+              "Array": {
+                "Custom": {
+                  "name": "fulfillment_servicability_status",
+                  "kind": {
+                    "Enum": [
+                      "serviceable",
+                      "non_serviceable"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "BoolArray",
+        "TextArray",
+        {
+          "Custom": {
+            "name": "fulfillment_category_type[]",
+            "kind": {
+              "Array": {
+                "Custom": {
+                  "name": "fulfillment_category_type",
+                  "kind": {
+                    "Enum": [
+                      "standard_delivery",
+                      "express_delivery",
+                      "self_pickup"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "NumericArray",
+        "NumericArray",
+        "NumericArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "53eec6a36ffb2ff35d502173abf86a10152cdd0ed5bcf504a9e3b83d30249420"
+}

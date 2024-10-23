@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO business_account (id, business_account_number, alt_business_account_number, company_name, vectors, proofs, customer_type, merchant_type, trade, source, created_by,  created_at, subscriber_id, default_vector_type)\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)\n        ",
+  "query": "\n        INSERT INTO business_account (id, business_account_number, alt_business_account_number, company_name, vectors, proofs, customer_type, merchant_type, trade, source, created_by,  created_on, subscriber_id, default_vector_type)\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)\n        ",
   "describe": {
     "columns": [],
     "parameters": {
@@ -47,7 +47,7 @@
         },
         {
           "Custom": {
-            "name": "_trade_type",
+            "name": "trade_type[]",
             "kind": {
               "Array": {
                 "Custom": {
@@ -69,7 +69,6 @@
             "kind": {
               "Enum": [
                 "place_order",
-                "placeorder",
                 "ondc",
                 "rapidor"
               ]
@@ -84,5 +83,5 @@
     },
     "nullable": []
   },
-  "hash": "eed0265d23c04457a56e2237177ef0ea1174bdbcf1751d661b0f52e658a40d76"
+  "hash": "82c92a667aa000db79f896798f8c7ff3bc78fa9c24195f73fcffd9a84b8bc327"
 }

@@ -1,0 +1,57 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO buyer_commerce_fulfillment_data (id, commerce_data_id, fulfillment_id, fulfillment_type, inco_terms, place_of_delivery, drop_off_data)\n        SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::text[], $4::fulfillment_type[],$5::inco_term_type [], $6::text[], $7::jsonb[]);\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "UuidArray",
+        "TextArray",
+        {
+          "Custom": {
+            "name": "fulfillment_type[]",
+            "kind": {
+              "Array": {
+                "Custom": {
+                  "name": "fulfillment_type",
+                  "kind": {
+                    "Enum": [
+                      "delivery",
+                      "self_pickup"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "Custom": {
+            "name": "inco_term_type[]",
+            "kind": {
+              "Array": {
+                "Custom": {
+                  "name": "inco_term_type",
+                  "kind": {
+                    "Enum": [
+                      "EXW",
+                      "CIF",
+                      "FOB",
+                      "DAP",
+                      "DDP"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "TextArray",
+        "JsonbArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d6e30684c55911ac7a7b0813fea1bbb1db6edc2fac5c28bc7e71504cfc6340d0"
+}

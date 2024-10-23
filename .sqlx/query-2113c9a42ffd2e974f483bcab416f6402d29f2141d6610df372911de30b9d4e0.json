@@ -1,0 +1,54 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT transaction_id, message_id, user_id, business_id, device_id, request_payload\n        FROM ondc_buyer_order_req\n        WHERE transaction_id = $1 AND message_id = $2 AND action_type = $3 ORDER BY created_on DESC\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "transaction_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "message_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "business_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "device_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "request_payload",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "2113c9a42ffd2e974f483bcab416f6402d29f2141d6610df372911de30b9d4e0"
+}

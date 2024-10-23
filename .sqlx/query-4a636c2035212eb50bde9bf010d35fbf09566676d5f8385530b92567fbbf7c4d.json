@@ -36,7 +36,6 @@
             "kind": {
               "Enum": [
                 "place_order",
-                "placeorder",
                 "ondc",
                 "rapidor"
               ]

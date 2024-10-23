@@ -65,3 +65,37 @@ impl From<InitOrderError> for GenericError {
         }
     }
 }
+
+#[allow(clippy::enum_variant_names)]
+#[derive(thiserror::Error)]
+pub enum ConfirmOrderError {
+    #[error("{0}")]
+    ValidationError(String),
+    #[error("{0}")]
+    InvalidDataError(String),
+    #[error(transparent)]
+    UnexpectedError(#[from] anyhow::Error),
+    #[error("{0}")]
+    DatabaseError(String, anyhow::Error),
+}
+
+impl std::fmt::Debug for ConfirmOrderError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        error_chain_fmt(self, f)
+    }
+}
+
+impl From<ConfirmOrderError> for GenericError {
+    fn from(err: ConfirmOrderError) -> GenericError {
+        match err {
+            ConfirmOrderError::ValidationError(message) => GenericError::ValidationError(message),
+            ConfirmOrderError::UnexpectedError(error) => GenericError::UnexpectedError(error),
+            ConfirmOrderError::DatabaseError(message, error) => {
+                GenericError::DatabaseError(message, error)
+            }
+            ConfirmOrderError::InvalidDataError(message) => {
+                GenericError::SerializationError(message)
+            }
+        }
+    }
+}

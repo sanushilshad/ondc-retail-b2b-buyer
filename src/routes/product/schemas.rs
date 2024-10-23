@@ -10,7 +10,6 @@ use bigdecimal::BigDecimal;
 use futures_util::future::LocalBoxFuture;
 use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
-use sqlx::postgres::PgHasArrayType;
 use utoipa::ToSchema;
 use uuid::Uuid;
 #[derive(Debug, Deserialize, Serialize, ToSchema, sqlx::Type, Clone)]
@@ -22,11 +21,11 @@ pub enum PaymentType {
     Credit,
 }
 
-impl PgHasArrayType for PaymentType {
-    fn array_type_info() -> sqlx::postgres::PgTypeInfo {
-        sqlx::postgres::PgTypeInfo::with_name("_payment_type")
-    }
-}
+// impl PgHasArrayType for PaymentType {
+//     fn array_type_info() -> sqlx::postgres::PgTypeInfo {
+//         sqlx::postgres::PgTypeInfo::with_name("_payment_type")
+//     }
+// }
 
 impl PaymentType {
     pub fn get_ondc_payment(&self) -> ONDCPaymentType {
@@ -47,11 +46,11 @@ pub enum FulfillmentType {
     SelfPickup,
 }
 
-impl PgHasArrayType for &FulfillmentType {
-    fn array_type_info() -> sqlx::postgres::PgTypeInfo {
-        sqlx::postgres::PgTypeInfo::with_name("_fulfillment_type")
-    }
-}
+// impl PgHasArrayType for &FulfillmentType {
+//     fn array_type_info() -> sqlx::postgres::PgTypeInfo {
+//         sqlx::postgres::PgTypeInfo::with_name("_fulfillment_type")
+//     }
+// }
 
 impl FulfillmentType {
     pub fn get_ondc_fulfillment_type(&self) -> ONDCFulfillmentType {
@@ -305,7 +304,7 @@ pub struct WSSearchItem<'a> {
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct WSSearchCountry<'a> {
-    pub code: &'a str,
+    pub code: &'a CountryCode,
     pub name: Option<&'a str>,
 }
 #[derive(Debug, Serialize, ToSchema)]
@@ -319,7 +318,7 @@ pub struct WSSearchState<'a> {
 #[serde(rename_all = "camelCase")]
 pub struct WSSearchCity<'a> {
     pub code: &'a str,
-    pub name: Option<&'a str>,
+    pub name: &'a str,
 }
 
 #[derive(Debug, Serialize, ToSchema)]

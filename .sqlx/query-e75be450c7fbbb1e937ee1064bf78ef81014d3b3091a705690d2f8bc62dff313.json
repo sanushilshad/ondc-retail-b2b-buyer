@@ -1,0 +1,36 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE buyer_commerce_data SET billing=$1, bpp_terms=$2, record_status=$3, cancellation_terms=$4, updated_on=$5 WHERE external_urn=$6\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Json",
+        "Json",
+        {
+          "Custom": {
+            "name": "buyer_commerce_status",
+            "kind": {
+              "Enum": [
+                "quote_requested",
+                "quote_accepted",
+                "quote_rejected",
+                "initialized",
+                "created",
+                "accepted",
+                "in_progess",
+                "completed",
+                "cancelled"
+              ]
+            }
+          }
+        },
+        "Jsonb",
+        "Timestamptz",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e75be450c7fbbb1e937ee1064bf78ef81014d3b3091a705690d2f8bc62dff313"
+}

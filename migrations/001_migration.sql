@@ -259,6 +259,13 @@ CREATE TYPE ondc_np_fee_type AS ENUM (
   'amount'
 );
 
+CREATE TYPE payment_settlement_phase AS ENUM (
+  'sale_amount'
+);
+
+CREATE TYPE payment_settlement_type AS ENUM (
+  'neft'
+);
 
 CREATE TABLE IF NOT EXISTS registered_network_participant (
   id uuid PRIMARY KEY,
@@ -275,7 +282,14 @@ CREATE TABLE IF NOT EXISTS registered_network_participant (
   created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   created_by uuid NOT NULL,
   fee_type ondc_np_fee_type DEFAULT 'percent'::ondc_np_fee_type NOT NULL,
-  fee_value DECIMAL(20, 3) NOT NULL DEFAULT 0.00
+  fee_value DECIMAL(20, 3) NOT NULL DEFAULT 0.00,
+  settlement_phase payment_settlement_phase NOT NULL,
+  settlement_type payment_settlement_type NOT NULL,
+  bank_account_no TEXT NOT NULL,
+  bank_ifsc_code TEXT NOT NULL,
+  bank_beneficiary_name TEXT NOT NULL,
+  bank_name TEXT NOT NULL
+
 );
 
 ALTER TABLE registered_network_participant ADD CONSTRAINT registered_network_participant_constraint UNIQUE (subscriber_id, network_participant_type);
@@ -339,23 +353,6 @@ CREATE TABLE IF NOT EXISTS network_participant (
 ALTER TABLE network_participant ADD CONSTRAINT network_participant_constraint UNIQUE (subscriber_id, type);
 
 
-
-CREATE TABLE IF NOT EXISTS ondc_seller_product_info (
-    id SERIAL NOT NULL PRIMARY KEY,
-    seller_subscriber_id TEXT NOT NULL,
-    provider_id TEXT NOT NULL,
-    provider_name TEXT,
-    item_id TEXT NOT NULL,
-    item_code TEXT NOT NULL,
-    item_name TEXT NOT NULL,
-    tax_rate DECIMAL(5, 2) NOT NULL,
-    images JSONB NOT NULL,
-    mrp DECIMAL(20, 3) NOT NULL DEFAULT 0.0,
-    unit_price DECIMAL(20, 3) NOT NULL DEFAULT 0.0,
-    created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-ALTER TABLE ondc_seller_product_info ADD CONSTRAINT ondc_seller_product_info_constraint UNIQUE (seller_subscriber_id, provider_id, item_id);
-
 CREATE TABLE IF NOT EXISTS ondc_buyer_order_req (
     id SERIAL NOT NULL PRIMARY KEY,
     message_id uuid NOT NULL,
@@ -385,7 +382,7 @@ CREATE TYPE currency_code_type AS ENUM (
   'GHS'
 );
 
-CREATE TYPE buyer_commerce_status AS ENUM(
+CREATE TYPE commerce_status AS ENUM(
   'quote_requested',
   'quote_accepted',
   'quote_rejected',
@@ -658,12 +655,12 @@ CREATE TYPE domain_category AS ENUM (
 );
 
 
-CREATE TABLE IF NOT EXISTS buyer_commerce_data(
+CREATE TABLE IF NOT EXISTS commerce_data(
   id uuid PRIMARY KEY,
   urn TEXT,
   external_urn uuid NOT NULL,
   record_type commerce_data_type NOT NULL,
-  record_status buyer_commerce_status NOT NULL,
+  record_status commerce_status NOT NULL,
   domain_category_code domain_category NOT NULL,
   buyer_id uuid NOT NULL,
   seller_id TEXT NOT NULL,
@@ -687,14 +684,14 @@ CREATE TABLE IF NOT EXISTS buyer_commerce_data(
   currency_code currency_code_type,
   city_code TEXT NOT NULL,
   country_code country_code NOT NULL,
-  billing JSON,
-  bpp_terms JSON,
-  cancellation_terms JSON
+  billing JSONB,
+  bpp_terms JSONB,
+  cancellation_terms JSONB
 );
 
-ALTER TABLE buyer_commerce_data ADD CONSTRAINT buyer_commerce_data_uq UNIQUE (external_urn);
+ALTER TABLE commerce_data ADD CONSTRAINT commerce_data_uq UNIQUE (external_urn);
 
-CREATE TABLE IF NOT EXISTS buyer_commerce_data_line(
+CREATE TABLE IF NOT EXISTS commerce_data_line(
   id uuid PRIMARY KEY,
   commerce_data_id uuid NOT NULL,
   item_id TEXT NOT NULL,
@@ -715,8 +712,8 @@ CREATE TABLE IF NOT EXISTS buyer_commerce_data_line(
   packaging_req TEXT
 );
 
-ALTER TABLE buyer_commerce_data_line ADD CONSTRAINT commerce_data_fk FOREIGN KEY ("commerce_data_id") REFERENCES buyer_commerce_data ("id") ON DELETE CASCADE;
-ALTER TABLE buyer_commerce_data_line ADD CONSTRAINT buyer_commerce_raw_data_uq UNIQUE (commerce_data_id, item_code);
+ALTER TABLE commerce_data_line ADD CONSTRAINT commerce_data_fk FOREIGN KEY ("commerce_data_id") REFERENCES commerce_data ("id") ON DELETE CASCADE;
+ALTER TABLE commerce_data_line ADD CONSTRAINT commerce_raw_data_uq UNIQUE (commerce_data_id, item_code);
 
 
 CREATE TYPE commerce_fulfillment_status_type AS ENUM(
@@ -749,11 +746,14 @@ CREATE TYPE fulfillment_category_type AS ENUM (
   'self_pickup'
 );
 
-CREATE TABLE IF NOT EXISTS buyer_commerce_fulfillment_data(
+CREATE TABLE IF NOT EXISTS commerce_fulfillment_data(
   id uuid PRIMARY KEY,
   commerce_data_id uuid NOT NULL,
   fulfillment_id TEXT NOT NULL,
   fulfillment_type fulfillment_type NOT NULL,
+  packaging_charge DECIMAL(20, 3) NOT NULL DEFAULT 0.0,
+  delivery_charge DECIMAL(20, 3) NOT NULL DEFAULT 0.0,
+  convenience_fee DECIMAL(20, 3) NOT NULL DEFAULT 0.0,
   fulfillment_status commerce_fulfillment_status_type DEFAULT 'pending'::commerce_fulfillment_status_type NOT NULL,
   inco_terms inco_term_type,
   place_of_delivery TEXT,
@@ -764,16 +764,17 @@ CREATE TABLE IF NOT EXISTS buyer_commerce_fulfillment_data(
   tracking BOOLEAN,
   category fulfillment_category_type,
   servicable_status fulfillment_servicability_status,
-  pickup_data JSONB,
+  pickup_data JSONB NOT NULL,
   drop_off_data JSONB,
   created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+
 );
 
-ALTER TABLE buyer_commerce_fulfillment_data ADD CONSTRAINT commerce_fulfillment_fk FOREIGN KEY ("commerce_data_id") REFERENCES buyer_commerce_data ("id") ON DELETE CASCADE;
-ALTER TABLE buyer_commerce_fulfillment_data ADD CONSTRAINT buyer_commerce_fulfillment_data_uq UNIQUE (commerce_data_id, fulfillment_id);
+ALTER TABLE commerce_fulfillment_data ADD CONSTRAINT commerce_fulfillment_fk FOREIGN KEY ("commerce_data_id") REFERENCES commerce_data ("id") ON DELETE CASCADE;
+ALTER TABLE commerce_fulfillment_data ADD CONSTRAINT commerce_fulfillment_data_uq UNIQUE (commerce_data_id, fulfillment_id);
 
 
-CREATE TABLE IF NOT EXISTS buyer_commerce_fulfillment_data_line(
+CREATE TABLE IF NOT EXISTS commerce_fulfillment_data_line(
   id uuid PRIMARY KEY,
   commerce_fulfillment_id uuid NOT NULL,
   seller_id TEXT NOT NULL,
@@ -781,8 +782,8 @@ CREATE TABLE IF NOT EXISTS buyer_commerce_fulfillment_data_line(
   item_count int NOT NULL
 );
 
-ALTER TABLE buyer_commerce_fulfillment_data_line ADD CONSTRAINT commerce_fulfillment_raw_fk FOREIGN KEY ("commerce_fulfillment_id") REFERENCES buyer_commerce_fulfillment_data ("id") ON DELETE CASCADE;
-ALTER TABLE buyer_commerce_fulfillment_data_line ADD CONSTRAINT commerce_fulfillment_raw_data_uq UNIQUE (commerce_fulfillment_id, seller_id, item_code);
+ALTER TABLE commerce_fulfillment_data_line ADD CONSTRAINT commerce_fulfillment_raw_fk FOREIGN KEY ("commerce_fulfillment_id") REFERENCES commerce_fulfillment_data ("id") ON DELETE CASCADE;
+ALTER TABLE commerce_fulfillment_data_line ADD CONSTRAINT commerce_fulfillment_raw_data_uq UNIQUE (commerce_fulfillment_id, seller_id, item_code);
 
 
 CREATE TYPE settlement_basis_type AS ENUM (
@@ -791,11 +792,21 @@ CREATE TYPE settlement_basis_type AS ENUM (
   'delivery'
 );
 
-CREATE TABLE IF NOT EXISTS buyer_commerce_payment(
+
+CREATE TYPE payment_status AS ENUM (
+  'paid',
+  'not_paid',
+  'pending'
+);
+
+CREATE TABLE IF NOT EXISTS commerce_payment_data(
   id uuid PRIMARY KEY,
   commerce_data_id uuid NOT NULL,
   collected_by ondc_network_participant_type,
   payment_type payment_type,
+  payment_status payment_status,
+  payment_amount DECIMAL(20, 3),
+  transaction_id TEXT,
   buyer_fee_type ondc_np_fee_type,
   buyer_fee_amount DECIMAL(20, 3),
   settlement_window TEXT,
@@ -807,7 +818,7 @@ CREATE TABLE IF NOT EXISTS buyer_commerce_payment(
   seller_payment_dsa TEXT,
   seller_payment_ttl TEXT
 );
-ALTER TABLE buyer_commerce_payment ADD CONSTRAINT buyer_commerce_payment_fk FOREIGN KEY ("commerce_data_id") REFERENCES buyer_commerce_data ("id") ON DELETE CASCADE;
+ALTER TABLE commerce_payment_data ADD CONSTRAINT commerce_payment_fk FOREIGN KEY ("commerce_data_id") REFERENCES commerce_data ("id") ON DELETE CASCADE;
 
 
 
@@ -820,3 +831,52 @@ CREATE TABLE IF NOT EXISTS  buyer_order_status_history(
   created_on TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS ondc_seller_info (
+    id SERIAL NOT NULL PRIMARY KEY,
+    seller_subscriber_id TEXT NOT NULL,
+    provider_id TEXT NOT NULL,
+    provider_name TEXT,
+    created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+ALTER TABLE ondc_seller_info ADD CONSTRAINT ondc_seller_info_constraint UNIQUE (seller_subscriber_id, provider_id);
+
+CREATE TABLE IF NOT EXISTS ondc_seller_location_info(
+    id SERIAL NOT NULL PRIMARY KEY,
+    seller_subscriber_id TEXT NOT NULL,
+    provider_id TEXT NOT NULL,
+    location_id TEXT NOT NULL,
+    latitude DECIMAL(9, 6) NOT NULL,
+    longitude DECIMAL(9, 6) NOT NULL,
+    address TEXT NOT NULL,
+    city_code TEXT NOT NULL,
+    city_name TEXT NOT NULL,
+    state_code TEXT NOT NULL,
+    state_name TEXT,
+    country_code country_code NOT NULL,
+    country_name TEXT,
+    area_code TEXT NOT NULL,
+    created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE ondc_seller_location_info ADD CONSTRAINT ondc_seller_location_constraint UNIQUE (seller_subscriber_id, provider_id, location_id);
+
+CREATE TABLE IF NOT EXISTS ondc_seller_product_info (
+    id SERIAL NOT NULL PRIMARY KEY,
+    seller_subscriber_id TEXT NOT NULL,
+    provider_id TEXT NOT NULL,
+    provider_name TEXT,
+    item_id TEXT NOT NULL,
+    item_code TEXT NOT NULL,
+    item_name TEXT NOT NULL,
+    tax_rate DECIMAL(5, 2) NOT NULL,
+    images JSONB NOT NULL,
+    mrp DECIMAL(20, 3) NOT NULL DEFAULT 0.0,
+    unit_price DECIMAL(20, 3) NOT NULL DEFAULT 0.0,
+    created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+ALTER TABLE ondc_seller_product_info ADD CONSTRAINT ondc_seller_product_info_constraint UNIQUE (seller_subscriber_id, provider_id, item_id);
+
+
+ALTER TABLE ondc_seller_location_info ADD FOREIGN KEY (seller_subscriber_id, provider_id) REFERENCES ondc_seller_info (seller_subscriber_id, provider_id) ON DELETE CASCADE;
+
+ALTER TABLE ondc_seller_product_info ADD FOREIGN KEY (seller_subscriber_id, provider_id) REFERENCES ondc_seller_info (seller_subscriber_id, provider_id) ON DELETE CASCADE;

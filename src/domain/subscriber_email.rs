@@ -3,14 +3,14 @@ use serde::{
     Deserialize, Deserializer, Serialize,
 };
 use utoipa::ToSchema;
-use validator::validate_email;
+use validator::ValidateEmail;
 
 #[derive(Debug, Clone, Deserialize, PartialEq, ToSchema, Serialize)]
 pub struct EmailObject(String);
 
 impl EmailObject {
     pub fn parse(s: String) -> Result<EmailObject, String> {
-        if validate_email(&s) {
+        if s.validate_email() {
             Ok(Self(s))
         } else {
             Err(format!("{} is not a valid email.", s))

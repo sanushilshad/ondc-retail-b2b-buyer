@@ -1,0 +1,48 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT message_id, transaction_id, user_id, business_id, device_id\n        FROM ondc_buyer_order_req\n        WHERE transaction_id = $1 AND message_id = $2 AND action_type = $3 AND user_id is not NULL AND business_id is not NULL ORDER BY created_on DESC\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "message_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "transaction_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "business_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "device_id",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "b9f3263a06a473018cdeeb0c5a46054bdfb88abcc8a1dd226e6196023e8e5ada"
+}

@@ -52,6 +52,9 @@ export DATABASE__HOST=""
 export DATABASE__NAME=""
 export DATABASE__USERNAME="postgres"
 export DATABASE__DATABASE_URL="postgres://postgres:{password}@{host}:{port}/{db_name}"
+export DATABASE__ACQUIRE_TIMEOUT=2
+export DATABASE__MAX_CONNECTIONS=500
+export DATABASE__MIN_CONNECTIONS=10
 
 ## EMAIL VARIABLES
 export EMAIL_CLIENT__USERNAME=""
@@ -147,9 +150,9 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [x] Integrate Websocket 
 * [x] Add business verification middleware
 * [x] Add generic header validation middleware
-* [x] Add realtime search API
 * [x] Add seller auth header validation middleware
-* [x] Add ONDC on search api
+* [x] Develop realtime search API
+* [x] Develop ONDC on search api
 * [x] Fix integration test + add unit test cases for the apis in milestone 1
 * [x] Add application release + debug + kill bash scripts 
 
@@ -160,8 +163,8 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [x] Develop ondc on select API
 * [x] Develop init API
 * [x] Develop ONDC on init API
-* [ ] Develop confirm API
-* [ ] Develop ONDC on on_confirm API
+* [x] Develop confirm API
+* [x] Develop ONDC on on_confirm API
 * [ ] Develop status API
 * [ ] Develop ONDC on status API
 * [ ] Develop cancel API
@@ -169,7 +172,11 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [ ] Develop update API
 * [ ] Develop ONDC on update API
 
-
+### MILESTONE 2.5:
+* [ ] Move Webscoket and User Module to seperate service
+* [ ] Move User Module to seperate service
+* [ ] Integrate BAP Payment Gateway
+* [ ] Develop Business Specific Config Module.
 
 ### MILESTONE 3:
 * [ ] Develop IGM issue API
@@ -177,12 +184,11 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [ ] Develop IGM issue_status API
 * [ ] Develop ONDC on issue_status API
 * [ ] Develop IGM issue close API
-
+* [ ] Integrate Observability Module
 
 ### MILESTONE 4:
 * [ ] Develop info API
 * [ ] Develop ONDC info API
-* [ ] Integrate Payment Gateway
 * [ ] Add Chat Functionality
 * [ ] Develop Business Account fetch API
 * [ ] Develop User Account fetch API
@@ -193,8 +199,6 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [ ] Develop & Integrate permission flow
 * [ ] Develop Permission assignment API
 * [ ] Integrate MeileiSeach
-* [ ] Integrate Redis PubSub With Webocket
-* [ ] Integrate Pulser/Kafka/RabbitMQ
 * [ ] Integrate with notification microservice to enable WhatsApp, Email and SMS functionality
 
 ### MILESTONE 4:
@@ -205,7 +209,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 
 
 ### OPTIONAL
-
+* [ ] Integrate Pulser/Kafka/RabbitMQ
 * [ ] Integrate SMS
 * [ ] Integrate Whatsapp
 * [ ] Develop email verfication APIs for user and business account
