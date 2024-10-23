@@ -8,12 +8,11 @@ use sqlx::FromRow;
 use uuid::Uuid;
 
 use super::schemas::{
-    CancellationFeeType, CommerceFulfillmentStatusType, CommerceStatusType, DropOffDataModel,
-    FulfillmentCategoryType, IncoTermType, OrderBillingModel, OrderType,
-    PaymentSettlementCounterparty, PaymentSettlementPhase, PaymentSettlementType, PickUpDataModel,
-    ServiceableType, SettlementBasis,
+    CancellationFeeType, CommerceStatusType, FulfillmentCategoryType, FulfillmentStatusType,
+    IncoTermType, OrderType, PaymentSettlementCounterparty, PaymentSettlementPhase,
+    PaymentSettlementType, ServiceableType, SettlementBasis,
 };
-
+use crate::domain::EmailObject;
 #[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct OrderCancellationFeeModel {
     pub r#type: CancellationFeeType,
@@ -23,12 +22,12 @@ pub struct OrderCancellationFeeModel {
 #[derive(Debug, Serialize, Deserialize, FromRow)]
 // #[sqlx(type_name = "order_cancellation_term_model")]
 pub struct OrderCancellationTermModel {
-    pub fulfillment_state: CommerceFulfillmentStatusType,
+    pub fulfillment_state: FulfillmentStatusType,
     pub reason_required: bool,
     pub cancellation_fee: OrderCancellationFeeModel,
 }
 #[derive(Debug, Serialize, Deserialize)]
-pub struct BuyerCommerceBppTermsModel {
+pub struct CommerceBppTermsModel {
     pub max_liability: String,
     pub max_liability_cap: String,
     pub mandatory_arbitration: bool,
@@ -37,7 +36,7 @@ pub struct BuyerCommerceBppTermsModel {
 }
 #[allow(dead_code)]
 #[derive(Deserialize, Debug, FromRow)]
-pub struct BuyerCommerceDataModel {
+pub struct CommerceDataModel {
     pub id: Uuid,
     pub urn: Option<String>,
     pub external_urn: Uuid,
@@ -66,12 +65,12 @@ pub struct BuyerCommerceDataModel {
     pub country_code: CountryCode,
     pub billing: Option<sqlx::types::Json<OrderBillingModel>>,
     pub cancellation_terms: Option<sqlx::types::Json<Vec<OrderCancellationTermModel>>>,
-    pub bpp_terms: Option<sqlx::types::Json<BuyerCommerceBppTermsModel>>,
+    pub bpp_terms: Option<sqlx::types::Json<CommerceBppTermsModel>>,
 }
 
 #[allow(dead_code)]
 #[derive(Deserialize, Debug, FromRow)]
-pub struct BuyerCommerceItemModel {
+pub struct CommerceItemModel {
     pub id: Uuid,
     pub item_id: String,
     pub commerce_data_id: Uuid,
@@ -104,7 +103,7 @@ pub struct PaymentSettlementDetailModel {
 
 #[allow(dead_code)]
 #[derive(Deserialize, Debug)]
-pub struct BuyerCommercePaymentModel {
+pub struct CommercePaymentModel {
     pub id: Uuid,
     pub collected_by: Option<ONDCNetworkType>,
     pub payment_type: PaymentType,
@@ -120,22 +119,84 @@ pub struct BuyerCommercePaymentModel {
 
 #[allow(dead_code)]
 #[derive(Deserialize, Debug)]
-pub struct BuyerCommerceFulfillmentModel {
+pub struct CommerceFulfillmentModel {
     pub id: String,
     pub commerce_data_id: Uuid,
     pub fulfillment_id: String,
     pub fulfillment_type: FulfillmentType,
     pub tat: Option<String>,
-    pub fulfillment_status: CommerceFulfillmentStatusType,
+    pub fulfillment_status: FulfillmentStatusType,
     pub inco_terms: Option<IncoTermType>,
     pub place_of_delivery: Option<String>,
     pub provider_name: Option<String>,
     pub category: Option<FulfillmentCategoryType>,
     pub servicable_status: Option<ServiceableType>,
     pub drop_off_data: sqlx::types::Json<Option<DropOffDataModel>>,
-    pub pickup_data: sqlx::types::Json<Option<PickUpDataModel>>,
+    pub pickup_data: sqlx::types::Json<PickUpDataModel>,
     pub tracking: Option<bool>,
     pub packaging_charge: BigDecimal,
     pub delivery_charge: BigDecimal,
     pub convenience_fee: BigDecimal,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct OrderBillingModel {
+    pub name: String,
+    pub address: String,
+    pub state: String,
+    pub city: String,
+    pub tax_id: String,
+    pub email: Option<EmailObject>,
+    pub phone: String,
+}
+
+#[derive(Deserialize, Debug, Serialize, sqlx::FromRow, Clone)]
+pub struct DropOffLocationModel {
+    pub gps: String,
+    pub area_code: String,
+    pub address: Option<String>,
+    pub city: String,
+    pub country: CountryCode,
+    pub state: String,
+}
+
+#[derive(Deserialize, Debug, Serialize, sqlx::FromRow, Clone)]
+pub struct DropOffContactModel {
+    pub mobile_no: String,
+    pub email: Option<String>,
+}
+
+#[derive(Deserialize, Debug, Serialize, sqlx::FromRow, Clone)]
+pub struct DropOffDataModel {
+    pub location: DropOffLocationModel,
+    pub contact: DropOffContactModel,
+}
+
+#[derive(Deserialize, Debug, Serialize, sqlx::FromRow, Clone)]
+pub struct PickUpContactModel {
+    pub mobile_no: String,
+    pub email: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct TimeRangeModel {
+    pub start: DateTime<Utc>,
+    pub end: DateTime<Utc>,
+}
+
+#[derive(Deserialize, Debug, Serialize, sqlx::FromRow, Clone)]
+pub struct PickUpDataModel {
+    pub location: PickUpLocationModel,
+    pub contact: PickUpContactModel,
+    pub time_range: Option<TimeRangeModel>,
+}
+
+#[derive(Deserialize, Debug, Serialize, sqlx::FromRow, Clone)]
+pub struct PickUpLocationModel {
+    pub gps: String,
+    pub area_code: String,
+    pub address: String,
+    pub city: String,
+    pub country: CountryCode,
+    pub state: String,
 }

@@ -304,7 +304,7 @@ pub struct WSSearchItem<'a> {
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct WSSearchCountry<'a> {
-    pub code: &'a str,
+    pub code: &'a CountryCode,
     pub name: Option<&'a str>,
 }
 #[derive(Debug, Serialize, ToSchema)]
@@ -318,7 +318,7 @@ pub struct WSSearchState<'a> {
 #[serde(rename_all = "camelCase")]
 pub struct WSSearchCity<'a> {
     pub code: &'a str,
-    pub name: Option<&'a str>,
+    pub name: &'a str,
 }
 
 #[derive(Debug, Serialize, ToSchema)]

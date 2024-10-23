@@ -206,7 +206,7 @@ impl FromRequest for OrderSelectRequest {
 }
 
 #[derive(Deserialize, Debug, sqlx::Type, ToSchema)]
-#[sqlx(type_name = "buyer_commerce_status", rename_all = "snake_case")]
+#[sqlx(type_name = "commerce_status", rename_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
 pub enum CommerceStatusType {
     QuoteRequested,
@@ -231,34 +231,6 @@ pub enum CommerceStatusType {
 pub struct Payment {
     pub collected_by: Option<ONDCNetworkType>,
     pub r#type: PaymentType,
-}
-
-#[derive(Deserialize, Debug, Serialize, sqlx::FromRow, Clone)]
-pub struct DropOffLocationModel {
-    pub gps: String,
-    pub area_code: String,
-    pub address: Option<String>,
-    pub city: String,
-    pub country: CountryCode,
-    pub state: String,
-}
-
-#[derive(Deserialize, Debug, Serialize, sqlx::FromRow, Clone)]
-pub struct DropOffContactModel {
-    pub mobile_no: String,
-    pub email: Option<String>,
-}
-
-#[derive(Deserialize, Debug, Serialize, sqlx::FromRow, Clone)]
-pub struct DropOffDataModel {
-    pub location: DropOffLocationModel,
-    pub contact: DropOffContactModel,
-}
-
-#[derive(Deserialize, Debug, Serialize, sqlx::FromRow, Clone)]
-pub struct PickUpDataModel {
-    pub location: DropOffLocationModel,
-    pub contact: DropOffContactModel,
 }
 
 #[derive(Deserialize, Debug, ToSchema)]
@@ -300,7 +272,7 @@ impl FromRequest for OrderInitRequest {
 }
 
 #[derive(Deserialize, Debug, ToSchema)]
-pub struct BuyerCommerceSeller {
+pub struct CommerceSeller {
     pub id: String,
     pub name: Option<String>,
 }
@@ -311,7 +283,7 @@ pub struct BasicNetWorkData {
     pub uri: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct PaymentSettlementDetail {
     pub settlement_counterparty: PaymentSettlementCounterparty,
     pub settlement_phase: PaymentSettlementPhase,
@@ -322,7 +294,7 @@ pub struct PaymentSettlementDetail {
     pub bank_name: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, sqlx::Type, Clone)]
+#[derive(Debug, Serialize, Deserialize, sqlx::Type, Clone, ToSchema)]
 #[serde(rename_all = "snake_case")]
 #[sqlx(type_name = "settlement_basis_type", rename_all = "snake_case")]
 pub enum SettlementBasis {
@@ -342,7 +314,7 @@ impl SettlementBasis {
 }
 
 #[derive(Deserialize, Debug, ToSchema)]
-pub struct BuyerCommercePayment {
+pub struct CommercePayment {
     #[schema(value_type = String)]
     pub id: Uuid,
     pub collected_by: Option<ONDCNetworkType>,
@@ -359,7 +331,7 @@ pub struct BuyerCommercePayment {
 #[derive(Deserialize, Debug, ToSchema, sqlx::Type, Serialize, Clone)]
 #[sqlx(type_name = "commerce_fulfillment_status_type")]
 #[sqlx(rename_all = "snake_case")]
-pub enum CommerceFulfillmentStatusType {
+pub enum FulfillmentStatusType {
     AgentAssigned,
     Packed,
     OutForDelivery,
@@ -370,23 +342,17 @@ pub enum CommerceFulfillmentStatusType {
     Cancelled,
 }
 
-impl CommerceFulfillmentStatusType {
+impl FulfillmentStatusType {
     pub fn get_ondc_fulfillment_state(&self) -> ONDCFulfillmentStateType {
         match self {
-            CommerceFulfillmentStatusType::AgentAssigned => ONDCFulfillmentStateType::AgentAssigned,
-            CommerceFulfillmentStatusType::Packed => ONDCFulfillmentStateType::Packed,
-            CommerceFulfillmentStatusType::OutForDelivery => {
-                ONDCFulfillmentStateType::OutForDelivery
-            }
-            CommerceFulfillmentStatusType::OrderPickedUp => ONDCFulfillmentStateType::OrderPickedUp,
-            CommerceFulfillmentStatusType::SearchingForAgent => {
-                ONDCFulfillmentStateType::SearchingForAgent
-            }
-            CommerceFulfillmentStatusType::Pending => ONDCFulfillmentStateType::Pending,
-            CommerceFulfillmentStatusType::OrderDelivered => {
-                ONDCFulfillmentStateType::OrderDelivered
-            }
-            CommerceFulfillmentStatusType::Cancelled => ONDCFulfillmentStateType::Cancelled,
+            FulfillmentStatusType::AgentAssigned => ONDCFulfillmentStateType::AgentAssigned,
+            FulfillmentStatusType::Packed => ONDCFulfillmentStateType::Packed,
+            FulfillmentStatusType::OutForDelivery => ONDCFulfillmentStateType::OutForDelivery,
+            FulfillmentStatusType::OrderPickedUp => ONDCFulfillmentStateType::OrderPickedUp,
+            FulfillmentStatusType::SearchingForAgent => ONDCFulfillmentStateType::SearchingForAgent,
+            FulfillmentStatusType::Pending => ONDCFulfillmentStateType::Pending,
+            FulfillmentStatusType::OrderDelivered => ONDCFulfillmentStateType::OrderDelivered,
+            FulfillmentStatusType::Cancelled => ONDCFulfillmentStateType::Cancelled,
         }
     }
 }
@@ -423,24 +389,43 @@ pub struct DropOffData {
     pub location: FulfillmentLocation,
     pub contact: FulfillmentContact,
 }
+
+#[derive(Deserialize, Debug, Serialize, sqlx::FromRow, ToSchema)]
+pub struct PickUpFulfillmentLocation {
+    pub name: Option<String>,
+    pub gps: String,
+    pub area_code: String,
+    pub address: String,
+    pub city: String,
+    pub country: CountryCode,
+    pub state: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TimeRange {
+    pub start: DateTime<Utc>,
+    pub end: DateTime<Utc>,
+}
+
 #[derive(Deserialize, Debug, Serialize, sqlx::FromRow, ToSchema)]
 pub struct PickUpData {
-    pub location: FulfillmentLocation,
+    pub location: PickUpFulfillmentLocation,
+    pub time_range: Option<TimeRange>,
     pub contact: FulfillmentContact,
 }
 #[derive(Deserialize, Debug, ToSchema)]
-pub struct BuyerCommerceFulfillment {
+pub struct CommerceFulfillment {
     pub id: String,
     pub fulfillment_id: String,
     pub fulfillment_type: FulfillmentType,
     pub tat: Option<String>,
-    pub fulfillment_status: CommerceFulfillmentStatusType,
+    pub fulfillment_status: FulfillmentStatusType,
     pub delivery_term: Option<DeliveryTerm>,
     pub provider_name: Option<String>,
     pub category: Option<FulfillmentCategoryType>,
     pub servicable_status: Option<ServiceableType>,
     pub drop_off: Option<DropOffData>,
-    pub pickup: Option<PickUpData>,
+    pub pickup: PickUpData,
     pub tracking: Option<bool>,
     #[schema(value_type = f64)]
     pub packaging_charge: BigDecimal,
@@ -457,7 +442,7 @@ pub struct BuyerTerm {
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct BuyerCommerceBilling {
+pub struct CommerceBilling {
     pub name: String,
     pub address: String,
     pub state: String,
@@ -468,7 +453,7 @@ pub struct BuyerCommerceBilling {
 }
 
 #[derive(Deserialize, Debug, ToSchema)]
-pub struct BuyerCommerceItem {
+pub struct CommerceItem {
     #[schema(value_type = String)]
     pub id: Uuid,
     pub item_id: String,
@@ -495,21 +480,21 @@ pub struct BuyerCommerceItem {
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct BuyerCommerceCancellationFee {
+pub struct CommerceCancellationFee {
     pub r#type: CancellationFeeType,
     #[schema(value_type = f64)]
     pub val: BigDecimal,
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct BuyerCommerceCancellationTerm {
-    pub fulfillment_state: CommerceFulfillmentStatusType,
+pub struct CommerceCancellationTerm {
+    pub fulfillment_state: FulfillmentStatusType,
     pub reason_required: bool,
-    pub cancellation_fee: BuyerCommerceCancellationFee,
+    pub cancellation_fee: CommerceCancellationFee,
 }
 
 #[derive(Deserialize, Debug, ToSchema)]
-pub struct BuyerCommerceBPPTerms {
+pub struct CommerceBPPTerms {
     pub max_liability: String,
     pub max_liability_cap: String,
     pub mandatory_arbitration: bool,
@@ -518,7 +503,7 @@ pub struct BuyerCommerceBPPTerms {
 }
 
 #[derive(Deserialize, Debug, ToSchema)]
-pub struct BuyerCommerce {
+pub struct Commerce {
     #[schema(value_type = String)]
     pub id: Uuid,
     pub urn: Option<String>,
@@ -527,7 +512,7 @@ pub struct BuyerCommerce {
     pub record_type: OrderType,
     pub record_status: CommerceStatusType,
     pub domain_category_code: CategoryDomain,
-    pub seller: BuyerCommerceSeller,
+    pub seller: CommerceSeller,
     pub source: DataSource,
     pub created_on: DateTime<Utc>,
     pub updated_on: Option<DateTime<Utc>>,
@@ -541,16 +526,16 @@ pub struct BuyerCommerce {
     pub quote_ttl: String,
     pub city_code: String,
     pub country_code: CountryCode,
-    pub items: Vec<BuyerCommerceItem>,
-    pub payments: Vec<BuyerCommercePayment>,
-    pub fulfillments: Vec<BuyerCommerceFulfillment>,
-    pub billing: Option<BuyerCommerceBilling>,
-    pub cancellation_terms: Option<Vec<BuyerCommerceCancellationTerm>>,
+    pub items: Vec<CommerceItem>,
+    pub payments: Vec<CommercePayment>,
+    pub fulfillments: Vec<CommerceFulfillment>,
+    pub billing: Option<CommerceBilling>,
+    pub cancellation_terms: Option<Vec<CommerceCancellationTerm>>,
     pub currency_type: Option<CurrencyType>,
-    pub bpp_terms: Option<BuyerCommerceBPPTerms>,
+    pub bpp_terms: Option<CommerceBPPTerms>,
 }
 
-impl BuyerCommerce {
+impl Commerce {
     pub fn get_ondc_location_ids(&self) -> Vec<&str> {
         let mut unique_ids = HashSet::new();
 
@@ -562,7 +547,7 @@ impl BuyerCommerce {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum PaymentSettlementCounterparty {
     BuyerApp,
@@ -580,7 +565,7 @@ impl PaymentSettlementCounterparty {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, sqlx::Type)]
+#[derive(Debug, Serialize, Deserialize, sqlx::Type, ToSchema)]
 #[serde(rename_all = "snake_case")]
 #[sqlx(type_name = "payment_settlement_type", rename_all = "snake_case")]
 pub enum PaymentSettlementPhase {
@@ -595,7 +580,7 @@ impl PaymentSettlementPhase {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, sqlx::Type)]
+#[derive(Debug, Serialize, Deserialize, sqlx::Type, ToSchema)]
 #[serde(rename_all = "snake_case")]
 #[sqlx(type_name = "payment_settlement_phase", rename_all = "snake_case")]
 pub enum PaymentSettlementType {
@@ -608,17 +593,6 @@ impl PaymentSettlementType {
             PaymentSettlementType::Neft => ONDCPaymentSettlementType::Neft,
         }
     }
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct OrderBillingModel {
-    pub name: String,
-    pub address: String,
-    pub state: String,
-    pub city: String,
-    pub tax_id: String,
-    pub email: Option<EmailObject>,
-    pub phone: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema, Clone)]
@@ -660,4 +634,13 @@ impl FromRequest for OrderConfirmRequest {
             }
         })
     }
+}
+
+#[derive(Debug, Serialize, Deserialize, sqlx::Type)]
+#[serde(rename_all = "snake_case")]
+#[sqlx(type_name = "payment_status", rename_all = "snake_case")]
+pub enum PaymentStatus {
+    Paid,
+    NotPaid,
+    Pending,
 }

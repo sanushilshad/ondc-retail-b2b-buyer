@@ -521,7 +521,7 @@ impl NetworkCall {
     }
 }
 
-#[derive(Debug, Deserialize, sqlx::Type, Serialize, Clone)]
+#[derive(Debug, Deserialize, sqlx::Type, Serialize, Clone, ToSchema)]
 #[serde(rename_all = "snake_case")]
 #[sqlx(type_name = "ondc_np_fee_type", rename_all = "snake_case")]
 pub enum FeeType {

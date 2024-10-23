@@ -36,6 +36,7 @@ pub async fn order_select(
     let task1 = get_np_detail(&pool, &meta_data.domain_uri, &ONDCNPType::Buyer);
     let ondc_domain = ONDCDomain::get_ondc_domain(&body.domain_category_code);
     let task2 = get_lookup_data_from_db(&pool, &body.bpp_id, &ONDCNetworkType::Bpp, &ondc_domain);
+
     let (bap_detail_res, bpp_detail_res) = futures::future::join(task1, task2).await;
     let bap_detail = match bap_detail_res {
         Ok(Some(bap_detail)) => bap_detail,

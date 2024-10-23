@@ -164,7 +164,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [x] Develop init API
 * [x] Develop ONDC on init API
 * [x] Develop confirm API
-* [ ] Develop ONDC on on_confirm API
+* [x] Develop ONDC on on_confirm API
 * [ ] Develop status API
 * [ ] Develop ONDC on status API
 * [ ] Develop cancel API
@@ -173,6 +173,8 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [ ] Develop ONDC on update API
 
 ### MILESTONE 2.5:
+* [ ] Move Webscoket and User Module to seperate service
+* [ ] Move User Module to seperate service
 * [ ] Integrate BAP Payment Gateway
 * [ ] Develop Business Specific Config Module.
 

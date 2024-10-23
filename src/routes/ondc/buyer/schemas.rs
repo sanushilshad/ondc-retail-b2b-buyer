@@ -5,9 +5,9 @@ use crate::routes::ondc::utils::serialize_timestamp_without_nanos;
 use crate::routes::ondc::{ONDCItemUOM, ONDCSellerErrorCode};
 use crate::routes::order::models::PaymentSettlementDetailModel;
 use crate::routes::order::schemas::{
-    BuyerCommerceBPPTerms, CancellationFeeType, CommerceFulfillmentStatusType,
-    FulfillmentCategoryType, IncoTermType, Payment, PaymentSettlementCounterparty,
-    PaymentSettlementPhase, PaymentSettlementType, ServiceableType, SettlementBasis,
+    CancellationFeeType, CommerceBPPTerms, FulfillmentCategoryType, FulfillmentStatusType,
+    IncoTermType, Payment, PaymentSettlementCounterparty, PaymentSettlementPhase,
+    PaymentSettlementType, PaymentStatus, ServiceableType, SettlementBasis,
 };
 use crate::routes::product::schemas::{FulfillmentType, PaymentType};
 use crate::schemas::{CountryCode, CurrencyType, FeeType, ONDCNetworkType, WSKeyTrait};
@@ -140,22 +140,16 @@ pub enum ONDCFulfillmentStateType {
 }
 
 impl ONDCFulfillmentStateType {
-    pub fn get_fulfillment_state(&self) -> CommerceFulfillmentStatusType {
+    pub fn get_fulfillment_state(&self) -> FulfillmentStatusType {
         match self {
-            ONDCFulfillmentStateType::AgentAssigned => CommerceFulfillmentStatusType::AgentAssigned,
-            ONDCFulfillmentStateType::Packed => CommerceFulfillmentStatusType::Packed,
-            ONDCFulfillmentStateType::OutForDelivery => {
-                CommerceFulfillmentStatusType::OutForDelivery
-            }
-            ONDCFulfillmentStateType::OrderPickedUp => CommerceFulfillmentStatusType::OrderPickedUp,
-            ONDCFulfillmentStateType::SearchingForAgent => {
-                CommerceFulfillmentStatusType::SearchingForAgent
-            }
-            ONDCFulfillmentStateType::Pending => CommerceFulfillmentStatusType::Pending,
-            ONDCFulfillmentStateType::OrderDelivered => {
-                CommerceFulfillmentStatusType::OrderDelivered
-            }
-            ONDCFulfillmentStateType::Cancelled => CommerceFulfillmentStatusType::Cancelled,
+            ONDCFulfillmentStateType::AgentAssigned => FulfillmentStatusType::AgentAssigned,
+            ONDCFulfillmentStateType::Packed => FulfillmentStatusType::Packed,
+            ONDCFulfillmentStateType::OutForDelivery => FulfillmentStatusType::OutForDelivery,
+            ONDCFulfillmentStateType::OrderPickedUp => FulfillmentStatusType::OrderPickedUp,
+            ONDCFulfillmentStateType::SearchingForAgent => FulfillmentStatusType::SearchingForAgent,
+            ONDCFulfillmentStateType::Pending => FulfillmentStatusType::Pending,
+            ONDCFulfillmentStateType::OrderDelivered => FulfillmentStatusType::OrderDelivered,
+            ONDCFulfillmentStateType::Cancelled => FulfillmentStatusType::Cancelled,
         }
     }
 }
@@ -345,7 +339,7 @@ impl ONDCTag {
         }
     }
 
-    pub fn get_bpp_terms_tag(commerce_bpp_term: &BuyerCommerceBPPTerms) -> ONDCTag {
+    pub fn get_bpp_terms_tag(commerce_bpp_term: &CommerceBPPTerms) -> ONDCTag {
         ONDCTag {
             descriptor: ONDCTagDescriptor {
                 code: ONDCTagType::BppTerms,
@@ -591,7 +585,7 @@ pub struct ONDCOnSearchProviderDescriptor {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ONDCOnSearchCountry {
-    pub code: String,
+    pub code: CountryCode,
     pub name: Option<String>,
 }
 #[derive(Serialize, Deserialize, Debug)]
@@ -603,7 +597,7 @@ pub struct ONDCOnSearchState {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ONDCOnSearchCity {
     pub code: String,
-    pub name: Option<String>,
+    pub name: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -808,11 +802,11 @@ struct ONDCOfferDescriptor {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct ONDCRange {
+pub struct ONDCRange {
     #[serde(serialize_with = "serialize_timestamp_without_nanos")]
-    start: DateTime<Utc>,
+    pub start: DateTime<Utc>,
     #[serde(serialize_with = "serialize_timestamp_without_nanos")]
-    end: DateTime<Utc>,
+    pub end: DateTime<Utc>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -920,13 +914,13 @@ impl std::fmt::Display for ONDCBuyerIdType {
 #[derive(Debug, Serialize, Deserialize)]
 
 pub struct ONDCPerson {
-    creds: Vec<ONDCCredential>,
-    name: Option<String>,
+    pub creds: Option<Vec<ONDCCredential>>,
+    pub name: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCCustomer {
-    person: ONDCPerson,
+    pub person: ONDCPerson,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -1279,7 +1273,6 @@ impl WSKeyTrait for ONDCOrderParams {
 pub struct BulkSellerProductInfo<'a> {
     pub seller_subscriber_ids: Vec<&'a str>,
     pub provider_ids: Vec<&'a str>,
-    pub provider_names: Vec<&'a str>,
     pub item_codes: Vec<Option<&'a str>>,
     pub item_ids: Vec<&'a str>,
     pub item_names: Vec<&'a str>,
@@ -1290,13 +1283,12 @@ pub struct BulkSellerProductInfo<'a> {
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
-pub struct SellerProductInfo {
+pub struct ONDCSellerProductInfo {
     pub item_name: String,
     pub item_code: Option<String>,
     pub item_id: String,
     pub seller_subscriber_id: String,
     pub provider_id: String,
-    pub provider_name: Option<String>,
     #[schema(value_type = f64)]
     pub tax_rate: BigDecimal,
     #[schema(value_type = f64)]
@@ -1636,8 +1628,19 @@ pub enum ONDCPaymentStatus {
     Paid,
     #[serde(rename = "NOT-PAID")]
     NotPaid,
+    #[serde(rename = "PENDING")]
+    Pending,
 }
 
+impl ONDCPaymentStatus {
+    pub fn get_payment_status(&self) -> PaymentStatus {
+        match self {
+            ONDCPaymentStatus::Paid => PaymentStatus::Paid,
+            ONDCPaymentStatus::NotPaid => PaymentStatus::NotPaid,
+            ONDCPaymentStatus::Pending => PaymentStatus::NotPaid,
+        }
+    }
+}
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCPaymentParams {
     pub amount: String,
@@ -1706,7 +1709,7 @@ pub enum ONDConfirmFulfillmentLocationType {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCFulfillmentTime {
-    range: ONDCRange,
+    pub range: ONDCRange,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -1727,6 +1730,42 @@ pub struct ONDCOnConfirmFulfillment {
     pub tracking: bool,
     pub rateable: bool,
     pub stops: Vec<ONDConfirmFulfillmentEnd>,
+}
+
+impl ONDCOnConfirmFulfillment {
+    pub fn get_fulfillment_start(&self) -> Option<&ONDCConfirmFulfillmentStartLocation> {
+        self.stops.iter().find_map(|stop| {
+            if let ONDConfirmFulfillmentLocationType::Start(ref start_location) = stop.location {
+                Some(start_location)
+            } else {
+                None
+            }
+        })
+    }
+    pub fn get_fulfillment_contact(
+        &self,
+        fulfillment_type: ONDCFulfillmentStopType,
+    ) -> Option<&ONDCContact> {
+        self.stops.iter().find_map(|stop| {
+            if stop.r#type == fulfillment_type {
+                Some(&stop.contact)
+            } else {
+                None
+            }
+        })
+    }
+    pub fn get_fulfillment_time(
+        &self,
+        fulfillment_type: ONDCFulfillmentStopType,
+    ) -> Option<&ONDCFulfillmentTime> {
+        self.stops.iter().find_map(|stop| {
+            if stop.r#type == fulfillment_type {
+                Some(&stop.time)
+            } else {
+                None
+            }
+        })
+    }
 }
 
 #[skip_serializing_none]
@@ -1803,4 +1842,51 @@ pub struct WSConfirm<'a> {
     pub action_type: WebSocketActionType,
     pub error: Option<&'a str>,
     pub data: Option<WSConfirmData<'a>>,
+}
+
+pub struct BulkSellerLocationInfo<'a> {
+    pub seller_subscriber_ids: Vec<&'a str>,
+    pub provider_ids: Vec<&'a str>,
+    pub location_ids: Vec<&'a str>,
+    pub latitudes: Vec<BigDecimal>,
+    pub longitudes: Vec<BigDecimal>,
+    pub addresses: Vec<&'a str>,
+    pub city_codes: Vec<&'a str>,
+    pub city_names: Vec<&'a str>,
+    pub state_codes: Vec<&'a str>,
+    pub state_names: Vec<Option<&'a str>>,
+    pub country_codes: Vec<&'a CountryCode>,
+    pub country_names: Vec<Option<&'a str>>,
+    pub area_codes: Vec<&'a str>,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct ONDCSellerLocationInfo {
+    pub location_id: String,
+    pub seller_subscriber_id: String,
+    pub provider_id: String,
+    pub latitude: BigDecimal,
+    pub longitude: BigDecimal,
+    pub address: String,
+    pub city_code: String,
+    pub city_name: String,
+    pub state_code: String,
+    pub state_name: Option<String>,
+    pub country_code: CountryCode,
+    pub country_name: Option<String>,
+    pub area_code: String,
+}
+
+pub struct BulkSellerInfo<'a> {
+    pub seller_subscriber_ids: Vec<&'a str>,
+    pub provider_ids: Vec<&'a str>,
+    pub provider_names: Vec<&'a str>,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+#[allow(dead_code)]
+pub struct ONDCSellerInfo {
+    pub seller_subscriber_id: String,
+    pub provider_id: String,
+    pub provider_name: Option<String>,
 }
