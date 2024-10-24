@@ -1,18 +1,16 @@
-use crate::configuration::DatabaseSettings;
+use crate::configuration::DatabaseSetting;
 use crate::email_client::{GenericEmailService, SmtpEmailClient};
 use crate::middleware::SaveRequestResponse;
 use crate::redis::RedisClient;
 // use crate::middleware::tracing_middleware;
 
 use crate::routes::main_route;
-use crate::websocket;
-use actix::Actor;
 // use actix_session::storage::RedisSessionStore;
 // use actix_session::SessionMiddleware;
 // use actix_web::cookie::Key;
 use actix_web::dev::Server;
 // use actix_web::middleware::Logger;
-use crate::configuration::Settings;
+use crate::configuration::Setting;
 
 use actix_web::{web, App, HttpServer};
 use sqlx::postgres::{PgPool, PgPoolOptions};
@@ -26,7 +24,7 @@ pub struct Application {
 impl Application {
     // We have converted the `build` function into a constructor for
     // `Application`.
-    pub async fn build(configuration: Settings) -> Result<Self, anyhow::Error> {
+    pub async fn build(configuration: Setting) -> Result<Self, anyhow::Error> {
         let connection_pool = get_connection_pool(&configuration.database);
         // println!("{:?}", connection_pool);
         let email_pool = Arc::new(
@@ -62,7 +60,7 @@ impl Application {
     }
 }
 
-pub fn get_connection_pool(configuration: &DatabaseSettings) -> PgPool {
+pub fn get_connection_pool(configuration: &DatabaseSetting) -> PgPool {
     PgPoolOptions::new()
         .acquire_timeout(std::time::Duration::from_secs(
             configuration.acquire_timeout,
@@ -77,14 +75,14 @@ async fn run(
     db_pool: PgPool,
     email_obj: Arc<dyn GenericEmailService>,
     redis_client: RedisClient,
-    configuration: Settings,
+    configuration: Setting,
 ) -> Result<Server, anyhow::Error> {
     let db_pool = web::Data::new(db_pool);
     let email_client: web::Data<dyn GenericEmailService> = web::Data::from(email_obj);
     let secret_obj = web::Data::new(configuration.secret);
     let user_setting_obj = web::Data::new(configuration.user);
     let ondc_obj = web::Data::new(configuration.ondc);
-    let ws_server = web::Data::new(websocket::Server::new().start());
+    let ws_server = web::Data::new(configuration.websocket.client());
     // let _secret_key = Key::from(hmac_secret.expose_secret().as_bytes());
     let redis_app = web::Data::new(redis_client);
     let server = HttpServer::new(move || {

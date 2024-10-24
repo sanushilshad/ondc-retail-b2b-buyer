@@ -311,7 +311,7 @@ pub fn get_websocket_params_from_search_req(search_model: SearchRequestModel) ->
     WebSocketParam {
         user_id: search_model.user_id,
         business_id: search_model.business_id,
-        device_id: search_model.device_id,
+        device_id: Some(search_model.device_id),
     }
 }
 
@@ -359,20 +359,16 @@ pub async fn get_ondc_order_params(
     Ok(row)
 }
 
-pub fn get_ondc_order_param_from_req(ondc_req: &ONDCRequestModel) -> ONDCOrderParams {
-    ONDCOrderParams {
-        transaction_id: ondc_req.transaction_id,
-        message_id: ondc_req.message_id,
+pub fn get_ondc_order_param_from_req(ondc_req: &ONDCRequestModel) -> WebSocketParam {
+    WebSocketParam {
         device_id: ondc_req.device_id.clone(),
         user_id: ondc_req.user_id,
         business_id: ondc_req.business_id,
     }
 }
 
-pub fn _get_order_param_from_param_req(ondc_req: &OrderRequestParamsModel) -> ONDCOrderParams {
-    ONDCOrderParams {
-        transaction_id: ondc_req.transaction_id,
-        message_id: ondc_req.message_id,
+pub fn _get_order_param_from_param_req(ondc_req: &OrderRequestParamsModel) -> WebSocketParam {
+    WebSocketParam {
         device_id: ondc_req.device_id.clone(),
         user_id: ondc_req.user_id,
         business_id: ondc_req.business_id,

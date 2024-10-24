@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE commerce_data SET record_status=$1, updated_on=$2, urn=$3 WHERE external_urn=$4\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        {
+          "Custom": {
+            "name": "commerce_status",
+            "kind": {
+              "Enum": [
+                "quote_requested",
+                "quote_accepted",
+                "quote_rejected",
+                "initialized",
+                "created",
+                "accepted",
+                "in_progess",
+                "completed",
+                "cancelled"
+              ]
+            }
+          }
+        },
+        "Timestamptz",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4056ba9c39732acd032c826f0b9f4d701c7b586a9ace2b97082030edce16e6e6"
+}

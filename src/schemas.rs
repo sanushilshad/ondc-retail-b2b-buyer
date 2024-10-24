@@ -580,7 +580,7 @@ pub enum ONDCNPType {
 pub struct WebSocketParam {
     pub user_id: Uuid,
     pub business_id: Uuid,
-    pub device_id: String,
+    pub device_id: Option<String>,
 }
 
 pub trait WSKeyTrait {
@@ -589,7 +589,13 @@ pub trait WSKeyTrait {
 
 impl WSKeyTrait for WebSocketParam {
     fn get_key(&self) -> String {
-        format!("{}#{}#{}", self.user_id, self.business_id, self.device_id)
+        let mut key = format!("{}#{}", self.user_id, self.business_id);
+
+        if let Some(device_id) = &self.device_id {
+            key.push_str(&format!("#{}", device_id));
+        }
+
+        key
     }
 }
 

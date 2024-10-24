@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO buyer_commerce_fulfillment_data (id, commerce_data_id, fulfillment_id, fulfillment_type, inco_terms, \n            place_of_delivery, drop_off_data, pickup_data, provider_name, servicable_status, tracking, tat, category, packaging_charge,\n            delivery_charge, convenience_fee)\n        SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::text[], $4::fulfillment_type[],$5::inco_term_type [], $6::text[],\n             $7::jsonb[], $8::jsonb[], $9::text[], $10::fulfillment_servicability_status[], $11::bool[], $12::text[],\n            $13::fulfillment_category_type[], $14::decimal[], $15::decimal[], $16::decimal[]);\n        ",
+  "query": "\n        INSERT INTO commerce_fulfillment_data (id, commerce_data_id, fulfillment_id, fulfillment_type, inco_terms, \n            place_of_delivery, drop_off_data, pickup_data, provider_name, servicable_status, tracking, tat, category, packaging_charge,\n            delivery_charge, convenience_fee)\n        SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::text[], $4::fulfillment_type[],$5::inco_term_type [], $6::text[],\n             $7::jsonb[], $8::jsonb[], $9::text[], $10::fulfillment_servicability_status[], $11::bool[], $12::text[],\n            $13::fulfillment_category_type[], $14::decimal[], $15::decimal[], $16::decimal[]);\n        ",
   "describe": {
     "columns": [],
     "parameters": {
@@ -97,5 +97,5 @@
     },
     "nullable": []
   },
-  "hash": "53eec6a36ffb2ff35d502173abf86a10152cdd0ed5bcf504a9e3b83d30249420"
+  "hash": "901c48c5759b76451b5fc80aa6c966c6ee7a8437f911145e15f197cbf0926f37"
 }

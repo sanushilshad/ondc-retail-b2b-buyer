@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO ondc_seller_product_info (\n            seller_subscriber_id,\n            provider_id,\n            item_id,\n            item_code,\n            item_name,\n            tax_rate,\n            images,\n            unit_price,\n            mrp\n        )\n        SELECT *\n        FROM UNNEST(\n            $1::text[], \n            $2::text[], \n            $3::text[], \n            $4::text[], \n            $5::text[], \n            $6::decimal[],\n            $7::jsonb[],\n            $8::decimal[],\n            $9::decimal[]\n        )\n        ON CONFLICT (seller_subscriber_id, provider_id, item_id) \n        DO UPDATE SET \n            item_name = EXCLUDED.item_name,\n            tax_rate = EXCLUDED.tax_rate,\n            images = EXCLUDED.images,\n            unit_price = EXCLUDED.unit_price,\n            mrp =  EXCLUDED.mrp;\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "TextArray",
+        "TextArray",
+        "TextArray",
+        "TextArray",
+        "TextArray",
+        "NumericArray",
+        "JsonbArray",
+        "NumericArray",
+        "NumericArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "814296ec822c4bff221818f859b0e56bab9c4aa60cc48d1c21e8139471a9eda8"
+}

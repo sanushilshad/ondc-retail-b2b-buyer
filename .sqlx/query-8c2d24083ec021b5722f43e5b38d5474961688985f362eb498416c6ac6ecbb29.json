@@ -1,0 +1,35 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT  seller_subscriber_id, provider_id, provider_name from ondc_seller_info where \n        provider_id  = $1 AND seller_subscriber_id=$2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "seller_subscriber_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "provider_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "provider_name",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "8c2d24083ec021b5722f43e5b38d5474961688985f362eb498416c6ac6ecbb29"
+}

@@ -1,85 +1,62 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO buyer_commerce_data (id, external_urn, record_type, record_status, \n        domain_category_code, buyer_id, seller_id, seller_name, buyer_name, source, created_on, created_by, bpp_id, bpp_uri, bap_id, bap_uri, is_import, quote_ttl, city_code, country_code)\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)\n        ON CONFLICT (external_urn) \n        DO NOTHING\n        ",
+  "query": "SELECT location_id, seller_subscriber_id, provider_id, latitude, longitude,\n        address, city_code, city_name, state_code, state_name, country_code  as \"country_code:CountryCode\", area_code,\n        country_name from ondc_seller_location_info where \n        provider_id  = $1 AND seller_subscriber_id=$2 AND location_id::text = ANY($3)",
   "describe": {
-    "columns": [],
-    "parameters": {
-      "Left": [
-        "Uuid",
-        "Uuid",
-        {
-          "Custom": {
-            "name": "commerce_data_type",
-            "kind": {
-              "Enum": [
-                "sale_order",
-                "purchase_order"
-              ]
-            }
-          }
-        },
-        {
-          "Custom": {
-            "name": "buyer_commerce_status",
-            "kind": {
-              "Enum": [
-                "quote_requested",
-                "quote_accepted",
-                "quote_rejected",
-                "initialized",
-                "created",
-                "accepted",
-                "in_progess",
-                "completed",
-                "cancelled"
-              ]
-            }
-          }
-        },
-        {
-          "Custom": {
-            "name": "domain_category",
-            "kind": {
-              "Enum": [
-                "RET10",
-                "RET12",
-                "RET13",
-                "RET14",
-                "RET15",
-                "RET16",
-                "RET1A",
-                "RET1B",
-                "RET1C"
-              ]
-            }
-          }
-        },
-        "Uuid",
-        "Text",
-        "Text",
-        "Text",
-        {
-          "Custom": {
-            "name": "data_source",
-            "kind": {
-              "Enum": [
-                "place_order",
-                "ondc",
-                "rapidor"
-              ]
-            }
-          }
-        },
-        "Timestamptz",
-        "Uuid",
-        "Text",
-        "Text",
-        "Text",
-        "Text",
-        "Bool",
-        "Text",
-        "Text",
-        {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "location_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "seller_subscriber_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "provider_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "latitude",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 4,
+        "name": "longitude",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 5,
+        "name": "address",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "city_code",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "city_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "state_code",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "state_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "country_code:CountryCode",
+        "type_info": {
           "Custom": {
             "name": "country_code",
             "kind": {
@@ -334,9 +311,40 @@
             }
           }
         }
+      },
+      {
+        "ordinal": 11,
+        "name": "area_code",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "country_name",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "TextArray"
       ]
     },
-    "nullable": []
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      true
+    ]
   },
-  "hash": "ce849ff05f4f0e6be8f5799a73a0a493e757a87615faabc365453d671f0dac45"
+  "hash": "86bfd63cff9299a8f3515176d631838137272ef36f8f9f78c45d305ae3e1011a"
 }

@@ -1902,8 +1902,8 @@ pub fn create_drop_off_from_on_confirm_fulfullment(
             email: contact.email.clone(),
         },
         time_range: time_rage.map(|e| TimeRangeModel {
-            start: e.range.start.clone(),
-            end: e.range.end.clone(),
+            start: e.range.start,
+            end: e.range.end,
         }),
     }
 }

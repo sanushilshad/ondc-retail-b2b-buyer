@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT \n            id, \n            item_id, \n            commerce_data_id, \n            item_name, \n            item_code, \n            item_image, \n            qty, \n            packaging_req, \n            item_req,\n            tax_rate, \n            tax_value, \n            unit_price, \n            gross_total, \n            available_qty, \n            discount_amount, \n            location_ids as \"location_ids?: Json<Vec<String>>\", \n            fulfillment_ids as \"fulfillment_ids?: Json<Vec<String>>\"\n        FROM buyer_commerce_data_line \n        WHERE commerce_data_id = $1\n        ",
+  "query": "\n        SELECT \n            id, \n            item_id, \n            commerce_data_id, \n            item_name, \n            item_code, \n            item_image, \n            qty, \n            packaging_req, \n            item_req,\n            tax_rate, \n            tax_value, \n            unit_price, \n            gross_total, \n            available_qty, \n            discount_amount, \n            location_ids as \"location_ids?: Json<Vec<String>>\", \n            fulfillment_ids as \"fulfillment_ids?: Json<Vec<String>>\"\n        FROM commerce_data_line \n        WHERE commerce_data_id = $1\n        ",
   "describe": {
     "columns": [
       {
@@ -114,5 +114,5 @@
       true
     ]
   },
-  "hash": "b1c9ae545672427265720a0d7637fa3780f49de2c4cd44aafc20f3c3087b3382"
+  "hash": "539ce05aed9b54c2537717b4146bedb40127b25e65b3a64a1ffaefd3fc453a91"
 }
