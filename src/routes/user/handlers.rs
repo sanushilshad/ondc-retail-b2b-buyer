@@ -4,7 +4,7 @@ use super::schemas::{
 };
 use super::utils::{create_business_account, fetch_user, get_auth_data, register_user};
 use super::{errors::AuthError, utils::validate_user_credentials};
-use crate::configuration::{SecretSetting, UserSettings};
+use crate::configuration::{SecretSetting, UserSetting};
 use crate::errors::GenericError;
 use crate::schemas::{GenericResponse, RequestMetaData};
 // use crate::session_state::TypedSession;
@@ -30,7 +30,7 @@ pub async fn register_user_account(
     body: web::Json<CreateUserAccount>,
     pool: web::Data<PgPool>,
     meta_data: RequestMetaData,
-    user_settings: web::Data<UserSettings>,
+    user_settings: web::Data<UserSetting>,
 ) -> Result<web::Json<GenericResponse<()>>, GenericError> {
     let admin_role = [UserType::Admin, UserType::Superadmin];
     if admin_role.contains(&body.user_type) && !user_settings.admin_list.contains(&body.mobile_no) {

@@ -1,4 +1,4 @@
-use crate::configuration::{DatabaseSettings, EmailClientSettings};
+use crate::configuration::{DatabaseSetting, EmailClientSetting};
 use crate::constants::AUTHORIZATION_PATTERN;
 use crate::email_client::{GenericEmailService, SmtpEmailClient};
 use crate::errors::CustomJWTTokenError;
@@ -88,7 +88,7 @@ pub fn error_chain_fmt(
     Ok(())
 }
 
-pub async fn configure_database_using_sqlx(config: &DatabaseSettings) -> PgPool {
+pub async fn configure_database_using_sqlx(config: &DatabaseSetting) -> PgPool {
     // Create database
     create_database(config).await;
     // Migrate database
@@ -113,7 +113,7 @@ pub async fn configure_database_using_sqlx(config: &DatabaseSettings) -> PgPool 
     connection_pool
 }
 #[tracing::instrument(name = "Confiure Database")]
-pub async fn configure_database(config: &DatabaseSettings) -> PgPool {
+pub async fn configure_database(config: &DatabaseSetting) -> PgPool {
     create_database(config).await;
     let connection_pool = PgPool::connect_with(config.with_db())
         .await
@@ -127,7 +127,7 @@ pub async fn configure_database(config: &DatabaseSettings) -> PgPool {
     connection_pool
 }
 #[tracing::instrument(name = "Create Database")]
-pub async fn create_database(config: &DatabaseSettings) {
+pub async fn create_database(config: &DatabaseSetting) {
     // Create database
     let mut connection = PgConnection::connect_with(&config.without_db())
         .await
@@ -232,7 +232,7 @@ pub struct EmailTypeMapping {
     pub type_1: HashMap<CommunicationType, Arc<dyn GenericEmailService>>,
 }
 pub fn create_email_type_pool(
-    email_config: EmailClientSettings,
+    email_config: EmailClientSetting,
 ) -> HashMap<CommunicationType, Arc<dyn GenericEmailService>> {
     let smtp_client =
         Arc::new(SmtpEmailClient::new(&email_config).expect("Failed to create SmtpEmailClient"))

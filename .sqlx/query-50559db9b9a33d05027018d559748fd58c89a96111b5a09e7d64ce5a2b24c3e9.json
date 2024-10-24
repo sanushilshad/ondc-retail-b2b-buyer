@@ -1,0 +1,31 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO commerce_data_line (id, commerce_data_id, item_id, item_name, item_code, item_image, \n            qty, location_ids, fulfillment_ids, tax_rate, mrp, unit_price, discount_amount, tax_value, gross_total,\n            available_qty,item_req, packaging_req)\n            SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::text[], $4::text[], $5::text[], $6::text[],\n             $7::decimal[], $8::jsonb[], $9::jsonb[], $10::decimal[], $11::decimal[], $12::decimal[], $13::decimal[],\n            $14::decimal[], $15::decimal[], $16::decimal[], $17::text[], $18::text[])\n        ON CONFLICT (commerce_data_id, item_code) \n        DO UPDATE SET \n        fulfillment_ids = EXCLUDED.fulfillment_ids,\n        unit_price = EXCLUDED.unit_price,\n        discount_amount = EXCLUDED.discount_amount,\n        tax_value = EXCLUDED.tax_value,\n        gross_total = EXCLUDED.gross_total,\n        available_qty = EXCLUDED.available_qty\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "UuidArray",
+        "TextArray",
+        "TextArray",
+        "TextArray",
+        "TextArray",
+        "NumericArray",
+        "JsonbArray",
+        "JsonbArray",
+        "NumericArray",
+        "NumericArray",
+        "NumericArray",
+        "NumericArray",
+        "NumericArray",
+        "NumericArray",
+        "NumericArray",
+        "TextArray",
+        "TextArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "50559db9b9a33d05027018d559748fd58c89a96111b5a09e7d64ce5a2b24c3e9"
+}

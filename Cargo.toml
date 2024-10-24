@@ -10,7 +10,6 @@ edition = "2021"
 actix = "0.13.5"
 actix-web = "4.9"
 actix-http =  "3.9"
-actix-web-actors = "4.3.0"
 anyhow = "1"
 argon2 = { version = "0.5", default-features = false, features = ["std"] }
 async-trait = "0.1.74"

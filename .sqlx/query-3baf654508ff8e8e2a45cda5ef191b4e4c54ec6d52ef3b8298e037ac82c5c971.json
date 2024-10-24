@@ -1,27 +1,19 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        \n        SELECT id, urn, external_urn, record_type as \"record_type:OrderType\", \n           record_status as \"record_status:CommerceStatusType\",\n           domain_category_code as \"domain_category_code:CategoryDomain\", \n           buyer_id, seller_id, buyer_name, seller_name, source as \"source:DataSource\", \n           created_on, updated_on, deleted_on, is_deleted, created_by, grand_total, \n           bpp_id, bpp_uri, bap_id, bap_uri, is_import, quote_ttl,\n           currency_code as \"currency_code?:CurrencyType\", city_code,\n           country_code as \"country_code:CountryCode\",\n           billing as \"billing!:  Json<Option<OrderBillingModel>>\",\n           cancellation_terms as \"cancellation_terms!: Json<Vec<OrderCancellationTermModel>>\",\n           bpp_terms as \"bpp_terms!: Json<Option<BuyerCommerceBppTermsModel>>\"\n        FROM buyer_commerce_data where external_urn= $1;",
+  "query": "\n        INSERT INTO commerce_data (id, external_urn, record_type, record_status,\n        domain_category_code, buyer_id, seller_id, seller_name, buyer_name, source, created_on, created_by, bpp_id, bpp_uri,\n        bap_id, bap_uri, is_import, quote_ttl, updated_on, currency_code, grand_total, city_code, country_code)\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)\n        ON CONFLICT (external_urn)\n        DO UPDATE SET\n        record_status = EXCLUDED.record_status,\n        updated_on = EXCLUDED.updated_on,\n        currency_code = EXCLUDED.currency_code\n        RETURNING id\n        ",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
         "name": "id",
         "type_info": "Uuid"
-      },
-      {
-        "ordinal": 1,
-        "name": "urn",
-        "type_info": "Text"
-      },
-      {
-        "ordinal": 2,
-        "name": "external_urn",
-        "type_info": "Uuid"
-      },
-      {
-        "ordinal": 3,
-        "name": "record_type:OrderType",
-        "type_info": {
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        {
           "Custom": {
             "name": "commerce_data_type",
             "kind": {
@@ -31,14 +23,10 @@
               ]
             }
           }
-        }
-      },
-      {
-        "ordinal": 4,
-        "name": "record_status:CommerceStatusType",
-        "type_info": {
+        },
+        {
           "Custom": {
-            "name": "buyer_commerce_status",
+            "name": "commerce_status",
             "kind": {
               "Enum": [
                 "quote_requested",
@@ -53,12 +41,8 @@
               ]
             }
           }
-        }
-      },
-      {
-        "ordinal": 5,
-        "name": "domain_category_code:CategoryDomain",
-        "type_info": {
+        },
+        {
           "Custom": {
             "name": "domain_category",
             "kind": {
@@ -75,32 +59,12 @@
               ]
             }
           }
-        }
-      },
-      {
-        "ordinal": 6,
-        "name": "buyer_id",
-        "type_info": "Uuid"
-      },
-      {
-        "ordinal": 7,
-        "name": "seller_id",
-        "type_info": "Text"
-      },
-      {
-        "ordinal": 8,
-        "name": "buyer_name",
-        "type_info": "Text"
-      },
-      {
-        "ordinal": 9,
-        "name": "seller_name",
-        "type_info": "Text"
-      },
-      {
-        "ordinal": 10,
-        "name": "source:DataSource",
-        "type_info": {
+        },
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        {
           "Custom": {
             "name": "data_source",
             "kind": {
@@ -111,72 +75,17 @@
               ]
             }
           }
-        }
-      },
-      {
-        "ordinal": 11,
-        "name": "created_on",
-        "type_info": "Timestamptz"
-      },
-      {
-        "ordinal": 12,
-        "name": "updated_on",
-        "type_info": "Timestamptz"
-      },
-      {
-        "ordinal": 13,
-        "name": "deleted_on",
-        "type_info": "Timestamptz"
-      },
-      {
-        "ordinal": 14,
-        "name": "is_deleted",
-        "type_info": "Bool"
-      },
-      {
-        "ordinal": 15,
-        "name": "created_by",
-        "type_info": "Uuid"
-      },
-      {
-        "ordinal": 16,
-        "name": "grand_total",
-        "type_info": "Numeric"
-      },
-      {
-        "ordinal": 17,
-        "name": "bpp_id",
-        "type_info": "Text"
-      },
-      {
-        "ordinal": 18,
-        "name": "bpp_uri",
-        "type_info": "Text"
-      },
-      {
-        "ordinal": 19,
-        "name": "bap_id",
-        "type_info": "Text"
-      },
-      {
-        "ordinal": 20,
-        "name": "bap_uri",
-        "type_info": "Text"
-      },
-      {
-        "ordinal": 21,
-        "name": "is_import",
-        "type_info": "Bool"
-      },
-      {
-        "ordinal": 22,
-        "name": "quote_ttl",
-        "type_info": "Text"
-      },
-      {
-        "ordinal": 23,
-        "name": "currency_code?:CurrencyType",
-        "type_info": {
+        },
+        "Timestamptz",
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Bool",
+        "Text",
+        "Timestamptz",
+        {
           "Custom": {
             "name": "currency_code_type",
             "kind": {
@@ -188,17 +97,10 @@
               ]
             }
           }
-        }
-      },
-      {
-        "ordinal": 24,
-        "name": "city_code",
-        "type_info": "Text"
-      },
-      {
-        "ordinal": 25,
-        "name": "country_code:CountryCode",
-        "type_info": {
+        },
+        "Numeric",
+        "Text",
+        {
           "Custom": {
             "name": "country_code",
             "kind": {
@@ -453,59 +355,11 @@
             }
           }
         }
-      },
-      {
-        "ordinal": 26,
-        "name": "billing!:  Json<Option<OrderBillingModel>>",
-        "type_info": "Json"
-      },
-      {
-        "ordinal": 27,
-        "name": "cancellation_terms!: Json<Vec<OrderCancellationTermModel>>",
-        "type_info": "Jsonb"
-      },
-      {
-        "ordinal": 28,
-        "name": "bpp_terms!: Json<Option<BuyerCommerceBppTermsModel>>",
-        "type_info": "Json"
-      }
-    ],
-    "parameters": {
-      "Left": [
-        "Uuid"
       ]
     },
     "nullable": [
-      false,
-      true,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      true,
-      false,
-      false,
-      true,
-      true,
-      false,
-      false,
-      true,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      true,
-      false,
-      false,
-      true,
-      true,
-      true
+      false
     ]
   },
-  "hash": "d9c0e8e2f7adf085afc34b825fdc3528758eebfe083b5aa1c7c44a350afc201e"
+  "hash": "3baf654508ff8e8e2a45cda5ef191b4e4c54ec6d52ef3b8298e037ac82c5c971"
 }

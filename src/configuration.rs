@@ -1,4 +1,4 @@
-use crate::domain::EmailObject;
+use crate::{domain::EmailObject, websocket::WebSocketClient};
 use config::{self, ConfigError, Environment};
 use dotenv::dotenv;
 use secrecy::{ExposeSecret, Secret};
@@ -16,7 +16,7 @@ pub struct SecretSetting {
     pub jwt: JWT,
 }
 #[derive(Debug, Deserialize, Clone)]
-pub struct UserSettings {
+pub struct UserSetting {
     pub admin_list: Vec<String>,
 }
 
@@ -37,18 +37,19 @@ pub struct ONDCSetting {
     pub registry_base_url: String,
 }
 #[derive(Debug, Deserialize, Clone)]
-pub struct Settings {
-    pub database: DatabaseSettings,
-    pub application: ApplicationSettings,
+pub struct Setting {
+    pub database: DatabaseSetting,
+    pub application: ApplicationSetting,
     pub redis: RedisSettings,
-    pub email_client: EmailClientSettings,
+    pub email_client: EmailClientSetting,
     pub secret: SecretSetting,
-    pub user: UserSettings,
+    pub user: UserSetting,
     pub ondc: ONDCSetting,
+    pub websocket: WebSocketSetting,
 }
 
 #[derive(Debug, Deserialize, Clone)]
-pub struct ApplicationSettings {
+pub struct ApplicationSetting {
     pub port: u16,
     pub host: String,
     pub hmac_secret: Secret<String>,
@@ -74,7 +75,24 @@ impl RedisSettings {
 }
 
 #[derive(Debug, Deserialize, Clone)]
-pub struct DatabaseSettings {
+pub struct WebSocketSetting {
+    token: Secret<String>,
+    base_url: String,
+    timeout_milliseconds: u64,
+}
+
+impl WebSocketSetting {
+    pub fn client(self) -> WebSocketClient {
+        let timeout = self.timeout();
+        WebSocketClient::new(self.base_url, self.token, timeout)
+    }
+    fn timeout(&self) -> std::time::Duration {
+        std::time::Duration::from_millis(self.timeout_milliseconds)
+    }
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct DatabaseSetting {
     pub username: String,
     pub password: Secret<String>,
     pub port: u16,
@@ -86,7 +104,7 @@ pub struct DatabaseSettings {
     pub acquire_timeout: u64,
 }
 
-impl DatabaseSettings {
+impl DatabaseSetting {
     // Renamed from `connection_string_without_db`
     pub fn without_db(&self) -> PgConnectOptions {
         PgConnectOptions::new()
@@ -110,14 +128,14 @@ impl DatabaseSettings {
 }
 
 #[derive(Debug, Deserialize, Clone)]
-pub struct EmailClientSettings {
+pub struct EmailClientSetting {
     pub base_url: String,
     pub username: String,
     pub password: Secret<String>,
     pub sender_email: String,
     pub timeout_milliseconds: u64,
 }
-impl EmailClientSettings {
+impl EmailClientSetting {
     pub fn sender(&self) -> Result<EmailObject, String> {
         EmailObject::parse(self.sender_email.clone())
     }
@@ -127,7 +145,7 @@ impl EmailClientSettings {
     }
 }
 
-pub fn get_configuration() -> Result<Settings, ConfigError> {
+pub fn get_configuration() -> Result<Setting, ConfigError> {
     let base_path = std::env::current_dir().expect("Failed to determine the current directory");
     dotenv().ok();
     let builder = config::Config::builder()
@@ -141,7 +159,7 @@ pub fn get_configuration() -> Result<Settings, ConfigError> {
                 .list_separator(","),
         )
         .build()?;
-    builder.try_deserialize::<Settings>()
+    builder.try_deserialize::<Setting>()
 }
 
 // pub fn get_configuration_by_custom() -> Result<Settings, ConfigError> {

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT \n            id,\n            commerce_data_id,\n            fulfillment_id,\n            tat,\n            fulfillment_type as \"fulfillment_type: FulfillmentType\",\n            fulfillment_status as \"fulfillment_status: CommerceFulfillmentStatusType\",\n            inco_terms as \"inco_terms?: IncoTermType\",\n            place_of_delivery,\n            provider_name,\n            category as \"category?: FulfillmentCategoryType\",\n            servicable_status as \"servicable_status!: ServiceableType\", \n            drop_off_data as \"drop_off_data!:  Json<Option<DropOffDataModel>>\",\n            pickup_data as \"pickup_data!:  Json<Option<PickUpDataModel>>\",\n            tracking,\n            packaging_charge,\n            delivery_charge,\n            convenience_fee\n        FROM buyer_commerce_fulfillment_data \n        WHERE commerce_data_id = $1\n        ",
+  "query": "\n        SELECT \n            id,\n            commerce_data_id,\n            fulfillment_id,\n            tat,\n            fulfillment_type as \"fulfillment_type: FulfillmentType\",\n            fulfillment_status as \"fulfillment_status: FulfillmentStatusType\",\n            inco_terms as \"inco_terms?: IncoTermType\",\n            place_of_delivery,\n            provider_name,\n            category as \"category?: FulfillmentCategoryType\",\n            servicable_status as \"servicable_status!: ServiceableType\", \n            drop_off_data as \"drop_off_data!:  Json<Option<DropOffDataModel>>\",\n            pickup_data as \"pickup_data!:  Json<PickUpDataModel>\",\n            tracking,\n            packaging_charge,\n            delivery_charge,\n            convenience_fee\n        FROM commerce_fulfillment_data \n        WHERE commerce_data_id = $1\n        ",
   "describe": {
     "columns": [
       {
@@ -40,7 +40,7 @@
       },
       {
         "ordinal": 5,
-        "name": "fulfillment_status: CommerceFulfillmentStatusType",
+        "name": "fulfillment_status: FulfillmentStatusType",
         "type_info": {
           "Custom": {
             "name": "commerce_fulfillment_status_type",
@@ -125,7 +125,7 @@
       },
       {
         "ordinal": 12,
-        "name": "pickup_data!:  Json<Option<PickUpDataModel>>",
+        "name": "pickup_data!:  Json<PickUpDataModel>",
         "type_info": "Jsonb"
       },
       {
@@ -167,12 +167,12 @@
       true,
       true,
       true,
-      true,
+      false,
       true,
       false,
       false,
       false
     ]
   },
-  "hash": "426c756b72b36dada2fd5899084169de729e59b9356cad2fd567c4dd2e904c87"
+  "hash": "472920a3036aef0ec58ddfd6f438e1dd36d543f7f4ec766ecb60d0cf97b707b6"
 }

@@ -10,7 +10,7 @@ use crate::routes::order::schemas::{
     PaymentSettlementType, PaymentStatus, ServiceableType, SettlementBasis,
 };
 use crate::routes::product::schemas::{FulfillmentType, PaymentType};
-use crate::schemas::{CountryCode, CurrencyType, FeeType, ONDCNetworkType, WSKeyTrait};
+use crate::schemas::{CountryCode, CurrencyType, FeeType, ONDCNetworkType};
 use crate::utils::pascal_to_snake_case;
 use crate::websocket::WebSocketActionType;
 use actix_web::{dev::Payload, web, FromRequest, HttpRequest};
@@ -1248,26 +1248,14 @@ pub struct WSSelect<'a> {
     pub error: Option<&'a str>,
 }
 
-#[derive(Debug, Deserialize)]
 #[allow(dead_code)]
+#[derive(Debug, Deserialize)]
 pub struct ONDCOrderParams {
     pub transaction_id: Uuid,
     pub message_id: Uuid,
     pub device_id: Option<String>,
     pub user_id: Option<Uuid>,
     pub business_id: Option<Uuid>,
-}
-
-impl WSKeyTrait for ONDCOrderParams {
-    fn get_key(&self) -> String {
-        format!(
-            "{}#{}#{}",
-            self.user_id.map_or("NA".to_string(), |id| id.to_string()),
-            self.business_id
-                .map_or("NA".to_string(), |id| id.to_string()),
-            self.device_id.clone().unwrap_or("NA".to_string())
-        )
-    }
 }
 
 pub struct BulkSellerProductInfo<'a> {
@@ -1302,8 +1290,8 @@ pub struct ONDCSellerProductInfo {
 pub struct ONDCRequestModel {
     pub transaction_id: Uuid,
     pub message_id: Uuid,
-    pub user_id: Option<Uuid>,
-    pub business_id: Option<Uuid>,
+    pub user_id: Uuid,
+    pub business_id: Uuid,
     pub device_id: Option<String>,
     pub request_payload: Value,
 }
@@ -1312,8 +1300,8 @@ pub struct ONDCRequestModel {
 pub struct OrderRequestParamsModel {
     pub transaction_id: Uuid,
     pub message_id: Uuid,
-    pub user_id: Option<Uuid>,
-    pub business_id: Option<Uuid>,
+    pub user_id: Uuid,
+    pub business_id: Uuid,
     pub device_id: Option<String>,
 }
 

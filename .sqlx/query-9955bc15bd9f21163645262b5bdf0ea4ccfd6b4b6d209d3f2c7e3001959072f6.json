@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO buyer_commerce_fulfillment_data (id, commerce_data_id, fulfillment_id, fulfillment_type, inco_terms, place_of_delivery, drop_off_data)\n        SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::text[], $4::fulfillment_type[],$5::inco_term_type [], $6::text[], $7::jsonb[]);\n        ",
+  "query": "\n        INSERT INTO commerce_fulfillment_data (id, commerce_data_id, fulfillment_id, fulfillment_type, inco_terms, place_of_delivery, drop_off_data,pickup_data)\n        SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::text[], $4::fulfillment_type[],$5::inco_term_type [], $6::text[], $7::jsonb[],  $8::jsonb[]);\n        ",
   "describe": {
     "columns": [],
     "parameters": {
@@ -48,10 +48,11 @@
           }
         },
         "TextArray",
+        "JsonbArray",
         "JsonbArray"
       ]
     },
     "nullable": []
   },
-  "hash": "d6e30684c55911ac7a7b0813fea1bbb1db6edc2fac5c28bc7e71504cfc6340d0"
+  "hash": "9955bc15bd9f21163645262b5bdf0ea4ccfd6b4b6d209d3f2c7e3001959072f6"
 }

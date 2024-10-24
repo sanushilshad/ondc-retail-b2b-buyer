@@ -1,0 +1,124 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT \n            id, \n            collected_by as \"collected_by?: ONDCNetworkType\",\n            payment_type as \"payment_type!: PaymentType\", \n            commerce_data_id,\n            seller_payment_uri,\n            buyer_fee_type  as \"buyer_fee_type?: FeeType\",\n            buyer_fee_amount,\n            settlement_window,\n            settlement_basis as \"settlement_basis?: SettlementBasis\",\n            withholding_amount,\n            settlement_details as \"settlement_details?: Json<Vec<PaymentSettlementDetailModel>>\"\n        FROM commerce_payment_data \n        WHERE commerce_data_id = $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "collected_by?: ONDCNetworkType",
+        "type_info": {
+          "Custom": {
+            "name": "ondc_network_participant_type",
+            "kind": {
+              "Enum": [
+                "BAP",
+                "BPP"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "payment_type!: PaymentType",
+        "type_info": {
+          "Custom": {
+            "name": "payment_type",
+            "kind": {
+              "Enum": [
+                "pre_paid",
+                "cash_on_delivery",
+                "credit"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "commerce_data_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "seller_payment_uri",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "buyer_fee_type?: FeeType",
+        "type_info": {
+          "Custom": {
+            "name": "ondc_np_fee_type",
+            "kind": {
+              "Enum": [
+                "percent",
+                "amount"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "buyer_fee_amount",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 7,
+        "name": "settlement_window",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "settlement_basis?: SettlementBasis",
+        "type_info": {
+          "Custom": {
+            "name": "settlement_basis_type",
+            "kind": {
+              "Enum": [
+                "return_window_expiry",
+                "shipment",
+                "delivery"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "withholding_amount",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 10,
+        "name": "settlement_details?: Json<Vec<PaymentSettlementDetailModel>>",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "76e17543e02c12599d31090a10c5e990c3892ff8276b06db510ec32c3aca9e6e"
+}

@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO ondc_seller_info (\n            seller_subscriber_id,\n            provider_id,\n            provider_name\n        )\n        SELECT *\n        FROM UNNEST(\n            $1::text[], \n            $2::text[], \n            $3::text[]\n        )\n        ON CONFLICT (seller_subscriber_id, provider_id) \n        DO UPDATE SET \n            provider_name = EXCLUDED.provider_name\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "TextArray",
+        "TextArray",
+        "TextArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "347e1cbd9e131fd4a5ec7caec1e5a100a95567d1ca9aab01f947ed8757b8f07a"
+}

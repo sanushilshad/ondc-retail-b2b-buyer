@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        DELETE FROM commerce_payment_data USING commerce_data \n        WHERE commerce_payment_data.commerce_data_id = commerce_data.id \n        AND commerce_data.external_urn = $1 \n        RETURNING commerce_data.id AS bc_id;\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "bc_id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "da1029ff9b6d7eaf6eb926706c5a16b7a412566c1c0ae08224524d9f60affd5d"
+}
