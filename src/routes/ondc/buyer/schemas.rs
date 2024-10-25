@@ -1242,7 +1242,9 @@ pub struct WSError {
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct WSSelect<'a> {
+    #[schema(value_type = String)]
     pub transaction_id: Uuid,
+    #[schema(value_type = String)]
     pub message_id: Uuid,
     pub action_type: WebSocketActionType,
     pub error: Option<&'a str>,
@@ -1523,7 +1525,9 @@ pub struct WSInitData<'a> {
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct WSInit<'a> {
+    #[schema(value_type = String)]
     pub transaction_id: Uuid,
+    #[schema(value_type = String)]
     pub message_id: Uuid,
     pub action_type: WebSocketActionType,
     pub error: Option<&'a str>,
@@ -1825,7 +1829,9 @@ pub struct WSConfirmData<'a> {
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct WSConfirm<'a> {
+    #[schema(value_type = String)]
     pub transaction_id: Uuid,
+    #[schema(value_type = String)]
     pub message_id: Uuid,
     pub action_type: WebSocketActionType,
     pub error: Option<&'a str>,
@@ -1853,7 +1859,9 @@ pub struct ONDCSellerLocationInfo {
     pub location_id: String,
     pub seller_subscriber_id: String,
     pub provider_id: String,
+    #[schema(value_type = f64)]
     pub latitude: BigDecimal,
+    #[schema(value_type = f64)]
     pub longitude: BigDecimal,
     pub address: String,
     pub city_code: String,

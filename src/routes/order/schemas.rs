@@ -401,7 +401,7 @@ pub struct PickUpFulfillmentLocation {
     pub state: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct TimeRange {
     pub start: DateTime<Utc>,
     pub end: DateTime<Utc>,

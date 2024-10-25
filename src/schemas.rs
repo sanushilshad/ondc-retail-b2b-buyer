@@ -4,7 +4,7 @@ use std::{
     time::Duration,
 };
 
-use crate::routes::{order::schemas::PaymentSettlementType, user::schemas::AuthData};
+use crate::routes::order::schemas::PaymentSettlementType;
 use crate::{errors::RequestMetaError, routes::order::schemas::PaymentSettlementPhase};
 use actix_web::{error::ErrorInternalServerError, FromRequest, HttpMessage};
 use bigdecimal::BigDecimal;
@@ -14,11 +14,10 @@ use secrecy::SecretString;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::time::sleep;
-use utoipa::{openapi::Object, ToSchema};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 #[derive(Serialize, Debug, ToSchema)]
-#[aliases(EmptyGenericResponse = GenericResponse<Object>, AuthResponse = GenericResponse<AuthData>)]
 pub struct GenericResponse<D> {
     pub status: bool,
     pub customer_message: String,

@@ -46,9 +46,9 @@ tracing-bunyan-formatter = "0.3.9"
 tracing-log = "0.2"
 tracing-opentelemetry = {version="0.27.0"}
 tracing-subscriber = { version = "0.3", features = ["registry", "env-filter"] }
-utoipa = {version="4.2.3", features=["actix_extras", "chrono"]}
-utoipa-swagger-ui = {version ="7.1.0", features=["actix-web"]}
-utoipauto = "0.1.14"
+utoipa = {version="5.1.2", features=["actix_extras", "chrono"]}
+utoipa-swagger-ui = {version ="8.0.3", features=["actix-web"]}
+utoipauto = "0.2.0"
 validator = {version="0.18.1", features = ["derive"]}
 uuid = { version = "1.11.0", default-features = false, features = ["v4", "serde"] }
 # meilisearch-sdk = "0.27.1"

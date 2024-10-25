@@ -1,4 +1,5 @@
 use actix_web::web;
+use utoipa::TupleUnit;
 // use anyhow::Context;
 use super::schemas::ProductSearchRequest;
 use super::utils::save_search_request;
@@ -17,7 +18,7 @@ use sqlx::PgPool;
     tag = "Realtime Product Search",
     request_body(content = ProductSearchRequest, description = "Request Body"),
     responses(
-        (status=200, description= "Realtime Product Search", body= EmptyGenericResponse),
+        (status=200, description= "Realtime Product Search", body= GenericResponse<TupleUnit>),
     )
 )]
 #[tracing::instrument(name = "Product Search", skip(pool), fields(transaction_id=body.transaction_id.to_string()))]
