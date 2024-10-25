@@ -13,7 +13,7 @@ mod tests {
     };
     use crate::schemas::{KycStatus, Status};
     use crate::utils::tests::get_test_pool;
-    use secrecy::Secret;
+    use secrecy::SecretString;
     use sqlx::PgPool;
     use uuid::Uuid;
     #[tokio::test]
@@ -124,7 +124,7 @@ mod tests {
             international_dialing_code: "+91".to_string(),
             source: DataSource::PlaceOrder,
             user_type: UserType::User,
-            password: Secret::new(password.to_string()),
+            password: SecretString::from(password),
         };
         let user_result = register_user(pool, &user_account, DUMMY_DOMAIN).await?;
         Ok(user_result)
@@ -208,9 +208,9 @@ mod tests {
         let auth_opt = auth_res.unwrap();
         assert!(auth_opt.is_some());
         let auth_obj = auth_opt.unwrap();
-        let password_res = verify_password(Secret::new(passsword.to_string()), &auth_obj).await;
+        let password_res = verify_password(SecretString::from(passsword), &auth_obj).await;
         assert!(password_res.is_ok());
-        let password_res = verify_password(Secret::new("abc".to_string()), &auth_obj).await;
+        let password_res = verify_password(SecretString::from("abc"), &auth_obj).await;
         assert!(password_res.is_err());
         let delete_res = hard_delete_user_account(&pool, &mobile_no.to_string()).await;
         assert!(delete_res.is_ok());

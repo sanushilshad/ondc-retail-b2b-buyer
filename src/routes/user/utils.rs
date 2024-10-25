@@ -14,7 +14,7 @@ use anyhow::{anyhow, Context};
 use argon2::password_hash::SaltString;
 use argon2::{Algorithm, Argon2, Params, PasswordHash, PasswordHasher, PasswordVerifier, Version};
 use chrono::Utc;
-use secrecy::{ExposeSecret, Secret};
+use secrecy::{ExposeSecret, SecretString};
 use sqlx::types::chrono::DateTime;
 use sqlx::{Executor, PgPool, Postgres, Transaction};
 use uuid::Uuid;
@@ -26,8 +26,8 @@ use uuid::Uuid;
     skip(expected_password, password_candidate)
 )]
 fn verify_password_hash(
-    expected_password: Secret<String>,
-    password_candidate: Secret<String>,
+    expected_password: SecretString,
+    password_candidate: SecretString,
 ) -> Result<(), AuthError> {
     let expected_password_hash = PasswordHash::new(expected_password.expose_secret())
         .context("Failed to parse hash in PHC string format.")?;
@@ -72,7 +72,7 @@ pub async fn get_stored_credentials(
 
     if let Some(row) = get_auth_mechanism_model(username, scope, pool, auth_context).await? {
         let secret_string: Option<String> = row.secret;
-        let secret = secret_string.map(Secret::new);
+        let secret = secret_string.map(|e|SecretString::from(e));
 
         Ok(Some(AuthMechanism {
             id: row.id,
@@ -90,14 +90,14 @@ pub async fn get_stored_credentials(
 }
 #[tracing::instrument(name = "Verify Password")]
 pub async fn verify_password(
-    password: Secret<String>,
+    password: SecretString,
     auth_mechanism: &AuthMechanism,
 ) -> Result<(), AuthError> {
-    let mut expected_password_hash = Secret::new(
+    let mut expected_password_hash = SecretString::from(
         "$argon2id$v=19$m=15000,t=2,p=1$\
         gZiV/M1gPc22ElAH/Jh1Hw$\
         CWOrkoo7oJBQ/iyh7uJ0LO2aLEfrHwTWllSAxT0zRno"
-            .to_string(),
+            
     );
     expected_password_hash = auth_mechanism.secret.clone().unwrap_or(expected_password_hash);
     spawn_blocking_with_tracing(move || verify_password_hash(expected_password_hash, password))
@@ -127,7 +127,7 @@ pub async fn reset_otp(pool: &PgPool, auth_mechanism: &AuthMechanism) -> Result<
 #[tracing::instrument(name = "Verify OTP")]
 pub async fn verify_otp(
     pool: &PgPool,
-    secret: Secret<String>,
+    secret: SecretString,
     auth_mechanism: AuthMechanism,
 ) -> Result<(), AuthError> {
     let otp = auth_mechanism
@@ -424,7 +424,7 @@ pub async fn hard_delete_business_account(
 
 
 // test case not needed
-fn compute_password_hash(password: Secret<String>) -> Result<Secret<String>, anyhow::Error> {
+fn compute_password_hash(password: SecretString) -> Result<SecretString, anyhow::Error> {
     let salt = SaltString::generate(&mut rand::thread_rng());
     let password_hash = Argon2::new(
         Algorithm::Argon2id,
@@ -433,7 +433,7 @@ fn compute_password_hash(password: Secret<String>) -> Result<Secret<String>, any
     )
     .hash_password(password.expose_secret().as_bytes(), &salt)?
     .to_string();
-    Ok(Secret::new(password_hash))
+    Ok(SecretString::from(password_hash))
 }
 
 

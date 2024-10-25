@@ -7,7 +7,7 @@ use crate::utils::pascal_to_snake_case;
 use actix_web::{FromRequest, HttpMessage};
 use anyhow::anyhow;
 use chrono::{DateTime, NaiveTime, Utc};
-use secrecy::{ExposeSecret, Secret};
+use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
 use std::fmt::{self, Debug};
 use std::future::{ready, Ready};
@@ -32,7 +32,7 @@ pub struct AuthenticateRequest {
     pub identifier: String,
     // #[serde(with = "SecretString")]
     #[schema(value_type = String)]
-    pub secret: Secret<String>,
+    pub secret: SecretString,
 }
 
 #[derive(Serialize, Deserialize, Debug, sqlx::Type, PartialEq, ToSchema)]
@@ -107,7 +107,7 @@ pub struct CreateUserAccount {
     pub mobile_no: String,
     pub international_dialing_code: String,
     #[schema(value_type = String)]
-    pub password: Secret<String>,
+    pub password: SecretString,
     #[serde(deserialize_with = "deserialize_subscriber_email")]
     pub email: EmailObject, //NOTE: email_address crate can be used if needed,
     pub display_name: String,
@@ -255,11 +255,11 @@ pub struct AuthData {
     pub user: UserAccount,
     #[serde(serialize_with = "round_serialize")]
     #[schema(value_type = String)]
-    pub token: Secret<String>,
+    pub token: SecretString,
     pub business_account_list: Vec<BasicBusinessAccount>,
 }
 
-fn round_serialize<S>(x: &Secret<String>, s: S) -> Result<S::Ok, S::Error>
+fn round_serialize<S>(x: &SecretString, s: S) -> Result<S::Ok, S::Error>
 where
     S: serde::Serializer,
 {
@@ -287,7 +287,7 @@ pub struct AuthMechanism {
     pub user_id: Uuid,
     pub auth_scope: AuthenticationScope,
     pub auth_identifier: String,
-    pub secret: Option<Secret<String>>,
+    pub secret: Option<SecretString>,
     pub is_active: Status,
     pub valid_upto: Option<DateTime<Utc>>,
     pub auth_context: AuthContextType,

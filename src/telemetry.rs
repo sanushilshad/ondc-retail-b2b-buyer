@@ -1,14 +1,11 @@
+use opentelemetry::trace::TracerProvider as _;
 use tracing::{subscriber::set_global_default, Subscriber};
-use tracing_bunyan_formatter::{BunyanFormattingLayer, JsonStorageLayer}; //logging in json format
+use tracing_bunyan_formatter::{BunyanFormattingLayer, JsonStorageLayer};
 use tracing_log::LogTracer;
-// use tracing_subscriber::filter::LevelFilter;
 use tracing_subscriber::fmt::MakeWriter;
-// use tracing_subscriber::Layer;
 use tracing_subscriber::{
     filter::LevelFilter, fmt, layer::SubscriberExt, EnvFilter, Layer, Registry,
 };
-// use opentelemetry::global;
-// use opentelemetry::trace::Tracer;
 
 pub fn get_subscriber<Sink>(
     _name: String,
@@ -51,26 +48,22 @@ pub fn init_subscriber(subscriber: impl Subscriber + Send + Sync) {
 }
 
 pub fn get_subscriber_with_jeager<Sink>(
-    _name: String,
+    name: String,
     env_filter: String,
     sink: Sink,
 ) -> impl Subscriber + Send + Sync
 where
     Sink: for<'a> MakeWriter<'a> + Send + Sync + 'static,
 {
-    // let tracer = opentelemetry_jaeger::new_agent_pipeline()
-    //     .with_endpoint(std::env::var("JAEGER_ENDPOINT").unwrap_or("localhost:4318".to_string()))
-    //     .with_service_name("rust_test".to_string())
-    //     .install_batch(opentelemetry::runtime::Tokio)
-    //     .expect("Failed to install OpenTelemetry tracer.");
-    let tracer = opentelemetry_otlp::new_pipeline()
+    let tracer: opentelemetry_sdk::trace::Tracer = opentelemetry_otlp::new_pipeline()
         .tracing()
         .with_exporter(opentelemetry_otlp::new_exporter().tonic())
-        .install_batch(opentelemetry::runtime::Tokio)
-        .expect("Couldn't create OTLP tracer");
+        .install_batch(opentelemetry_sdk::runtime::Tokio)
+        .expect("Couldn't create OTLP tracer")
+        .tracer(name);
     let telemetry_layer: tracing_opentelemetry::OpenTelemetryLayer<
         Registry,
-        opentelemetry::sdk::trace::Tracer,
+        opentelemetry_sdk::trace::Tracer,
     > = tracing_opentelemetry::layer().with_tracer(tracer);
     let env_filter =
         EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(env_filter));

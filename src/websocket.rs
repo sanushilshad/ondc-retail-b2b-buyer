@@ -1,5 +1,5 @@
 use reqwest::Client;
-use secrecy::{ExposeSecret, Secret};
+use secrecy::{ExposeSecret, SecretString};
 use serde::Serialize;
 use serde_json::Value;
 use utoipa::ToSchema;
@@ -31,13 +31,13 @@ pub struct WSRequest {
 pub struct WebSocketClient {
     http_client: Client,
     base_url: String,
-    authorization_token: Secret<String>,
+    authorization_token: SecretString,
 }
 
 impl WebSocketClient {
     pub fn new(
         base_url: String,
-        authorization_token: Secret<String>,
+        authorization_token: SecretString,
         timeout: std::time::Duration,
     ) -> Self {
         let http_client = Client::builder().timeout(timeout).build().unwrap();

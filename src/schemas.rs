@@ -10,7 +10,7 @@ use actix_web::{error::ErrorInternalServerError, FromRequest, HttpMessage};
 use bigdecimal::BigDecimal;
 use futures_util::future::{ready, Ready};
 use reqwest::{header, Client};
-use secrecy::Secret;
+use secrecy::SecretString;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::time::sleep;
@@ -550,7 +550,7 @@ pub struct RegisteredNetworkParticipant {
     pub code: String,
     pub name: String,
     pub logo: String,
-    pub signing_key: Secret<String>,
+    pub signing_key: SecretString,
     pub id: Uuid,
     pub subscriber_id: String,
     pub subscriber_uri: String,

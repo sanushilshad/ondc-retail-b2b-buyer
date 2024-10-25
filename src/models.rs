@@ -1,4 +1,4 @@
-use secrecy::Secret;
+use secrecy::SecretString;
 use sqlx::{types::BigDecimal, FromRow};
 use uuid::Uuid;
 
@@ -13,7 +13,7 @@ pub struct RegisteredNetworkParticipantModel {
     pub code: String,
     pub name: String,
     pub logo: String,
-    pub signing_key: Secret<String>,
+    pub signing_key: SecretString,
     pub subscriber_id: String,
     pub subscriber_uri: String,
     pub long_description: String,

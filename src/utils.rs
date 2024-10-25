@@ -24,7 +24,7 @@ use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use jsonwebtoken::{
     decode, encode, Algorithm as JWTAlgorithm, DecodingKey, EncodingKey, Header, Validation,
 };
-use secrecy::{ExposeSecret, Secret};
+use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use std::collections::HashMap;
@@ -248,8 +248,8 @@ pub fn create_email_type_pool(
 pub fn generate_jwt_token_for_user(
     user_id: Uuid,
     expiry_time: i64,
-    secret: &Secret<String>,
-) -> Result<Secret<String>, anyhow::Error> {
+    secret: &SecretString,
+) -> Result<SecretString, anyhow::Error> {
     let expiration = Utc::now()
         .checked_add_signed(Duration::hours(expiry_time))
         .expect("valid timestamp")
@@ -261,13 +261,13 @@ pub fn generate_jwt_token_for_user(
     let header = Header::new(JWTAlgorithm::HS256);
     let encoding_key = EncodingKey::from_secret(secret.expose_secret().as_bytes());
     let token: String = encode(&header, &claims, &encoding_key).expect("Failed to generate token");
-    return Ok(Secret::new(token));
+    return Ok(SecretString::from(token));
 }
 
 #[tracing::instrument(name = "Decode JWT token")]
 pub fn decode_token<T: Into<String> + std::fmt::Debug>(
     token: T,
-    secret: &Secret<String>,
+    secret: &SecretString,
 ) -> Result<Uuid, CustomJWTTokenError> {
     let decoding_key = DecodingKey::from_secret(secret.expose_secret().as_bytes());
     let decoded = decode::<JWTClaims>(
