@@ -1,4 +1,5 @@
 use actix_web::web;
+use utoipa::TupleUnit;
 // use anyhow::Context;
 use crate::configuration::ONDCSetting;
 use crate::errors::GenericError;
@@ -21,7 +22,7 @@ use super::utils::{fetch_order_by_id, initialize_order_select, save_ondc_order_r
     tag = "Order Select Request",
     request_body(content = OrderSelectRequest, description = "Request Body"),
     responses(
-        (status=200, description= "Order Select Request", body= EmptyGenericResponse),
+        (status=200, description= "Order Select Request", body= GenericResponse<TupleUnit>),
     )
 )]
 #[tracing::instrument(name = "order select", skip(pool), fields(transaction_id=body.transaction_id.to_string()))]
@@ -129,7 +130,7 @@ pub async fn order_select(
     tag = "Order Init Request",
     request_body(content = OrderInitRequest, description = "Request Body"),
     responses(
-        (status=200, description= "Order init Request", body= EmptyGenericResponse),
+        (status=200, description= "Order init Request", body= GenericResponse<TupleUnit>),
     )
 )]
 #[tracing::instrument(name = "order init", skip(pool), fields(transaction_id=body.transaction_id.to_string()))]
@@ -210,7 +211,7 @@ pub async fn order_init(
     tag = "Order Confirm Request",
     request_body(content = OrderConfirmRequest, description = "Request Body"),
     responses(
-        (status=200, description= "Order confirm Request", body= EmptyGenericResponse),
+        (status=200, description= "Order confirm Request", body= GenericResponse<TupleUnit>),
     )
 )]
 #[tracing::instrument(name = "order confirm", skip(pool), fields(transaction_id=body.transaction_id.to_string()))]

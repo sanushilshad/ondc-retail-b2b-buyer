@@ -10,6 +10,7 @@ use crate::schemas::{GenericResponse, RequestMetaData};
 // use crate::session_state::TypedSession;
 use actix_web::{web, Result};
 use sqlx::PgPool;
+use utoipa::TupleUnit;
 
 #[utoipa::path(
     post,
@@ -17,7 +18,7 @@ use sqlx::PgPool;
     tag = "Register User Account API",
     request_body(content = CreateUserAccount, description = "Request Body"),
     responses(
-        (status=200, description= "Account created successfully", body= EmptyGenericResponse ),
+        (status=200, description= "Account created successfully", body= GenericResponse<TupleUnit> ),
     )
 )]
 #[tracing::instrument(
@@ -61,7 +62,7 @@ pub async fn register_user_account(
     tag = "Authenticate User API",
     request_body(content = AuthenticateRequest, description = "Request Body"),
     responses(
-        (status=200, description= "Authenticate User", body= AuthResponse),
+        (status=200, description= "Authenticate User", body= GenericResponse<AuthData>),
     )
 )]
 #[tracing::instrument(err, name = "Authenticate User", skip(pool, body), fields())]
@@ -105,7 +106,7 @@ pub async fn authenticate(
     tag = "Register Business Account API",
     request_body(content = CreateBusinessAccount, description = "Request Body"),
     responses(
-        (status=200, description= "Business Account created successfully", body= EmptyGenericResponse),
+        (status=200, description= "Business Account created successfully", body= GenericResponse<TupleUnit>),
     ),
     params(
         ("Authorization" = String, Header, description = "JWT token"),

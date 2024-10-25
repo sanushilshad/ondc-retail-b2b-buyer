@@ -296,6 +296,7 @@ pub struct WSSearchItem<'a> {
     pub creator: WSProductCreator<'a>,
     pub quantity: WSSearchItemQuantity,
     pub categories: Vec<WSProductCategory>,
+    #[schema(value_type = f64)]
     pub tax_rate: BigDecimal,
     // pub country_of_origin: CountryCode,
     pub images: Vec<&'a str>,

@@ -1,13 +1,12 @@
 use crate::{domain::EmailObject, websocket::WebSocketClient};
 use config::{self, ConfigError, Environment};
-use dotenv::dotenv;
-use secrecy::{ExposeSecret, Secret};
+use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
 use sqlx::{postgres::PgConnectOptions, ConnectOptions};
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct JWT {
-    pub secret: Secret<String>,
+    pub secret: SecretString,
     pub expiry: i64,
 }
 
@@ -27,7 +26,7 @@ pub struct UserSetting {
 pub struct ONDCBuyer {
     pub id: String,
     pub uri: String,
-    pub signing_key: Secret<String>,
+    pub signing_key: SecretString,
 }
 #[derive(Debug, Deserialize, Clone)]
 pub struct ONDCSetting {
@@ -52,7 +51,7 @@ pub struct Setting {
 pub struct ApplicationSetting {
     pub port: u16,
     pub host: String,
-    pub hmac_secret: Secret<String>,
+    pub hmac_secret: SecretString,
     pub workers: usize,
 }
 
@@ -60,23 +59,26 @@ pub struct ApplicationSetting {
 pub struct RedisSettings {
     pub port: u16,
     pub host: String,
-    pub password: Secret<String>,
+    pub password: SecretString,
 }
 
 impl RedisSettings {
-    pub fn get_string(&self) -> Secret<String> {
-        Secret::new(format!(
-            "redis://{}:{}/{}",
-            self.host,
-            self.port,
-            self.password.expose_secret()
-        ))
+    pub fn get_string(&self) -> SecretString {
+        SecretString::new(
+            format!(
+                "redis://{}:{}/{}",
+                self.host,
+                self.port,
+                self.password.expose_secret()
+            )
+            .into(),
+        )
     }
 }
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct WebSocketSetting {
-    token: Secret<String>,
+    token: SecretString,
     base_url: String,
     timeout_milliseconds: u64,
 }
@@ -94,7 +96,7 @@ impl WebSocketSetting {
 #[derive(Debug, Deserialize, Clone)]
 pub struct DatabaseSetting {
     pub username: String,
-    pub password: Secret<String>,
+    pub password: SecretString,
     pub port: u16,
     pub host: String,
     pub name: String,
@@ -131,7 +133,7 @@ impl DatabaseSetting {
 pub struct EmailClientSetting {
     pub base_url: String,
     pub username: String,
-    pub password: Secret<String>,
+    pub password: SecretString,
     pub sender_email: String,
     pub timeout_milliseconds: u64,
 }
@@ -147,7 +149,6 @@ impl EmailClientSetting {
 
 pub fn get_configuration() -> Result<Setting, ConfigError> {
     let base_path = std::env::current_dir().expect("Failed to determine the current directory");
-    dotenv().ok();
     let builder = config::Config::builder()
         .add_source(config::File::from(base_path.join("configuration.yaml")))
         .add_source(Environment::default().separator("__"))
@@ -165,7 +166,6 @@ pub fn get_configuration() -> Result<Setting, ConfigError> {
 // pub fn get_configuration_by_custom() -> Result<Settings, ConfigError> {
 //     // todo!()
 //     let base_path = std::env::current_dir().expect("Failed to determine the current directory");
-//     dotenv().ok();
 //     let builder = config::Config::builder()
 //         .add_source(config::File::from(base_path.join("configuration.yaml")))
 //         .add_source(Environment::default().separator("_"))
