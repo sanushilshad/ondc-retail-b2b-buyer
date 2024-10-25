@@ -170,6 +170,8 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [x] Develop ONDC on init API
 * [x] Develop confirm API
 * [x] Develop ONDC on on_confirm API
+* [x] Move Webscoket to seperate service
+* [ ] Move User Module to seperate service
 * [ ] Develop status API
 * [ ] Develop ONDC on status API
 * [ ] Develop cancel API
@@ -178,8 +180,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [ ] Develop ONDC on update API
 
 ### MILESTONE 2.5:
-* [ ] Move Webscoket and User Module to seperate service
-* [ ] Move User Module to seperate service
+
 * [ ] Integrate BAP Payment Gateway
 * [ ] Develop Business Specific Config Module.
 
@@ -206,7 +207,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [ ] Integrate MeileiSeach
 * [ ] Integrate with notification microservice to enable WhatsApp, Email and SMS functionality
 
-### MILESTONE 4:
+### MILESTONE 5:
 * [ ] Complete validation for business_account registration
 * [ ] Complete validation for user_account registration
 * [ ] Complete validation for product search registration
