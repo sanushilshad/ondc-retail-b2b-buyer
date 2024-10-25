@@ -170,8 +170,8 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [x] Develop ONDC on init API
 * [x] Develop confirm API
 * [x] Develop ONDC on on_confirm API
-* [x] Move Webscoket to seperate service
-* [ ] Move User Module to seperate service
+* [x] Move Websocket as a seperate service
+* [ ] Move User Module as a seperate service
 * [ ] Develop status API
 * [ ] Develop ONDC on status API
 * [ ] Develop cancel API
