@@ -127,6 +127,11 @@ bash dev_run.sh
 bash release.sh
 ```
 
+- For restarting production server:
+```
+bash restart.sh
+```
+
 ## API DOCUMENTATION:
 The API Docmentation can be found at `https://{{domain}}/docs/` after running the server.
 

@@ -16,10 +16,13 @@ use sqlx::PgPool;
 
 use super::schemas::{OrderConfirmRequest, OrderInitRequest, OrderSelectRequest, OrderType};
 use super::utils::{fetch_order_by_id, initialize_order_select, save_ondc_order_request};
+
 #[utoipa::path(
     post,
     path = "/order/select",
-    tag = "Order Select Request",
+    tag = "Order",
+    description="This API generates the ONDC select request based on user input.",
+    summary= "Order Select Request",
     request_body(content = OrderSelectRequest, description = "Request Body"),
     responses(
         (status=200, description= "Order Select Request", body= GenericResponse<TupleUnit>),
@@ -127,7 +130,9 @@ pub async fn order_select(
 #[utoipa::path(
     post,
     path = "/order/init",
-    tag = "Order Init Request",
+    tag = "Order",
+    description="This API generates the ONDC init request based on user input.",
+    summary= "Order Init Request",
     request_body(content = OrderInitRequest, description = "Request Body"),
     responses(
         (status=200, description= "Order init Request", body= GenericResponse<TupleUnit>),
@@ -142,7 +147,7 @@ pub async fn order_init(
     business_account: BusinessAccount,
     meta_data: RequestMetaData,
 ) -> Result<web::Json<GenericResponse<()>>, GenericError> {
-    let order = match fetch_order_by_id(&pool, &body.transaction_id).await {
+    let order = match fetch_order_by_id(&pool, body.transaction_id).await {
         Ok(Some(order_detail)) => order_detail,
         Ok(None) => {
             return Err(GenericError::ValidationError(format!(
@@ -208,7 +213,9 @@ pub async fn order_init(
 #[utoipa::path(
     post,
     path = "/order/confirm",
-    tag = "Order Confirm Request",
+    tag = "Order",
+    description="This API generates the ONDC confirm request based on user input.",
+    summary= "Order confirm Request",
     request_body(content = OrderConfirmRequest, description = "Request Body"),
     responses(
         (status=200, description= "Order confirm Request", body= GenericResponse<TupleUnit>),
@@ -223,7 +230,7 @@ pub async fn order_confirm(
     business_account: BusinessAccount,
     meta_data: RequestMetaData,
 ) -> Result<web::Json<GenericResponse<()>>, GenericError> {
-    let order = match fetch_order_by_id(&pool, &body.transaction_id).await {
+    let order = match fetch_order_by_id(&pool, body.transaction_id).await {
         Ok(Some(order_detail)) => order_detail,
         Ok(None) => {
             return Err(GenericError::ValidationError(format!(

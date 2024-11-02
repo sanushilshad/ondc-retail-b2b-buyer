@@ -135,7 +135,7 @@ pub async fn save_rfq_order(
 #[tracing::instrument(name = "delete  fulfillment", skip(transaction))]
 pub async fn delete_fulfillment_by_order_id(
     transaction: &mut Transaction<'_, Postgres>,
-    order_id: &Uuid,
+    order_id: Uuid,
 ) -> Result<(), anyhow::Error> {
     let query = sqlx::query(
         r#"
@@ -207,7 +207,7 @@ fn get_pick_up_location_from_ondc_seller_fulfillment(
 #[tracing::instrument(name = "save rfq fulfillment", skip(transaction))]
 pub async fn save_rfq_fulfillment(
     transaction: &mut Transaction<'_, Postgres>,
-    order_id: &Uuid,
+    order_id: Uuid,
     fulfillments: &Vec<OrderSelectFulfillment>,
     pick_up_location: &ONDCSellerLocationInfo,
 ) -> Result<(), anyhow::Error> {
@@ -222,7 +222,7 @@ pub async fn save_rfq_fulfillment(
     let mut pick_up_data_list = vec![];
     let pick_up_data = get_pick_up_location_from_ondc_seller_fulfillment(pick_up_location);
     for fulfillment in fulfillments {
-        order_list.push(*order_id);
+        order_list.push(order_id);
         id_list.push(Uuid::new_v4());
         fulfillment_id_list.push(fulfillment.id.as_str());
         fulfillment_type_list.push(&fulfillment.r#type);
@@ -271,13 +271,13 @@ pub async fn save_rfq_fulfillment(
 #[tracing::instrument(name = "save rfq items", skip(transaction))]
 pub async fn save_order_select_items(
     transaction: &mut Transaction<'_, Postgres>,
-    order_id: &Uuid,
+    order_id: Uuid,
     select_request: &OrderSelectRequest,
     product_map: &HashMap<String, ONDCSellerProductInfo>,
 ) -> Result<(), anyhow::Error> {
     let item_count = select_request.items.len();
     let line_id_list: Vec<Uuid> = (0..item_count).map(|_| Uuid::new_v4()).collect();
-    let order_id_list: Vec<Uuid> = vec![*order_id; item_count];
+    let order_id_list: Vec<Uuid> = vec![order_id; item_count];
     let mut item_id_list = vec![];
     let mut item_code_list: Vec<Option<&str>> = vec![];
     let mut item_name_list = vec![];
@@ -365,7 +365,7 @@ pub async fn save_order_select_items(
 #[tracing::instrument(name = "delete order", skip(transaction))]
 pub async fn delete_order(
     transaction: &mut Transaction<'_, Postgres>,
-    id: &Uuid,
+    id: Uuid,
 ) -> Result<(), anyhow::Error> {
     let query = sqlx::query(
         r#"
@@ -389,7 +389,7 @@ pub async fn delete_order(
 #[tracing::instrument(name = "save on select payments", skip(transaction))]
 pub async fn save_payment_obj_select(
     transaction: &mut Transaction<'_, Postgres>,
-    order_id: &Uuid,
+    order_id: Uuid,
     payments: &Vec<PaymentType>,
 ) -> Result<(), anyhow::Error> {
     // delete_on_select_payment(transaction, order_id).await?;
@@ -397,7 +397,7 @@ pub async fn save_payment_obj_select(
     let mut commerce_data_id_list = vec![];
     for _ in 0..payments.len() {
         id_list.push(Uuid::new_v4());
-        commerce_data_id_list.push(*order_id);
+        commerce_data_id_list.push(order_id);
     }
     let query = sqlx::query!(
         r#"
@@ -472,7 +472,7 @@ pub async fn initialize_order_select(
         .begin()
         .await
         .context("Failed to acquire a Postgres connection from the pool")?;
-    delete_order(&mut transaction, &select_request.transaction_id).await?;
+    delete_order(&mut transaction, select_request.transaction_id).await?;
 
     let order_id = save_rfq_order(
         &mut transaction,
@@ -486,7 +486,7 @@ pub async fn initialize_order_select(
     .await?;
     save_rfq_fulfillment(
         &mut transaction,
-        &order_id,
+        order_id,
         &select_request.fulfillments,
         pick_up_location,
     )
@@ -494,13 +494,13 @@ pub async fn initialize_order_select(
 
     save_order_select_items(
         &mut transaction,
-        &order_id,
+        order_id,
         select_request,
         &seller_product_map,
     )
     .await?;
 
-    save_payment_obj_select(&mut transaction, &order_id, &select_request.payment_types).await?;
+    save_payment_obj_select(&mut transaction, order_id, &select_request.payment_types).await?;
 
     transaction
         .commit()
@@ -571,7 +571,7 @@ pub fn create_pick_off_from_ondc_select_fulfillment(
 #[tracing::instrument(name = "save on select fulfillment", skip(transaction))]
 pub async fn save_on_select_fulfillment(
     transaction: &mut Transaction<'_, Postgres>,
-    order_id: &Uuid,
+    order_id: Uuid,
     select_fulfillment: &Vec<ONDCFulfillment>,
     on_select_fulfillments: &Vec<ONDCOnSelectFulfillment>,
     ondc_quote: &Vec<ONDCBreakUp>,
@@ -603,7 +603,7 @@ pub async fn save_on_select_fulfillment(
     let convenience_fee_mapping = get_quote_item_value_mapping(ondc_quote, &BreakupTitleType::Misc);
     let global_pick_up_data = get_pick_up_location_from_ondc_seller_fulfillment(pick_up_location);
     for fulfillment in on_select_fulfillments {
-        order_list.push(*order_id);
+        order_list.push(order_id);
         id_list.push(Uuid::new_v4());
         fulfillment_id_list.push(fulfillment.id.as_str());
 
@@ -816,7 +816,7 @@ pub async fn initialize_order_on_select(
         .await
         .context("Failed to acquire a Postgres connection from the pool")?;
 
-    delete_order(&mut transaction, &ondc_select_req.context.transaction_id).await?;
+    delete_order(&mut transaction, ondc_select_req.context.transaction_id).await?;
 
     let order_id = save_buyer_order_data_on_select(
         &mut transaction,
@@ -830,7 +830,7 @@ pub async fn initialize_order_on_select(
 
     let _ = save_order_on_select_items(
         &mut transaction,
-        &order_id,
+        order_id,
         on_select_request,
         &seller_product_map,
     )
@@ -838,13 +838,13 @@ pub async fn initialize_order_on_select(
 
     save_payment_obj_on_select(
         &mut transaction,
-        &order_id,
+        order_id,
         &on_select_request.message.order.payments,
     )
     .await?;
     save_on_select_fulfillment(
         &mut transaction,
-        &order_id,
+        order_id,
         &ondc_select_req.message.order.fulfillments,
         &on_select_request.message.order.fulfillments,
         &on_select_request.message.order.quote.breakup,
@@ -894,7 +894,7 @@ pub fn get_quote_item_breakup_mapping<'a>(
 #[tracing::instrument(name = "delete on select payment", skip(transaction))]
 pub async fn delete_on_select_payment(
     transaction: &mut Transaction<'_, Postgres>,
-    id: &Uuid,
+    id: Uuid,
 ) -> Result<(), anyhow::Error> {
     let query = sqlx::query(
         r#"
@@ -919,7 +919,7 @@ pub async fn delete_on_select_payment(
 #[tracing::instrument(name = "save on select payments", skip(transaction))]
 pub async fn save_payment_obj_on_select(
     transaction: &mut Transaction<'_, Postgres>,
-    order_id: &Uuid,
+    order_id: Uuid,
     payments: &Vec<ONDCOnSelectPayment>,
 ) -> Result<(), anyhow::Error> {
     // delete_on_select_payment(transaction, order_id).await?;
@@ -929,7 +929,7 @@ pub async fn save_payment_obj_on_select(
     let mut payment_type_list = vec![];
     for payment in payments {
         id_list.push(Uuid::new_v4());
-        commerce_data_id_list.push(*order_id);
+        commerce_data_id_list.push(order_id);
         collected_by_list.push(payment.collected_by.clone());
         payment_type_list.push(payment.r#type.get_payment());
     }
@@ -955,13 +955,13 @@ pub async fn save_payment_obj_on_select(
 #[tracing::instrument(name = "save on select items", skip(transaction))]
 pub async fn save_order_on_select_items(
     transaction: &mut Transaction<'_, Postgres>,
-    order_id: &Uuid,
+    order_id: Uuid,
     ondc_on_select_request: &ONDCOnSelectRequest,
     product_map: &HashMap<String, ONDCSellerProductInfo>,
 ) -> Result<(), anyhow::Error> {
     let item_count = ondc_on_select_request.message.order.items.len();
     let line_id_list: Vec<Uuid> = (0..item_count).map(|_| Uuid::new_v4()).collect();
-    let order_id_list: Vec<Uuid> = vec![*order_id; item_count];
+    let order_id_list: Vec<Uuid> = vec![order_id; item_count];
     let mut item_id_list = vec![];
     let mut item_code_list: Vec<Option<&str>> = vec![];
     let mut item_name_list = vec![];
@@ -1140,7 +1140,7 @@ pub async fn save_order_on_select_items(
 #[tracing::instrument(name = "fetch buyer commerce data", skip(pool))]
 async fn get_commerce_data(
     pool: &PgPool,
-    transaction_id: &Uuid,
+    transaction_id: Uuid,
 ) -> Result<Option<CommerceDataModel>, anyhow::Error> {
     //vectors:sqlx::types::Json<Vec<UserVector>>
     let record = sqlx::query_as!(
@@ -1176,7 +1176,7 @@ async fn get_commerce_data(
 #[tracing::instrument(name = "fetch buyer commerce data line", skip(pool))]
 async fn get_commerce_data_line(
     pool: &PgPool,
-    order_id: &Uuid,
+    order_id: Uuid,
 ) -> Result<Vec<CommerceItemModel>, anyhow::Error> {
     let records = sqlx::query_as!(
         CommerceItemModel,
@@ -1218,7 +1218,7 @@ async fn get_commerce_data_line(
 #[tracing::instrument(name = "fetch buyer commerce payments", skip(pool))]
 async fn get_commerce_payments(
     pool: &PgPool,
-    order_id: &Uuid,
+    order_id: Uuid,
 ) -> Result<Vec<CommercePaymentModel>, anyhow::Error> {
     let records = sqlx::query_as!(
         CommercePaymentModel,
@@ -1258,7 +1258,7 @@ async fn get_commerce_payments(
 #[tracing::instrument(name = "fetch buyer commerce fulfillments", skip(pool))]
 async fn get_commerce_fulfillments(
     pool: &PgPool,
-    order_id: &Uuid,
+    order_id: Uuid,
 ) -> Result<Vec<CommerceFulfillmentModel>, anyhow::Error> {
     let records = sqlx::query_as!(
         CommerceFulfillmentModel,
@@ -1553,14 +1553,14 @@ fn get_order_from_model(
 #[tracing::instrument(name = "fetch order", skip(pool))]
 pub async fn fetch_order_by_id(
     pool: &PgPool,
-    transaction_id: &Uuid,
+    transaction_id: Uuid,
 ) -> Result<Option<Commerce>, anyhow::Error> {
     if let Some(order_data) = get_commerce_data(pool, transaction_id).await? {
-        let lines = get_commerce_data_line(pool, &order_data.id).await?;
+        let lines = get_commerce_data_line(pool, order_data.id).await?;
         //let payments_2 = get_commerce_payments_2(pool, &order_data.id).await?;
-        let payments = get_commerce_payments(pool, &order_data.id).await?;
+        let payments = get_commerce_payments(pool, order_data.id).await?;
 
-        let fulfillmets = get_commerce_fulfillments(pool, &order_data.id).await?;
+        let fulfillmets = get_commerce_fulfillments(pool, order_data.id).await?;
         Ok(Some(get_order_from_model(
             order_data,
             lines,
@@ -1575,7 +1575,7 @@ pub async fn fetch_order_by_id(
 #[tracing::instrument(name = "delete payment", skip(transaction))]
 async fn delete_payment_in_commerce(
     transaction: &mut Transaction<'_, Postgres>,
-    transaction_id: &Uuid,
+    transaction_id: Uuid,
 ) -> Result<Uuid, anyhow::Error> {
     let query = sqlx::query!(
         r#"
@@ -1598,7 +1598,7 @@ async fn delete_payment_in_commerce(
 #[tracing::instrument(name = "save payment on on_init", skip(transaction))]
 pub async fn initialize_payment_on_init(
     transaction: &mut Transaction<'_, Postgres>,
-    commerce_id: &Uuid,
+    commerce_id: Uuid,
     payments: &Vec<ONDCOnInitPayment>,
 ) -> Result<(), anyhow::Error> {
     let mut id_list = vec![];
@@ -1617,7 +1617,7 @@ pub async fn initialize_payment_on_init(
     let mut settlement_detail_list = vec![];
     for payment in payments {
         id_list.push(Uuid::new_v4());
-        commerce_data_id_list.push(*commerce_id);
+        commerce_data_id_list.push(commerce_id);
         collected_by_list.push(payment.collected_by.clone());
         payment_type_list.push(payment.r#type.get_payment());
         buyer_fee_type_list.push(&payment.buyer_app_finder_fee_type);
@@ -1830,11 +1830,11 @@ pub async fn initialize_order_on_init(
         .await
         .context("Failed to acquire a Postgres connection from the pool")?;
     let commerce_id =
-        delete_payment_in_commerce(&mut transaction, &on_init_request.context.transaction_id)
+        delete_payment_in_commerce(&mut transaction, on_init_request.context.transaction_id)
             .await?;
     initialize_payment_on_init(
         &mut transaction,
-        &commerce_id,
+        commerce_id,
         &on_init_request.message.order.payments,
     )
     .await?;
@@ -1904,7 +1904,7 @@ pub fn create_drop_off_from_on_confirm_fulfullment(
 #[tracing::instrument(name = "save fulfillment  on on_confirm", skip(transaction))]
 async fn update_commerce_fulfillment_in_on_confirm(
     transaction: &mut Transaction<'_, Postgres>,
-    transaction_id: &Uuid,
+    transaction_id: Uuid,
     confirm_fulfillments: &Vec<ONDCOnConfirmFulfillment>,
     order_fulfillments: &Vec<CommerceFulfillment>,
 ) -> Result<(), anyhow::Error> {
@@ -1947,7 +1947,7 @@ async fn update_commerce_fulfillment_in_on_confirm(
 #[tracing::instrument(name = "save payment on on_confirm", skip(transaction))]
 pub async fn initialize_payment_on_confirm(
     transaction: &mut Transaction<'_, Postgres>,
-    commerce_id: &Uuid,
+    commerce_id: Uuid,
     payments: &Vec<ONDCOnConfirmPayment>,
 ) -> Result<(), anyhow::Error> {
     let mut id_list = vec![];
@@ -1969,7 +1969,7 @@ pub async fn initialize_payment_on_confirm(
     let mut payment_paid_amounts = vec![];
     for payment in payments {
         id_list.push(Uuid::new_v4());
-        commerce_data_id_list.push(*commerce_id);
+        commerce_data_id_list.push(commerce_id);
         collected_by_list.push(payment.collected_by.clone());
         payment_type_list.push(payment.r#type.get_payment());
         buyer_fee_type_list.push(&payment.buyer_app_finder_fee_type);
@@ -2071,18 +2071,18 @@ pub async fn initialize_order_on_confirm(
     update_commerce_in_on_confirm(&mut transaction, on_confirm_request).await?;
     update_commerce_fulfillment_in_on_confirm(
         &mut transaction,
-        &on_confirm_request.context.transaction_id,
+        on_confirm_request.context.transaction_id,
         &on_confirm_request.message.order.fulfillments,
         &order.fulfillments,
     )
     .await?;
     let commerce_id =
-        delete_payment_in_commerce(&mut transaction, &on_confirm_request.context.transaction_id)
+        delete_payment_in_commerce(&mut transaction, on_confirm_request.context.transaction_id)
             .await?;
 
     initialize_payment_on_confirm(
         &mut transaction,
-        &commerce_id,
+        commerce_id,
         &on_confirm_request.message.order.payments,
     )
     .await?;

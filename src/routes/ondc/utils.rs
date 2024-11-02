@@ -192,8 +192,8 @@ where
 
 #[allow(clippy::too_many_arguments)]
 pub fn get_common_context(
-    transaction_id: &Uuid,
-    message_id: &Uuid,
+    transaction_id: Uuid,
+    message_id: Uuid,
     domain_category_code: &CategoryDomain,
     action: ONDCActionType,
     bap_id: &str,
@@ -376,8 +376,8 @@ pub fn get_ondc_search_payload(
     np_detail: &RegisteredNetworkParticipant,
 ) -> Result<ONDCSearchRequest, anyhow::Error> {
     let ondc_context = get_common_context(
-        &search_request.transaction_id,
-        &search_request.message_id,
+        search_request.transaction_id,
+        search_request.message_id,
         &search_request.domain_category_code,
         ONDCActionType::Search,
         &np_detail.subscriber_id,
@@ -445,8 +445,8 @@ pub fn get_websocket_params_from_search_req(search_model: SearchRequestModel) ->
 #[tracing::instrument(name = "Fetch Product Search Params", skip(pool))]
 pub async fn get_product_search_params(
     pool: &PgPool,
-    transaction_id: &Uuid,
-    message_id: &Uuid,
+    transaction_id: Uuid,
+    message_id: Uuid,
 ) -> Result<Option<SearchRequestModel>, anyhow::Error> {
     let row = sqlx::query_as!(
         SearchRequestModel,
@@ -466,8 +466,8 @@ pub async fn get_product_search_params(
 #[tracing::instrument(name = "Fetch ONDC Order Params", skip(pool))]
 pub async fn get_ondc_order_params(
     pool: &PgPool,
-    transaction_id: &Uuid,
-    message_id: &Uuid,
+    transaction_id: Uuid,
+    message_id: Uuid,
     action_type: ONDCActionType,
 ) -> Result<Option<ONDCOrderParams>, anyhow::Error> {
     let row = sqlx::query_as!(
@@ -801,8 +801,8 @@ fn get_ondc_select_context(
     bpp_detail: &LookupData,
 ) -> Result<ONDCContext, anyhow::Error> {
     get_common_context(
-        &select_request.transaction_id,
-        &select_request.message_id,
+        select_request.transaction_id,
+        select_request.message_id,
         &select_request.domain_category_code,
         ONDCActionType::Select,
         &bap_detail.subscriber_id,
@@ -1161,8 +1161,8 @@ pub async fn get_ondc_seller_product_info_mapping(
 #[tracing::instrument(name = "Fetch ONDC Order request", skip(pool))]
 pub async fn fetch_ondc_order_request(
     pool: &PgPool,
-    transaction_id: &Uuid,
-    message_id: &Uuid,
+    transaction_id: Uuid,
+    message_id: Uuid,
     action_type: &ONDCActionType,
 ) -> Result<Option<ONDCRequestModel>, anyhow::Error> {
     let row = sqlx::query_as!(
@@ -1184,8 +1184,8 @@ pub async fn fetch_ondc_order_request(
 #[tracing::instrument(name = "Fetch order request params", skip(pool))]
 pub async fn fetch_order_params(
     pool: &PgPool,
-    transaction_id: &Uuid,
-    message_id: &Uuid,
+    transaction_id: Uuid,
+    message_id: Uuid,
     action_type: &ONDCActionType,
 ) -> Result<Option<OrderRequestParamsModel>, anyhow::Error> {
     let row = sqlx::query_as!(
@@ -1206,8 +1206,8 @@ pub async fn fetch_order_params(
 
 #[tracing::instrument(name = "get init context", skip())]
 fn get_ondc_init_context(
-    tranaction_id: &Uuid,
-    message_id: &Uuid,
+    tranaction_id: Uuid,
+    message_id: Uuid,
     order: &Commerce,
 ) -> Result<ONDCContext, anyhow::Error> {
     get_common_context(
@@ -1420,11 +1420,8 @@ pub fn get_ondc_init_payload(
     order: &Commerce,
     init_request: &OrderInitRequest,
 ) -> Result<ONDCInitRequest, InitOrderError> {
-    let context = get_ondc_init_context(
-        &init_request.transaction_id,
-        &init_request.message_id,
-        order,
-    )?;
+    let context =
+        get_ondc_init_context(init_request.transaction_id, init_request.message_id, order)?;
     let message = get_ondc_init_message(business_account, init_request, order)?;
     Ok(ONDCInitRequest { context, message })
 }
@@ -1716,8 +1713,8 @@ fn get_ondc_confirm_message(
 
 #[tracing::instrument(name = "get confirm context", skip())]
 fn get_ondc_confirm_context(
-    tranaction_id: &Uuid,
-    message_id: &Uuid,
+    tranaction_id: Uuid,
+    message_id: Uuid,
     order: &Commerce,
 ) -> Result<ONDCContext, anyhow::Error> {
     get_common_context(
@@ -1744,8 +1741,8 @@ pub fn get_ondc_confirm_payload(
     bap_detail: &RegisteredNetworkParticipant,
 ) -> Result<ONDConfirmRequest, ConfirmOrderError> {
     let context = get_ondc_confirm_context(
-        &confirm_request.transaction_id,
-        &confirm_request.message_id,
+        confirm_request.transaction_id,
+        confirm_request.message_id,
         order,
     )?;
     let message =

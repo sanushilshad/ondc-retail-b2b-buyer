@@ -15,7 +15,9 @@ use sqlx::PgPool;
 #[utoipa::path(
     post,
     path = "/product/realtime/search",
-    tag = "Realtime Product Search",
+    tag = "Product",
+    description="This API generates the ONDC search request based on user input.",
+    summary= "Realtime Product Search",
     request_body(content = ProductSearchRequest, description = "Request Body"),
     responses(
         (status=200, description= "Realtime Product Search", body= GenericResponse<TupleUnit>),

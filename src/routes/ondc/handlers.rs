@@ -21,19 +21,17 @@ use crate::routes::product::schemas::WSSearchData;
 use crate::user_client::CustomerType;
 use crate::user_client::UserClient;
 use crate::websocket_client::{WebSocketActionType, WebSocketClient};
+
 #[tracing::instrument(name = "ONDC On Search Payload", skip(pool, body), fields())]
 pub async fn on_search(
     pool: web::Data<PgPool>,
     body: ONDCOnSearchRequest,
     websocket_srv: web::Data<WebSocketClient>,
 ) -> Result<web::Json<ONDCResponse<ONDCBuyerErrorCode>>, ONDCBuyerError> {
-    let search_obj = get_product_search_params(
-        &pool,
-        &body.context.transaction_id,
-        &body.context.message_id,
-    )
-    .await
-    .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
+    let search_obj =
+        get_product_search_params(&pool, body.context.transaction_id, body.context.message_id)
+            .await
+            .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
     let extracted_search_obj =
         search_obj.ok_or(ONDCBuyerError::BuyerResponseSequenceError { path: None })?;
     let product_objs: Option<WSSearchData<'_>> = get_product_from_on_search_request(&body)
@@ -84,8 +82,8 @@ pub async fn on_select(
     };
     let ondc_select_model = fetch_ondc_order_request(
         &pool,
-        &body.context.transaction_id,
-        &body.context.message_id,
+        body.context.transaction_id,
+        body.context.message_id,
         &ONDCActionType::Select,
     )
     .await
@@ -130,8 +128,8 @@ pub async fn on_init(
 ) -> Result<web::Json<ONDCResponse<ONDCBuyerErrorCode>>, ONDCBuyerError> {
     let order_request_model = fetch_ondc_order_request(
         &pool,
-        &body.context.transaction_id,
-        &body.context.message_id,
+        body.context.transaction_id,
+        body.context.message_id,
         &ONDCActionType::Init,
     )
     .await
@@ -177,12 +175,12 @@ pub async fn on_confirm(
 ) -> Result<web::Json<ONDCResponse<ONDCBuyerErrorCode>>, ONDCBuyerError> {
     let task1 = fetch_ondc_order_request(
         &pool,
-        &body.context.transaction_id,
-        &body.context.message_id,
+        body.context.transaction_id,
+        body.context.message_id,
         &ONDCActionType::Confirm,
     );
 
-    let task2 = fetch_order_by_id(&pool, &body.context.transaction_id);
+    let task2 = fetch_order_by_id(&pool, body.context.transaction_id);
     let (res1, res2) = futures::future::join(task1, task2).await;
     let order_request_model = res1
         .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?
