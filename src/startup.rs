@@ -22,11 +22,8 @@ pub struct Application {
     server: Server,
 }
 impl Application {
-    // We have converted the `build` function into a constructor for
-    // `Application`.
     pub async fn build(configuration: Setting) -> Result<Self, anyhow::Error> {
         let connection_pool = get_connection_pool(&configuration.database);
-        // println!("{:?}", connection_pool);
         let email_pool = Arc::new(
             SmtpEmailClient::new(&configuration.email_client)
                 .expect("Failed to create SmtpEmailClient"),
@@ -39,7 +36,6 @@ impl Application {
             &configuration.application.host, &configuration.application.port
         );
         let redis_obj = RedisClient::new(&configuration.redis).await?;
-        println!("Listening {}", address);
         let listener = TcpListener::bind(&address)?;
         let port = listener.local_addr().unwrap().port();
         let server = run(
@@ -79,29 +75,23 @@ async fn run(
 ) -> Result<Server, anyhow::Error> {
     let db_pool = web::Data::new(db_pool);
     let email_client: web::Data<dyn GenericEmailService> = web::Data::from(email_obj);
-    let secret_obj = web::Data::new(configuration.secret);
-    let user_setting_obj = web::Data::new(configuration.user);
+    // let secret_obj = web::Data::new(configuration.secret);
+    // let user_setting_obj = web::Data::new(configuration.user);
     let ondc_obj = web::Data::new(configuration.ondc);
-    let ws_server = web::Data::new(configuration.websocket.client());
-    // let _secret_key = Key::from(hmac_secret.expose_secret().as_bytes());
+    let ws_client = web::Data::new(configuration.websocket_client.client());
+    let user_client = web::Data::new(configuration.user_client.client());
     let redis_app = web::Data::new(redis_client);
     let server = HttpServer::new(move || {
         App::new()
-            //.app_data(web::JsonConfig::default().limit(1024 * 1024 * 50))
             .app_data(web::PayloadConfig::new(1 << 25))
             .wrap(SaveRequestResponse)
             .wrap(TracingLogger::default())
-            // .wrap(ErrorHandlers::new().handler(StatusCode::BAD_REQUEST, add_error_header))
-            // .wrap(Logger::default())  // for minimal logs
-            // Register the connection as part of the application state
-            // .wrap_fn(tracing_middleware)
             .app_data(db_pool.clone())
             .app_data(email_client.clone())
-            .app_data(secret_obj.clone())
-            .app_data(user_setting_obj.clone())
             .app_data(redis_app.clone())
             .app_data(ondc_obj.clone())
-            .app_data(ws_server.clone())
+            .app_data(ws_client.clone())
+            .app_data(user_client.clone())
             .configure(main_route)
     })
     .workers(configuration.application.workers)

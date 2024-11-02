@@ -1,5 +1,5 @@
 use crate::routes::product::schemas::{CategoryDomain, FulfillmentType, PaymentType};
-use crate::routes::user::schemas::DataSource;
+use crate::schemas::DataSource;
 use crate::schemas::{CountryCode, CurrencyType, FeeType, ONDCNetworkType};
 use bigdecimal::BigDecimal;
 use chrono::{DateTime, Utc};

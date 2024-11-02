@@ -1,10 +1,10 @@
 use actix_web::web;
 
-use super::buyer::{middlewares::SellerHeaderVerification, ondc_buyer_route};
+use super::handlers::{on_confirm, on_init, on_search, on_select};
+
 pub fn ondc_route(cfg: &mut web::ServiceConfig) {
-    cfg.service(
-        web::scope("/buyer")
-            .configure(ondc_buyer_route)
-            .wrap(SellerHeaderVerification), // ,
-    );
+    cfg.service(web::resource("/on_search").route(web::post().to(on_search)));
+    cfg.service(web::resource("/on_select").route(web::post().to(on_select)));
+    cfg.service(web::resource("/on_init").route(web::post().to(on_init)));
+    cfg.service(web::resource("/on_confirm").route(web::post().to(on_confirm)));
 }

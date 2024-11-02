@@ -1,6 +1,6 @@
+use crate::middleware::{BusinessAccountValidation, RequireAuth};
 use crate::routes::order::handlers::order_select;
-use crate::routes::user::schemas::CustomerType;
-use crate::routes::user::{BusinessAccountValidation, RequireAuth};
+use crate::user_client::CustomerType;
 use actix_web::web;
 
 use super::handlers::{order_confirm, order_init};
@@ -10,7 +10,7 @@ pub fn order_route(cfg: &mut web::ServiceConfig) {
             web::post()
                 .to(order_select)
                 .wrap(BusinessAccountValidation {
-                    business_type_list: vec![CustomerType::Buyer, CustomerType::Seller],
+                    business_type_list: vec![CustomerType::RetailB2bBuyer],
                 })
                 .wrap(RequireAuth),
         ),
@@ -20,7 +20,7 @@ pub fn order_route(cfg: &mut web::ServiceConfig) {
             web::post()
                 .to(order_init)
                 .wrap(BusinessAccountValidation {
-                    business_type_list: vec![CustomerType::Buyer, CustomerType::Seller],
+                    business_type_list: vec![CustomerType::RetailB2bBuyer],
                 })
                 .wrap(RequireAuth),
         ),
@@ -31,7 +31,7 @@ pub fn order_route(cfg: &mut web::ServiceConfig) {
             web::post()
                 .to(order_confirm)
                 .wrap(BusinessAccountValidation {
-                    business_type_list: vec![CustomerType::Buyer, CustomerType::Seller],
+                    business_type_list: vec![CustomerType::RetailB2bBuyer],
                 })
                 .wrap(RequireAuth),
         ),

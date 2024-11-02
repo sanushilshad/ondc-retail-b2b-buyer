@@ -1,4 +1,4 @@
-use crate::routes::user::RequireAuth;
+use crate::middleware::RequireAuth;
 
 // use crate::routes::utils::{get_customer_dbs_api, health_check};
 use super::handlers::{get_customer_dbs_api, health_check, redis_basic};

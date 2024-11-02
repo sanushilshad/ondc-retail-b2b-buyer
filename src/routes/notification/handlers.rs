@@ -1,6 +1,6 @@
 use actix_web::web;
 
-use crate::routes::user::schemas::UserAccount;
+use crate::user_client::UserAccount;
 use crate::{email_client::GenericEmailService, schemas::GenericResponse};
 
 use super::{errors::OTPError, schemas::OTPRequestBody, utils::send_email_background};

@@ -65,7 +65,6 @@ impl WebSocketClient {
             action_type,
             data,
         };
-        println!("{:?}", request_body);
         self.http_client
             .post(&url)
             .header("Authorization", self.get_auth_token())

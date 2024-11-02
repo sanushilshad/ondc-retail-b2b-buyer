@@ -5,9 +5,9 @@ use super::schemas::ProductSearchRequest;
 use super::utils::save_search_request;
 use crate::configuration::ONDCSetting;
 use crate::errors::GenericError;
-use crate::routes::ondc::buyer::utils::{get_ondc_search_payload, send_ondc_payload};
+use crate::routes::ondc::utils::{get_ondc_search_payload, send_ondc_payload};
 use crate::routes::ondc::ONDCActionType;
-use crate::routes::user::schemas::{BusinessAccount, UserAccount};
+use crate::user_client::{BusinessAccount, UserAccount};
 use crate::utils::{create_authorization_header, get_np_detail};
 
 use crate::schemas::{GenericResponse, ONDCNPType, RequestMetaData};

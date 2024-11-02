@@ -17,7 +17,7 @@ use tokio::time::sleep;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-#[derive(Serialize, Debug, ToSchema)]
+#[derive(Serialize, Debug, Deserialize, ToSchema)]
 pub struct GenericResponse<D> {
     pub status: bool,
     pub customer_message: String,
@@ -65,12 +65,6 @@ pub enum Status {
 #[serde(rename_all = "lowercase")]
 pub enum CommunicationType {
     Type1,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct JWTClaims {
-    pub sub: Uuid,
-    pub exp: usize,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, ToSchema, sqlx::Type)]
@@ -636,4 +630,19 @@ impl Display for CurrencyType {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", &format!("{:?}", self).to_lowercase())
     }
+}
+
+#[derive(Serialize, Deserialize, Debug, sqlx::Type, PartialEq, ToSchema)]
+#[sqlx(type_name = "data_source", rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
+pub enum DataSource {
+    PlaceOrder,
+    Ondc,
+    Rapidor,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum RequestType {
+    Internal,
+    External,
 }

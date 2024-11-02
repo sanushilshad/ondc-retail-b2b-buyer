@@ -1,4 +1,4 @@
-use crate::{domain::EmailObject, websocket::WebSocketClient};
+use crate::{domain::EmailObject, user_client::UserClient, websocket_client::WebSocketClient};
 use config::{self, ConfigError, Environment};
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
@@ -11,27 +11,24 @@ pub struct JWT {
 }
 
 #[derive(Debug, Deserialize, Clone)]
-pub struct SecretSetting {
-    pub jwt: JWT,
-}
-#[derive(Debug, Deserialize, Clone)]
 pub struct UserSetting {
-    pub admin_list: Vec<String>,
+    token: SecretString,
+    base_url: String,
+    timeout_milliseconds: u64,
 }
 
-// pub struct ONDCSeller{
-
-// }
-#[derive(Debug, Deserialize, Clone)]
-pub struct ONDCBuyer {
-    pub id: String,
-    pub uri: String,
-    pub signing_key: SecretString,
+impl UserSetting {
+    pub fn client(self) -> UserClient {
+        let timeout = self.timeout();
+        UserClient::new(self.base_url, self.token, timeout)
+    }
+    fn timeout(&self) -> std::time::Duration {
+        std::time::Duration::from_millis(self.timeout_milliseconds)
+    }
 }
+
 #[derive(Debug, Deserialize, Clone)]
 pub struct ONDCSetting {
-    //pub bap: ONDCBuyer, // pub seller:ONDCSeller
-    //pub gateway_key: String,
     pub gateway_uri: String,
     pub registry_base_url: String,
 }
@@ -39,30 +36,28 @@ pub struct ONDCSetting {
 pub struct Setting {
     pub database: DatabaseSetting,
     pub application: ApplicationSetting,
-    pub redis: RedisSettings,
+    pub redis: RedisSetting,
     pub email_client: EmailClientSetting,
-    pub secret: SecretSetting,
-    pub user: UserSetting,
+    pub user_client: UserSetting,
     pub ondc: ONDCSetting,
-    pub websocket: WebSocketSetting,
+    pub websocket_client: WebSocketSetting,
 }
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct ApplicationSetting {
     pub port: u16,
     pub host: String,
-    pub hmac_secret: SecretString,
     pub workers: usize,
 }
 
 #[derive(Debug, Deserialize, Clone)]
-pub struct RedisSettings {
+pub struct RedisSetting {
     pub port: u16,
     pub host: String,
     pub password: SecretString,
 }
 
-impl RedisSettings {
+impl RedisSetting {
     pub fn get_string(&self) -> SecretString {
         SecretString::new(
             format!(
@@ -147,70 +142,132 @@ impl EmailClientSetting {
     }
 }
 
+/// do not add any env variable starting with user, this crate doesn't support it
 pub fn get_configuration() -> Result<Setting, ConfigError> {
     let base_path = std::env::current_dir().expect("Failed to determine the current directory");
     let builder = config::Config::builder()
-        .add_source(config::File::from(base_path.join("configuration.yaml")))
         .add_source(Environment::default().separator("__"))
-        .add_source(
-            Environment::with_prefix("LIST")
-                .try_parsing(true)
-                .separator("__")
-                .keep_prefix(false)
-                .list_separator(","),
-        )
+        .add_source(config::File::from(base_path.join("configuration.yaml")))
         .build()?;
     builder.try_deserialize::<Setting>()
 }
 
-// pub fn get_configuration_by_custom() -> Result<Settings, ConfigError> {
-//     // todo!()
-//     let base_path = std::env::current_dir().expect("Failed to determine the current directory");
-//     let builder = config::Config::builder()
-//         .add_source(config::File::from(base_path.join("configuration.yaml")))
-//         .add_source(Environment::default().separator("_"))
-//         .add_source(
-//             Environment::with_prefix("LIST")
-//                 .try_parsing(true)
-//                 .separator("_")
-//                 .keep_prefix(false)
-//                 .list_separator(","),
-//         )
-//         .build()?;
-//     let database = DatabaseSettings {
-//         username: todo!(),
-//         password: todo!(),
-//         port: todo!(),
-//         host: todo!(),
-//         name: todo!(),
+// pub fn get_configuration_by_custom() -> Result<Setting, anyhow::Error> {
+//     let database = DatabaseSetting {
+//         username: env::var("DATABASE__USERNAME")
+//             .unwrap_or_else(|_| panic!("DATABASE__USERNAME is missing")),
+//         password: SecretString::new(
+//             env::var("DATABASE__PASSWORD")
+//                 .unwrap_or_else(|_| panic!("DATABASE__PASSWORD is missing"))
+//                 .into(),
+//         ),
+//         port: env::var("DATABASE__PORT")
+//             .unwrap_or_else(|_| panic!("DATABASE__PORT is missing"))
+//             .parse()
+//             .map_err(|e| anyhow!("DATABASE__PORT must be a valid u16: {}", e))?,
+//         host: env::var("DATABASE__HOST").unwrap_or_else(|_| panic!("DATABASE__HOST is missing")),
+//         name: env::var("DATABASE__NAME").unwrap_or_else(|_| panic!("DATABASE__NAME is missing")),
+//         test_name: env::var("DATABASE__NAME")
+//             .unwrap_or_else(|_| panic!("DATABASE__NAME is missing"))
+//             + "_test",
+//         max_connections: env::var("DATABASE__MAX_CONNECTIONS")
+//             .unwrap_or_else(|_| panic!("DATABASE__MAX_CONNECTIONS is missing"))
+//             .parse()
+//             .map_err(|e| anyhow!("DATABASE__MAX_CONNECTIONS must be a valid u32: {}", e))?,
+//         min_connections: env::var("DATABASE__MIN_CONNECTIONS")
+//             .unwrap_or_else(|_| panic!("DATABASE__MIN_CONNECTIONS is missing"))
+//             .parse()
+//             .map_err(|e| anyhow!("DATABASE__MIN_CONNECTIONS must be a valid u32: {}", e))?,
+//         acquire_timeout: env::var("DATABASE__ACQUIRE_TIMEOUT")
+//             .unwrap_or_else(|_| panic!("DATABASE__ACQUIRE_TIMEOUT is missing"))
+//             .parse()
+//             .map_err(|e| anyhow!("DATABASE__ACQUIRE_TIMEOUT must be a valid u64: {}", e))?,
 //     };
-//     let application = ApplicationSettings {
-//         port: todo!(),
-//         host: todo!(),
-//         hmac_secret: todo!(),
+
+//     let application = ApplicationSetting {
+//         port: env::var("APPLICATION__PORT")
+//             .unwrap_or_else(|_| panic!("APPLICATION__PORT is missing"))
+//             .parse()
+//             .map_err(|e| anyhow!("APPLICATION__PORT must be a valid u16: {}", e))?,
+//         host: env::var("APPLICATION__HOST")
+//             .unwrap_or_else(|_| panic!("APPLICATION__HOST is missing")),
+//         workers: env::var("APPLICATION__WORKERS")
+//             .unwrap_or_else(|_| panic!("APPLICATION__WORKERS is missing"))
+//             .parse()
+//             .map_err(|e| anyhow!("APPLICATION__WORKERS must be a valid usize: {}", e))?,
 //     };
-//     let redis = RedisSettings {
-//         port: todo!(),
-//         host: todo!(),
-//         password: todo!(),
+
+//     let redis = RedisSetting {
+//         port: env::var("REDIS__PORT")
+//             .unwrap_or_else(|_| panic!("REDIS__PORT is missing"))
+//             .parse()
+//             .map_err(|e| anyhow!("REDIS__PORT must be a valid u16: {}", e))?,
+//         host: env::var("REDIS__HOST").unwrap_or_else(|_| panic!("REDIS__HOST is missing")),
+//         password: SecretString::new(
+//             env::var("REDIS_PASSWORD").unwrap_or_else(|_| panic!("REDIS_PASSWORD is missing")),
+//         ),
 //     };
-//     let email_client = EmailClientSettings {
-//         base_url: todo!(),
-//         username: todo!(),
-//         password: todo!(),
-//         sender_email: todo!(),
-//         timeout_milliseconds: todo!(),
+
+//     let email_client = EmailClientSetting {
+//         base_url: env::var("EMAIL_CLIENT__BASE_URL")
+//             .unwrap_or_else(|_| panic!("EMAIL_CLIENT__BASE_URL is missing")),
+//         username: env::var("EMAIL_CLIENT__USERNAME")
+//             .unwrap_or_else(|_| panic!("EMAIL_CLIENT__USERNAME is missing")),
+//         password: SecretString::new(
+//             env::var("EMAIL_CLIENT__PASSWORD")
+//                 .unwrap_or_else(|_| panic!("EMAIL_CLIENT__PASSWORD is missing")),
+//         ),
+//         sender_email: env::var("EMAIL_CLIENT__SENDER_EMAIL")
+//             .unwrap_or_else(|_| panic!("EMAIL_CLIENT__SENDER_EMAIL is missing")),
+//         timeout_milliseconds: env::var("EMAIL_CLIENT__TIMEOUT_MILLISECONDS")
+//             .unwrap_or_else(|_| panic!("EMAIL_CLIENT__TIMEOUT_MILLISECONDS is missing"))
+//             .parse()
+//             .map_err(|e| {
+//                 anyhow!(
+//                     "EMAIL_CLIENT__TIMEOUT_MILLISECONDS must be a valid u64: {}",
+//                     e
+//                 )
+//             })?,
 //     };
-//     let secret = SecretSetting { jwt: todo!() };
-//     let user = UserSettings {
-//         admin_list: todo!(),
+
+//     let user = UserSetting {
+//         token: SecretString::new(
+//             env::var("USER__TOKEN").unwrap_or_else(|_| panic!("USER__TOKEN is missing")),
+//         ),
+//         base_url: env::var("USER__BASE_URL")
+//             .unwrap_or_else(|_| panic!("USER__BASE_URL is missing")),
+//         timeout_milliseconds: env::var("USER__TIMEOUT_MILLISECONDS")
+//             .unwrap_or_else(|_| panic!("USER__TIMEOUT_MILLISECONDS is missing"))
+//             .parse()
+//             .map_err(|e| anyhow!("USER__TIMEOUT_MILLISECONDS must be a valid u64: {}", e))?,
 //     };
-//     Ok(Settings {
+
+//     let websocket = WebSocketSetting {
+//         token: SecretString::new(
+//             env::var("WEBSOCKET__TOKEN").unwrap_or_else(|_| panic!("WEBSOCKET__TOKEN is missing")),
+//         ),
+//         base_url: env::var("WEBSOCKET__BASE_URL")
+//             .unwrap_or_else(|_| panic!("WEBSOCKET__BASE_URL is missing")),
+//         timeout_milliseconds: env::var("WEBSOCKET__TIMEOUT_MILLISECONDS")
+//             .unwrap_or_else(|_| panic!("WEBSOCKET__TIMEOUT_MILLISECONDS is missing"))
+//             .parse()
+//             .map_err(|e| anyhow!("WEBSOCKET__TIMEOUT_MILLISECONDS must be a valid u64: {}", e))?,
+//     };
+
+//     let ondc = ONDCSetting {
+//         gateway_uri: env::var("ONDC__GATEWAY_URI")
+//             .unwrap_or_else(|_| panic!("ONDC__GATEWAY_URI is missing")),
+//         registry_base_url: env::var("ONDC__REGISTRY_BASE_URL")
+//             .unwrap_or_else(|_| panic!("ONDC__REGISTRY_BASE_URL is missing")),
+//     };
+
+//     Ok(Setting {
 //         database,
 //         application,
 //         redis,
 //         email_client,
-//         secret,
 //         user,
+//         ondc,
+//         websocket,
 //     })
 // }

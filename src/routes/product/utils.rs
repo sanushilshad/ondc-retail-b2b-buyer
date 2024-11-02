@@ -1,10 +1,9 @@
 use sqlx::PgPool;
-use crate::routes:: user::schemas::{BusinessAccount, UserAccount};
 use crate::routes::product::schemas::{FulfillmentType, PaymentType, ProductSearchType};
 use crate::schemas::RequestMetaData;
 use super::schemas::ProductSearchRequest;
 use chrono::Utc;
-
+use crate::user_client::{BusinessAccount, UserAccount};
 #[tracing::instrument(name = "Save Product Search Request", skip(pool))]
 pub async fn save_search_request(
     pool: &PgPool,

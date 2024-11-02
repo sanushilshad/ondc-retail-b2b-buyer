@@ -1,7 +1,7 @@
 use redis::{aio::MultiplexedConnection, RedisResult};
 use secrecy::ExposeSecret;
 
-use crate::configuration::RedisSettings;
+use crate::configuration::RedisSetting;
 
 #[derive(Clone)]
 pub struct RedisClient {
@@ -10,7 +10,7 @@ pub struct RedisClient {
 
 impl RedisClient {
     #[tracing::instrument(name = "Initialize Redis")]
-    pub async fn new(redis_obj: &RedisSettings) -> Result<Self, redis::RedisError> {
+    pub async fn new(redis_obj: &RedisSetting) -> Result<Self, redis::RedisError> {
         let redis_str = redis_obj.get_string().expose_secret().to_string();
         let client = redis::Client::open(redis_str)?;
         Ok(Self { client })

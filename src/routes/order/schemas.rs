@@ -1,13 +1,13 @@
 use std::collections::HashSet;
 
 use crate::errors::GenericError;
-use crate::routes::ondc::buyer::schemas::{
+use crate::routes::ondc::schemas::{
     ONDCFulfillmentStateType, ONDCPaymentSettlementCounterparty, ONDCPaymentSettlementPhase,
     ONDCPaymentSettlementType, ONDCSettlementBasis,
 };
 use crate::routes::product::schemas::FulfillmentType;
 use crate::routes::product::schemas::{CategoryDomain, PaymentType};
-use crate::routes::user::schemas::DataSource;
+use crate::schemas::DataSource;
 use crate::schemas::{CountryCode, CurrencyType, FeeType, ONDCNetworkType};
 // use crate::utils::deserialize_non_empty_vector;
 use actix_http::Payload;

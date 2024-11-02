@@ -73,8 +73,6 @@ export OTEL_EXPORTER_OTLP_TRACES_ENDPOINT="http://localhost:4317"
 ## LOG VARIABLES
 export TEST_LOG=True
 
-## SECRET VALUES
-export SECRET__JWT__SECRET=""
 
 ## REDIS VARIABLE
 export REDIS__HOST=""
@@ -82,29 +80,24 @@ export REDIS__PORT=""
 export REDIS_PASSWORD=""
 
 
-## BUYER NP DETAILS
-export ONDC__BAP__ID=""
-export ONDC__BAP__URI=""
-export ONDC__BAP__SIGNING_KEY=""
-
-##USER VARIABLE
-export LIST__USER__ADMIN_LIST="9562279968,"
-
 ## ONDC GATEWAY VARIABLE
 export ONDC__GATEWAY_URI="https://preprod.gateway.ondc.org"
 export ONDC__REGISTRY_BASE_URL="https://preprod.registry.ondc.org/ondc"
 
-## PRODUCT MEILEI
-export PRODUCT__MEILEI__API_MASTER_KEY=""
-export PRODUCT__MEIELI__URL=""
 
 ## APPLICATION DATA
 export APPLICATION__NAME="ondc-retail-b2b-buyer"
+export APPLICATION__ACCOUNT_NAME="dev2"
 
 ## WEBSOCKET SERVICE
 export WEBSOCKET__TOKEN=""
 export WEBSOCKET__BASE_URL="http://0.0.0.0:8229"
 export WEBSOCKET__TIMEOUT_MILLISECONDS=600000
+
+##USER VARIABLE
+export USER__TOKEN=""
+export USER__BASE_URL="http://0.0.0.0:8230"
+export USER__TIMEOUT_MILLISECONDS=600000
 
 
 ```
@@ -171,7 +164,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [x] Develop confirm API
 * [x] Develop ONDC on on_confirm API
 * [x] Move Websocket as a seperate service
-* [ ] Move User Module as a seperate service
+* [x] Move User module as a seperate service
 * [ ] Develop status API
 * [ ] Develop ONDC on status API
 * [ ] Develop cancel API

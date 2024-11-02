@@ -10,7 +10,8 @@ mod tests {
         CategoryDomain, FulfillmentType, PaymentType, ProductFulFillmentLocations,
         ProductSearchRequest, ProductSearchType,
     };
-    use crate::schemas::CountryCode;
+    use crate::schemas::{CountryCode, RegisteredNetworkParticipant};
+    use crate::user_client::BusinessAccount;
     use crate::utils::tests::{
         get_dummy_business_account, get_dummy_registed_np_detail, get_dummy_user_account,
     };
@@ -70,9 +71,8 @@ mod tests {
             "9562279968".to_string(),
             "sanushilshad@gmail.com".to_string(),
         );
-        let business_obj: crate::routes::user::schemas::BusinessAccount =
-            get_dummy_business_account();
-        let np_detail = get_dummy_registed_np_detail();
+        let business_obj: BusinessAccount = get_dummy_business_account();
+        let np_detail: RegisteredNetworkParticipant = get_dummy_registed_np_detail();
         let mut search_req = ProductSearchRequest {
             query: "RET".to_string(),
             transaction_id: Uuid::new_v4(),

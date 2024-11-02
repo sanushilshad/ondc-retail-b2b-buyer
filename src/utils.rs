@@ -1,14 +1,14 @@
 use crate::configuration::{DatabaseSetting, EmailClientSetting};
 use crate::constants::AUTHORIZATION_PATTERN;
 use crate::email_client::{GenericEmailService, SmtpEmailClient};
-use crate::errors::CustomJWTTokenError;
 use crate::migration;
 use crate::models::RegisteredNetworkParticipantModel;
 use crate::routes::order::schemas::{PaymentSettlementPhase, PaymentSettlementType};
-use crate::schemas::ONDCAuthParams;
 use crate::schemas::{
-    CommunicationType, FeeType, JWTClaims, ONDCNPType, RegisteredNetworkParticipant,
+    CommunicationType, FeeType, ONDCNPType, RegisteredNetworkParticipant, Status,
 };
+use crate::schemas::{KycStatus, ONDCAuthParams};
+use crate::user_client::{BusinessAccount, UserVector, VectorType};
 use actix_http::h1;
 use actix_web::dev::Payload;
 use actix_web::dev::ServiceRequest;
@@ -19,18 +19,15 @@ use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
 use bigdecimal::BigDecimal;
 use blake2::{Blake2b512, Digest};
-use chrono::{Duration, Utc};
+use chrono::Utc;
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
-use jsonwebtoken::{
-    decode, encode, Algorithm as JWTAlgorithm, DecodingKey, EncodingKey, Header, Validation,
-};
-use secrecy::{ExposeSecret, SecretString};
+use secrecy::ExposeSecret;
 use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use std::collections::HashMap;
 use std::str::FromStr;
 use std::{fmt, fs, io, sync::Arc};
-use uuid::Uuid;
+
 pub fn get_ondc_params_from_header(header: &str) -> Result<ONDCAuthParams, anyhow::Error> {
     let captures = AUTHORIZATION_PATTERN
         .captures(header)
@@ -244,51 +241,6 @@ pub fn create_email_type_pool(
     email_services
 }
 
-#[tracing::instrument(name = "Generate JWT token for user")]
-pub fn generate_jwt_token_for_user(
-    user_id: Uuid,
-    expiry_time: i64,
-    secret: &SecretString,
-) -> Result<SecretString, anyhow::Error> {
-    let expiration = Utc::now()
-        .checked_add_signed(Duration::hours(expiry_time))
-        .expect("valid timestamp")
-        .timestamp() as usize;
-    let claims: JWTClaims = JWTClaims {
-        sub: user_id,
-        exp: expiration,
-    };
-    let header = Header::new(JWTAlgorithm::HS256);
-    let encoding_key = EncodingKey::from_secret(secret.expose_secret().as_bytes());
-    let token: String = encode(&header, &claims, &encoding_key).expect("Failed to generate token");
-    return Ok(SecretString::from(token));
-}
-
-#[tracing::instrument(name = "Decode JWT token")]
-pub fn decode_token<T: Into<String> + std::fmt::Debug>(
-    token: T,
-    secret: &SecretString,
-) -> Result<Uuid, CustomJWTTokenError> {
-    let decoding_key = DecodingKey::from_secret(secret.expose_secret().as_bytes());
-    let decoded = decode::<JWTClaims>(
-        &token.into(),
-        &decoding_key,
-        &Validation::new(JWTAlgorithm::HS256),
-    );
-    match decoded {
-        Ok(token) => Ok(token.claims.sub),
-        Err(e) => {
-            // Map jsonwebtoken errors to custom AuthTokenError
-            match e.kind() {
-                jsonwebtoken::errors::ErrorKind::ExpiredSignature => {
-                    Err(CustomJWTTokenError::Expired)
-                }
-                _ => Err(CustomJWTTokenError::Invalid("Invalid Token".to_string())),
-            }
-        }
-    }
-}
-
 #[tracing::instrument(name = "Run custom command")]
 pub async fn run_custom_commands(args: Vec<String>) -> Result<(), anyhow::Error> {
     if args.len() > 1 {
@@ -316,24 +268,6 @@ where
     // Parse the string as JSON array and extract Vec<String>
     serde_json::from_str::<Vec<String>>(&config_str).map_err(serde::de::Error::custom)
 }
-
-// fn get_country_alpha3(latitude: f64, longitude: f64) -> Result<String, String> {
-//     // Initialize the geocoder
-//     let geocoder = Geocoder::new();
-
-//     // Reverse geocode to get the location information
-//     match geocoder.reverse((latitude, longitude)) {
-//         Ok(locations) => {
-//             // Assuming the first location is the most relevant
-//             if let Some(Location::Country(country)) = locations.first() {
-//                 Ok(country.alpha3)
-//             } else {
-//                 Err("Country code not found.".to_string())
-//             }
-//         }
-//         Err(err) => Err(format!("Error: {}", err)),
-//     }
-// }
 
 #[tracing::instrument(name = "get GPS string")]
 pub fn get_gps_string(latitude: f64, longitude: f64) -> String {
@@ -506,11 +440,9 @@ pub mod tests {
     use crate::configuration::get_configuration;
     use crate::constants::DUMMY_DOMAIN;
     use crate::routes::order::schemas::{PaymentSettlementPhase, PaymentSettlementType};
-    use crate::routes::user::schemas::{
-        BusinessAccount, MaskingType, UserAccount, UserVector, VectorType,
-    };
     use crate::schemas::{FeeType, KycStatus, RegisteredNetworkParticipant, Status};
     use crate::startup::get_connection_pool;
+    use crate::user_client::{BusinessAccount, MaskingType, UserAccount, UserVector, VectorType};
     use bigdecimal::BigDecimal;
     use sqlx::PgPool;
     use uuid::Uuid;
@@ -598,5 +530,34 @@ where
         ))
     } else {
         Ok(vec)
+    }
+}
+
+pub fn get_default_vector_value<'a>(
+    default_vector_type: &'a VectorType,
+    vectors: &'a Vec<UserVector>,
+) -> Option<&'a str> {
+    for vector in vectors {
+        if vector.key == *default_vector_type {
+            return Some(&vector.value);
+        }
+    }
+    None
+}
+
+pub fn validate_business_account_active(business_obj: &BusinessAccount) -> Option<String> {
+    match (
+        &business_obj.kyc_status,
+        &business_obj.is_active,
+        business_obj.is_deleted,
+        business_obj.verified,
+    ) {
+        (KycStatus::Pending, _, _, _) => Some("KYC is still pending".to_string()),
+        (KycStatus::OnHold, _, _, _) => Some("KYC is On-hold".to_string()),
+        (KycStatus::Rejected, _, _, _) => Some("KYC is Rejected".to_string()),
+        (_, Status::Inactive, _, _) => Some("Business Account is inactive".to_string()),
+        (_, _, true, _) => Some("Business Account is deleted".to_string()),
+        (_, _, _, false) => Some("Business User relation is not verified".to_string()),
+        _ => None,
     }
 }

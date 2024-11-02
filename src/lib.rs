@@ -14,5 +14,6 @@ pub mod schemas;
 pub mod session_state;
 pub mod startup;
 pub mod telemetry;
+pub mod user_client;
 pub mod utils;
-pub mod websocket;
+pub mod websocket_client;

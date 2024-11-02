@@ -1,24 +1,26 @@
 use crate::errors::GenericError;
-use crate::schemas::RequestMetaData;
-use crate::utils::{bytes_to_payload, get_header_value};
+use crate::schemas::{RequestMetaData, Status};
+use crate::user_client::UserClient;
+use crate::user_client::{BusinessAccount, CustomerType, UserAccount};
+use crate::utils::{bytes_to_payload, get_header_value, validate_business_account_active};
 // use actix_http::body::BoxBody;
+use actix_web::body::{BoxBody, EitherBody, MessageBody};
 use actix_web::dev::{forward_ready, Payload, Service, ServiceRequest, ServiceResponse, Transform};
 use actix_web::error::PayloadError;
+use actix_web::http::header::UPGRADE;
 use actix_web::web::{Bytes, BytesMut};
-use actix_web::{body, web, Error, HttpMessage, HttpResponseBuilder, ResponseError};
+use actix_web::{body, http, web, Error, HttpMessage, HttpResponseBuilder, ResponseError};
 use futures::future::LocalBoxFuture;
 use futures::{Stream, StreamExt};
+use futures_util::stream::{self};
+use secrecy::SecretString;
 use std::cell::RefCell;
 use std::future::{self, ready, Ready};
 use std::pin::Pin;
 use std::rc::Rc;
-use tracing::instrument;
-// use crate::utils::get_ondc_params_from_header;
-use actix_web::body::{BoxBody, EitherBody, MessageBody};
 use std::str;
-
-use actix_web::http::header::UPGRADE;
-use futures_util::stream::{self};
+use tracing::instrument;
+use uuid::Uuid;
 
 // Middlware for saving the request and response into the tracing
 pub struct ReadReqResMiddleware<S> {
@@ -297,3 +299,223 @@ where
         }))
     }
 }
+
+pub struct AuthMiddleware<S> {
+    service: Rc<S>,
+}
+
+impl<S> Service<ServiceRequest> for AuthMiddleware<S>
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<actix_web::body::BoxBody>, Error = Error>
+        + 'static,
+{
+    type Response = ServiceResponse<actix_web::body::BoxBody>;
+    type Error = Error;
+    type Future = LocalBoxFuture<'static, Result<Self::Response, Error>>;
+
+    forward_ready!(service);
+
+    fn call(&self, req: ServiceRequest) -> Self::Future {
+        let token = req
+            .cookie("token")
+            .map(|c| SecretString::from(c.value().to_string()))
+            .or_else(|| {
+                req.headers()
+                    .get(http::header::AUTHORIZATION)
+                    .map(|h| SecretString::from(h.to_str().unwrap().split_at(7).1.to_string()))
+            });
+
+        if token.is_none() {
+            let error_message = "Authorization header is missing".to_string();
+            let (request, _pl) = req.into_parts();
+            let json_error = GenericError::ValidationError(error_message);
+            return Box::pin(async { Ok(ServiceResponse::from_err(json_error, request)) });
+        }
+
+        let srv = Rc::clone(&self.service);
+        Box::pin(async move {
+            let user_client = req.app_data::<web::Data<UserClient>>().unwrap();
+            let user = user_client.get_user_account(token.as_ref(), None).await?;
+            if user.is_active == Status::Inactive {
+                return Err(GenericError::ValidationError(
+                    "User is Inactive. Please contact customer support".to_string(),
+                ))?;
+            } else if user.is_deleted {
+                return Err(GenericError::ValidationError(
+                    "User is in deleted. Please contact customer support".to_string(),
+                ))?;
+            }
+
+            req.extensions_mut().insert::<UserAccount>(user);
+
+            let res = srv.call(req).await?;
+            Ok(res)
+        })
+    }
+}
+
+/// Middleware factory for requiring authentication.
+pub struct RequireAuth;
+
+impl<S> Transform<S, ServiceRequest> for RequireAuth
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<actix_web::body::BoxBody>, Error = Error>
+        + 'static,
+{
+    type Response = ServiceResponse<actix_web::body::BoxBody>;
+    type Error = Error;
+    type Transform = AuthMiddleware<S>;
+    type InitError = ();
+    type Future = Ready<Result<Self::Transform, Self::InitError>>;
+
+    fn new_transform(&self, service: S) -> Self::Future {
+        ready(Ok(AuthMiddleware {
+            service: Rc::new(service),
+        }))
+    }
+}
+
+//Middleware to validate the business account
+pub struct BusinessAccountMiddleware<S> {
+    service: Rc<S>,
+    pub business_type_list: Vec<CustomerType>,
+}
+impl<S> Service<ServiceRequest> for BusinessAccountMiddleware<S>
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<actix_web::body::BoxBody>, Error = Error>
+        + 'static,
+{
+    type Response = ServiceResponse<actix_web::body::BoxBody>;
+    type Error = Error;
+    type Future = LocalBoxFuture<'static, Result<Self::Response, Error>>;
+
+    forward_ready!(service);
+
+    /// Handles incoming requests.
+    fn call(&self, req: ServiceRequest) -> Self::Future {
+        // Attempt to extract token from cookie or authorization header
+
+        let business_id = match get_header_value(&req, "x-business-id") // Convert HeaderValue to &str
+            .and_then(|value| Uuid::parse_str(value).ok())
+        {
+            Some(business_id) => business_id,
+            None => {
+                let json_error = GenericError::ValidationError(
+                    "x-business-id is missing or is invalid".to_string(),
+                );
+                let (request, _pl) = req.into_parts();
+                return Box::pin(async { Ok(ServiceResponse::from_err(json_error, request)) });
+            }
+        };
+        let srv = Rc::clone(&self.service);
+        let customer_type_list = self.business_type_list.clone();
+        Box::pin(async move {
+            let user_client = req.app_data::<web::Data<UserClient>>().unwrap();
+
+            let user_account = req
+                .extensions()
+                .get::<UserAccount>()
+                .ok_or_else(|| {
+                    GenericError::ValidationError("User Account doesn't exist".to_string())
+                })?
+                .to_owned();
+
+            let business_account = user_client
+                .get_business_account(user_account.id, business_id, customer_type_list)
+                .await?;
+            let extracted_business_account = business_account.ok_or_else(|| {
+                GenericError::ValidationError("Business Account doesn't exist".to_string())
+            })?;
+            let error_message = validate_business_account_active(&extracted_business_account);
+            if let Some(message) = error_message {
+                let (request, _pl) = req.into_parts();
+                let json_error = GenericError::ValidationError(message);
+                return Ok(ServiceResponse::from_err(json_error, request));
+            }
+            req.extensions_mut()
+                .insert::<BusinessAccount>(extracted_business_account);
+
+            let res = srv.call(req).await?;
+            Ok(res)
+        })
+    }
+}
+
+pub struct BusinessAccountValidation {
+    pub business_type_list: Vec<CustomerType>,
+}
+
+impl<S> Transform<S, ServiceRequest> for BusinessAccountValidation
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<actix_web::body::BoxBody>, Error = Error>
+        + 'static,
+{
+    type Response = ServiceResponse<actix_web::body::BoxBody>;
+    type Error = Error;
+    type Transform = BusinessAccountMiddleware<S>;
+    type InitError = ();
+    type Future = Ready<Result<Self::Transform, Self::InitError>>;
+    fn new_transform(&self, service: S) -> Self::Future {
+        ready(Ok(BusinessAccountMiddleware {
+            service: Rc::new(service),
+            business_type_list: self.business_type_list.clone(),
+        }))
+    }
+}
+
+// Middlware for verifying the permission
+// pub struct UserBusinessPermissionMiddleware<S> {
+//     service: Rc<S>,
+//     pub permission_list: Vec<String>,
+// }
+// impl<S> Service<ServiceRequest> for UserBusinessPermissionMiddleware<S>
+// where
+//     S: Service<ServiceRequest, Response = ServiceResponse<actix_web::body::BoxBody>, Error = Error>
+//         + 'static,
+// {
+//     type Response = ServiceResponse<actix_web::body::BoxBody>;
+//     type Error = Error;
+//     type Future = LocalBoxFuture<'static, Result<Self::Response, Error>>;
+
+//     forward_ready!(service);
+
+//     /// Handles incoming requests.
+//     fn call(&self, req: ServiceRequest) -> Self::Future {
+//         println!("Hi from start. You requested: {}", req.path());
+
+//         let fut = self.service.call(req);
+
+//         Box::pin(async move {
+//             let res = fut.await?;
+
+//             println!("Hi from response");
+//             Ok(res)
+//         })
+//     }
+// }
+
+// // Middleware factory for business account validation.
+// pub struct UserBusinessPermissionValidation {
+//     pub permission_list: Vec<String>,
+// }
+
+// impl<S> Transform<S, ServiceRequest> for UserBusinessPermissionValidation
+// where
+//     S: Service<ServiceRequest, Response = ServiceResponse<actix_web::body::BoxBody>, Error = Error>
+//         + 'static,
+// {
+//     type Response = ServiceResponse<actix_web::body::BoxBody>;
+//     type Error = Error;
+//     type Transform = UserBusinessPermissionMiddleware<S>;
+//     type InitError = ();
+//     type Future = Ready<Result<Self::Transform, Self::InitError>>;
+
+//     /// Creates and returns a new AuthMiddleware wrapped in a Result.
+//     fn new_transform(&self, service: S) -> Self::Future {
+//         // Wrap the AuthMiddleware instance in a Result and return it.
+//         ready(Ok(UserBusinessPermissionMiddleware {
+//             service: Rc::new(service),
+//             permission_list: self.permission_list.clone(),
+//         }))
+//     }
+// }

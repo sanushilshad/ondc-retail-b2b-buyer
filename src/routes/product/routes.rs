@@ -1,6 +1,6 @@
-use crate::routes::user::{schemas::CustomerType, BusinessAccountValidation, RequireAuth};
-
 use super::handlers::realtime_product_search;
+use crate::middleware::{BusinessAccountValidation, RequireAuth};
+use crate::user_client::CustomerType;
 use actix_web::web;
 
 pub fn product_route(cfg: &mut web::ServiceConfig) {
@@ -10,7 +10,7 @@ pub fn product_route(cfg: &mut web::ServiceConfig) {
             web::post()
                 .to(realtime_product_search)
                 .wrap(BusinessAccountValidation {
-                    business_type_list: vec![CustomerType::Buyer, CustomerType::Seller],
+                    business_type_list: vec![CustomerType::RetailB2bBuyer],
                 })
                 .wrap(RequireAuth),
         ),

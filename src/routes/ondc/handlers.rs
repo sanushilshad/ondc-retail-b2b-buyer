@@ -18,9 +18,9 @@ use crate::routes::order::utils::{
     initialize_order_on_select,
 };
 use crate::routes::product::schemas::WSSearchData;
-
-use crate::routes::user::utils::{get_business_account, get_user};
-use crate::websocket::{WebSocketActionType, WebSocketClient};
+use crate::user_client::CustomerType;
+use crate::user_client::UserClient;
+use crate::websocket_client::{WebSocketActionType, WebSocketClient};
 #[tracing::instrument(name = "ONDC On Search Payload", skip(pool, body), fields())]
 pub async fn on_search(
     pool: web::Data<PgPool>,
@@ -71,6 +71,7 @@ pub async fn on_select(
     pool: web::Data<PgPool>,
     body: ONDCOnSelectRequest,
     websocket_srv: web::Data<WebSocketClient>,
+    user_client: web::Data<UserClient>,
 ) -> Result<web::Json<ONDCResponse<ONDCBuyerErrorCode>>, ONDCBuyerError> {
     let ws_obj = WSSelect {
         transaction_id: body.context.transaction_id,
@@ -90,7 +91,6 @@ pub async fn on_select(
     .await
     .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?
     .ok_or(ONDCBuyerError::BuyerResponseSequenceError { path: None })?;
-    // let ws_param_obj = ONDCOrderParams{};
     let ws_json = serde_json::to_value(ws_obj).unwrap();
     let ws_params_obj = get_ondc_order_param_from_req(&ondc_select_model);
 
@@ -98,12 +98,16 @@ pub async fn on_select(
         serde_json::from_value::<ONDCSelectRequest>(ondc_select_model.request_payload).unwrap();
     let is_rfq = ondc_select_req.context.ttl != ONDC_TTL;
     if (is_rfq) || body.error.is_none() {
-        let user_id = &ondc_select_model.user_id;
-        let business_id = &ondc_select_model.business_id;
-        let user = get_user(vec![&user_id.to_string()], &pool)
+        let user = user_client
+            .get_user_account(None, Some(ondc_select_model.user_id))
             .await
             .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
-        let business_account = get_business_account(&pool, user_id, business_id)
+        let business_account = user_client
+            .get_business_account(
+                ondc_select_model.user_id,
+                ondc_select_model.business_id,
+                vec![CustomerType::RetailB2bBuyer],
+            )
             .await
             .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?
             .ok_or(ONDCBuyerError::BuyerInternalServerError { path: None })?;

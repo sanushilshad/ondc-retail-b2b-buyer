@@ -3,12 +3,12 @@ use utoipa::TupleUnit;
 // use anyhow::Context;
 use crate::configuration::ONDCSetting;
 use crate::errors::GenericError;
-use crate::routes::ondc::buyer::utils::{
+use crate::routes::ondc::utils::get_lookup_data_from_db;
+use crate::routes::ondc::utils::{
     get_ondc_confirm_payload, get_ondc_init_payload, get_ondc_select_payload, send_ondc_payload,
 };
-use crate::routes::ondc::utils::get_lookup_data_from_db;
 use crate::routes::ondc::{ONDCActionType, ONDCDomain};
-use crate::routes::user::schemas::{BusinessAccount, UserAccount};
+use crate::user_client::{BusinessAccount, UserAccount};
 use crate::utils::{create_authorization_header, get_np_detail};
 
 use crate::schemas::{GenericResponse, ONDCNPType, ONDCNetworkType, RequestMetaData};

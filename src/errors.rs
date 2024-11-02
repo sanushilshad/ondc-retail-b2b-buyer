@@ -125,6 +125,8 @@ pub enum GenericError {
     UnexpectedCustomError(String),
     #[error("{0}")]
     InvalidData(String),
+    #[error("{0}")]
+    DataNotFound(String),
 }
 
 impl std::fmt::Debug for GenericError {
@@ -144,6 +146,7 @@ impl ResponseError for GenericError {
             GenericError::InvalidJWT(_) => StatusCode::UNAUTHORIZED,
             GenericError::UnexpectedCustomError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             GenericError::InvalidData(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            GenericError::DataNotFound(_) => StatusCode::GONE,
         }
     }
 
@@ -159,6 +162,7 @@ impl ResponseError for GenericError {
             GenericError::InvalidJWT(error_msg) => error_msg.to_string(),
             GenericError::UnexpectedCustomError(error_msg) => error_msg.to_string(),
             GenericError::InvalidData(error_msg) => error_msg.to_string(),
+            GenericError::DataNotFound(error_msg) => error_msg.to_string(),
         };
 
         HttpResponse::build(status_code).json(GenericResponse::error(

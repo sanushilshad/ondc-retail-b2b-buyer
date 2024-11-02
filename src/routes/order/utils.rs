@@ -13,7 +13,7 @@ use super::schemas::{
     PickUpFulfillmentLocation, SelectFulfillmentLocation, TimeRange,
 };
 use crate::constants::ONDC_TTL;
-use crate::routes::ondc::buyer::schemas::{
+use crate::routes::ondc::schemas::{
     BreakupTitleType, ONDCBilling, ONDCBreakUp, ONDCConfirmFulfillmentStartLocation, ONDCContact,
     ONDCFulfillment, ONDCFulfillmentCategoryType, ONDCFulfillmentStopType, ONDCFulfillmentTime,
     ONDCOnConfirmFulfillment, ONDCOnConfirmPayment, ONDCOnConfirmRequest, ONDCOnInitPayment,
@@ -21,7 +21,7 @@ use crate::routes::ondc::buyer::schemas::{
     ONDCOrderCancellationTerm, ONDCOrderFulfillmentEnd, ONDCSelectRequest, ONDCSellerLocationInfo,
     ONDCSellerProductInfo, ONDCTag, ONDCTagItemCode, ONDCTagType, TagTrait,
 };
-use crate::routes::ondc::buyer::utils::{
+use crate::routes::ondc::utils::{
     fetch_ondc_seller_info, get_ondc_seller_location_info_mapping,
     get_ondc_seller_product_info_mapping, get_ondc_seller_product_mapping_key,
     get_tag_value_from_list,
@@ -32,11 +32,12 @@ use crate::routes::order::schemas::{
     OrderType, PaymentStatus, ServiceableType, SettlementBasis,
 };
 use crate::routes::product::schemas::{CategoryDomain, FulfillmentType, PaymentType};
-use crate::routes::user::schemas::{BusinessAccount, DataSource, UserAccount};
+use crate::schemas::DataSource;
 use crate::schemas::{
     CountryCode, CurrencyType, FeeType, ONDCNetworkType, RegisteredNetworkParticipant,
     RequestMetaData,
 };
+use crate::user_client::{BusinessAccount, UserAccount};
 use crate::utils::get_gps_string;
 use anyhow::{anyhow, Context};
 use bigdecimal::{BigDecimal, ToPrimitive};
@@ -1135,14 +1136,6 @@ pub async fn save_order_on_select_items(
     })?;
     Ok(())
 }
-
-// let row: Option<AuthMechanismModel> = sqlx::query_as!(AuthMechanismModel,
-//     r#"SELECT a.id as id, user_id, auth_identifier, secret, a.is_active as "is_active: Status", auth_scope as "auth_scope: AuthenticationScope", auth_context as "auth_context: AuthContextType", valid_upto from auth_mechanism
-//     as a inner join user_account as b on a.user_id = b.id where (b.username = $1 OR b.mobile_no = $1 OR  b.email = $1)  AND auth_scope = $2 AND auth_context = $3"#,
-//     username,
-//     scope as &AuthenticationScope,
-//     &auth_context as &AuthContextType
-// )
 
 #[tracing::instrument(name = "fetch buyer commerce data", skip(pool))]
 async fn get_commerce_data(

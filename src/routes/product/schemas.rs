@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 
-use crate::routes::ondc::buyer::schemas::{ONDCFulfillmentType, ONDCPaymentType};
+use crate::routes::ondc::schemas::{ONDCFulfillmentType, ONDCPaymentType};
 use crate::routes::ondc::ONDCItemUOM;
 use crate::schemas::{CurrencyType, ONDCNetworkType};
 use crate::{errors::GenericError, schemas::CountryCode};
