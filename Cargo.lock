@@ -605,15 +605,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "claim"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f81099d6bb72e1df6d50bb2347224b666a670912bb7f06dbe867a4a070ab3ce8"
-dependencies = [
- "autocfg",
-]
-
-[[package]]
 name = "combine"
 version = "4.6.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2066,7 +2057,6 @@ dependencies = [
  "bigdecimal",
  "blake2",
  "chrono",
- "claim",
  "config",
  "ed25519-dalek",
  "fake",

@@ -1,7 +1,8 @@
 use super::{
     BreakupTitleType, LookupData, LookupRequest, ONDCActionType, ONDCBreakUp, ONDCConfirmMessage,
     ONDCConfirmOrder, ONDCConfirmProvider, ONDCContext, ONDCContextCity, ONDCContextCountry,
-    ONDCContextLocation, ONDCDomain, ONDCFeeType, ONDCSearchStop, ONDCTag, ONDCVersion, OndcUrl,
+    ONDCContextLocation, ONDCDomain, ONDCFeeType, ONDCSearchStop, ONDCStatusMessage, ONDCTag,
+    ONDCVersion, ONDStatusRequest, OndcUrl,
 };
 
 use crate::user_client::{BusinessAccount, UserAccount};
@@ -43,13 +44,15 @@ use serde_json::Value;
 use crate::domain::EmailObject;
 use crate::routes::ondc::schemas::{ONDCCity, ONDCPerson, ONDCSellerInfo, OrderRequestParamsModel};
 use crate::routes::ondc::{ONDCErrorCode, ONDCResponse};
-use crate::routes::order::errors::{ConfirmOrderError, InitOrderError, SelectOrderError};
+use crate::routes::order::errors::{
+    ConfirmOrderError, InitOrderError, OrderStatusError, SelectOrderError,
+};
 use crate::routes::order::schemas::{
     BuyerTerms, CancellationFeeType, Commerce, CommerceBilling, CommerceCancellationFee,
     CommerceCancellationTerm, CommerceFulfillment, CommerceItem, CommercePayment, DropOffData,
     OrderConfirmRequest, OrderDeliveyTerm, OrderInitBilling, OrderInitRequest,
-    OrderSelectFulfillment, OrderSelectItem, OrderSelectRequest, OrderType, PickUpData,
-    SelectFulfillmentLocation, SettlementBasis,
+    OrderSelectFulfillment, OrderSelectItem, OrderSelectRequest, OrderStatusRequest, OrderType,
+    PickUpData, SelectFulfillmentLocation, SettlementBasis,
 };
 use crate::routes::product::schemas::{
     CategoryDomain, FulfillmentType, PaymentType, ProductFulFillmentLocations,
@@ -1205,16 +1208,17 @@ pub async fn fetch_order_params(
 }
 
 #[tracing::instrument(name = "get init context", skip())]
-fn get_ondc_init_context(
+fn get_ondc_context_from_order(
     tranaction_id: Uuid,
     message_id: Uuid,
     order: &Commerce,
+    action_type: ONDCActionType,
 ) -> Result<ONDCContext, anyhow::Error> {
     get_common_context(
         tranaction_id,
         message_id,
         &order.domain_category_code,
-        ONDCActionType::Init,
+        action_type,
         &order.bap.id,
         &order.bap.uri,
         Some(&order.bpp.id),
@@ -1420,8 +1424,12 @@ pub fn get_ondc_init_payload(
     order: &Commerce,
     init_request: &OrderInitRequest,
 ) -> Result<ONDCInitRequest, InitOrderError> {
-    let context =
-        get_ondc_init_context(init_request.transaction_id, init_request.message_id, order)?;
+    let context = get_ondc_context_from_order(
+        init_request.transaction_id,
+        init_request.message_id,
+        order,
+        ONDCActionType::Init,
+    )?;
     let message = get_ondc_init_message(business_account, init_request, order)?;
     Ok(ONDCInitRequest { context, message })
 }
@@ -1740,10 +1748,11 @@ pub fn get_ondc_confirm_payload(
     confirm_request: &OrderConfirmRequest,
     bap_detail: &RegisteredNetworkParticipant,
 ) -> Result<ONDConfirmRequest, ConfirmOrderError> {
-    let context = get_ondc_confirm_context(
+    let context = get_ondc_context_from_order(
         confirm_request.transaction_id,
         confirm_request.message_id,
         order,
+        ONDCActionType::Confirm,
     )?;
     let message =
         get_ondc_confirm_message(business_account, order, &context.timestamp, bap_detail)?;
@@ -2010,4 +2019,28 @@ pub async fn fetch_ondc_seller_info(
     .fetch_one(pool)
     .await?;
     Ok(row)
+}
+
+fn get_ondc_status_message(commerce_id: &str) -> ONDCStatusMessage {
+    ONDCStatusMessage {
+        order_id: commerce_id.to_owned(),
+    }
+}
+#[tracing::instrument(name = "get ondc status payload", skip())]
+pub fn get_ondc_status_payload(
+    order: &Commerce,
+    status_request: &OrderStatusRequest,
+) -> Result<ONDStatusRequest, OrderStatusError> {
+    let context = get_ondc_context_from_order(
+        status_request.transaction_id,
+        status_request.message_id,
+        order,
+        ONDCActionType::Status,
+    )?;
+    let order_id = order
+        .urn
+        .as_deref()
+        .ok_or_else(|| OrderStatusError::ValidationError("Order id is missing".to_owned()))?;
+    let message = get_ondc_status_message(order_id);
+    Ok(ONDStatusRequest { context, message })
 }

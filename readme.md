@@ -11,7 +11,7 @@ The progress can be tracked here: [milestones](#MILESTONES)
 | Client | None |
 | Server | Rust (Actix-web), Bash |
 | Database | PostgreSQL |
-| Caching | Redis, MeileiSeach |
+| Caching | Redis, ElasticSearch |
 | Email Service | Amazon Email Service |
 | API Documention | OpenAPI Swagger |
 
@@ -170,7 +170,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [x] Develop ONDC on on_confirm API
 * [x] Move Websocket as a seperate service
 * [x] Move User module as a seperate service
-* [ ] Develop status API
+* [x] Develop status API
 * [ ] Develop ONDC on status API
 * [ ] Develop cancel API
 * [ ] Develop ONDC on cancel API
@@ -181,6 +181,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 
 * [ ] Integrate BAP Payment Gateway
 * [ ] Develop Business Specific Config Module.
+* [ ] Develop & Integrate permission flow
 
 ### MILESTONE 3:
 * [ ] Develop IGM issue API
@@ -200,8 +201,8 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [ ] Develop User Account Update API
 * [ ] Develop Password Reset API
 * [ ] Develop Order Fetch API
-* [ ] Develop & Integrate permission flow
-* [ ] Develop Permission assignment API
+
+
 * [ ] Integrate MeileiSeach
 * [ ] Integrate with notification microservice to enable WhatsApp, Email and SMS functionality
 

@@ -2243,3 +2243,14 @@ pub struct ONDCSellerInfo {
     pub provider_id: String,
     pub provider_name: Option<String>,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCStatusMessage {
+    pub order_id: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDStatusRequest {
+    pub context: ONDCContext,
+    pub message: ONDCStatusMessage,
+}

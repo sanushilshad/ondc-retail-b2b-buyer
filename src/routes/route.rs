@@ -21,7 +21,7 @@ pub fn main_route(cfg: &mut web::ServiceConfig) {
                 .wrap(HeaderValidation),
         )
         .service(
-            web::scope("/v1/ondc")
+            web::scope("/v1/ondc/buyer")
                 .configure(ondc_route)
                 .wrap(SellerHeaderVerification),
         )

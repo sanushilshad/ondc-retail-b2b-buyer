@@ -99,3 +99,37 @@ impl From<ConfirmOrderError> for GenericError {
         }
     }
 }
+
+#[allow(clippy::enum_variant_names)]
+#[derive(thiserror::Error)]
+pub enum OrderStatusError {
+    #[error("{0}")]
+    ValidationError(String),
+    #[error("{0}")]
+    InvalidDataError(String),
+    #[error(transparent)]
+    UnexpectedError(#[from] anyhow::Error),
+    #[error("{0}")]
+    DatabaseError(String, anyhow::Error),
+}
+
+impl std::fmt::Debug for OrderStatusError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        error_chain_fmt(self, f)
+    }
+}
+
+impl From<OrderStatusError> for GenericError {
+    fn from(err: OrderStatusError) -> GenericError {
+        match err {
+            OrderStatusError::ValidationError(message) => GenericError::ValidationError(message),
+            OrderStatusError::UnexpectedError(error) => GenericError::UnexpectedError(error),
+            OrderStatusError::DatabaseError(message, error) => {
+                GenericError::DatabaseError(message, error)
+            }
+            OrderStatusError::InvalidDataError(message) => {
+                GenericError::SerializationError(message)
+            }
+        }
+    }
+}
