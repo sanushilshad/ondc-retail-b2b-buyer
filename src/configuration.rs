@@ -144,10 +144,10 @@ impl EmailClientSetting {
 
 /// do not add any env variable starting with user, this crate doesn't support it
 pub fn get_configuration() -> Result<Setting, ConfigError> {
-    let base_path = std::env::current_dir().expect("Failed to determine the current directory");
+    // let base_path = std::env::current_dir().expect("Failed to determine the current directory");
     let builder = config::Config::builder()
         .add_source(Environment::default().separator("__"))
-        .add_source(config::File::from(base_path.join("configuration.yaml")))
+        // .add_source(config::File::from(base_path.join("configuration.yaml")))
         .build()?;
     builder.try_deserialize::<Setting>()
 }

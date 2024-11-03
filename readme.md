@@ -88,6 +88,9 @@ export ONDC__REGISTRY_BASE_URL="https://preprod.registry.ondc.org/ondc"
 ## APPLICATION DATA
 export APPLICATION__NAME="ondc-retail-b2b-buyer"
 export APPLICATION__ACCOUNT_NAME="dev2"
+export APPLICATION__PORT=8228
+export APPLICATION__HOST="0.0.0.0"
+export APPLICATION__WORKERS=12
 
 ## WEBSOCKET SERVICE
 export WEBSOCKET__TOKEN=""
@@ -100,16 +103,7 @@ export USER__BASE_URL="http://0.0.0.0:8230"
 export USER__TIMEOUT_MILLISECONDS=600000
 
 
-```
 
--  `configuration.yaml`:
-
-```
-application:
-  port: 8002
-  host: 0.0.0.0
-
-```
 
 - In order to verify SQL queries at compile time, set the below config in `.env` file:
 ```
