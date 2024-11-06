@@ -100,7 +100,7 @@ export USER__TOKEN=""
 export USER__BASE_URL="http://0.0.0.0:8230"
 export USER__TIMEOUT_MILLISECONDS=600000
 
-
+```
 
 
 - In order to verify SQL queries at compile time, set the below config in `.env` file:
@@ -110,10 +110,12 @@ export DATABASE_URL="postgres://postgres:{password}@{host}:{port}/{db_name}"
 ```
 
 ## TO RUN THE SERVER:
+
 - For running development server:
 ```
 bash dev_run.sh
 ```
+
 - For running production server:
 ```
 bash release.sh
