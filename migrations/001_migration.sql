@@ -162,7 +162,7 @@ CREATE TYPE commerce_status AS ENUM(
   'initialized',
   'created',
   'accepted',
-  'in_progess',
+  'in_progress',
   'completed',
   'cancelled'
 );
@@ -446,6 +446,7 @@ CREATE TABLE IF NOT EXISTS commerce_data(
   is_deleted BOOLEAN NOT NULL DEFAULT false,
   created_by uuid NOT NULL,
   grand_total DECIMAL(20, 3),
+  documents JSONB,
   buyer_chat_link TEXT,
   seller_chat_link TEXT,
   bpp_id TEXT NOT NULL,
@@ -574,6 +575,7 @@ CREATE TYPE payment_status AS ENUM (
 
 CREATE TABLE IF NOT EXISTS commerce_payment_data(
   id uuid PRIMARY KEY,
+  payment_id TEXT,
   commerce_data_id uuid NOT NULL,
   collected_by ondc_network_participant_type,
   payment_type payment_type,
@@ -586,10 +588,7 @@ CREATE TABLE IF NOT EXISTS commerce_payment_data(
   withholding_amount DECIMAL(20, 3),
   settlement_basis settlement_basis_type,
   settlement_details JSONB,
-  seller_payment_uri TEXT,
-  seller_payment_signature TEXT,
-  seller_payment_dsa TEXT,
-  seller_payment_ttl TEXT
+  seller_payment_detail JSONB
 );
 ALTER TABLE commerce_payment_data ADD CONSTRAINT commerce_payment_fk FOREIGN KEY ("commerce_data_id") REFERENCES commerce_data ("id") ON DELETE CASCADE;
 

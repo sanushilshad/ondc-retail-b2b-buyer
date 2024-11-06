@@ -1,16 +1,17 @@
 use super::models::{
-    CommerceBppTermsModel, CommerceDataModel, CommerceFulfillmentModel, CommerceItemModel,
-    CommercePaymentModel, DropOffContactModel, DropOffDataModel, DropOffLocationModel,
-    OrderBillingModel, OrderCancellationFeeModel, OrderCancellationTermModel,
-    PaymentSettlementDetailModel, PickUpContactModel, PickUpDataModel, PickUpLocationModel,
-    TimeRangeModel,
+    CommerceBppTermsModel, CommerceDataModel, CommerceDocumentModel, CommerceFulfillmentModel,
+    CommerceItemModel, CommercePaymentModel, DropOffContactModel, DropOffDataModel,
+    DropOffLocationModel, FulfillmentInstruction, OrderBillingModel, OrderCancellationFeeModel,
+    OrderCancellationTermModel, PaymentSettlementDetailModel, PickUpContactModel, PickUpDataModel,
+    PickUpLocationModel, SellerPaymentDetailModel, TimeRangeModel,
 };
 use super::schemas::{
     BasicNetWorkData, BuyerTerm, Commerce, CommerceBPPTerms, CommerceBilling,
-    CommerceCancellationFee, CommerceCancellationTerm, CommerceFulfillment, CommerceItem,
-    CommercePayment, CommerceSeller, DropOffData, FulfillmentContact, FulfillmentLocation,
-    OrderSelectFulfillment, OrderSelectRequest, PaymentSettlementDetail, PickUpData,
-    PickUpFulfillmentLocation, SelectFulfillmentLocation, TimeRange,
+    CommerceCancellationFee, CommerceCancellationTerm, CommerceDocument, CommerceFulfillment,
+    CommerceItem, CommercePayment, CommerceSeller, DocumentType, DropOffData, FulfillmentContact,
+    FulfillmentLocation, OrderSelectFulfillment, OrderSelectRequest, PaymentSettlementDetail,
+    PickUpData, PickUpFulfillmentLocation, SelectFulfillmentLocation, SellerPaymentDetail,
+    TimeRange,
 };
 use crate::constants::ONDC_TTL;
 use crate::routes::ondc::schemas::{
@@ -26,7 +27,10 @@ use crate::routes::ondc::utils::{
     get_ondc_seller_product_info_mapping, get_ondc_seller_product_mapping_key,
     get_tag_value_from_list,
 };
-use crate::routes::ondc::{LookupData, ONDCActionType};
+use crate::routes::ondc::{
+    LookupData, ONDCActionType, ONDCConfirmFulfillmentEndLocation, ONDCDocument,
+    ONDCFulfillmentInstruction, ONDCOnStatusRequest, ONDCPaymentType,
+};
 use crate::routes::order::schemas::{
     CommerceStatusType, DeliveryTerm, FulfillmentCategoryType, FulfillmentStatusType, IncoTermType,
     OrderType, PaymentStatus, ServiceableType, SettlementBasis,
@@ -175,6 +179,8 @@ pub fn create_drop_off_from_rfq_select_fulfullment(
             mobile_no: fulfillment.contact_mobile_no.clone(),
             email: None,
         },
+        time_range: None,
+        instruction: None,
     }
 }
 
@@ -201,6 +207,7 @@ fn get_pick_up_location_from_ondc_seller_fulfillment(
             email: None,
         },
         time_range: None,
+        instruction: None,
     }
 }
 
@@ -530,6 +537,8 @@ pub fn create_drop_off_from_ondc_select_fulfullment(
                 mobile_no: contact.phone.clone(),
                 email: contact.email.clone(),
             },
+            time_range: None,
+            instruction: None,
         })
     } else {
         None
@@ -561,6 +570,7 @@ pub fn create_pick_off_from_ondc_select_fulfillment(
                         email: ondc_select_fulfillment_end.contact.email.clone(),
                     },
                     time_range: None,
+                    instruction: None,
                 });
             }
         }
@@ -1157,7 +1167,7 @@ async fn get_commerce_data(
            country_code as "country_code:CountryCode",
            billing as "billing?:  Json<OrderBillingModel>",
            cancellation_terms as "cancellation_terms?: Json<Vec<OrderCancellationTermModel>>",
-           bpp_terms as "bpp_terms?: Json<CommerceBppTermsModel>"
+           bpp_terms as "bpp_terms?: Json<CommerceBppTermsModel>", documents as "documents?: Json<Vec<CommerceDocumentModel>>"
         FROM commerce_data where external_urn= $1;"#,
         transaction_id
     )
@@ -1228,7 +1238,7 @@ async fn get_commerce_payments(
             collected_by as "collected_by?: ONDCNetworkType",
             payment_type as "payment_type!: PaymentType", 
             commerce_data_id,
-            seller_payment_uri,
+            seller_payment_detail as "seller_payment_detail?: Json<SellerPaymentDetailModel>",
             buyer_fee_type  as "buyer_fee_type?: FeeType",
             buyer_fee_amount,
             settlement_window,
@@ -1318,12 +1328,23 @@ fn get_order_payment_from_model(payments: Vec<CommercePaymentModel>) -> Vec<Comm
                 })
             }
         }
+        let seller_payment_detail =
+            if let Some(seller_payment_detail_obj) = payment.seller_payment_detail {
+                Some(SellerPaymentDetail {
+                    uri: seller_payment_detail_obj.uri.clone(),
+                    ttl: seller_payment_detail_obj.ttl.clone(),
+                    dsa: seller_payment_detail_obj.dsa.clone(),
+                    signature: seller_payment_detail_obj.signature.clone(),
+                })
+            } else {
+                None
+            };
 
         payment_obj.push(CommercePayment {
             id: payment.id,
             collected_by: payment.collected_by,
             payment_type: payment.payment_type,
-            uri: payment.seller_payment_uri,
+            seller_payment_detail: seller_payment_detail,
             buyer_fee_type: payment.buyer_fee_type,
             buyer_fee_amount: payment.buyer_fee_amount.map(|v| v.to_string()),
             settlement_basis: payment.settlement_basis,
@@ -1497,6 +1518,19 @@ fn get_bpp_terms_from_model(bpp_model: CommerceBppTermsModel) -> CommerceBPPTerm
     }
 }
 
+fn get_document_from_document_model(
+    documents: Vec<CommerceDocumentModel>,
+) -> Vec<CommerceDocument> {
+    let mut document_list = vec![];
+    for document in documents {
+        document_list.push(CommerceDocument {
+            r#type: document.r#type,
+            url: document.url,
+        })
+    }
+    document_list
+}
+
 #[tracing::instrument(name = "model to struct", skip())]
 fn get_order_from_model(
     order: CommerceDataModel,
@@ -1547,6 +1581,9 @@ fn get_order_from_model(
         bpp_terms: order
             .bpp_terms
             .map(|term_model| get_bpp_terms_from_model(term_model.0)),
+        documents: order
+            .documents
+            .map(|f| get_document_from_document_model(f.0)),
     }
 }
 
@@ -1609,12 +1646,10 @@ pub async fn initialize_payment_on_init(
     let mut buyer_fee_amount_list = vec![];
     let mut settlement_window_list = vec![];
     let mut withholding_amount_list = vec![];
-    let mut seller_payment_uri_list = vec![];
     let mut settlement_basis_list = vec![];
-    let mut seller_payment_ttl = vec![];
-    let mut seller_payment_dsa_list = vec![];
-    let mut seller_payment_signature_list = vec![];
+
     let mut settlement_detail_list = vec![];
+    let mut seller_payment_detail_list = vec![];
     for payment in payments {
         id_list.push(Uuid::new_v4());
         commerce_data_id_list.push(commerce_id);
@@ -1625,36 +1660,51 @@ pub async fn initialize_payment_on_init(
             .push(BigDecimal::from_str(&payment.buyer_app_finder_fee_amount).unwrap());
         settlement_window_list.push(payment.settlement_window.as_str());
         withholding_amount_list.push(BigDecimal::from_str(&payment.withholding_amount).unwrap());
-        seller_payment_uri_list.push(payment.uri.as_deref());
+        // seller_payment_uri_list.push(payment.uri.as_deref());
         settlement_basis_list.push(
             payment
                 .settlement_basis
                 .get_settlement_basis_from_ondc_type(),
         );
-        seller_payment_ttl.push(payment.tags.as_ref().map(|tag| {
-            get_tag_value_from_list(
-                tag,
-                ONDCTagType::BPPPayment,
-                &ONDCTagItemCode::Ttl.to_string(),
-            )
-            .unwrap_or_default()
-        }));
-        seller_payment_dsa_list.push(payment.tags.as_ref().map(|tag| {
-            get_tag_value_from_list(
-                tag,
-                ONDCTagType::BPPPayment,
-                &ONDCTagItemCode::Dsa.to_string(),
-            )
-            .unwrap_or_default()
-        }));
-        seller_payment_signature_list.push(payment.tags.as_ref().map(|tag| {
-            get_tag_value_from_list(
-                tag,
-                ONDCTagType::BPPPayment,
-                &ONDCTagItemCode::Signature.to_string(),
-            )
-            .unwrap_or_default()
-        }));
+        if payment.r#type == ONDCPaymentType::OnFulfillment
+            && payment.collected_by == ONDCNetworkType::Bpp
+        {
+            // let payment_uri = &payment.uri.unwrap();
+            let seller_payment_ttl = payment.tags.as_ref().map(|tag| {
+                get_tag_value_from_list(
+                    tag,
+                    ONDCTagType::BPPPayment,
+                    &ONDCTagItemCode::Ttl.to_string(),
+                )
+                .unwrap_or_default()
+            });
+            let seller_payment_dsa = payment.tags.as_ref().map(|tag| {
+                get_tag_value_from_list(
+                    tag,
+                    ONDCTagType::BPPPayment,
+                    &ONDCTagItemCode::Dsa.to_string(),
+                )
+                .unwrap_or_default()
+            });
+            let seller_payment_signature = payment.tags.as_ref().map(|tag| {
+                get_tag_value_from_list(
+                    tag,
+                    ONDCTagType::BPPPayment,
+                    &ONDCTagItemCode::Signature.to_string(),
+                )
+                .unwrap_or_default()
+            });
+            let seller_payment_detail = SellerPaymentDetailModel {
+                uri: payment.uri.to_owned().unwrap(),
+                ttl: seller_payment_ttl.map(|s| s.to_owned()),
+                dsa: seller_payment_dsa.map(|s| s.to_owned()),
+                signature: seller_payment_signature.map(|s| s.to_owned()),
+            };
+            seller_payment_detail_list
+                .push(Some(serde_json::to_value(seller_payment_detail).unwrap()));
+        } else {
+            seller_payment_detail_list.push(None);
+        }
         if let Some(settlement_details) = &payment.settlement_details {
             let settlement_details: Vec<PaymentSettlementDetailModel> = settlement_details
                 .iter()
@@ -1664,25 +1714,14 @@ pub async fn initialize_payment_on_init(
         } else {
             settlement_detail_list.push(None);
         }
-        // let settlement_details: Option<Vec<PaymentSettlementDetailModel>> = payment
-        //     .settlement_details
-        //     .as_ref() // Borrow the Option<Vec<ONDCPaymentSettlementDetail>>
-        //     .map(|details| {
-        //         details
-        //             .iter()
-        //             .map(|e| e.to_payment_settlement_detail())
-        //             .collect::<Vec<PaymentSettlementDetailModel>>()
-        //     });
-        // settlement_detail_list.push(serde_json::to_value(settlement_details).unwrap());
     }
     let query = sqlx::query!(
         r#"
         INSERT INTO commerce_payment_data(id, commerce_data_id, collected_by, payment_type, buyer_fee_type,
-             buyer_fee_amount, settlement_window, withholding_amount, seller_payment_uri, settlement_basis,
-             seller_payment_ttl, seller_payment_dsa, seller_payment_signature, settlement_details)
+             buyer_fee_amount, settlement_window, withholding_amount, settlement_basis, settlement_details, seller_payment_detail)
             SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::ondc_network_participant_type[],
             $4::payment_type[], $5::ondc_np_fee_type[], $6::decimal[], $7::text[], $8::decimal[],
-            $9::text[], $10::settlement_basis_type[], $11::text[], $12::text[],  $13::text[],$14::jsonb[])
+            $9::settlement_basis_type[],$10::jsonb[], $11::jsonb[])
         "#,
         &id_list[..] as &[Uuid],
         &commerce_data_id_list[..] as &[Uuid],
@@ -1692,12 +1731,9 @@ pub async fn initialize_payment_on_init(
         &buyer_fee_amount_list[..] as &[BigDecimal],
         &settlement_window_list[..] as &[&str],
         &withholding_amount_list[..] as &[BigDecimal],
-        &seller_payment_uri_list[..] as &[Option<&str>],
         &settlement_basis_list[..] as &[SettlementBasis],
-        &seller_payment_ttl[..] as &[Option<&str>],
-        &seller_payment_dsa_list[..] as &[Option<&str>],
-        &seller_payment_signature_list[..] as &[Option<&str>],
-        &settlement_detail_list[..] as &[Option<Value>]
+        &settlement_detail_list[..] as &[Option<Value>],
+        &seller_payment_detail_list[..] as &[Option<Value>]
     );
 
     transaction.execute(query).await.map_err(|e| {
@@ -1849,13 +1885,18 @@ pub async fn initialize_order_on_init(
 #[tracing::instrument(name = "save buyer commerce on on_confirm", skip(transaction))]
 async fn update_commerce_in_on_confirm(
     transaction: &mut Transaction<'_, Postgres>,
+    order: &Commerce,
     confirm_req: &ONDCOnConfirmRequest,
 ) -> Result<(), anyhow::Error> {
     let query = sqlx::query!(
         r#"
         UPDATE commerce_data SET record_status=$1, updated_on=$2, urn=$3 WHERE external_urn=$4
         "#,
-        CommerceStatusType::Created as CommerceStatusType,
+        confirm_req
+            .message
+            .order
+            .state
+            .get_commerce_status(&order.record_type, None) as CommerceStatusType,
         confirm_req.message.order.updated_at,
         confirm_req.message.order.id,
         confirm_req.context.transaction_id,
@@ -1870,14 +1911,22 @@ async fn update_commerce_in_on_confirm(
     Ok(())
 }
 
-pub fn create_drop_off_from_on_confirm_fulfullment(
+pub fn create_pickup_off_from_on_confirm_fulfullment(
     fulfillment: &ONDCConfirmFulfillmentStartLocation,
     contact: &ONDCContact,
     commerce_pickup_data: &PickUpData,
     time_rage: Option<&ONDCFulfillmentTime>,
+    fulfillment_instruction: Option<&ONDCFulfillmentInstruction>,
 ) -> PickUpDataModel {
-    // let mut drop_list = vec![];
-    // for fulfillment in select_fulfillments {
+    let instruction = if let Some(fulfillment_instruction) = fulfillment_instruction {
+        Some(FulfillmentInstruction {
+            short_desc: fulfillment_instruction.short_desc.clone(),
+            name: fulfillment_instruction.name.clone(),
+            images: fulfillment_instruction.images.clone(),
+        })
+    } else {
+        None
+    };
     PickUpDataModel {
         location: PickUpLocationModel {
             gps: fulfillment.gps.clone(),
@@ -1898,6 +1947,7 @@ pub fn create_drop_off_from_on_confirm_fulfullment(
             start: e.range.start,
             end: e.range.end,
         }),
+        instruction,
     }
 }
 
@@ -1915,13 +1965,14 @@ async fn update_commerce_fulfillment_in_on_confirm(
     for confirm_fulfillment in confirm_fulfillments {
         if let Some(order_fulfillment) = order_fulfillment_map.get(&confirm_fulfillment.id) {
             if let Some(ondc_start) = confirm_fulfillment.get_fulfillment_start() {
-                let pick_up_data = create_drop_off_from_on_confirm_fulfullment(
+                let pick_up_data = create_pickup_off_from_on_confirm_fulfullment(
                     ondc_start,
                     confirm_fulfillment
                         .get_fulfillment_contact(ONDCFulfillmentStopType::Start)
                         .unwrap(),
                     &order_fulfillment.pickup,
                     confirm_fulfillment.get_fulfillment_time(ONDCFulfillmentStopType::Start),
+                    confirm_fulfillment.get_fulfillment_instruction(ONDCFulfillmentStopType::Start),
                 );
                 let query = sqlx::query!(
                     "UPDATE commerce_fulfillment_data SET fulfillment_status = $1, pickup_data=$2 FROM commerce_data
@@ -1947,7 +1998,7 @@ async fn update_commerce_fulfillment_in_on_confirm(
 #[tracing::instrument(name = "save payment on on_confirm", skip(transaction))]
 pub async fn initialize_payment_on_confirm(
     transaction: &mut Transaction<'_, Postgres>,
-    commerce_id: Uuid,
+    order: &Commerce,
     payments: &Vec<ONDCOnConfirmPayment>,
 ) -> Result<(), anyhow::Error> {
     let mut id_list = vec![];
@@ -1958,18 +2009,15 @@ pub async fn initialize_payment_on_confirm(
     let mut buyer_fee_amount_list = vec![];
     let mut settlement_window_list = vec![];
     let mut withholding_amount_list = vec![];
-    let mut seller_payment_uri_list = vec![];
     let mut settlement_basis_list = vec![];
-    let mut seller_payment_ttl = vec![];
-    let mut seller_payment_dsa_list = vec![];
-    let mut seller_payment_signature_list = vec![];
     let mut settlement_detail_list = vec![];
     let mut payment_statuses = vec![];
     let mut payment_transaction_ids = vec![];
     let mut payment_paid_amounts = vec![];
+    let mut seller_payment_detail_list = vec![];
     for payment in payments {
         id_list.push(Uuid::new_v4());
-        commerce_data_id_list.push(commerce_id);
+        commerce_data_id_list.push(order.id);
         collected_by_list.push(payment.collected_by.clone());
         payment_type_list.push(payment.r#type.get_payment());
         buyer_fee_type_list.push(&payment.buyer_app_finder_fee_type);
@@ -1977,36 +2025,52 @@ pub async fn initialize_payment_on_confirm(
             .push(BigDecimal::from_str(&payment.buyer_app_finder_fee_amount).unwrap());
         settlement_window_list.push(payment.settlement_window.as_str());
         withholding_amount_list.push(BigDecimal::from_str(&payment.withholding_amount).unwrap());
-        seller_payment_uri_list.push(payment.uri.as_deref());
+        if payment.r#type == ONDCPaymentType::PreFulfillment
+            && payment.collected_by == ONDCNetworkType::Bpp
+        {
+            // let payment_uri = &payment.uri.unwrap();
+            let seller_payment_ttl = payment.tags.as_ref().map(|tag| {
+                get_tag_value_from_list(
+                    tag,
+                    ONDCTagType::BPPPayment,
+                    &ONDCTagItemCode::Ttl.to_string(),
+                )
+                .unwrap_or_default()
+            });
+            let seller_payment_dsa = payment.tags.as_ref().map(|tag| {
+                get_tag_value_from_list(
+                    tag,
+                    ONDCTagType::BPPPayment,
+                    &ONDCTagItemCode::Dsa.to_string(),
+                )
+                .unwrap_or_default()
+            });
+            let seller_payment_signature = payment.tags.as_ref().map(|tag| {
+                get_tag_value_from_list(
+                    tag,
+                    ONDCTagType::BPPPayment,
+                    &ONDCTagItemCode::Signature.to_string(),
+                )
+                .unwrap_or_default()
+            });
+            let seller_payment_detail = SellerPaymentDetailModel {
+                uri: payment.uri.to_owned().unwrap_or("".to_string()),
+                ttl: seller_payment_ttl.map(|s| s.to_owned()),
+                dsa: seller_payment_dsa.map(|s| s.to_owned()),
+                signature: seller_payment_signature.map(|s| s.to_owned()),
+            };
+            seller_payment_detail_list
+                .push(Some(serde_json::to_value(seller_payment_detail).unwrap()));
+        } else {
+            seller_payment_detail_list.push(None);
+        }
+
         settlement_basis_list.push(
             payment
                 .settlement_basis
                 .get_settlement_basis_from_ondc_type(),
         );
-        seller_payment_ttl.push(payment.tags.as_ref().map(|tag| {
-            get_tag_value_from_list(
-                tag,
-                ONDCTagType::BPPPayment,
-                &ONDCTagItemCode::Ttl.to_string(),
-            )
-            .unwrap_or_default()
-        }));
-        seller_payment_dsa_list.push(payment.tags.as_ref().map(|tag| {
-            get_tag_value_from_list(
-                tag,
-                ONDCTagType::BPPPayment,
-                &ONDCTagItemCode::Dsa.to_string(),
-            )
-            .unwrap_or_default()
-        }));
-        seller_payment_signature_list.push(payment.tags.as_ref().map(|tag| {
-            get_tag_value_from_list(
-                tag,
-                ONDCTagType::BPPPayment,
-                &ONDCTagItemCode::Signature.to_string(),
-            )
-            .unwrap_or_default()
-        }));
+
         payment_transaction_ids.push(payment.params.transaction_id.as_deref());
         payment_paid_amounts.push(BigDecimal::from_str(&payment.params.amount).unwrap_or_default());
         payment_statuses.push(payment.status.get_payment_status());
@@ -2023,13 +2087,12 @@ pub async fn initialize_payment_on_confirm(
     let query = sqlx::query!(
         r#"
         INSERT INTO commerce_payment_data(id, commerce_data_id, collected_by, payment_type, buyer_fee_type,
-             buyer_fee_amount, settlement_window, withholding_amount, seller_payment_uri, settlement_basis,
-             seller_payment_ttl, seller_payment_dsa, seller_payment_signature, settlement_details,transaction_id, 
-             payment_status, payment_amount)
+             buyer_fee_amount, settlement_window, withholding_amount, settlement_basis,
+             settlement_details, transaction_id,payment_status, payment_amount, seller_payment_detail)
             SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::ondc_network_participant_type[],
             $4::payment_type[], $5::ondc_np_fee_type[], $6::decimal[], $7::text[], $8::decimal[],
-            $9::text[], $10::settlement_basis_type[], $11::text[], $12::text[],  $13::text[], $14::jsonb[],
-            $15::text[], $16::payment_status[], $17::decimal[])
+            $9::settlement_basis_type[],  $10::jsonb[],
+            $11::text[], $12::payment_status[], $13::decimal[], $14::jsonb[])
         "#,
         &id_list[..] as &[Uuid],
         &commerce_data_id_list[..] as &[Uuid],
@@ -2039,15 +2102,12 @@ pub async fn initialize_payment_on_confirm(
         &buyer_fee_amount_list[..] as &[BigDecimal],
         &settlement_window_list[..] as &[&str],
         &withholding_amount_list[..] as &[BigDecimal],
-        &seller_payment_uri_list[..] as &[Option<&str>],
         &settlement_basis_list[..] as &[SettlementBasis],
-        &seller_payment_ttl[..] as &[Option<&str>],
-        &seller_payment_dsa_list[..] as &[Option<&str>],
-        &seller_payment_signature_list[..] as &[Option<&str>],
         &settlement_detail_list[..] as &[Option<Value>],
         &payment_transaction_ids[..] as &[Option<&str>],
         &payment_statuses[..] as &[PaymentStatus],
-        &payment_paid_amounts[..] as &[BigDecimal]
+        &payment_paid_amounts[..] as &[BigDecimal],
+        &seller_payment_detail_list[..] as &[Option<Value>]
     );
 
     transaction.execute(query).await.map_err(|e| {
@@ -2068,7 +2128,7 @@ pub async fn initialize_order_on_confirm(
         .begin()
         .await
         .context("Failed to acquire a Postgres connection from the pool")?;
-    update_commerce_in_on_confirm(&mut transaction, on_confirm_request).await?;
+    update_commerce_in_on_confirm(&mut transaction, order, on_confirm_request).await?;
     update_commerce_fulfillment_in_on_confirm(
         &mut transaction,
         on_confirm_request.context.transaction_id,
@@ -2076,13 +2136,12 @@ pub async fn initialize_order_on_confirm(
         &order.fulfillments,
     )
     .await?;
-    let commerce_id =
-        delete_payment_in_commerce(&mut transaction, on_confirm_request.context.transaction_id)
-            .await?;
+    let _ = delete_payment_in_commerce(&mut transaction, on_confirm_request.context.transaction_id)
+        .await?;
 
     initialize_payment_on_confirm(
         &mut transaction,
-        commerce_id,
+        order,
         &on_confirm_request.message.order.payments,
     )
     .await?;
@@ -2091,5 +2150,262 @@ pub async fn initialize_order_on_confirm(
         .commit()
         .await
         .context("Failed to commit SQL transaction to update order on init")?;
+    Ok(())
+}
+
+fn get_ondc_document(
+    documents: &Option<Vec<CommerceDocument>>,
+    ondc_documents: &Vec<ONDCDocument>,
+) -> Vec<CommerceDocument> {
+    let mut final_documents = vec![];
+
+    let documents_map: HashMap<DocumentType, &CommerceDocument> = if let Some(docs) = documents {
+        docs.iter().map(|doc| (doc.r#type.clone(), doc)).collect()
+    } else {
+        HashMap::new()
+    };
+
+    let mut included_types = HashSet::new();
+
+    for ondc_document in ondc_documents {
+        let doc_type = ondc_document.label.get_document_type();
+
+        let commerce_document = if let Some(existing_doc) = documents_map.get(&doc_type) {
+            (*existing_doc).clone()
+        } else {
+            CommerceDocument {
+                r#type: doc_type.clone(),
+                url: ondc_document.url.clone(),
+            }
+        };
+
+        final_documents.push(commerce_document);
+        included_types.insert(doc_type);
+    }
+
+    if let Some(docs) = documents {
+        for doc in docs {
+            if !included_types.contains(&doc.r#type) {
+                final_documents.push(doc.clone());
+            }
+        }
+    }
+
+    final_documents
+}
+#[tracing::instrument(name = "save buyer commerce on on_status", skip(transaction))]
+async fn update_commerce_in_on_status(
+    transaction: &mut Transaction<'_, Postgres>,
+    order: &Commerce,
+    status_req: &ONDCOnStatusRequest,
+) -> Result<(), anyhow::Error> {
+    let document_type = status_req.message.order.documents.is_some();
+    let query = sqlx::query!(
+        r#"
+        UPDATE commerce_data SET record_status=$1, updated_on=$2, documents=$3 WHERE external_urn=$4
+        "#,
+        status_req
+            .message
+            .order
+            .state
+            .get_commerce_status(&order.record_type, Some(document_type))
+            as CommerceStatusType,
+        status_req.message.order.updated_at,
+        status_req
+            .message
+            .order
+            .documents
+            .as_ref()
+            .map(|docs| serde_json::to_value(get_ondc_document(&order.documents, docs)).unwrap()),
+        status_req.context.transaction_id,
+    );
+
+    transaction.execute(query).await.map_err(|e| {
+        tracing::error!("Failed to execute query: {:?}", e);
+        anyhow::Error::new(e).context(
+            "A database failure occurred while saving on_confirm buyer commerce to database",
+        )
+    })?;
+    Ok(())
+}
+
+pub fn create_drop_off_from_on_status_fulfullment(
+    fulfillment: &ONDCConfirmFulfillmentEndLocation,
+    contact: &ONDCContact,
+    commerce_drop_off_data: &DropOffData,
+    time_rage: Option<&ONDCFulfillmentTime>,
+    fulfillment_instruction: Option<&ONDCFulfillmentInstruction>,
+) -> DropOffDataModel {
+    let instruction = if let Some(fulfillment_instruction) = fulfillment_instruction {
+        Some(FulfillmentInstruction {
+            short_desc: fulfillment_instruction.short_desc.clone(),
+            name: fulfillment_instruction.name.clone(),
+            images: fulfillment_instruction.images.clone(),
+        })
+    } else {
+        None
+    };
+    DropOffDataModel {
+        location: DropOffLocationModel {
+            gps: fulfillment.gps.clone(),
+            area_code: fulfillment.area_code.clone(),
+            address: commerce_drop_off_data.location.address.clone(),
+            city: commerce_drop_off_data.location.city.clone(),
+            country: commerce_drop_off_data.location.country.clone(),
+            state: commerce_drop_off_data.location.state.clone(),
+        },
+        contact: DropOffContactModel {
+            mobile_no: contact.phone.clone(),
+            email: contact.email.clone(),
+        },
+        time_range: time_rage.map(|e| TimeRangeModel {
+            start: e.range.start,
+            end: e.range.end,
+        }),
+        instruction,
+    }
+}
+
+#[tracing::instrument(name = "create_pickup_off_from_on_status_fulfullment", skip())]
+pub fn create_pickup_off_from_on_status_fulfullment(
+    fulfillment: &ONDCConfirmFulfillmentStartLocation,
+    contact: &ONDCContact,
+    commerce_pickup_data: &PickUpData,
+    time_rage: Option<&ONDCFulfillmentTime>,
+    fulfillment_instruction: Option<&ONDCFulfillmentInstruction>,
+) -> PickUpDataModel {
+    let instruction = if let Some(fulfillment_instruction) = fulfillment_instruction {
+        Some(FulfillmentInstruction {
+            short_desc: fulfillment_instruction.short_desc.clone(),
+            name: fulfillment_instruction.name.clone(),
+            images: fulfillment_instruction.images.clone(),
+        })
+    } else {
+        None
+    };
+    PickUpDataModel {
+        location: PickUpLocationModel {
+            gps: fulfillment.gps.clone(),
+            area_code: fulfillment
+                .area_code
+                .clone()
+                .unwrap_or(commerce_pickup_data.location.area_code.clone()),
+            address: commerce_pickup_data.location.address.clone(),
+            city: commerce_pickup_data.location.city.clone(),
+            country: commerce_pickup_data.location.country.clone(),
+            state: commerce_pickup_data.location.state.clone(),
+        },
+        contact: PickUpContactModel {
+            mobile_no: contact.phone.clone(),
+            email: contact.email.clone(),
+        },
+        time_range: time_rage.map(|e| TimeRangeModel {
+            start: e.range.start,
+            end: e.range.end,
+        }),
+        instruction,
+    }
+}
+
+#[tracing::instrument(name = "save fulfillment  on on_status", skip(transaction))]
+async fn update_commerce_fulfillment_in_on_status(
+    transaction: &mut Transaction<'_, Postgres>,
+    transaction_id: Uuid,
+    status_fulfillments: &Vec<ONDCOnConfirmFulfillment>,
+    order_fulfillments: &Vec<CommerceFulfillment>,
+) -> Result<(), anyhow::Error> {
+    let order_fulfillment_map: HashMap<String, &CommerceFulfillment> = order_fulfillments
+        .iter()
+        .map(|fulfillment| (fulfillment.fulfillment_id.clone(), fulfillment))
+        .collect();
+    for status_fulfillment in status_fulfillments {
+        if let Some(order_fulfillment) = order_fulfillment_map.get(&status_fulfillment.id) {
+            let pick_up_data = if let Some(ondc_start) = status_fulfillment.get_fulfillment_start()
+            {
+                Some(create_pickup_off_from_on_status_fulfullment(
+                    ondc_start,
+                    status_fulfillment
+                        .get_fulfillment_contact(ONDCFulfillmentStopType::Start)
+                        .unwrap(),
+                    &order_fulfillment.pickup,
+                    status_fulfillment.get_fulfillment_time(ONDCFulfillmentStopType::Start),
+                    status_fulfillment.get_fulfillment_instruction(ONDCFulfillmentStopType::Start),
+                ))
+            } else {
+                None
+            };
+            let drop_off_data = if let Some(order_drop_off) = &order_fulfillment.drop_off {
+                if let Some(ondc_end) = status_fulfillment.get_fulfillment_end() {
+                    Some(create_drop_off_from_on_status_fulfullment(
+                        ondc_end,
+                        status_fulfillment
+                            .get_fulfillment_contact(ONDCFulfillmentStopType::End)
+                            .unwrap(),
+                        order_drop_off,
+                        status_fulfillment.get_fulfillment_time(ONDCFulfillmentStopType::End),
+                        status_fulfillment
+                            .get_fulfillment_instruction(ONDCFulfillmentStopType::End),
+                    ))
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+
+            let query = sqlx::query!(
+                "UPDATE commerce_fulfillment_data SET fulfillment_status = $1, pickup_data=$2, drop_off_data=$3 FROM commerce_data
+                WHERE commerce_fulfillment_data.commerce_data_id = commerce_data.id
+                AND commerce_data.external_urn =$4 AND fulfillment_id = $5",
+                status_fulfillment.state.descriptor.code.get_fulfillment_state() as FulfillmentStatusType,
+                serde_json::to_value(pick_up_data).unwrap(),
+                serde_json::to_value(drop_off_data).unwrap(),
+                transaction_id,
+                status_fulfillment.id,
+            );
+            transaction.execute(query).await.map_err(|e| {
+                tracing::error!("Failed to execute query: {:?}", e);
+                anyhow::Error::new(e)
+                    .context("A database failure occurred while saving RFQ to database request")
+            })?;
+        }
+    }
+
+    Ok(())
+}
+
+#[tracing::instrument(name = "save order on on_status", skip(pool))]
+pub async fn initialize_order_on_status(
+    pool: &PgPool,
+    on_status_request: &ONDCOnStatusRequest,
+    order: &Commerce,
+) -> Result<(), anyhow::Error> {
+    let mut transaction = pool
+        .begin()
+        .await
+        .context("Failed to acquire a Postgres connection from the pool")?;
+    update_commerce_in_on_status(&mut transaction, order, on_status_request).await?;
+
+    update_commerce_fulfillment_in_on_status(
+        &mut transaction,
+        on_status_request.context.transaction_id,
+        &on_status_request.message.order.fulfillments,
+        &order.fulfillments,
+    )
+    .await?;
+
+    let _ = delete_payment_in_commerce(&mut transaction, on_status_request.context.transaction_id)
+        .await?;
+
+    initialize_payment_on_confirm(
+        &mut transaction,
+        order,
+        &on_status_request.message.order.payments,
+    )
+    .await?;
+    transaction
+        .commit()
+        .await
+        .context("Failed to commit SQL transaction to update order on status")?;
     Ok(())
 }

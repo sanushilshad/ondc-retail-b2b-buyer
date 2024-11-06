@@ -11,11 +11,12 @@ use super::utils::{
     get_product_search_params, get_search_ws_body, get_websocket_params_from_search_req,
     save_ondc_seller_info, save_ondc_seller_location_info, save_ondc_seller_product_info,
 };
+use super::{ONDCOnStatusRequest, WSStatus};
 use crate::constants::ONDC_TTL;
 use crate::routes::ondc::{ONDCActionType, ONDCBuyerErrorCode, ONDCResponse};
 use crate::routes::order::utils::{
     fetch_order_by_id, initialize_order_on_confirm, initialize_order_on_init,
-    initialize_order_on_select,
+    initialize_order_on_select, initialize_order_on_status,
 };
 use crate::routes::product::schemas::WSSearchData;
 use crate::user_client::CustomerType;
@@ -200,7 +201,6 @@ pub async fn on_confirm(
     let ws_obj = WSConfirm {
         transaction_id: body.context.transaction_id,
         message_id: body.context.message_id,
-        action_type: WebSocketActionType::Confirm,
         error: body
             .error
             .as_ref()
@@ -215,8 +215,51 @@ pub async fn on_confirm(
         .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
 
     let _ = websocket_srv
-        .send_msg(ws_params_obj, WebSocketActionType::Init, ws_json)
+        .send_msg(ws_params_obj, WebSocketActionType::Confirm, ws_json)
         .await;
+
+    Ok(web::Json(ONDCResponse::successful_response(None)))
+}
+
+#[tracing::instrument(name = "ONDC On status Payload", skip(pool), fields())]
+pub async fn on_status(
+    pool: web::Data<PgPool>,
+    body: ONDCOnStatusRequest,
+    websocket_srv: web::Data<WebSocketClient>,
+) -> Result<web::Json<ONDCResponse<ONDCBuyerErrorCode>>, ONDCBuyerError> {
+    let task1 = fetch_ondc_order_request(
+        &pool,
+        body.context.transaction_id,
+        body.context.message_id,
+        &ONDCActionType::Status,
+    );
+
+    let task2 = fetch_order_by_id(&pool, body.context.transaction_id);
+    let (res1, res2) = futures::future::join(task1, task2).await;
+    let order_request_model =
+        res1.map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
+    let order = res2
+        .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?
+        .ok_or(ONDCBuyerError::BuyerResponseSequenceError { path: None })?;
+
+    initialize_order_on_status(&pool, &body, &order)
+        .await
+        .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
+    if let Some(order_request_model) = order_request_model {
+        let ws_obj = WSStatus {
+            transaction_id: body.context.transaction_id,
+            message_id: body.context.message_id,
+            error: body
+                .error
+                .as_ref()
+                .map_or_else(|| None, |s| Some(s.message.to_owned())),
+        };
+        let ws_json = serde_json::to_value(ws_obj).unwrap();
+        let ws_params_obj = get_ondc_order_param_from_req(&order_request_model);
+        let _ = websocket_srv
+            .send_msg(ws_params_obj, WebSocketActionType::Status, ws_json)
+            .await;
+    }
 
     Ok(web::Json(ONDCResponse::successful_response(None)))
 }

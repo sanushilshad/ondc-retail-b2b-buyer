@@ -8,9 +8,9 @@ use sqlx::FromRow;
 use uuid::Uuid;
 
 use super::schemas::{
-    CancellationFeeType, CommerceStatusType, FulfillmentCategoryType, FulfillmentStatusType,
-    IncoTermType, OrderType, PaymentSettlementCounterparty, PaymentSettlementPhase,
-    PaymentSettlementType, ServiceableType, SettlementBasis,
+    CancellationFeeType, CommerceStatusType, DocumentType, FulfillmentCategoryType,
+    FulfillmentStatusType, IncoTermType, OrderType, PaymentSettlementCounterparty,
+    PaymentSettlementPhase, PaymentSettlementType, ServiceableType, SettlementBasis,
 };
 use crate::domain::EmailObject;
 #[derive(Debug, Serialize, Deserialize, FromRow)]
@@ -66,6 +66,7 @@ pub struct CommerceDataModel {
     pub billing: Option<sqlx::types::Json<OrderBillingModel>>,
     pub cancellation_terms: Option<sqlx::types::Json<Vec<OrderCancellationTermModel>>>,
     pub bpp_terms: Option<sqlx::types::Json<CommerceBppTermsModel>>,
+    pub documents: Option<sqlx::types::Json<Vec<CommerceDocumentModel>>>,
 }
 
 #[allow(dead_code)]
@@ -101,6 +102,13 @@ pub struct PaymentSettlementDetailModel {
     pub bank_name: String,
 }
 
+#[derive(Deserialize, Debug, Serialize)]
+pub struct SellerPaymentDetailModel {
+    pub uri: String,
+    pub ttl: Option<String>,
+    pub dsa: Option<String>,
+    pub signature: Option<String>,
+}
 #[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 pub struct CommercePaymentModel {
@@ -108,13 +116,13 @@ pub struct CommercePaymentModel {
     pub collected_by: Option<ONDCNetworkType>,
     pub payment_type: PaymentType,
     pub commerce_data_id: Uuid,
-    pub seller_payment_uri: Option<String>,
     pub buyer_fee_type: Option<FeeType>,
     pub buyer_fee_amount: Option<BigDecimal>,
     pub settlement_basis: Option<SettlementBasis>,
     pub settlement_window: Option<String>,
     pub withholding_amount: Option<BigDecimal>,
     pub settlement_details: Option<sqlx::types::Json<Vec<PaymentSettlementDetailModel>>>,
+    pub seller_payment_detail: Option<sqlx::types::Json<SellerPaymentDetailModel>>,
 }
 
 #[allow(dead_code)]
@@ -170,6 +178,8 @@ pub struct DropOffContactModel {
 pub struct DropOffDataModel {
     pub location: DropOffLocationModel,
     pub contact: DropOffContactModel,
+    pub time_range: Option<TimeRangeModel>,
+    pub instruction: Option<FulfillmentInstruction>,
 }
 
 #[derive(Deserialize, Debug, Serialize, sqlx::FromRow, Clone)]
@@ -184,11 +194,20 @@ pub struct TimeRangeModel {
     pub end: DateTime<Utc>,
 }
 
+#[derive(Deserialize, Debug, Serialize, Clone)]
+
+pub struct FulfillmentInstruction {
+    pub short_desc: String,
+    pub name: String,
+    pub images: Option<Vec<String>>,
+}
+
 #[derive(Deserialize, Debug, Serialize, sqlx::FromRow, Clone)]
 pub struct PickUpDataModel {
     pub location: PickUpLocationModel,
     pub contact: PickUpContactModel,
     pub time_range: Option<TimeRangeModel>,
+    pub instruction: Option<FulfillmentInstruction>,
 }
 
 #[derive(Deserialize, Debug, Serialize, sqlx::FromRow, Clone)]
@@ -199,4 +218,10 @@ pub struct PickUpLocationModel {
     pub city: String,
     pub country: CountryCode,
     pub state: String,
+}
+
+#[derive(Deserialize, Debug, Serialize)]
+pub struct CommerceDocumentModel {
+    pub r#type: DocumentType,
+    pub url: String,
 }

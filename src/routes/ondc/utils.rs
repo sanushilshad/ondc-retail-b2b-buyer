@@ -1,8 +1,8 @@
 use super::{
     BreakupTitleType, LookupData, LookupRequest, ONDCActionType, ONDCBreakUp, ONDCConfirmMessage,
     ONDCConfirmOrder, ONDCConfirmProvider, ONDCContext, ONDCContextCity, ONDCContextCountry,
-    ONDCContextLocation, ONDCDomain, ONDCFeeType, ONDCSearchStop, ONDCStatusMessage, ONDCTag,
-    ONDCVersion, ONDStatusRequest, OndcUrl,
+    ONDCContextLocation, ONDCDomain, ONDCFeeType, ONDCSearchStop, ONDCStatusMessage,
+    ONDCStatusRequest, ONDCTag, ONDCVersion, OndcUrl,
 };
 
 use crate::user_client::{BusinessAccount, UserAccount};
@@ -2030,7 +2030,7 @@ fn get_ondc_status_message(commerce_id: &str) -> ONDCStatusMessage {
 pub fn get_ondc_status_payload(
     order: &Commerce,
     status_request: &OrderStatusRequest,
-) -> Result<ONDStatusRequest, OrderStatusError> {
+) -> Result<ONDCStatusRequest, OrderStatusError> {
     let context = get_ondc_context_from_order(
         status_request.transaction_id,
         status_request.message_id,
@@ -2042,5 +2042,5 @@ pub fn get_ondc_status_payload(
         .as_deref()
         .ok_or_else(|| OrderStatusError::ValidationError("Order id is missing".to_owned()))?;
     let message = get_ondc_status_message(order_id);
-    Ok(ONDStatusRequest { context, message })
+    Ok(ONDCStatusRequest { context, message })
 }

@@ -65,13 +65,16 @@ where
                 let (res, body) = res.into_parts();
                 let body_bytes = body::to_bytes(body).await.ok().unwrap();
                 let response_str = match std::str::from_utf8(&body_bytes) {
-                    Ok(s) => s.to_string(),
+                    Ok(response_body) => {
+                        tracing::info!({%response_body}, "");
+                        response_body.to_string()
+                    }
                     Err(_) => {
                         tracing::error!("Error decoding response body");
                         String::from("")
                     }
                 };
-                tracing::info!({%response_str}, "HTTP Response");
+
                 let res = res.set_body(BoxBody::new(response_str));
                 let res = ServiceResponse::new(req, res);
                 Ok(res)

@@ -314,6 +314,13 @@ impl SettlementBasis {
 }
 
 #[derive(Deserialize, Debug, ToSchema)]
+pub struct SellerPaymentDetail {
+    pub uri: String,
+    pub ttl: Option<String>,
+    pub dsa: Option<String>,
+    pub signature: Option<String>,
+}
+#[derive(Deserialize, Debug, ToSchema)]
 pub struct CommercePayment {
     #[schema(value_type = String)]
     pub id: Uuid,
@@ -324,7 +331,7 @@ pub struct CommercePayment {
     pub settlement_basis: Option<SettlementBasis>,
     pub settlement_window: Option<String>,
     pub withholding_amount: Option<String>,
-    pub uri: Option<String>,
+    pub seller_payment_detail: Option<SellerPaymentDetail>,
     pub settlement_details: Option<Vec<PaymentSettlementDetail>>,
 }
 
@@ -533,6 +540,7 @@ pub struct Commerce {
     pub cancellation_terms: Option<Vec<CommerceCancellationTerm>>,
     pub currency_type: Option<CurrencyType>,
     pub bpp_terms: Option<CommerceBPPTerms>,
+    pub documents: Option<Vec<CommerceDocument>>,
 }
 
 impl Commerce {
@@ -667,4 +675,16 @@ impl FromRequest for OrderStatusRequest {
             }
         })
     }
+}
+
+#[derive(Deserialize, Debug, Serialize, ToSchema, PartialEq, Eq, Hash, Clone, sqlx::Type)]
+pub enum DocumentType {
+    Invoice,
+    ProformaInvoice,
+}
+
+#[derive(Deserialize, Debug, Serialize, ToSchema, Clone, sqlx::Type)]
+pub struct CommerceDocument {
+    pub r#type: DocumentType,
+    pub url: String,
 }

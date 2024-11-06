@@ -187,13 +187,13 @@ pub async fn order_init(
         GenericError::SerializationError(format!("Failed to serialize ONDC init payload: {}", e))
     })?;
     let header = create_authorization_header(&ondc_init_payload_str, &bap_detail, None, None)?;
-    let select_json_obj = serde_json::to_value(&ondc_init_payload)?;
+    let init_json_obj = serde_json::to_value(&ondc_init_payload)?;
     let task_3 = save_ondc_order_request(
         &pool,
         &user_account,
         &business_account,
         &meta_data,
-        &select_json_obj,
+        &init_json_obj,
         body.transaction_id,
         body.message_id,
         ONDCActionType::Init,
@@ -271,13 +271,13 @@ pub async fn order_confirm(
         GenericError::SerializationError(format!("Failed to serialize ONDC init payload: {}", e))
     })?;
     let header = create_authorization_header(&ondc_confirm_payload_str, &bap_detail, None, None)?;
-    let select_json_obj = serde_json::to_value(&ondc_confirm_payload)?;
+    let confirm_json_obj = serde_json::to_value(&ondc_confirm_payload)?;
     let task_3 = save_ondc_order_request(
         &pool,
         &user_account,
         &business_account,
         &meta_data,
-        &select_json_obj,
+        &confirm_json_obj,
         body.transaction_id,
         body.message_id,
         ONDCActionType::Confirm,
@@ -348,18 +348,29 @@ pub async fn order_status(
         }
     };
 
-    let ondc_confirm_payload = get_ondc_status_payload(&order, &body)?;
-    let ondc_confirm_payload_str = serde_json::to_string(&ondc_confirm_payload).map_err(|e| {
+    let ondc_status_payload = get_ondc_status_payload(&order, &body)?;
+    let confirm_json_obj = serde_json::to_value(&ondc_status_payload)?;
+    let ondc_status_payload_str = serde_json::to_string(&ondc_status_payload).map_err(|e| {
         GenericError::SerializationError(format!("Failed to serialize ONDC status payload: {}", e))
     })?;
-    let header = create_authorization_header(&ondc_confirm_payload_str, &bap_detail, None, None)?;
-    let _ = send_ondc_payload(
+    let header = create_authorization_header(&ondc_status_payload_str, &bap_detail, None, None)?;
+    let task_3 = save_ondc_order_request(
+        &pool,
+        &user_account,
+        &business_account,
+        &meta_data,
+        &confirm_json_obj,
+        body.transaction_id,
+        body.message_id,
+        ONDCActionType::Status,
+    );
+    let task_4 = send_ondc_payload(
         &order.bpp.uri,
-        &ondc_confirm_payload_str,
+        &ondc_status_payload_str,
         &header,
         ONDCActionType::Status,
-    )
-    .await?;
+    );
+    futures::future::join(task_3, task_4).await.1?;
 
     Ok(web::Json(GenericResponse::success(
         "Successfully send status request",

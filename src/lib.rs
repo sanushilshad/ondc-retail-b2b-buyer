@@ -17,3 +17,4 @@ pub mod telemetry;
 pub mod user_client;
 pub mod utils;
 pub mod websocket_client;
+pub mod tests;

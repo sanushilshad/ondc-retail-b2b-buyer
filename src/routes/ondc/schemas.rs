@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use super::utils::serialize_timestamp_without_nanos;
 use crate::{
-    routes::product::schemas::CategoryDomain,
+    routes::{order::schemas::OrderType, product::schemas::CategoryDomain},
     schemas::{CountryCode, ONDCNetworkType},
     utils::pascal_to_snake_case,
 };
@@ -17,9 +17,10 @@ use crate::domain::EmailObject;
 
 use crate::routes::order::models::PaymentSettlementDetailModel;
 use crate::routes::order::schemas::{
-    CancellationFeeType, CommerceBPPTerms, FulfillmentCategoryType, FulfillmentStatusType,
-    IncoTermType, Payment, PaymentSettlementCounterparty, PaymentSettlementPhase,
-    PaymentSettlementType, PaymentStatus, ServiceableType, SettlementBasis,
+    CancellationFeeType, CommerceBPPTerms, CommerceStatusType, DocumentType,
+    FulfillmentCategoryType, FulfillmentStatusType, IncoTermType, Payment,
+    PaymentSettlementCounterparty, PaymentSettlementPhase, PaymentSettlementType, PaymentStatus,
+    ServiceableType, SettlementBasis,
 };
 use crate::routes::product::schemas::{FulfillmentType, PaymentType};
 use crate::schemas::{CurrencyType, FeeType};
@@ -39,7 +40,7 @@ pub enum ONDCVersion {
     V2point2,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum ONDCActionType {
     Search,
@@ -248,6 +249,8 @@ pub enum ONDCSellerErrorCode {
     SellerProviderNotFoundError,
     #[serde(rename = "30009")]
     SellerServiceabilityError,
+    #[serde(rename = "31004")]
+    SellerPaymentFailure,
 }
 
 #[allow(clippy::enum_variant_names)]
@@ -1936,10 +1939,33 @@ impl FromRequest for ONDCOnInitRequest {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
 pub enum ONDCOrderStatus {
     Created,
     Accepted,
     Completed,
+    Cancelled,
+    #[serde(rename = "In-progress")]
+    InProgress,
+}
+
+impl ONDCOrderStatus {
+    pub fn get_commerce_status(
+        &self,
+        record_type: &OrderType,
+        proforma_present: Option<bool>,
+    ) -> CommerceStatusType {
+        match (self, record_type, proforma_present) {
+            (ONDCOrderStatus::Accepted, OrderType::PurchaseOrder, Some(false)) => {
+                CommerceStatusType::Created
+            }
+            (ONDCOrderStatus::Accepted, _, _) => CommerceStatusType::Accepted,
+            (ONDCOrderStatus::Created, _, _) => CommerceStatusType::Created,
+            (ONDCOrderStatus::Completed, _, _) => CommerceStatusType::Completed,
+            (ONDCOrderStatus::Cancelled, _, _) => CommerceStatusType::Cancelled,
+            (ONDCOrderStatus::InProgress, _, _) => CommerceStatusType::InProgress,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -2062,11 +2088,19 @@ pub struct ONDCFulfillmentTime {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCFulfillmentInstruction {
+    pub name: String,
+    pub short_desc: String,
+    pub images: Option<Vec<String>>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ONDConfirmFulfillmentEnd {
     pub r#type: ONDCFulfillmentStopType,
     pub location: ONDConfirmFulfillmentLocationType,
     pub contact: ONDCContact,
     pub time: ONDCFulfillmentTime,
+    pub instructions: Option<ONDCFulfillmentInstruction>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -2085,6 +2119,15 @@ impl ONDCOnConfirmFulfillment {
     pub fn get_fulfillment_start(&self) -> Option<&ONDCConfirmFulfillmentStartLocation> {
         self.stops.iter().find_map(|stop| {
             if let ONDConfirmFulfillmentLocationType::Start(ref start_location) = stop.location {
+                Some(start_location)
+            } else {
+                None
+            }
+        })
+    }
+    pub fn get_fulfillment_end(&self) -> Option<&ONDCConfirmFulfillmentEndLocation> {
+        self.stops.iter().find_map(|stop| {
+            if let ONDConfirmFulfillmentLocationType::End(ref start_location) = stop.location {
                 Some(start_location)
             } else {
                 None
@@ -2110,6 +2153,19 @@ impl ONDCOnConfirmFulfillment {
         self.stops.iter().find_map(|stop| {
             if stop.r#type == fulfillment_type {
                 Some(&stop.time)
+            } else {
+                None
+            }
+        })
+    }
+
+    pub fn get_fulfillment_instruction(
+        &self,
+        fulfillment_type: ONDCFulfillmentStopType,
+    ) -> Option<&ONDCFulfillmentInstruction> {
+        self.stops.iter().find_map(|stop| {
+            if stop.r#type == fulfillment_type {
+                stop.instructions.as_ref()
             } else {
                 None
             }
@@ -2190,7 +2246,6 @@ pub struct WSConfirm<'a> {
     pub transaction_id: Uuid,
     #[schema(value_type = String)]
     pub message_id: Uuid,
-    pub action_type: WebSocketActionType,
     pub error: Option<&'a str>,
     pub data: Option<WSConfirmData<'a>>,
 }
@@ -2250,7 +2305,88 @@ pub struct ONDCStatusMessage {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct ONDStatusRequest {
+pub struct ONDCStatusRequest {
     pub context: ONDCContext,
     pub message: ONDCStatusMessage,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WSStatus {
+    #[schema(value_type = String)]
+    pub transaction_id: Uuid,
+    #[schema(value_type = String)]
+    pub message_id: Uuid,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+
+pub enum ONDCDocumentType {
+    #[serde(rename = "PROFORMA_INVOICE")]
+    ProformaInvoice,
+    #[serde(rename = "Invoice")]
+    Invoice,
+}
+impl ONDCDocumentType {
+    pub fn get_document_type(&self) -> DocumentType {
+        match self {
+            ONDCDocumentType::ProformaInvoice => DocumentType::ProformaInvoice,
+            ONDCDocumentType::Invoice => DocumentType::Invoice,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCDocument {
+    pub label: ONDCDocumentType,
+    pub url: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCOnStatusOrder {
+    pub provider: ONDCConfirmProvider,
+    pub state: ONDCOrderStatus,
+    pub id: String,
+    pub payments: Vec<ONDCOnConfirmPayment>,
+    pub quote: ONDCQuote,
+    pub items: Vec<ONDCSelectedItem>,
+    pub billing: ONDCBilling,
+    #[serde(serialize_with = "serialize_timestamp_without_nanos")]
+    pub created_at: DateTime<Utc>,
+    #[serde(serialize_with = "serialize_timestamp_without_nanos")]
+    pub updated_at: DateTime<Utc>,
+    pub fulfillments: Vec<ONDCOnConfirmFulfillment>,
+    pub documents: Option<Vec<ONDCDocument>>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCOnStatusMessage {
+    pub order: ONDCOnStatusOrder,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCOnStatusRequest {
+    pub context: ONDCContext,
+    pub message: ONDCOnStatusMessage,
+    pub error: Option<ONDCResponseErrorBody<ONDCSellerErrorCode>>,
+}
+
+impl FromRequest for ONDCOnStatusRequest {
+    type Error = ONDCBuyerError;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
+
+    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+        let fut = web::Json::<Self>::from_request(req, payload);
+
+        Box::pin(async move {
+            match fut.await {
+                Ok(json) => Ok(json.into_inner()),
+                Err(e) => Err(ONDCBuyerError::InvalidResponseError {
+                    path: None,
+                    message: e.to_string(),
+                }),
+            }
+        })
+    }
 }
