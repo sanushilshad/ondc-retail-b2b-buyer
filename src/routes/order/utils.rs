@@ -11,7 +11,7 @@ use super::schemas::{
     CommerceItem, CommercePayment, CommerceSeller, DocumentType, DropOffData, FulfillmentContact,
     FulfillmentLocation, OrderSelectFulfillment, OrderSelectRequest, PaymentSettlementDetail,
     PickUpData, PickUpFulfillmentLocation, SelectFulfillmentLocation, SellerPaymentDetail,
-    TimeRange,
+    TimeRange, TradeType,
 };
 use crate::constants::ONDC_TTL;
 use crate::routes::ondc::schemas::{
@@ -101,8 +101,8 @@ pub async fn save_rfq_order(
     let query = sqlx::query!(
         r#"
         INSERT INTO commerce_data (id, external_urn, record_type, record_status, 
-        domain_category_code, buyer_id, seller_id, seller_name, buyer_name, source, created_on, created_by, bpp_id, bpp_uri, bap_id, bap_uri, is_import, quote_ttl, city_code, country_code)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+        domain_category_code, buyer_id, seller_id, seller_name, buyer_name, source, created_on, created_by, bpp_id, bpp_uri, bap_id, bap_uri, quote_ttl, city_code, country_code)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
         ON CONFLICT (external_urn) 
         DO NOTHING
         "#,
@@ -122,7 +122,6 @@ pub async fn save_rfq_order(
         bpp_detail.subscriber_url,
         &bap_detail.subscriber_id,
         &bap_detail.subscriber_uri,
-        &select_request.is_import,
         &select_request.ttl,
         &select_request.fulfillments[0].location.city.code,
         &select_request.fulfillments[0].location.country.code as &CountryCode,
@@ -217,6 +216,7 @@ pub async fn save_rfq_fulfillment(
     order_id: Uuid,
     fulfillments: &Vec<OrderSelectFulfillment>,
     pick_up_location: &ONDCSellerLocationInfo,
+    seller_location_map: &HashMap<String, ONDCSellerLocationInfo>,
 ) -> Result<(), anyhow::Error> {
     // delete_fulfillment_by_order_id(transaction, order_id).await?;
     let mut id_list = vec![];
@@ -227,7 +227,9 @@ pub async fn save_rfq_fulfillment(
     let mut incoterms_list = vec![];
     let mut delivery_place_list = vec![];
     let mut pick_up_data_list = vec![];
+    let mut trade_type_list = vec![];
     let pick_up_data = get_pick_up_location_from_ondc_seller_fulfillment(pick_up_location);
+    let location_obj = seller_location_map.iter().next().unwrap();
     for fulfillment in fulfillments {
         order_list.push(order_id);
         id_list.push(Uuid::new_v4());
@@ -251,27 +253,38 @@ pub async fn save_rfq_fulfillment(
         );
 
         pick_up_data_list.push(serde_json::to_value(pick_up_data.clone()).unwrap());
+        trade_type_list.push(
+            if location_obj.1.country_code != fulfillment.location.country.code {
+                TradeType::Import
+            } else {
+                TradeType::Domestic
+            },
+        );
     }
-    let query = sqlx::query!(
-        r#"
-        INSERT INTO commerce_fulfillment_data (id, commerce_data_id, fulfillment_id, fulfillment_type, inco_terms, place_of_delivery, drop_off_data,pickup_data)
-        SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::text[], $4::fulfillment_type[],$5::inco_term_type [], $6::text[], $7::jsonb[],  $8::jsonb[]);
-        "#,
-        &id_list[..] as &[Uuid],
-        &order_list[..] as &[Uuid],
-        &fulfillment_id_list[..] as &[&str],
-        &fulfillment_type_list[..] as &[&FulfillmentType],
-        &incoterms_list[..] as &[Option<&IncoTermType>],
-        &delivery_place_list[..] as &[Option<&str>],
-        &drop_off_data_list[..] as &[Value],
-        &pick_up_data_list[..] as &[Value]
-    );
+    if !id_list.is_empty() {
+        let query = sqlx::query!(
+            r#"
+            INSERT INTO commerce_fulfillment_data (id, commerce_data_id, fulfillment_id, fulfillment_type, inco_terms, place_of_delivery, drop_off_data, pickup_data, trade_type)
+            SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::text[], $4::fulfillment_type[],$5::inco_term_type [], $6::text[], $7::jsonb[],  $8::jsonb[], $9::trade_type[]);
+            "#,
+            &id_list[..] as &[Uuid],
+            &order_list[..] as &[Uuid],
+            &fulfillment_id_list[..] as &[&str],
+            &fulfillment_type_list[..] as &[&FulfillmentType],
+            &incoterms_list[..] as &[Option<&IncoTermType>],
+            &delivery_place_list[..] as &[Option<&str>],
+            &drop_off_data_list[..] as &[Value],
+            &pick_up_data_list[..] as &[Value],
+            &trade_type_list[..] as &[TradeType]
+        );
 
-    transaction.execute(query).await.map_err(|e| {
-        tracing::error!("Failed to execute query: {:?}", e);
-        anyhow::Error::new(e)
-            .context("A database failure occurred while saving RFQ to database request")
-    })?;
+        transaction.execute(query).await.map_err(|e| {
+            tracing::error!("Failed to execute query: {:?}", e);
+            anyhow::Error::new(e)
+                .context("A database failure occurred while saving RFQ to database request")
+        })?;
+    }
+
     Ok(())
 }
 
@@ -432,6 +445,7 @@ pub async fn initialize_order_select(
     select_request: &OrderSelectRequest,
     bap_detail: &RegisteredNetworkParticipant,
     bpp_detail: &LookupData,
+    seller_location_map: &HashMap<String, ONDCSellerLocationInfo>,
 ) -> Result<(), anyhow::Error> {
     let item_code_list: Vec<&str> = select_request
         .items
@@ -439,31 +453,16 @@ pub async fn initialize_order_select(
         .map(|item| item.item_id.as_str())
         .collect();
 
-    let location_id_list: Vec<String> = select_request
-        .items
-        .iter()
-        .flat_map(|item| item.location_ids.clone())
-        .collect::<HashSet<_>>()
-        .into_iter()
-        .collect();
     let task1 = get_ondc_seller_product_info_mapping(
         pool,
         &bpp_detail.subscriber_id,
         &select_request.provider_id,
         &item_code_list,
     );
-    let task2 = get_ondc_seller_location_info_mapping(
-        pool,
-        &bpp_detail.subscriber_id,
-        &select_request.provider_id,
-        &location_id_list,
-    );
-    let task3 =
+    let task2 =
         fetch_ondc_seller_info(pool, &bpp_detail.subscriber_id, &select_request.provider_id);
-    let (seller_product_map_res, seller_location_map_res, seller_info_map_res) =
-        futures::future::join3(task1, task2, task3).await;
+    let (seller_product_map_res, seller_info_map_res) = futures::future::join(task1, task2).await;
     let seller_product_map = seller_product_map_res?;
-    let seller_location_map = seller_location_map_res?;
     let seller_info_map = seller_info_map_res?;
 
     let pick_up_location = seller_location_map
@@ -496,6 +495,7 @@ pub async fn initialize_order_select(
         order_id,
         &select_request.fulfillments,
         pick_up_location,
+        seller_location_map,
     )
     .await?;
 
@@ -601,11 +601,21 @@ pub async fn save_on_select_fulfillment(
     let mut servicable_status_list = vec![];
     let mut tracking_list = vec![];
     let drop_off_data = create_drop_off_from_ondc_select_fulfullment(select_fulfillment);
+    let trade_type = if let Some(drop_off_data_obj) = &drop_off_data {
+        if pick_up_location.country_code != drop_off_data_obj.location.country {
+            Some(&TradeType::Import)
+        } else {
+            Some(&TradeType::Domestic)
+        }
+    } else {
+        None
+    };
     let drop_off_data_json = serde_json::to_value(drop_off_data).unwrap_or_default();
     let mut pickup_data_list = vec![];
     let mut delivery_charge_list = vec![];
     let mut packaging_charge_list = vec![];
     let mut convenience_fee_list = vec![];
+    let mut trade_type_list = vec![];
     let delivery_charge_mapping =
         get_quote_item_value_mapping(ondc_quote, &BreakupTitleType::Delivery);
     let packaging_charge_mapping =
@@ -667,15 +677,16 @@ pub async fn save_on_select_fulfillment(
                 .cloned()
                 .unwrap_or(BigDecimal::from(0)),
         );
+        trade_type_list.push(trade_type);
     }
     let query = sqlx::query!(
         r#"
         INSERT INTO commerce_fulfillment_data (id, commerce_data_id, fulfillment_id, fulfillment_type, inco_terms, 
             place_of_delivery, drop_off_data, pickup_data, provider_name, servicable_status, tracking, tat, category, packaging_charge,
-            delivery_charge, convenience_fee)
+            delivery_charge, convenience_fee, trade_type)
         SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::text[], $4::fulfillment_type[],$5::inco_term_type [], $6::text[],
              $7::jsonb[], $8::jsonb[], $9::text[], $10::fulfillment_servicability_status[], $11::bool[], $12::text[],
-            $13::fulfillment_category_type[], $14::decimal[], $15::decimal[], $16::decimal[]);
+            $13::fulfillment_category_type[], $14::decimal[], $15::decimal[], $16::decimal[], $17::trade_type[]);
         "#,
         &id_list[..] as &[Uuid],
         &order_list[..] as &[Uuid],
@@ -692,7 +703,8 @@ pub async fn save_on_select_fulfillment(
         &category_list[..] as &[FulfillmentCategoryType],
         &packaging_charge_list[..] as &[BigDecimal],
         &delivery_charge_list[..] as &[BigDecimal],
-        &convenience_fee_list[..] as &[BigDecimal]
+        &convenience_fee_list[..] as &[BigDecimal],
+        &trade_type_list[..] as &[Option<&TradeType>]
     );
 
     transaction.execute(query).await.map_err(|e| {
@@ -715,7 +727,6 @@ pub async fn save_buyer_order_data_on_select(
     let grand_total =
         BigDecimal::from_str(&ondc_on_select_req.message.order.quote.price.value).unwrap();
     let order_id = Uuid::new_v4();
-    let is_import = ondc_select_req.message.order.fulfillments[0].tags.is_some();
     let mut created_on = ondc_on_select_req.context.timestamp;
     let mut order_type = OrderType::SaleOrder;
     if ondc_select_req.context.ttl != ONDC_TTL {
@@ -731,8 +742,8 @@ pub async fn save_buyer_order_data_on_select(
         r#"
         INSERT INTO commerce_data (id, external_urn, record_type, record_status,
         domain_category_code, buyer_id, seller_id, seller_name, buyer_name, source, created_on, created_by, bpp_id, bpp_uri,
-        bap_id, bap_uri, is_import, quote_ttl, updated_on, currency_code, grand_total, city_code, country_code)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
+        bap_id, bap_uri, quote_ttl, updated_on, currency_code, grand_total, city_code, country_code)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
         ON CONFLICT (external_urn)
         DO UPDATE SET
         record_status = EXCLUDED.record_status,
@@ -756,7 +767,6 @@ pub async fn save_buyer_order_data_on_select(
         ondc_on_select_req.context.bpp_uri.as_deref().unwrap_or(""),
         &ondc_on_select_req.context.bap_id,
         &ondc_on_select_req.context.bap_uri,
-        is_import,
         &ondc_select_req.context.ttl,
         ondc_select_req.context.timestamp,
         &ondc_on_select_req.message.order.quote.price.currency as &CurrencyType,
@@ -1162,7 +1172,7 @@ async fn get_commerce_data(
            domain_category_code as "domain_category_code:CategoryDomain", 
            buyer_id, seller_id, buyer_name, seller_name, source as "source:DataSource", 
            created_on, updated_on, deleted_on, is_deleted, created_by, grand_total, 
-           bpp_id, bpp_uri, bap_id, bap_uri, is_import, quote_ttl,
+           bpp_id, bpp_uri, bap_id, bap_uri, quote_ttl,
            currency_code as "currency_code?:CurrencyType", city_code,
            country_code as "country_code:CountryCode",
            billing as "billing?:  Json<OrderBillingModel>",
@@ -1290,7 +1300,8 @@ async fn get_commerce_fulfillments(
             tracking,
             packaging_charge,
             delivery_charge,
-            convenience_fee
+            convenience_fee,
+            trade_type as "trade_type?: TradeType"
         FROM commerce_fulfillment_data 
         WHERE commerce_data_id = $1
         "#,
@@ -1344,7 +1355,7 @@ fn get_order_payment_from_model(payments: Vec<CommercePaymentModel>) -> Vec<Comm
             id: payment.id,
             collected_by: payment.collected_by,
             payment_type: payment.payment_type,
-            seller_payment_detail: seller_payment_detail,
+            seller_payment_detail,
             buyer_fee_type: payment.buyer_fee_type,
             buyer_fee_amount: payment.buyer_fee_amount.map(|v| v.to_string()),
             settlement_basis: payment.settlement_basis,
@@ -1565,7 +1576,6 @@ fn get_order_from_model(
             id: order.bpp_id,
             uri: order.bpp_uri,
         },
-        is_import: order.is_import,
         quote_ttl: order.quote_ttl,
         city_code: order.city_code,
         country_code: order.country_code,
@@ -1918,15 +1928,12 @@ pub fn create_pickup_off_from_on_confirm_fulfullment(
     time_rage: Option<&ONDCFulfillmentTime>,
     fulfillment_instruction: Option<&ONDCFulfillmentInstruction>,
 ) -> PickUpDataModel {
-    let instruction = if let Some(fulfillment_instruction) = fulfillment_instruction {
-        Some(FulfillmentInstruction {
+    let instruction =
+        fulfillment_instruction.map(|fulfillment_instruction| FulfillmentInstruction {
             short_desc: fulfillment_instruction.short_desc.clone(),
             name: fulfillment_instruction.name.clone(),
             images: fulfillment_instruction.images.clone(),
-        })
-    } else {
-        None
-    };
+        });
     PickUpDataModel {
         location: PickUpLocationModel {
             gps: fulfillment.gps.clone(),
@@ -2236,15 +2243,12 @@ pub fn create_drop_off_from_on_status_fulfullment(
     time_rage: Option<&ONDCFulfillmentTime>,
     fulfillment_instruction: Option<&ONDCFulfillmentInstruction>,
 ) -> DropOffDataModel {
-    let instruction = if let Some(fulfillment_instruction) = fulfillment_instruction {
-        Some(FulfillmentInstruction {
+    let instruction =
+        fulfillment_instruction.map(|fulfillment_instruction| FulfillmentInstruction {
             short_desc: fulfillment_instruction.short_desc.clone(),
             name: fulfillment_instruction.name.clone(),
             images: fulfillment_instruction.images.clone(),
-        })
-    } else {
-        None
-    };
+        });
     DropOffDataModel {
         location: DropOffLocationModel {
             gps: fulfillment.gps.clone(),
@@ -2274,15 +2278,12 @@ pub fn create_pickup_off_from_on_status_fulfullment(
     time_rage: Option<&ONDCFulfillmentTime>,
     fulfillment_instruction: Option<&ONDCFulfillmentInstruction>,
 ) -> PickUpDataModel {
-    let instruction = if let Some(fulfillment_instruction) = fulfillment_instruction {
-        Some(FulfillmentInstruction {
+    let instruction =
+        fulfillment_instruction.map(|fulfillment_instruction| FulfillmentInstruction {
             short_desc: fulfillment_instruction.short_desc.clone(),
             name: fulfillment_instruction.name.clone(),
             images: fulfillment_instruction.images.clone(),
-        })
-    } else {
-        None
-    };
+        });
     PickUpDataModel {
         location: PickUpLocationModel {
             gps: fulfillment.gps.clone(),
@@ -2320,23 +2321,23 @@ async fn update_commerce_fulfillment_in_on_status(
         .collect();
     for status_fulfillment in status_fulfillments {
         if let Some(order_fulfillment) = order_fulfillment_map.get(&status_fulfillment.id) {
-            let pick_up_data = if let Some(ondc_start) = status_fulfillment.get_fulfillment_start()
-            {
-                Some(create_pickup_off_from_on_status_fulfullment(
-                    ondc_start,
-                    status_fulfillment
-                        .get_fulfillment_contact(ONDCFulfillmentStopType::Start)
-                        .unwrap(),
-                    &order_fulfillment.pickup,
-                    status_fulfillment.get_fulfillment_time(ONDCFulfillmentStopType::Start),
-                    status_fulfillment.get_fulfillment_instruction(ONDCFulfillmentStopType::Start),
-                ))
-            } else {
-                None
-            };
+            let pick_up_data = status_fulfillment
+                .get_fulfillment_start()
+                .map(|ondc_start| {
+                    create_pickup_off_from_on_status_fulfullment(
+                        ondc_start,
+                        status_fulfillment
+                            .get_fulfillment_contact(ONDCFulfillmentStopType::Start)
+                            .unwrap(),
+                        &order_fulfillment.pickup,
+                        status_fulfillment.get_fulfillment_time(ONDCFulfillmentStopType::Start),
+                        status_fulfillment
+                            .get_fulfillment_instruction(ONDCFulfillmentStopType::Start),
+                    )
+                });
             let drop_off_data = if let Some(order_drop_off) = &order_fulfillment.drop_off {
-                if let Some(ondc_end) = status_fulfillment.get_fulfillment_end() {
-                    Some(create_drop_off_from_on_status_fulfullment(
+                status_fulfillment.get_fulfillment_end().map(|ondc_end| {
+                    create_drop_off_from_on_status_fulfullment(
                         ondc_end,
                         status_fulfillment
                             .get_fulfillment_contact(ONDCFulfillmentStopType::End)
@@ -2345,10 +2346,8 @@ async fn update_commerce_fulfillment_in_on_status(
                         status_fulfillment.get_fulfillment_time(ONDCFulfillmentStopType::End),
                         status_fulfillment
                             .get_fulfillment_instruction(ONDCFulfillmentStopType::End),
-                    ))
-                } else {
-                    None
-                }
+                    )
+                })
             } else {
                 None
             };

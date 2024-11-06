@@ -8,4 +8,5 @@ pub fn ondc_route(cfg: &mut web::ServiceConfig) {
     cfg.service(web::resource("/on_init").route(web::post().to(on_init)));
     cfg.service(web::resource("/on_confirm").route(web::post().to(on_confirm)));
     cfg.service(web::resource("/on_status").route(web::post().to(on_status)));
+    cfg.service(web::resource("/on_cancel").route(web::post().to(on_status)));
 }

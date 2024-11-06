@@ -10,7 +10,7 @@ use uuid::Uuid;
 use super::schemas::{
     CancellationFeeType, CommerceStatusType, DocumentType, FulfillmentCategoryType,
     FulfillmentStatusType, IncoTermType, OrderType, PaymentSettlementCounterparty,
-    PaymentSettlementPhase, PaymentSettlementType, ServiceableType, SettlementBasis,
+    PaymentSettlementPhase, PaymentSettlementType, ServiceableType, SettlementBasis, TradeType,
 };
 use crate::domain::EmailObject;
 #[derive(Debug, Serialize, Deserialize, FromRow)]
@@ -58,7 +58,6 @@ pub struct CommerceDataModel {
     pub bpp_uri: String,
     pub bap_id: String,
     pub bap_uri: String,
-    pub is_import: bool,
     pub quote_ttl: String,
     pub currency_code: Option<CurrencyType>,
     pub city_code: String,
@@ -145,6 +144,7 @@ pub struct CommerceFulfillmentModel {
     pub packaging_charge: BigDecimal,
     pub delivery_charge: BigDecimal,
     pub convenience_fee: BigDecimal,
+    pub trade_type: Option<TradeType>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

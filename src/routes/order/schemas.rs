@@ -186,7 +186,6 @@ pub struct OrderSelectRequest {
     pub fulfillments: Vec<OrderSelectFulfillment>,
     pub order_type: OrderType,
     pub bpp_id: String,
-    pub is_import: bool,
 }
 
 impl FromRequest for OrderSelectRequest {
@@ -529,7 +528,6 @@ pub struct Commerce {
     pub grand_total: Option<BigDecimal>,
     pub bap: BasicNetWorkData,
     pub bpp: BasicNetWorkData,
-    pub is_import: bool,
     pub quote_ttl: String,
     pub city_code: String,
     pub country_code: CountryCode,
@@ -687,4 +685,37 @@ pub enum DocumentType {
 pub struct CommerceDocument {
     pub r#type: DocumentType,
     pub url: String,
+}
+
+#[derive(Deserialize, Debug, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct OrderCancelRequest {
+    #[schema(value_type = String)]
+    pub transaction_id: Uuid,
+    #[schema(value_type = String)]
+    pub message_id: Uuid,
+    pub reason_id: String,
+}
+impl FromRequest for OrderCancelRequest {
+    type Error = GenericError;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
+
+    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+        let fut = web::Json::<Self>::from_request(req, payload);
+
+        Box::pin(async move {
+            match fut.await {
+                Ok(json) => Ok(json.into_inner()),
+                Err(e) => Err(GenericError::ValidationError(e.to_string())),
+            }
+        })
+    }
+}
+
+#[derive(Deserialize, Debug, ToSchema, sqlx::Type)]
+#[serde(rename_all = "snake_case")]
+#[sqlx(type_name = "trade_type", rename_all = "snake_case")]
+pub enum TradeType {
+    Import,
+    Domestic,
 }

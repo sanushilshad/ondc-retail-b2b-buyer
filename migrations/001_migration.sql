@@ -453,7 +453,7 @@ CREATE TABLE IF NOT EXISTS commerce_data(
   bpp_uri TEXT NOT NULL,
   bap_id TEXT NOT NULL,
   bap_uri TEXT NOT NULL,
-  is_import BOOLEAN NOT NULL,
+
   quote_ttl TEXT NOT NULL,
   currency_code currency_code_type,
   city_code TEXT NOT NULL,
@@ -520,6 +520,11 @@ CREATE TYPE fulfillment_category_type AS ENUM (
   'self_pickup'
 );
 
+CREATE TYPE trade_type  AS ENUM (
+  'domestic',
+  'import'
+);
+
 CREATE TABLE IF NOT EXISTS commerce_fulfillment_data(
   id uuid PRIMARY KEY,
   commerce_data_id uuid NOT NULL,
@@ -536,6 +541,7 @@ CREATE TABLE IF NOT EXISTS commerce_fulfillment_data(
   provider_name TEXT,
   tat TEXT,
   tracking BOOLEAN,
+  trade_type trade_type,
   category fulfillment_category_type,
   servicable_status fulfillment_servicability_status,
   pickup_data JSONB NOT NULL,

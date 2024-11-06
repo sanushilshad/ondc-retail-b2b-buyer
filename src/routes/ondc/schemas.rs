@@ -2390,3 +2390,15 @@ impl FromRequest for ONDCOnStatusRequest {
         })
     }
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCCancelMessage {
+    pub order_id: String,
+    pub cancellation_reason_id: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCCancelRequest {
+    pub context: ONDCContext,
+    pub message: ONDCCancelMessage,
+}

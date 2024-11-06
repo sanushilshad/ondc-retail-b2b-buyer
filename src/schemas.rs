@@ -67,7 +67,7 @@ pub enum CommunicationType {
     Type1,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, ToSchema, sqlx::Type)]
+#[derive(Debug, Deserialize, Serialize, Clone, ToSchema, sqlx::Type, PartialEq)]
 #[sqlx(rename_all = "UPPERCASE", type_name = "country_code")]
 #[serde(rename_all = "UPPERCASE")]
 pub enum CountryCode {

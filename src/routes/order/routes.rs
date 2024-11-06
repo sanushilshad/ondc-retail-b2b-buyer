@@ -36,14 +36,21 @@ pub fn order_route(cfg: &mut web::ServiceConfig) {
                 .wrap(RequireAuth),
         ),
     );
+
     cfg.service(
-        web::resource("/status").route(
-            web::post()
-                .to(order_status)
-                .wrap(BusinessAccountValidation {
-                    business_type_list: vec![CustomerType::RetailB2bBuyer],
-                })
-                .wrap(RequireAuth),
-        ),
+        web::resource("/status")
+            .route(web::post().to(order_status))
+            .wrap(BusinessAccountValidation {
+                business_type_list: vec![CustomerType::RetailB2bBuyer],
+            })
+            .wrap(RequireAuth),
+    );
+    cfg.service(
+        web::resource("/cancel")
+            .route(web::post().to(order_status))
+            .wrap(BusinessAccountValidation {
+                business_type_list: vec![CustomerType::RetailB2bBuyer],
+            })
+            .wrap(RequireAuth),
     );
 }

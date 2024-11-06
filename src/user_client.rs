@@ -30,7 +30,8 @@ use actix_web::{FromRequest, HttpMessage};
 use serde::Deserialize;
 use std::fmt::Debug;
 use std::future::{ready, Ready};
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 #[serde(rename_all = "snake_case")]
 pub enum UserType {
     Guest,
@@ -150,13 +151,6 @@ pub enum CustomerType {
     PaymentAggregator,
     VirtualOperator,
     ExternalPartner,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
-#[serde(rename_all = "snake_case")]
-pub enum TradeType {
-    Domestic,
-    Export,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
@@ -322,6 +316,3 @@ impl UserClient {
         }
     }
 }
-
-
-

@@ -1,8 +1,8 @@
 use super::{
-    BreakupTitleType, LookupData, LookupRequest, ONDCActionType, ONDCBreakUp, ONDCConfirmMessage,
-    ONDCConfirmOrder, ONDCConfirmProvider, ONDCContext, ONDCContextCity, ONDCContextCountry,
-    ONDCContextLocation, ONDCDomain, ONDCFeeType, ONDCSearchStop, ONDCStatusMessage,
-    ONDCStatusRequest, ONDCTag, ONDCVersion, OndcUrl,
+    BreakupTitleType, LookupData, LookupRequest, ONDCActionType, ONDCBreakUp, ONDCCancelMessage,
+    ONDCCancelRequest, ONDCConfirmMessage, ONDCConfirmOrder, ONDCConfirmProvider, ONDCContext,
+    ONDCContextCity, ONDCContextCountry, ONDCContextLocation, ONDCDomain, ONDCFeeType,
+    ONDCSearchStop, ONDCStatusMessage, ONDCStatusRequest, ONDCTag, ONDCVersion, OndcUrl,
 };
 
 use crate::user_client::{BusinessAccount, UserAccount};
@@ -45,12 +45,12 @@ use crate::domain::EmailObject;
 use crate::routes::ondc::schemas::{ONDCCity, ONDCPerson, ONDCSellerInfo, OrderRequestParamsModel};
 use crate::routes::ondc::{ONDCErrorCode, ONDCResponse};
 use crate::routes::order::errors::{
-    ConfirmOrderError, InitOrderError, OrderStatusError, SelectOrderError,
+    ConfirmOrderError, InitOrderError, OrderCancelError, OrderStatusError, SelectOrderError,
 };
 use crate::routes::order::schemas::{
     BuyerTerms, CancellationFeeType, Commerce, CommerceBilling, CommerceCancellationFee,
     CommerceCancellationTerm, CommerceFulfillment, CommerceItem, CommercePayment, DropOffData,
-    OrderConfirmRequest, OrderDeliveyTerm, OrderInitBilling, OrderInitRequest,
+    OrderCancelRequest, OrderConfirmRequest, OrderDeliveyTerm, OrderInitBilling, OrderInitRequest,
     OrderSelectFulfillment, OrderSelectItem, OrderSelectRequest, OrderStatusRequest, OrderType,
     PickUpData, SelectFulfillmentLocation, SettlementBasis,
 };
@@ -930,11 +930,11 @@ fn get_ondc_select_fulfillment_end(
 
 #[tracing::instrument(name = "get ondc select message body", skip())]
 fn get_ondc_select_fulfillments(
-    is_import: bool,
+    seller_location_mapping: &HashMap<String, ONDCSellerLocationInfo>,
     fulfillments: &Vec<OrderSelectFulfillment>,
 ) -> Vec<ONDCFulfillment> {
     let mut fulfillment_objs: Vec<ONDCFulfillment> = vec![];
-
+    let location_obj = seller_location_mapping.iter().next().unwrap();
     for fulfillment in fulfillments {
         let stops: Option<Vec<ONDCOrderFulfillmentEnd>> =
             if fulfillment.r#type == FulfillmentType::Delivery {
@@ -942,7 +942,8 @@ fn get_ondc_select_fulfillments(
             } else {
                 None
             };
-        let tags = if is_import {
+
+        let tags = if location_obj.1.country_code != fulfillment.location.country.code {
             get_fulfillment_tags(&fulfillment.delivery_terms)
         } else {
             None
@@ -964,6 +965,7 @@ fn get_ondc_select_message(
     user_account: &UserAccount,
     business_account: &BusinessAccount,
     order_request: &OrderSelectRequest,
+    seller_location_mapping: &HashMap<String, ONDCSellerLocationInfo>,
 ) -> Result<ONDCSelectMessage, SelectOrderError> {
     let location_ids: HashSet<&str> = order_request
         .items
@@ -986,7 +988,7 @@ fn get_ondc_select_message(
             payments: get_ondc_select_payment_obs(&order_request.payment_types),
 
             fulfillments: get_ondc_select_fulfillments(
-                order_request.is_import,
+                seller_location_mapping,
                 &order_request.fulfillments,
             ),
         },
@@ -1000,9 +1002,15 @@ pub fn get_ondc_select_payload(
     order_request: &OrderSelectRequest,
     bap_detail: &RegisteredNetworkParticipant,
     bpp_detail: &LookupData,
+    seller_location_mapping: &HashMap<String, ONDCSellerLocationInfo>,
 ) -> Result<ONDCSelectRequest, SelectOrderError> {
     let context = get_ondc_select_context(order_request, bap_detail, bpp_detail)?;
-    let message = get_ondc_select_message(user_account, business_account, order_request)?;
+    let message = get_ondc_select_message(
+        user_account,
+        business_account,
+        order_request,
+        seller_location_mapping,
+    )?;
     Ok(ONDCSelectRequest { context, message })
 }
 
@@ -2043,4 +2051,30 @@ pub fn get_ondc_status_payload(
         .ok_or_else(|| OrderStatusError::ValidationError("Order id is missing".to_owned()))?;
     let message = get_ondc_status_message(order_id);
     Ok(ONDCStatusRequest { context, message })
+}
+
+fn get_ondc_cancel_message(commerce_id: &str, reason_id: &str) -> ONDCCancelMessage {
+    ONDCCancelMessage {
+        order_id: commerce_id.to_owned(),
+        cancellation_reason_id: reason_id.to_owned(),
+    }
+}
+
+#[tracing::instrument(name = "get ondc cancel payload", skip())]
+pub fn get_ondc_cancel_payload(
+    order: &Commerce,
+    cancel_request: &OrderCancelRequest,
+) -> Result<ONDCCancelRequest, OrderCancelError> {
+    let context = get_ondc_context_from_order(
+        cancel_request.transaction_id,
+        cancel_request.message_id,
+        order,
+        ONDCActionType::Cancel,
+    )?;
+    let order_id = order
+        .urn
+        .as_deref()
+        .ok_or_else(|| OrderCancelError::ValidationError("Order id is missing".to_owned()))?;
+    let message = get_ondc_cancel_message(order_id, &cancel_request.reason_id);
+    Ok(ONDCCancelRequest { context, message })
 }

@@ -67,8 +67,6 @@ export EMAIL_CLIENT__TIMEOUT_MILLISECONDS=10000
 ## TARACING VARIABLES
 export OTEL_SERVICE_NAME="ondc-retail-b2b-buyer"
 export OTEL_EXPORTER_OTLP_TRACES_ENDPOINT="http://localhost:4317"
-# export OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:4318/v1/traces"
-# export OTEL_INSTRUMENTATION_HTTP_CAPTURE_HEADERS_SERVER_REQUEST="X-Request-*"
 
 ## LOG VARIABLES
 export TEST_LOG=True
@@ -166,7 +164,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [x] Move User module as a seperate service
 * [x] Develop status API
 * [x] Develop ONDC on status API
-* [ ] Develop cancel API
+* [x] Develop cancel API
 * [ ] Develop ONDC on cancel API
 * [ ] Develop update API
 * [ ] Develop ONDC on update API
@@ -176,6 +174,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [ ] Integrate BAP Payment Gateway
 * [ ] Develop Business Specific Config Module.
 * [ ] Develop & Integrate permission flow
+* [ ] Add Import flow
 
 ### MILESTONE 3:
 * [ ] Develop IGM issue API
@@ -195,9 +194,8 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [ ] Develop User Account Update API
 * [ ] Develop Password Reset API
 * [ ] Develop Order Fetch API
-
-
-* [ ] Integrate MeileiSeach
+* [ ] Develop Cancellation Code Fetch API
+* [ ] Integrate ElasticSearch
 * [ ] Integrate with notification microservice to enable WhatsApp, Email and SMS functionality
 
 ### MILESTONE 5:
