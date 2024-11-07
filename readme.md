@@ -177,6 +177,8 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [ ] Develop Business Specific Config Module.
 * [ ] Develop & Integrate permission flow
 * [ ] Add Import flow
+* [ ] Update websocket implementation to enable Background Sync.
+* [ ] Remove device wise notification push.
 
 ### MILESTONE 3:
 * [ ] Develop IGM issue API

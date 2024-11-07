@@ -15,6 +15,7 @@ pub enum WebSocketActionType {
     Init,
     Confirm,
     Status,
+    Cancel,
 }
 
 #[derive(Debug, Serialize, ToSchema)]

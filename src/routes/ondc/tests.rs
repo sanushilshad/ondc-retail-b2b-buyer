@@ -2,8 +2,8 @@
 mod tests {
     use uuid::Uuid;
 
-    use crate::routes::ondc::buyer::schemas::{ONDCFulfillmentType, ONDCPaymentType};
-    use crate::routes::ondc::buyer::utils::{
+    use crate::routes::ondc::schemas::{ONDCFulfillmentType, ONDCPaymentType};
+    use crate::routes::ondc::utils::{
         get_ondc_search_message_obj, get_ondc_search_payment_obj, get_search_fulfillment_obj,
     };
     use crate::routes::product::schemas::{
@@ -11,10 +11,10 @@ mod tests {
         ProductSearchRequest, ProductSearchType,
     };
     use crate::schemas::{CountryCode, RegisteredNetworkParticipant};
-    use crate::user_client::BusinessAccount;
-    use crate::utils::tests::{
+    use crate::tests::tests::{
         get_dummy_business_account, get_dummy_registed_np_detail, get_dummy_user_account,
     };
+    use crate::user_client::BusinessAccount;
     #[tokio::test]
     async fn test_payment_type() {
         let ondc_payment_type_res = get_ondc_search_payment_obj(&Some(PaymentType::CashOnDelivery));

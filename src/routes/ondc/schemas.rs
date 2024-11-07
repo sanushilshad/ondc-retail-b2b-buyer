@@ -2402,3 +2402,19 @@ pub struct ONDCCancelRequest {
     pub context: ONDCContext,
     pub message: ONDCCancelMessage,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCOnCancelRequest {
+    pub context: ONDCContext,
+    pub error: Option<ONDCResponseErrorBody<ONDCSellerErrorCode>>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WSCancel {
+    #[schema(value_type = String)]
+    pub transaction_id: Uuid,
+    #[schema(value_type = String)]
+    pub message_id: Uuid,
+    pub error: Option<String>,
+}

@@ -3,6 +3,7 @@ mod handlers;
 mod middlewares;
 mod routes;
 pub mod schemas;
+mod tests;
 pub mod utils;
 pub use middlewares::*;
 pub use routes::*;
