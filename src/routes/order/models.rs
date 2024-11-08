@@ -1,6 +1,6 @@
 use crate::routes::product::schemas::{CategoryDomain, FulfillmentType, PaymentType};
 use crate::schemas::DataSource;
-use crate::schemas::{CountryCode, CurrencyType, FeeType, ONDCNetworkType};
+use crate::schemas::{CountryCode, CurrencyType, FeeType};
 use bigdecimal::BigDecimal;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -9,8 +9,9 @@ use uuid::Uuid;
 
 use super::schemas::{
     CancellationFeeType, CommerceStatusType, DocumentType, FulfillmentCategoryType,
-    FulfillmentStatusType, IncoTermType, OrderType, PaymentSettlementCounterparty,
-    PaymentSettlementPhase, PaymentSettlementType, ServiceableType, SettlementBasis, TradeType,
+    FulfillmentStatusType, IncoTermType, OrderType, PaymentCollectedBy,
+    PaymentSettlementCounterparty, PaymentSettlementPhase, PaymentSettlementType, ServiceableType,
+    SettlementBasis, TradeType,
 };
 use crate::domain::EmailObject;
 #[derive(Debug, Serialize, Deserialize, FromRow)]
@@ -112,7 +113,7 @@ pub struct SellerPaymentDetailModel {
 #[derive(Deserialize, Debug)]
 pub struct CommercePaymentModel {
     pub id: Uuid,
-    pub collected_by: Option<ONDCNetworkType>,
+    pub collected_by: Option<PaymentCollectedBy>,
     pub payment_type: PaymentType,
     pub commerce_data_id: Uuid,
     pub buyer_fee_type: Option<FeeType>,

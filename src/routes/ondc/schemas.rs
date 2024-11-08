@@ -18,7 +18,7 @@ use crate::domain::EmailObject;
 use crate::routes::order::models::PaymentSettlementDetailModel;
 use crate::routes::order::schemas::{
     CancellationFeeType, CommerceBPPTerms, CommerceStatusType, DocumentType,
-    FulfillmentCategoryType, FulfillmentStatusType, IncoTermType, Payment,
+    FulfillmentCategoryType, FulfillmentStatusType, IncoTermType, Payment, PaymentCollectedBy,
     PaymentSettlementCounterparty, PaymentSettlementPhase, PaymentSettlementType, PaymentStatus,
     ServiceableType, SettlementBasis,
 };
@@ -251,6 +251,8 @@ pub enum ONDCSellerErrorCode {
     SellerServiceabilityError,
     #[serde(rename = "31004")]
     SellerPaymentFailure,
+    #[serde(rename = "50001")]
+    SellerCancelNotPossibleError,
 }
 
 #[allow(clippy::enum_variant_names)]
@@ -1374,7 +1376,7 @@ pub struct ONDCSelectedItem {
     pub location_ids: Vec<String>,
     pub fulfillment_ids: Vec<String>,
     pub quantity: ONDCQuantitySelect,
-
+    pub payment_ids: Option<Vec<String>>,
     pub tags: Option<Vec<ONDCTag>>,
 }
 
@@ -1414,14 +1416,14 @@ pub struct ONDCOnSelectMessage {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCOnSelectPayment {
     pub r#type: ONDCPaymentType,
-    pub collected_by: ONDCNetworkType,
+    pub collected_by: ONDCPaymentCollectedBy,
 }
 
 impl From<&ONDCOnSelectPayment> for Payment {
     fn from(ondc_payment_obj: &ONDCOnSelectPayment) -> Self {
         Payment {
             r#type: ondc_payment_obj.r#type.get_payment(),
-            collected_by: Some(ondc_payment_obj.collected_by.clone()),
+            collected_by: Some(ondc_payment_obj.collected_by.get_type()),
         }
     }
 }
@@ -1503,6 +1505,34 @@ pub enum BreakupTitleType {
     Refund,
 }
 
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+pub enum ONDCTitleName {
+    #[serde(rename = "Convenience Fee")]
+    ConvenienceFee,
+    #[serde(rename = "Delivery Charge")]
+    DeliveryCharge,
+    #[serde(rename = "Packing")]
+    Packing,
+    #[serde(rename = "Discount")]
+    Discount,
+    #[serde(rename = "Tax")]
+    Tax,
+}
+
+impl std::fmt::Display for ONDCTitleName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            ONDCTitleName::ConvenienceFee => "Convenience Fee",
+            ONDCTitleName::DeliveryCharge => "Delivery Charge",
+            ONDCTitleName::Packing => "Packing",
+            ONDCTitleName::Discount => "Discount",
+            ONDCTitleName::Tax => "Tax",
+        };
+
+        write!(f, "{}", s)
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCOrderItemQuantity {
     pub count: i32,
@@ -1517,7 +1547,7 @@ pub struct ONDCBreakupItemInfo {
 pub struct ONDCBreakUp {
     pub title: String,
     #[serde(rename = "@ondc/org/item_id")]
-    pub item_id: Option<String>,
+    pub item_id: String,
     #[serde(rename = "@ondc/org/title_type")]
     pub title_type: BreakupTitleType,
     pub price: ONDCAmount,
@@ -1529,7 +1559,7 @@ pub struct ONDCBreakUp {
 impl ONDCBreakUp {
     pub fn create(
         title: String,
-        item_id: Option<String>,
+        item_id: String,
         title_type: BreakupTitleType,
         price: ONDCAmount,
         quantity: Option<ONDCOrderItemQuantity>,
@@ -1768,17 +1798,17 @@ impl ONDCPaymentSettlementDetail {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCOnInitPayment {
     pub r#type: ONDCPaymentType,
-    pub collected_by: ONDCNetworkType,
+    pub collected_by: ONDCPaymentCollectedBy,
     #[serde(rename = "@ondc/org/buyer_app_finder_fee_type")]
     pub buyer_app_finder_fee_type: FeeType,
     #[serde(rename = "@ondc/org/buyer_app_finder_fee_amount")]
     pub buyer_app_finder_fee_amount: String,
     #[serde(rename = "@ondc/org/settlement_basis")]
-    pub settlement_basis: ONDCSettlementBasis,
+    pub settlement_basis: Option<ONDCSettlementBasis>,
     #[serde(rename = "@ondc/org/settlement_window")]
-    pub settlement_window: String,
+    pub settlement_window: Option<String>,
     #[serde(rename = "@ondc/org/withholding_amount")]
-    pub withholding_amount: String,
+    pub withholding_amount: Option<String>,
     #[serde(rename = "@ondc/org/settlement_details")]
     pub settlement_details: Option<Vec<ONDCPaymentSettlementDetail>>,
     pub uri: Option<String>,
@@ -1798,10 +1828,30 @@ pub struct ProviderLocation {
     id: String,
 }
 
+#[derive(Debug, Serialize, Deserialize, sqlx::Type, Clone, ToSchema, PartialEq)]
+pub enum ONDCPaymentCollectedBy {
+    #[serde(rename = "BAP")]
+    Bap,
+    #[serde(rename = "BPP")]
+    Bpp,
+    #[serde(rename = "buyer")]
+    Buyer,
+}
+
+impl ONDCPaymentCollectedBy {
+    pub fn get_type(&self) -> PaymentCollectedBy {
+        match self {
+            ONDCPaymentCollectedBy::Bap => PaymentCollectedBy::Bap,
+            ONDCPaymentCollectedBy::Bpp => PaymentCollectedBy::Bpp,
+            ONDCPaymentCollectedBy::Buyer => PaymentCollectedBy::Buyer,
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCInitPayment {
     pub r#type: ONDCPaymentType,
-    pub collected_by: ONDCNetworkType,
+    pub collected_by: ONDCPaymentCollectedBy,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -2025,8 +2075,9 @@ pub struct ONDCPaymentParams {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCOnConfirmPayment {
+    pub id: Option<String>,
     pub r#type: ONDCPaymentType,
-    pub collected_by: ONDCNetworkType,
+    pub collected_by: ONDCPaymentCollectedBy,
     #[serde(rename = "@ondc/org/buyer_app_finder_fee_type")]
     pub buyer_app_finder_fee_type: FeeType,
     #[serde(rename = "@ondc/org/buyer_app_finder_fee_amount")]
@@ -2403,10 +2454,62 @@ pub struct ONDCCancelRequest {
     pub message: ONDCCancelMessage,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ONDCReason {
+    pub id: String,
+}
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ONDCCancellation {
+    pub cancelled_by: String,
+    pub reason: ONDCReason,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCOnCancelOrder {
+    pub provider: ONDCConfirmProvider,
+    pub state: ONDCOrderStatus,
+    pub id: String,
+    pub payments: Vec<ONDCOnConfirmPayment>,
+    pub quote: ONDCQuote,
+    pub items: Vec<ONDCSelectedItem>,
+    pub billing: ONDCBilling,
+    pub cancellation: ONDCCancellation,
+    #[serde(serialize_with = "serialize_timestamp_without_nanos")]
+    pub created_at: DateTime<Utc>,
+    #[serde(serialize_with = "serialize_timestamp_without_nanos")]
+    pub updated_at: DateTime<Utc>,
+    pub fulfillments: Vec<ONDCOnConfirmFulfillment>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCOnCancelMessage {
+    pub order: ONDCOnCancelOrder,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCOnCancelRequest {
     pub context: ONDCContext,
+    pub message: ONDCOnCancelMessage,
     pub error: Option<ONDCResponseErrorBody<ONDCSellerErrorCode>>,
+}
+
+impl FromRequest for ONDCOnCancelRequest {
+    type Error = ONDCBuyerError;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
+
+    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+        let fut = web::Json::<Self>::from_request(req, payload);
+
+        Box::pin(async move {
+            match fut.await {
+                Ok(json) => Ok(json.into_inner()),
+                Err(e) => Err(ONDCBuyerError::InvalidResponseError {
+                    path: None,
+                    message: e.to_string(),
+                }),
+            }
+        })
+    }
 }
 
 #[derive(Debug, Serialize, ToSchema)]

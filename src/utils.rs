@@ -5,7 +5,7 @@ use crate::migration;
 use crate::models::RegisteredNetworkParticipantModel;
 use crate::routes::order::schemas::{PaymentSettlementPhase, PaymentSettlementType};
 use crate::schemas::{
-    CommunicationType, FeeType, ONDCNPType, RegisteredNetworkParticipant, Status,
+    CommunicationType, FeeType, ONDCNetworkType, RegisteredNetworkParticipant, Status,
 };
 use crate::schemas::{KycStatus, ONDCAuthParams};
 use crate::user_client::{BusinessAccount, UserVector, VectorType};
@@ -317,7 +317,7 @@ pub fn pascal_to_uppercase(pascal_case: &str) -> String {
 pub async fn get_network_participant_detail_model(
     pool: &PgPool,
     subscriber_id: &str,
-    network_participant_type: &ONDCNPType,
+    network_participant_type: &ONDCNetworkType,
 ) -> Result<Option<RegisteredNetworkParticipantModel>, anyhow::Error> {
     let row: Option<RegisteredNetworkParticipantModel> = sqlx::query_as!(
         RegisteredNetworkParticipantModel,
@@ -327,7 +327,7 @@ pub async fn get_network_participant_detail_model(
         bank_account_no, bank_ifsc_code, bank_beneficiary_name, bank_name, short_description 
         FROM registered_network_participant WHERE subscriber_id = $1 AND network_participant_type = $2"#,
         subscriber_id,
-        &network_participant_type as &ONDCNPType,
+        &network_participant_type as &ONDCNetworkType,
     )
     .fetch_optional(pool)
     .await?;
@@ -363,7 +363,7 @@ pub fn get_network_participant_detail_from_model(
 pub async fn get_np_detail(
     pool: &PgPool,
     subscriber_id: &str,
-    participant_type: &ONDCNPType,
+    participant_type: &ONDCNetworkType,
 ) -> Result<Option<RegisteredNetworkParticipant>, anyhow::Error> {
     let network_model =
         get_network_participant_detail_model(pool, subscriber_id, participant_type).await?;
@@ -432,7 +432,6 @@ pub fn create_authorization_header(
             signature
     ))
 }
-
 
 pub fn deserialize_non_empty_vector<'de, T, D>(deserializer: D) -> Result<Vec<T>, D::Error>
 where

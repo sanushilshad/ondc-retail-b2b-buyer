@@ -167,7 +167,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [x] Develop status API
 * [x] Develop ONDC on status API
 * [x] Develop cancel API
-* [ ] Develop ONDC on cancel API
+* [x] Develop ONDC on cancel API
 * [ ] Develop update API
 * [ ] Develop ONDC on update API
 

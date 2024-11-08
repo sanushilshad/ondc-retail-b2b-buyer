@@ -24,8 +24,10 @@ CREATE TABLE IF NOT EXISTS communication (
 
 CREATE TYPE network_participant_type AS ENUM (
   'buyer',
-  'seller'
+  'seller',
 );
+
+
 
 CREATE TYPE ondc_np_fee_type AS ENUM (
   'percent',
@@ -47,7 +49,8 @@ CREATE TABLE IF NOT EXISTS registered_network_participant (
   subscriber_id TEXT NOT NULL,
   subscriber_uri TEXT NOT NULL,
   signing_key TEXT NOT NULL,
-  network_participant_type network_participant_type NOT NULL,
+  network_participant_type ondc_network_participant_type NOT NULL,
+
   logo TEXT NOT NULL,
   long_description TEXT NOT NULL,
   short_description TEXT NOT NULL,
@@ -108,6 +111,12 @@ CREATE TABLE IF NOT EXISTS search_request (
 CREATE TYPE ondc_network_participant_type AS ENUM (
   'BAP',
   'BPP'
+);
+
+CREATE TYPE payment_collected_by_type AS ENUM(
+    'BAP',
+    'BPP',
+    'buyer'
 );
 
 
@@ -445,6 +454,7 @@ CREATE TABLE IF NOT EXISTS commerce_data(
   deleted_on timestamptz,
   is_deleted BOOLEAN NOT NULL DEFAULT false,
   created_by uuid NOT NULL,
+  refund_grand_total DECIMAL(20, 3),
   grand_total DECIMAL(20, 3),
   documents JSONB,
   buyer_chat_link TEXT,
@@ -478,6 +488,9 @@ CREATE TABLE IF NOT EXISTS commerce_data_line(
   fulfillment_ids JSONB,
   mrp DECIMAL(20, 3) NOT NULL DEFAULT 0.0,
   tax_value DECIMAL(20, 3) NOT NULL DEFAULT 0.0,
+  refunded_tax_value DECIMAL(20, 3),
+  refunded_discount_amount DECIMAL(20, 2),
+  refunded_gross_total DECIMAL(20, 2),
   unit_price DECIMAL(20, 3) NOT NULL DEFAULT 0.0,
   gross_total DECIMAL(20, 3) NOT NULL DEFAULT 0.0,
   available_qty DECIMAL(20, 2),
@@ -533,6 +546,9 @@ CREATE TABLE IF NOT EXISTS commerce_fulfillment_data(
   packaging_charge DECIMAL(20, 3) NOT NULL DEFAULT 0.0,
   delivery_charge DECIMAL(20, 3) NOT NULL DEFAULT 0.0,
   convenience_fee DECIMAL(20, 3) NOT NULL DEFAULT 0.0,
+  refunded_convenience_fee DECIMAL(20, 3),
+  refunded_delivery_charge DECIMAL(20, 3),
+  refunded_packaging_charge DECIMAL(20, 3),
   fulfillment_status commerce_fulfillment_status_type DEFAULT 'pending'::commerce_fulfillment_status_type NOT NULL,
   inco_terms inco_term_type,
   place_of_delivery TEXT,
@@ -583,7 +599,7 @@ CREATE TABLE IF NOT EXISTS commerce_payment_data(
   id uuid PRIMARY KEY,
   payment_id TEXT,
   commerce_data_id uuid NOT NULL,
-  collected_by ondc_network_participant_type,
+  collected_by payment_collected_by_type,
   payment_type payment_type,
   payment_status payment_status,
   payment_amount DECIMAL(20, 3),

@@ -1,9 +1,8 @@
 use crate::middleware::{BusinessAccountValidation, RequireAuth};
-use crate::routes::order::handlers::order_select;
 use crate::user_client::CustomerType;
 use actix_web::web;
 
-use super::handlers::{order_confirm, order_init, order_status};
+use super::handlers::{order_cancel, order_confirm, order_init, order_select, order_status};
 pub fn order_route(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::resource("/select").route(
@@ -47,7 +46,7 @@ pub fn order_route(cfg: &mut web::ServiceConfig) {
     );
     cfg.service(
         web::resource("/cancel")
-            .route(web::post().to(order_status))
+            .route(web::post().to(order_cancel))
             .wrap(BusinessAccountValidation {
                 business_type_list: vec![CustomerType::RetailB2bBuyer],
             })

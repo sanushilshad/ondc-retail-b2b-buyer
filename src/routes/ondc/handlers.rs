@@ -15,8 +15,8 @@ use super::{ONDCOnCancelRequest, ONDCOnStatusRequest, WSCancel, WSStatus};
 use crate::constants::ONDC_TTL;
 use crate::routes::ondc::{ONDCActionType, ONDCBuyerErrorCode, ONDCResponse};
 use crate::routes::order::utils::{
-    fetch_order_by_id, initialize_order_on_confirm, initialize_order_on_init,
-    initialize_order_on_select, initialize_order_on_status,
+    fetch_order_by_id, initialize_order_on_cancel, initialize_order_on_confirm,
+    initialize_order_on_init, initialize_order_on_select, initialize_order_on_status,
 };
 use crate::routes::product::schemas::WSSearchData;
 use crate::user_client::CustomerType;
@@ -281,13 +281,13 @@ pub async fn on_cancel(
     let (res1, res2) = futures::future::join(task1, task2).await;
     let order_request_model =
         res1.map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
-    let _order = res2
+    let order = res2
         .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?
         .ok_or(ONDCBuyerError::BuyerResponseSequenceError { path: None })?;
 
-    // initialize_order_on_status(&pool, &body, &order)
-    //     .await
-    //     .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
+    initialize_order_on_cancel(&pool, &body, &order)
+        .await
+        .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
     if let Some(order_request_model) = order_request_model {
         let ws_obj = WSCancel {
             transaction_id: body.context.transaction_id,

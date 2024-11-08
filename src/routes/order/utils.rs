@@ -6,12 +6,12 @@ use super::models::{
     PickUpLocationModel, SellerPaymentDetailModel, TimeRangeModel,
 };
 use super::schemas::{
-    BasicNetWorkData, BuyerTerm, Commerce, CommerceBPPTerms, CommerceBilling,
-    CommerceCancellationFee, CommerceCancellationTerm, CommerceDocument, CommerceFulfillment,
-    CommerceItem, CommercePayment, CommerceSeller, DocumentType, DropOffData, FulfillmentContact,
-    FulfillmentLocation, OrderSelectFulfillment, OrderSelectRequest, PaymentSettlementDetail,
-    PickUpData, PickUpFulfillmentLocation, SelectFulfillmentLocation, SellerPaymentDetail,
-    TimeRange, TradeType,
+    BasicNetWorkData, BulkCancelFulfillmentData, BulkCancelItemData, BuyerTerm, Commerce,
+    CommerceBPPTerms, CommerceBilling, CommerceCancellationFee, CommerceCancellationTerm,
+    CommerceDocument, CommerceFulfillment, CommerceItem, CommercePayment, CommerceSeller,
+    DocumentType, DropOffData, FulfillmentContact, FulfillmentLocation, OrderSelectFulfillment,
+    OrderSelectRequest, PaymentSettlementDetail, PickUpData, PickUpFulfillmentLocation,
+    SelectFulfillmentLocation, SellerPaymentDetail, TimeRange, TradeType,
 };
 use crate::constants::ONDC_TTL;
 use crate::routes::ondc::schemas::{
@@ -19,8 +19,8 @@ use crate::routes::ondc::schemas::{
     ONDCFulfillment, ONDCFulfillmentCategoryType, ONDCFulfillmentStopType, ONDCFulfillmentTime,
     ONDCOnConfirmFulfillment, ONDCOnConfirmPayment, ONDCOnConfirmRequest, ONDCOnInitPayment,
     ONDCOnInitRequest, ONDCOnSelectFulfillment, ONDCOnSelectPayment, ONDCOnSelectRequest,
-    ONDCOrderCancellationTerm, ONDCOrderFulfillmentEnd, ONDCSelectRequest, ONDCSellerLocationInfo,
-    ONDCSellerProductInfo, ONDCTag, ONDCTagItemCode, ONDCTagType, TagTrait,
+    ONDCOrderCancellationTerm, ONDCOrderFulfillmentEnd, ONDCPaymentCollectedBy, ONDCSelectRequest,
+    ONDCSellerLocationInfo, ONDCSellerProductInfo, ONDCTag, ONDCTagItemCode, ONDCTagType, TagTrait,
 };
 use crate::routes::ondc::utils::{
     fetch_ondc_seller_info, get_ondc_seller_location_info_mapping,
@@ -29,17 +29,17 @@ use crate::routes::ondc::utils::{
 };
 use crate::routes::ondc::{
     LookupData, ONDCActionType, ONDCConfirmFulfillmentEndLocation, ONDCDocument,
-    ONDCFulfillmentInstruction, ONDCOnStatusRequest, ONDCPaymentType,
+    ONDCFulfillmentInstruction, ONDCOnCancelRequest, ONDCOnStatusRequest, ONDCPaymentType,
+    ONDCTitleName,
 };
 use crate::routes::order::schemas::{
     CommerceStatusType, DeliveryTerm, FulfillmentCategoryType, FulfillmentStatusType, IncoTermType,
-    OrderType, PaymentStatus, ServiceableType, SettlementBasis,
+    OrderType, PaymentCollectedBy, PaymentStatus, ServiceableType, SettlementBasis,
 };
 use crate::routes::product::schemas::{CategoryDomain, FulfillmentType, PaymentType};
 use crate::schemas::DataSource;
 use crate::schemas::{
-    CountryCode, CurrencyType, FeeType, ONDCNetworkType, RegisteredNetworkParticipant,
-    RequestMetaData,
+    CountryCode, CurrencyType, FeeType, RegisteredNetworkParticipant, RequestMetaData,
 };
 use crate::user_client::{BusinessAccount, UserAccount};
 use crate::utils::get_gps_string;
@@ -406,7 +406,7 @@ pub async fn delete_order(
     Ok(())
 }
 
-#[tracing::instrument(name = "save on select payments", skip(transaction))]
+#[tracing::instrument(name = "save select payments", skip(transaction))]
 pub async fn save_payment_obj_select(
     transaction: &mut Transaction<'_, Postgres>,
     order_id: Uuid,
@@ -886,11 +886,9 @@ pub fn get_quote_item_value_mapping<'a>(
     let mut header_map = HashMap::new();
     for breakup in breakups {
         if &breakup.title_type == title_type {
-            if let Some(item_id) = &breakup.item_id {
-                let break_up_value = BigDecimal::from_str(&breakup.price.value)
-                    .unwrap_or_else(|_| BigDecimal::from(0));
-                header_map.insert(item_id, break_up_value);
-            }
+            let break_up_value =
+                BigDecimal::from_str(&breakup.price.value).unwrap_or_else(|_| BigDecimal::from(0));
+            header_map.insert(&breakup.item_id, break_up_value);
         }
     }
     header_map
@@ -903,9 +901,19 @@ pub fn get_quote_item_breakup_mapping<'a>(
     let mut header_map = HashMap::new();
     for breakup in breakups {
         if &breakup.title_type == title_type {
-            if let Some(item_id) = &breakup.item_id {
-                header_map.insert(item_id, breakup);
-            }
+            header_map.insert(&breakup.item_id, breakup);
+        }
+    }
+    header_map
+}
+
+pub fn get_quote_item_breakup_mapping_for_refund(
+    breakups: &Vec<ONDCBreakUp>,
+) -> HashMap<String, &ONDCBreakUp> {
+    let mut header_map = HashMap::new();
+    for breakup in breakups {
+        if breakup.title_type == BreakupTitleType::Refund {
+            header_map.insert(format!("{}_{}", breakup.title, breakup.item_id), breakup);
         }
     }
     header_map
@@ -950,17 +958,17 @@ pub async fn save_payment_obj_on_select(
     for payment in payments {
         id_list.push(Uuid::new_v4());
         commerce_data_id_list.push(order_id);
-        collected_by_list.push(payment.collected_by.clone());
+        collected_by_list.push(payment.collected_by.get_type());
         payment_type_list.push(payment.r#type.get_payment());
     }
     let query = sqlx::query!(
         r#"
         INSERT INTO commerce_payment_data(id, commerce_data_id, collected_by, payment_type)
-            SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::ondc_network_participant_type[],  $4::payment_type[])
+            SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::payment_collected_by_type[],  $4::payment_type[])
         "#,
         &id_list[..] as &[Uuid],
         &commerce_data_id_list[..] as &[Uuid],
-        &collected_by_list[..] as &[ONDCNetworkType],
+        &collected_by_list[..] as &[PaymentCollectedBy],
         &payment_type_list[..] as &[PaymentType]
     );
 
@@ -1245,7 +1253,7 @@ async fn get_commerce_payments(
         r#"
         SELECT 
             id, 
-            collected_by as "collected_by?: ONDCNetworkType",
+            collected_by as "collected_by?: PaymentCollectedBy",
             payment_type as "payment_type!: PaymentType", 
             commerce_data_id,
             seller_payment_detail as "seller_payment_detail?: Json<SellerPaymentDetailModel>",
@@ -1663,21 +1671,29 @@ pub async fn initialize_payment_on_init(
     for payment in payments {
         id_list.push(Uuid::new_v4());
         commerce_data_id_list.push(commerce_id);
-        collected_by_list.push(payment.collected_by.clone());
+        collected_by_list.push(payment.collected_by.get_type());
         payment_type_list.push(payment.r#type.get_payment());
         buyer_fee_type_list.push(&payment.buyer_app_finder_fee_type);
         buyer_fee_amount_list
             .push(BigDecimal::from_str(&payment.buyer_app_finder_fee_amount).unwrap());
-        settlement_window_list.push(payment.settlement_window.as_str());
-        withholding_amount_list.push(BigDecimal::from_str(&payment.withholding_amount).unwrap());
+        settlement_window_list.push(payment.settlement_window.as_deref());
+
+        withholding_amount_list.push(
+            payment
+                .withholding_amount
+                .clone()
+                .map(|e| BigDecimal::from_str(&e).unwrap_or(BigDecimal::from(0)))
+                .unwrap_or(BigDecimal::from(0)),
+        );
         // seller_payment_uri_list.push(payment.uri.as_deref());
         settlement_basis_list.push(
             payment
                 .settlement_basis
-                .get_settlement_basis_from_ondc_type(),
+                .as_ref()
+                .map(|e| e.get_settlement_basis_from_ondc_type()),
         );
         if payment.r#type == ONDCPaymentType::OnFulfillment
-            && payment.collected_by == ONDCNetworkType::Bpp
+            && payment.collected_by == ONDCPaymentCollectedBy::Bpp
         {
             // let payment_uri = &payment.uri.unwrap();
             let seller_payment_ttl = payment.tags.as_ref().map(|tag| {
@@ -1729,19 +1745,19 @@ pub async fn initialize_payment_on_init(
         r#"
         INSERT INTO commerce_payment_data(id, commerce_data_id, collected_by, payment_type, buyer_fee_type,
              buyer_fee_amount, settlement_window, withholding_amount, settlement_basis, settlement_details, seller_payment_detail)
-            SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::ondc_network_participant_type[],
+            SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::payment_collected_by_type[],
             $4::payment_type[], $5::ondc_np_fee_type[], $6::decimal[], $7::text[], $8::decimal[],
             $9::settlement_basis_type[],$10::jsonb[], $11::jsonb[])
         "#,
         &id_list[..] as &[Uuid],
         &commerce_data_id_list[..] as &[Uuid],
-        &collected_by_list[..] as &[ONDCNetworkType],
+        &collected_by_list[..] as &[PaymentCollectedBy],
         &payment_type_list[..] as &[PaymentType],
         &buyer_fee_type_list[..] as &[&FeeType],
         &buyer_fee_amount_list[..] as &[BigDecimal],
-        &settlement_window_list[..] as &[&str],
+        &settlement_window_list[..] as &[Option<&str>],
         &withholding_amount_list[..] as &[BigDecimal],
-        &settlement_basis_list[..] as &[SettlementBasis],
+        &settlement_basis_list[..] as &[Option<SettlementBasis>],
         &settlement_detail_list[..] as &[Option<Value>],
         &seller_payment_detail_list[..] as &[Option<Value>]
     );
@@ -2022,18 +2038,20 @@ pub async fn initialize_payment_on_confirm(
     let mut payment_transaction_ids = vec![];
     let mut payment_paid_amounts = vec![];
     let mut seller_payment_detail_list = vec![];
+    let mut payment_id_list = vec![];
     for payment in payments {
         id_list.push(Uuid::new_v4());
         commerce_data_id_list.push(order.id);
-        collected_by_list.push(payment.collected_by.clone());
+        collected_by_list.push(payment.collected_by.get_type());
         payment_type_list.push(payment.r#type.get_payment());
         buyer_fee_type_list.push(&payment.buyer_app_finder_fee_type);
         buyer_fee_amount_list
             .push(BigDecimal::from_str(&payment.buyer_app_finder_fee_amount).unwrap());
         settlement_window_list.push(payment.settlement_window.as_str());
         withholding_amount_list.push(BigDecimal::from_str(&payment.withholding_amount).unwrap());
+        payment_id_list.push(payment.id.as_deref());
         if payment.r#type == ONDCPaymentType::PreFulfillment
-            && payment.collected_by == ONDCNetworkType::Bpp
+            && payment.collected_by == ONDCPaymentCollectedBy::Bpp
         {
             // let payment_uri = &payment.uri.unwrap();
             let seller_payment_ttl = payment.tags.as_ref().map(|tag| {
@@ -2095,15 +2113,15 @@ pub async fn initialize_payment_on_confirm(
         r#"
         INSERT INTO commerce_payment_data(id, commerce_data_id, collected_by, payment_type, buyer_fee_type,
              buyer_fee_amount, settlement_window, withholding_amount, settlement_basis,
-             settlement_details, transaction_id,payment_status, payment_amount, seller_payment_detail)
-            SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::ondc_network_participant_type[],
+             settlement_details, transaction_id,payment_status, payment_amount, seller_payment_detail, payment_id)
+            SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::payment_collected_by_type[],
             $4::payment_type[], $5::ondc_np_fee_type[], $6::decimal[], $7::text[], $8::decimal[],
             $9::settlement_basis_type[],  $10::jsonb[],
-            $11::text[], $12::payment_status[], $13::decimal[], $14::jsonb[])
+            $11::text[], $12::payment_status[], $13::decimal[], $14::jsonb[], $15::text[])
         "#,
         &id_list[..] as &[Uuid],
         &commerce_data_id_list[..] as &[Uuid],
-        &collected_by_list[..] as &[ONDCNetworkType],
+        &collected_by_list[..] as &[PaymentCollectedBy],
         &payment_type_list[..] as &[PaymentType],
         &buyer_fee_type_list[..] as &[&FeeType],
         &buyer_fee_amount_list[..] as &[BigDecimal],
@@ -2114,7 +2132,8 @@ pub async fn initialize_payment_on_confirm(
         &payment_transaction_ids[..] as &[Option<&str>],
         &payment_statuses[..] as &[PaymentStatus],
         &payment_paid_amounts[..] as &[BigDecimal],
-        &seller_payment_detail_list[..] as &[Option<Value>]
+        &seller_payment_detail_list[..] as &[Option<Value>],
+        &payment_id_list[..] as &[Option<&str>]
     );
 
     transaction.execute(query).await.map_err(|e| {
@@ -2406,5 +2425,234 @@ pub async fn initialize_order_on_status(
         .commit()
         .await
         .context("Failed to commit SQL transaction to update order on status")?;
+    Ok(())
+}
+
+#[tracing::instrument(name = "save buyer commerce on on_cancel", skip(transaction))]
+async fn update_commerce_in_on_cancel(
+    transaction: &mut Transaction<'_, Postgres>,
+    order: &Commerce,
+    status_req: &ONDCOnCancelRequest,
+) -> Result<(), anyhow::Error> {
+    let query = sqlx::query!(
+        r#"
+        UPDATE commerce_data SET record_status=$1, updated_on=$2, refund_grand_total=$3 WHERE external_urn=$4
+        "#,
+        status_req
+            .message
+            .order
+            .state
+            .get_commerce_status(&order.record_type, None) as CommerceStatusType,
+        status_req.message.order.updated_at,
+        BigDecimal::from_str(&status_req.message.order.quote.price.value)
+            .unwrap_or(BigDecimal::from(0)),
+        status_req.context.transaction_id,
+    );
+
+    transaction.execute(query).await.map_err(|e| {
+        tracing::error!("Failed to execute query: {:?}", e);
+        anyhow::Error::new(e).context(
+            "A database failure occurred while saving on_confirm buyer commerce to database",
+        )
+    })?;
+    Ok(())
+}
+
+#[tracing::instrument(name = "bulk_update_on_cancel_fulfillments", skip(transaction))]
+async fn bulk_update_on_cancel_fulfillments(
+    transaction: &mut Transaction<'_, Postgres>,
+    commerce_id: Uuid,
+    request: &ONDCOnCancelRequest,
+) -> Result<(), anyhow::Error> {
+    let data = get_on_cancel_bulk_fulfillment_data(commerce_id, request);
+    let query = sqlx::query!(
+        r#"
+        UPDATE commerce_fulfillment_data
+        SET
+            refunded_convenience_fee  = t.refunded_convenience_fee,
+            refunded_delivery_charge = t.refunded_delivery_charge,
+            refunded_packaging_charge = t.refunded_packaging_charge
+        FROM UNNEST($1::uuid[], $2::text[], $3::decimal[], $4::decimal[], $5::decimal[]) AS t(id, fulfillment_id, 
+            refunded_convenience_fee, refunded_delivery_charge, refunded_packaging_charge)
+        WHERE commerce_data_id = t.id and commerce_fulfillment_data.fulfillment_id=t.fulfillment_id;
+        "#,
+        &data.commerce_ids,
+        &data.fulfillment_ids,
+        &data.refunded_convenience_fees,
+        &data.refunded_delivery_charges,
+        &data.refunded_packaging_charges,
+    );
+    transaction.execute(query).await.map_err(|e| {
+        tracing::error!("Failed to execute query: {:?}", e);
+        anyhow::Error::new(e)
+            .context("A database failure occurred while saving RFQ to database request")
+    })?;
+    Ok(())
+}
+
+fn get_on_cancel_bulk_fulfillment_data(
+    commerce_id: Uuid,
+    request: &ONDCOnCancelRequest,
+) -> BulkCancelFulfillmentData {
+    let mut commerce_ids = vec![];
+    let mut refunded_convenience_fees = vec![];
+    let mut fulfillment_ids = vec![];
+    let mut refunded_delivery_charges = vec![];
+    let mut refunded_packaging_charges = vec![];
+    let item_breakup_mapping =
+        get_quote_item_breakup_mapping_for_refund(&request.message.order.quote.breakup);
+    for fulfillment in &request.message.order.fulfillments {
+        commerce_ids.push(commerce_id);
+        fulfillment_ids.push(fulfillment.id.to_owned());
+        let convenience_fee = item_breakup_mapping
+            .get(&format!(
+                "{}_{}",
+                ONDCTitleName::ConvenienceFee,
+                fulfillment.id,
+            ))
+            .map(|e| BigDecimal::from_str(&e.price.value).unwrap_or(BigDecimal::from(0)))
+            .unwrap_or(BigDecimal::from(0));
+        let delivery_charge = item_breakup_mapping
+            .get(&format!(
+                "{}_{}",
+                ONDCTitleName::DeliveryCharge,
+                fulfillment.id,
+            ))
+            .map(|e| BigDecimal::from_str(&e.price.value).unwrap_or(BigDecimal::from(0)))
+            .unwrap_or(BigDecimal::from(0));
+        let packaging_charge = item_breakup_mapping
+            .get(&format!("{}_{}", ONDCTitleName::Packing, fulfillment.id,))
+            .map(|e| BigDecimal::from_str(&e.price.value).unwrap_or(BigDecimal::from(0)))
+            .unwrap_or(BigDecimal::from(0));
+        refunded_convenience_fees.push(convenience_fee);
+        refunded_delivery_charges.push(delivery_charge);
+        refunded_packaging_charges.push(packaging_charge);
+    }
+
+    BulkCancelFulfillmentData {
+        commerce_ids,
+        refunded_convenience_fees,
+        fulfillment_ids,
+        refunded_delivery_charges,
+        refunded_packaging_charges,
+    }
+}
+// save refund amount in commerce data and commerce line data and fulfillment
+
+#[tracing::instrument(name = "save order on on_cancel", skip(pool))]
+pub async fn initialize_order_on_cancel(
+    pool: &PgPool,
+    on_cancel_request: &ONDCOnCancelRequest,
+    order: &Commerce,
+) -> Result<(), anyhow::Error> {
+    let mut transaction = pool
+        .begin()
+        .await
+        .context("Failed to acquire a Postgres connection from the pool")?;
+    update_commerce_in_on_cancel(&mut transaction, order, on_cancel_request).await?;
+
+    let _ = delete_payment_in_commerce(&mut transaction, on_cancel_request.context.transaction_id)
+        .await?;
+
+    initialize_payment_on_confirm(
+        &mut transaction,
+        order,
+        &on_cancel_request.message.order.payments,
+    )
+    .await?;
+
+    bulk_update_on_cancel_fulfillments(&mut transaction, order.id, on_cancel_request).await?;
+    bulk_update_on_cancel_items(&mut transaction, order.id, on_cancel_request, order).await?;
+    transaction
+        .commit()
+        .await
+        .context("Failed to commit SQL transaction to update order on status")?;
+
+    Ok(())
+}
+
+fn get_on_cancel_bulk_item_data(
+    commerce_id: Uuid,
+    request: &ONDCOnCancelRequest,
+    order: &Commerce,
+) -> BulkCancelItemData {
+    let mut commerce_ids = vec![];
+    let mut refunded_tax_values = vec![];
+    let mut item_ids = vec![];
+    let mut refunded_discount_amounts = vec![];
+    let mut refunded_gross_totals = vec![];
+    let item_breakup_mapping =
+        get_quote_item_breakup_mapping_for_refund(&request.message.order.quote.breakup);
+    let item_mapping: HashMap<&str, &CommerceItem> = order
+        .items
+        .iter()
+        .map(|product| (product.item_id.as_str(), product))
+        .collect();
+    for item in &request.message.order.items {
+        commerce_ids.push(commerce_id);
+        item_ids.push(item.id.clone());
+
+        let refunded_discount_amount = item_breakup_mapping
+            .get(&format!("{}_{}", ONDCTitleName::Discount, item.id,))
+            .map(|e| BigDecimal::from_str(&e.price.value).unwrap_or(BigDecimal::from(0)))
+            .unwrap_or(BigDecimal::from(0));
+        refunded_discount_amounts.push(refunded_discount_amount);
+
+        let refunded_tax_value = item_breakup_mapping
+            .get(&format!("{}_{}", ONDCTitleName::Tax, item.id))
+            .map(|e| BigDecimal::from_str(&e.price.value).unwrap_or(BigDecimal::from(0)))
+            .unwrap_or(BigDecimal::from(0));
+        refunded_tax_values.push(refunded_tax_value);
+        let item_name = item_mapping
+            .get(item.id.as_str())
+            .map(|e| &e.item_name)
+            .unwrap_or(&item.id);
+
+        let refund_gross_total = item_breakup_mapping
+            .get(&format!("{}_{}", item_name, item.id,))
+            .map(|e| BigDecimal::from_str(&e.price.value).unwrap_or(BigDecimal::from(0)))
+            .unwrap_or(BigDecimal::from(0));
+        refunded_gross_totals.push(refund_gross_total);
+    }
+
+    BulkCancelItemData {
+        commerce_ids,
+        item_ids,
+        refunded_discount_amounts,
+        refunded_gross_totals,
+        refunded_tax_values,
+    }
+}
+#[tracing::instrument(name = "bulk_update_on_cancel_items", skip(transaction))]
+async fn bulk_update_on_cancel_items(
+    transaction: &mut Transaction<'_, Postgres>,
+    commerce_id: Uuid,
+    request: &ONDCOnCancelRequest,
+    order: &Commerce,
+) -> Result<(), anyhow::Error> {
+    let data = get_on_cancel_bulk_item_data(commerce_id, request, order);
+    let query = sqlx::query!(
+        r#"
+        UPDATE commerce_data_line
+        SET
+            refunded_tax_value = t.refunded_tax_value,
+            refunded_discount_amount  = t.refunded_discount_amount,
+            refunded_gross_total = t.refunded_gross_total
+    
+        FROM UNNEST($1::uuid[], $2::text[], $3::decimal[], $4::decimal[], $5::decimal[]) AS t(id, item_id,
+             refunded_discount_amount, refunded_gross_total, refunded_tax_value)
+        WHERE commerce_data_id = t.id and commerce_data_line.item_id=t.item_id;
+        "#,
+        &data.commerce_ids,
+        &data.item_ids,
+        &data.refunded_discount_amounts,
+        &data.refunded_gross_totals,
+        &data.refunded_tax_values,
+    );
+    transaction.execute(query).await.map_err(|e| {
+        tracing::error!("Failed to execute query: {:?}", e);
+        anyhow::Error::new(e)
+            .context("A database failure occurred while saving RFQ to database request")
+    })?;
     Ok(())
 }

@@ -10,7 +10,7 @@ use crate::routes::ondc::ONDCActionType;
 use crate::user_client::{BusinessAccount, UserAccount};
 use crate::utils::{create_authorization_header, get_np_detail};
 
-use crate::schemas::{GenericResponse, ONDCNPType, RequestMetaData};
+use crate::schemas::{GenericResponse, ONDCNetworkType, RequestMetaData};
 use sqlx::PgPool;
 #[utoipa::path(
     post,
@@ -32,7 +32,7 @@ pub async fn realtime_product_search(
     business_account: BusinessAccount,
     meta_data: RequestMetaData,
 ) -> Result<web::Json<GenericResponse<()>>, GenericError> {
-    let np_detail = match get_np_detail(&pool, &meta_data.domain_uri, &ONDCNPType::Buyer).await {
+    let np_detail = match get_np_detail(&pool, &meta_data.domain_uri, &ONDCNetworkType::Bap).await {
         Ok(Some(np_detail)) => np_detail,
         Ok(None) => {
             return Err(GenericError::ValidationError(format!(

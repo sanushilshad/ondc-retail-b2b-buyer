@@ -5,10 +5,11 @@ use crate::routes::ondc::schemas::{
     ONDCFulfillmentStateType, ONDCPaymentSettlementCounterparty, ONDCPaymentSettlementPhase,
     ONDCPaymentSettlementType, ONDCSettlementBasis,
 };
+use crate::routes::ondc::ONDCPaymentCollectedBy;
 use crate::routes::product::schemas::FulfillmentType;
 use crate::routes::product::schemas::{CategoryDomain, PaymentType};
 use crate::schemas::DataSource;
-use crate::schemas::{CountryCode, CurrencyType, FeeType, ONDCNetworkType};
+use crate::schemas::{CountryCode, CurrencyType, FeeType};
 // use crate::utils::deserialize_non_empty_vector;
 use actix_http::Payload;
 use actix_web::{web, FromRequest, HttpRequest};
@@ -228,8 +229,31 @@ pub enum CommerceStatusType {
 #[derive(Deserialize, Debug, Serialize, sqlx::Encode)]
 #[serde(rename_all = "camelCase")]
 pub struct Payment {
-    pub collected_by: Option<ONDCNetworkType>,
+    pub collected_by: Option<PaymentCollectedBy>,
     pub r#type: PaymentType,
+}
+
+#[derive(Debug, Serialize, Deserialize, sqlx::Type, Clone, ToSchema, PartialEq)]
+#[sqlx(type_name = "payment_collected_by_type")]
+pub enum PaymentCollectedBy {
+    #[serde(rename = "BAP")]
+    #[sqlx(rename = "BAP")]
+    Bap,
+    #[serde(rename = "BPP")]
+    #[sqlx(rename = "BPP")]
+    Bpp,
+    #[serde(rename = "buyer")]
+    #[sqlx(rename = "buyer")]
+    Buyer,
+}
+impl PaymentCollectedBy {
+    pub fn get_ondc_type(&self) -> ONDCPaymentCollectedBy {
+        match self {
+            PaymentCollectedBy::Bap => ONDCPaymentCollectedBy::Bap,
+            PaymentCollectedBy::Bpp => ONDCPaymentCollectedBy::Bpp,
+            PaymentCollectedBy::Buyer => ONDCPaymentCollectedBy::Buyer,
+        }
+    }
 }
 
 #[derive(Deserialize, Debug, ToSchema)]
@@ -319,11 +343,12 @@ pub struct SellerPaymentDetail {
     pub dsa: Option<String>,
     pub signature: Option<String>,
 }
+
 #[derive(Deserialize, Debug, ToSchema)]
 pub struct CommercePayment {
     #[schema(value_type = String)]
     pub id: Uuid,
-    pub collected_by: Option<ONDCNetworkType>,
+    pub collected_by: Option<PaymentCollectedBy>,
     pub payment_type: PaymentType,
     pub buyer_fee_type: Option<FeeType>,
     pub buyer_fee_amount: Option<String>,
@@ -718,4 +743,22 @@ impl FromRequest for OrderCancelRequest {
 pub enum TradeType {
     Import,
     Domestic,
+}
+
+#[derive(Debug)]
+pub struct BulkCancelFulfillmentData {
+    pub commerce_ids: Vec<Uuid>,
+    pub refunded_convenience_fees: Vec<BigDecimal>,
+    pub fulfillment_ids: Vec<String>,
+    pub refunded_delivery_charges: Vec<BigDecimal>,
+    pub refunded_packaging_charges: Vec<BigDecimal>,
+}
+
+#[derive(Debug)]
+pub struct BulkCancelItemData {
+    pub commerce_ids: Vec<Uuid>,
+    pub item_ids: Vec<String>,
+    pub refunded_tax_values: Vec<BigDecimal>,
+    pub refunded_discount_amounts: Vec<BigDecimal>,
+    pub refunded_gross_totals: Vec<BigDecimal>,
 }

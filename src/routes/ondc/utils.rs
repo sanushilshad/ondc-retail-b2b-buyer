@@ -52,7 +52,7 @@ use crate::routes::order::schemas::{
     CommerceCancellationTerm, CommerceFulfillment, CommerceItem, CommercePayment, DropOffData,
     OrderCancelRequest, OrderConfirmRequest, OrderDeliveyTerm, OrderInitBilling, OrderInitRequest,
     OrderSelectFulfillment, OrderSelectItem, OrderSelectRequest, OrderStatusRequest, OrderType,
-    PickUpData, SelectFulfillmentLocation, SettlementBasis,
+    PaymentCollectedBy, PickUpData, SelectFulfillmentLocation, SettlementBasis,
 };
 use crate::routes::product::schemas::{
     CategoryDomain, FulfillmentType, PaymentType, ProductFulFillmentLocations,
@@ -883,6 +883,7 @@ fn get_ondc_select_order_item(
                 selected: ONDCQuantityCountInt { count: item.qty },
             },
             tags: get_ondc_select_item_tags(order_type, &item.buyer_term),
+            payment_ids: None,
         })
     }
     return ondc_item_objs;
@@ -1274,7 +1275,11 @@ fn get_ondc_payment_from_order(payments: &Vec<CommercePayment>) -> Vec<ONDCInitP
     for payment in payments {
         payment_list.push(ONDCInitPayment {
             r#type: payment.payment_type.get_ondc_payment(),
-            collected_by: payment.collected_by.clone().unwrap_or(ONDCNetworkType::Bpp),
+            collected_by: payment
+                .collected_by
+                .clone()
+                .unwrap_or(PaymentCollectedBy::Bpp)
+                .get_ondc_type(),
         })
     }
     payment_list
@@ -1300,6 +1305,7 @@ fn get_ondc_items_from_order(items: &Vec<CommerceItem>) -> Vec<ONDCSelectedItem>
                     e.packaging_req.as_str(),
                 )]
             }),
+            payment_ids: None,
         })
     }
     ondc_item
@@ -1505,7 +1511,7 @@ fn get_ondc_confirm_request_payment(
     let currency_type = order.currency_type.as_ref().unwrap_or(&CurrencyType::Inr);
     for payment in &order.payments {
         let mut settlement_detail_objs = vec![];
-        if payment.collected_by == Some(ONDCNetworkType::Bpp) {
+        if payment.collected_by == Some(PaymentCollectedBy::Bpp) {
             settlement_detail_objs.push(ONDCPaymentSettlementDetail {
                 settlement_counterparty: ONDCPaymentSettlementCounterparty::BuyerApp,
                 settlement_phase: bap_detail.settlement_phase.get_ondc_settlement_phase(),
@@ -1532,8 +1538,13 @@ fn get_ondc_confirm_request_payment(
         }
 
         payment_objs.push(ONDCOnConfirmPayment {
+            id: None,
             r#type: payment.payment_type.get_ondc_payment(),
-            collected_by: payment.collected_by.clone().unwrap_or(ONDCNetworkType::Bpp),
+            collected_by: payment
+                .collected_by
+                .clone()
+                .unwrap_or(PaymentCollectedBy::Bpp)
+                .get_ondc_type(),
             uri: None,
             tags: None,
             params: ONDCPaymentParams {
@@ -1571,7 +1582,7 @@ fn get_item_breakup(currency_type: &CurrencyType, items: &Vec<CommerceItem>) -> 
     for line in items {
         break_up_list.push(ONDCBreakUp::create(
             line.item_name.clone(),
-            Some(line.item_id.clone()),
+            line.item_id.clone(),
             BreakupTitleType::Item,
             ONDCAmount {
                 currency: currency_type.clone(),
@@ -1589,7 +1600,7 @@ fn get_item_breakup(currency_type: &CurrencyType, items: &Vec<CommerceItem>) -> 
         ));
         break_up_list.push(ONDCBreakUp::create(
             "Tax".to_owned(),
-            Some(line.item_id.clone()),
+            line.item_id.clone(),
             BreakupTitleType::Tax,
             ONDCAmount {
                 currency: currency_type.clone(),
@@ -1600,7 +1611,7 @@ fn get_item_breakup(currency_type: &CurrencyType, items: &Vec<CommerceItem>) -> 
         ));
         break_up_list.push(ONDCBreakUp::create(
             "Discount".to_owned(),
-            Some(line.item_id.clone()),
+            line.item_id.clone(),
             BreakupTitleType::Discount,
             ONDCAmount {
                 currency: currency_type.clone(),
@@ -1621,7 +1632,7 @@ fn get_fulfillment_breakup(
     for fulfillment in fulfillments {
         break_up_list.push(ONDCBreakUp::create(
             "Packing".to_owned(),
-            Some(fulfillment.fulfillment_id.clone()),
+            fulfillment.fulfillment_id.clone(),
             BreakupTitleType::Packing,
             ONDCAmount {
                 currency: currency_type.clone(),
@@ -1632,7 +1643,7 @@ fn get_fulfillment_breakup(
         ));
         break_up_list.push(ONDCBreakUp::create(
             "Delivery Charge".to_owned(),
-            Some(fulfillment.fulfillment_id.clone()),
+            fulfillment.fulfillment_id.clone(),
             BreakupTitleType::Delivery,
             ONDCAmount {
                 currency: currency_type.clone(),
@@ -1643,7 +1654,7 @@ fn get_fulfillment_breakup(
         ));
         break_up_list.push(ONDCBreakUp::create(
             "Convenience Fee".to_owned(),
-            Some(fulfillment.fulfillment_id.clone()),
+            fulfillment.fulfillment_id.clone(),
             BreakupTitleType::Misc,
             ONDCAmount {
                 currency: currency_type.clone(),

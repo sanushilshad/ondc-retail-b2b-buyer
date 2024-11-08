@@ -600,12 +600,6 @@ pub enum ONDCNetworkType {
     Bpp,
 }
 
-// impl PgHasArrayType for ONDCNetworkType {
-//     fn array_type_info() -> sqlx::postgres::PgTypeInfo {
-//         sqlx::postgres::PgTypeInfo::with_name("_ondc_network_participant_type")
-//     }
-// }
-
 #[derive(Debug)]
 pub struct ONDCAuthParams {
     pub created_time: i64,

@@ -16,7 +16,7 @@ use crate::routes::ondc::{ONDCActionType, ONDCDomain};
 use crate::user_client::{BusinessAccount, UserAccount};
 use crate::utils::{create_authorization_header, get_np_detail};
 
-use crate::schemas::{GenericResponse, ONDCNPType, ONDCNetworkType, RequestMetaData};
+use crate::schemas::{GenericResponse, ONDCNetworkType, RequestMetaData};
 use sqlx::PgPool;
 
 use super::schemas::{
@@ -45,7 +45,7 @@ pub async fn order_select(
     business_account: BusinessAccount,
     meta_data: RequestMetaData,
 ) -> Result<web::Json<GenericResponse<()>>, GenericError> {
-    let task1 = get_np_detail(&pool, &meta_data.domain_uri, &ONDCNPType::Buyer);
+    let task1 = get_np_detail(&pool, &meta_data.domain_uri, &ONDCNetworkType::Bap);
     let ondc_domain = ONDCDomain::get_ondc_domain(&body.domain_category_code);
     let task2 = get_lookup_data_from_db(&pool, &body.bpp_id, &ONDCNetworkType::Bpp, &ondc_domain);
     let location_id_list: Vec<String> = body
@@ -201,7 +201,8 @@ pub async fn order_init(
         }
     };
 
-    let bap_detail = match get_np_detail(&pool, &meta_data.domain_uri, &ONDCNPType::Buyer).await {
+    let bap_detail = match get_np_detail(&pool, &meta_data.domain_uri, &ONDCNetworkType::Bap).await
+    {
         Ok(Some(bap_detail)) => bap_detail,
         Ok(None) => {
             return Err(GenericError::ValidationError(format!(
@@ -284,7 +285,8 @@ pub async fn order_confirm(
         }
     };
 
-    let bap_detail = match get_np_detail(&pool, &meta_data.domain_uri, &ONDCNPType::Buyer).await {
+    let bap_detail = match get_np_detail(&pool, &meta_data.domain_uri, &ONDCNetworkType::Bap).await
+    {
         Ok(Some(bap_detail)) => bap_detail,
         Ok(None) => {
             return Err(GenericError::ValidationError(format!(
@@ -368,7 +370,8 @@ pub async fn order_status(
         }
     };
 
-    let bap_detail = match get_np_detail(&pool, &meta_data.domain_uri, &ONDCNPType::Buyer).await {
+    let bap_detail = match get_np_detail(&pool, &meta_data.domain_uri, &ONDCNetworkType::Bap).await
+    {
         Ok(Some(bap_detail)) => bap_detail,
         Ok(None) => {
             return Err(GenericError::ValidationError(format!(
@@ -439,7 +442,8 @@ pub async fn order_cancel(
         }
     };
 
-    let bap_detail = match get_np_detail(&pool, &meta_data.domain_uri, &ONDCNPType::Buyer).await {
+    let bap_detail = match get_np_detail(&pool, &meta_data.domain_uri, &ONDCNetworkType::Bap).await
+    {
         Ok(Some(bap_detail)) => bap_detail,
         Ok(None) => {
             return Err(GenericError::ValidationError(format!(
@@ -480,7 +484,7 @@ pub async fn order_cancel(
     futures::future::join(task_3, task_4).await.1?;
 
     Ok(web::Json(GenericResponse::success(
-        "Successfully send status request",
+        "Successfully send cancel request",
         Some(()),
     )))
 }
