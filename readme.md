@@ -134,22 +134,22 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [x] Set up basic actix web server
 * [x] Add environment config fetch
 * [x] Develop custom migration command
-* [x] Add tracing with jaeger integration
+* [x] Add tracing with Jaeger integration
 * [x] Develop middleware to access request & response
 * [x] Email service integration
 * [x] Develop user registration API
 * [x] Develop business registration API
 * [x] Develop API for user authentication via password
-* [x] Setting the codebase structure similar to django
+* [x] Setting the codebase structure similar to Django
 * [x] Develop JWT creation and verification middleware
-* [x] Integrate openapi swagger
+* [x] Integrate Openapi swagger
 * [x] Integrate Redis
 * [x] Integrate Websocket 
 * [x] Add business verification middleware
 * [x] Add generic header validation middleware
 * [x] Add seller auth header validation middleware
 * [x] Develop realtime search API
-* [x] Develop ONDC on search api
+* [x] Develop ONDC on search API
 * [x] Fix integration test + add unit test cases for the apis in milestone 1
 * [x] Add application release + debug + kill bash scripts 
 
@@ -171,16 +171,18 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [ ] Develop update API
 * [ ] Develop ONDC on update API
 
-### MILESTONE 2.5:
+### MILESTONE 3:
 
 * [ ] Integrate BAP Payment Gateway
 * [ ] Develop Business Specific Config Module.
 * [ ] Develop & Integrate permission flow
-* [ ] Add Import flow
+* [ ] Add Import flow to order
 * [ ] Update websocket implementation to enable Background Sync.
 * [ ] Remove device wise notification push.
+* [ ] Integrate ElasticSearch
+* [ ] Add test cases for milestone 2
 
-### MILESTONE 3:
+### MILESTONE 4:
 * [ ] Develop IGM issue API
 * [ ] Develop ONDC on issue API
 * [ ] Develop IGM issue_status API
@@ -188,7 +190,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [ ] Develop IGM issue close API
 * [ ] Integrate Observability Module
 
-### MILESTONE 4:
+### MILESTONE 5:
 * [ ] Develop info API
 * [ ] Develop ONDC info API
 * [ ] Add Chat Functionality
@@ -199,17 +201,17 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [ ] Develop Password Reset API
 * [ ] Develop Order Fetch API
 * [ ] Develop Cancellation Code Fetch API
-* [ ] Integrate ElasticSearch
+
 * [ ] Integrate with notification microservice to enable WhatsApp, Email and SMS functionality
 
-### MILESTONE 5:
+### MILESTONE 6:
 * [ ] Complete validation for business_account registration
 * [ ] Complete validation for user_account registration
 * [ ] Complete validation for product search registration
 * [ ] Complete validation ONDC on search registration
 
 
-### OPTIONAL
+### MILESTONE 7:
 * [ ] Integrate Pulser/Kafka/RabbitMQ
 * [ ] Integrate SMS
 * [ ] Integrate Whatsapp
