@@ -6,12 +6,13 @@ use super::models::{
     PickUpLocationModel, SellerPaymentDetailModel, TimeRangeModel,
 };
 use super::schemas::{
-    BasicNetWorkData, BulkCancelFulfillmentData, BulkCancelItemData, BuyerTerm, Commerce,
-    CommerceBPPTerms, CommerceBilling, CommerceCancellationFee, CommerceCancellationTerm,
-    CommerceDocument, CommerceFulfillment, CommerceItem, CommercePayment, CommerceSeller,
-    DocumentType, DropOffData, FulfillmentContact, FulfillmentLocation, OrderSelectFulfillment,
-    OrderSelectRequest, PaymentSettlementDetail, PickUpData, PickUpFulfillmentLocation,
-    SelectFulfillmentLocation, SellerPaymentDetail, TimeRange, TradeType,
+    BasicNetworkData, BulkCancelFulfillmentData, BulkCancelItemData, BulkConfirmFulfillmentData,
+    BulkStatusFulfillmentData, BuyerTerm, Commerce, CommerceBPPTerms, CommerceBilling,
+    CommerceCancellationFee, CommerceCancellationTerm, CommerceDocument, CommerceFulfillment,
+    CommerceItem, CommercePayment, CommerceSeller, DocumentType, DropOffData, FulfillmentContact,
+    FulfillmentLocation, OrderSelectFulfillment, OrderSelectRequest, PaymentSettlementDetail,
+    PickUpData, PickUpFulfillmentLocation, SelectFulfillmentLocation, SellerPaymentDetail,
+    TimeRange, TradeType,
 };
 use crate::constants::ONDC_TTL;
 use crate::routes::ondc::schemas::{
@@ -1576,11 +1577,11 @@ fn get_order_from_model(
         updated_on: order.updated_on,
         created_by: order.created_by,
         grand_total: order.grand_total,
-        bap: BasicNetWorkData {
+        bap: BasicNetworkData {
             id: order.bap_id,
             uri: order.bap_uri,
         },
-        bpp: BasicNetWorkData {
+        bpp: BasicNetworkData {
             id: order.bpp_id,
             uri: order.bpp_uri,
         },
@@ -1944,11 +1945,12 @@ pub fn create_pickup_off_from_on_confirm_fulfullment(
     time_rage: Option<&ONDCFulfillmentTime>,
     fulfillment_instruction: Option<&ONDCFulfillmentInstruction>,
 ) -> PickUpDataModel {
-    let instruction =
+    let instruction: Option<FulfillmentInstruction> =
         fulfillment_instruction.map(|fulfillment_instruction| FulfillmentInstruction {
             short_desc: fulfillment_instruction.short_desc.clone(),
             name: fulfillment_instruction.name.clone(),
             images: fulfillment_instruction.images.clone(),
+            long_desc: fulfillment_instruction.long_desc.clone(),
         });
     PickUpDataModel {
         location: PickUpLocationModel {
@@ -1974,17 +1976,20 @@ pub fn create_pickup_off_from_on_confirm_fulfullment(
     }
 }
 
-#[tracing::instrument(name = "save fulfillment  on on_confirm", skip(transaction))]
-async fn update_commerce_fulfillment_in_on_confirm(
-    transaction: &mut Transaction<'_, Postgres>,
-    transaction_id: Uuid,
+fn get_bulk_update_on_confirm_data(
+    commerce_id: Uuid,
     confirm_fulfillments: &Vec<ONDCOnConfirmFulfillment>,
-    order_fulfillments: &Vec<CommerceFulfillment>,
-) -> Result<(), anyhow::Error> {
+    order_fulfillments: &[CommerceFulfillment],
+) -> BulkConfirmFulfillmentData {
+    let mut fulfillment_statuses = vec![];
+    let mut pickup_datas = vec![];
+    let mut commerce_data_ids = vec![];
+    let mut fulfillment_ids = vec![];
     let order_fulfillment_map: HashMap<String, &CommerceFulfillment> = order_fulfillments
         .iter()
         .map(|fulfillment| (fulfillment.fulfillment_id.clone(), fulfillment))
         .collect();
+
     for confirm_fulfillment in confirm_fulfillments {
         if let Some(order_fulfillment) = order_fulfillment_map.get(&confirm_fulfillment.id) {
             if let Some(ondc_start) = confirm_fulfillment.get_fulfillment_start() {
@@ -1997,23 +2002,61 @@ async fn update_commerce_fulfillment_in_on_confirm(
                     confirm_fulfillment.get_fulfillment_time(ONDCFulfillmentStopType::Start),
                     confirm_fulfillment.get_fulfillment_instruction(ONDCFulfillmentStopType::Start),
                 );
-                let query = sqlx::query!(
-                    "UPDATE commerce_fulfillment_data SET fulfillment_status = $1, pickup_data=$2 FROM commerce_data
-                    WHERE commerce_fulfillment_data.commerce_data_id = commerce_data.id
-                    AND commerce_data.external_urn =$3 AND fulfillment_id = $4",
-                    confirm_fulfillment.state.descriptor.code.get_fulfillment_state() as FulfillmentStatusType,
-                    serde_json::to_value(pick_up_data).unwrap(),
-                    transaction_id,
-                    confirm_fulfillment.id,
+                fulfillment_statuses.push(
+                    confirm_fulfillment
+                        .state
+                        .descriptor
+                        .code
+                        .get_fulfillment_state(),
                 );
-                transaction.execute(query).await.map_err(|e| {
-                    tracing::error!("Failed to execute query: {:?}", e);
-                    anyhow::Error::new(e)
-                        .context("A database failure occurred while saving RFQ to database request")
-                })?;
+
+                pickup_datas.push(serde_json::to_value(pick_up_data).unwrap());
+                fulfillment_ids.push(confirm_fulfillment.id.to_owned());
+                commerce_data_ids.push(commerce_id);
             }
         }
     }
+
+    BulkConfirmFulfillmentData {
+        fulfillment_statuses,
+        pickup_datas,
+        commerce_data_ids,
+        fulfillment_ids,
+    }
+}
+
+// CHANGE THE FOR LOOP UPDATE TO BULK UPDATE
+#[tracing::instrument(name = "save fulfillment  on on_confirm", skip(transaction))]
+async fn update_commerce_fulfillment_in_on_confirm(
+    transaction: &mut Transaction<'_, Postgres>,
+    commerce_id: Uuid,
+    confirm_fulfillments: &Vec<ONDCOnConfirmFulfillment>,
+    order_fulfillments: &Vec<CommerceFulfillment>,
+) -> Result<(), anyhow::Error> {
+    let data =
+        get_bulk_update_on_confirm_data(commerce_id, confirm_fulfillments, order_fulfillments);
+
+    let query = sqlx::query!(
+        r#"
+        UPDATE commerce_fulfillment_data
+        SET
+        fulfillment_status = t.fulfillment_status,
+        pickup_data  = t.pickup_data
+        FROM UNNEST($1::uuid[],  $2::commerce_fulfillment_status_type[], $3::jsonb[],$4::text[])
+        AS t(commerce_data_id, fulfillment_status, pickup_data, fulfillment_id)
+        WHERE commerce_fulfillment_data.commerce_data_id = t.commerce_data_id and 
+        commerce_fulfillment_data.fulfillment_id=t.fulfillment_id;
+        "#,
+        &data.commerce_data_ids,
+        &data.fulfillment_statuses as &Vec<FulfillmentStatusType>,
+        &data.pickup_datas,
+        &data.fulfillment_ids,
+    );
+    transaction.execute(query).await.map_err(|e| {
+        tracing::error!("Failed to execute query: {:?}", e);
+        anyhow::Error::new(e)
+            .context("A database failure occurred while saving RFQ to database request")
+    })?;
 
     Ok(())
 }
@@ -2157,7 +2200,7 @@ pub async fn initialize_order_on_confirm(
     update_commerce_in_on_confirm(&mut transaction, order, on_confirm_request).await?;
     update_commerce_fulfillment_in_on_confirm(
         &mut transaction,
-        on_confirm_request.context.transaction_id,
+        order.id,
         &on_confirm_request.message.order.fulfillments,
         &order.fulfillments,
     )
@@ -2267,6 +2310,7 @@ pub fn create_drop_off_from_on_status_fulfullment(
             short_desc: fulfillment_instruction.short_desc.clone(),
             name: fulfillment_instruction.name.clone(),
             images: fulfillment_instruction.images.clone(),
+            long_desc: fulfillment_instruction.long_desc.clone(),
         });
     DropOffDataModel {
         location: DropOffLocationModel {
@@ -2302,6 +2346,7 @@ pub fn create_pickup_off_from_on_status_fulfullment(
             short_desc: fulfillment_instruction.short_desc.clone(),
             name: fulfillment_instruction.name.clone(),
             images: fulfillment_instruction.images.clone(),
+            long_desc: fulfillment_instruction.long_desc.clone(),
         });
     PickUpDataModel {
         location: PickUpLocationModel {
@@ -2327,67 +2372,109 @@ pub fn create_pickup_off_from_on_status_fulfullment(
     }
 }
 
-#[tracing::instrument(name = "save fulfillment  on on_status", skip(transaction))]
-async fn update_commerce_fulfillment_in_on_status(
-    transaction: &mut Transaction<'_, Postgres>,
-    transaction_id: Uuid,
+fn get_bulk_update_on_status_data(
+    commerce_id: Uuid,
     status_fulfillments: &Vec<ONDCOnConfirmFulfillment>,
-    order_fulfillments: &Vec<CommerceFulfillment>,
-) -> Result<(), anyhow::Error> {
+    order_fulfillments: &[CommerceFulfillment],
+) -> BulkStatusFulfillmentData {
+    let mut fulfillment_statuses = vec![];
+    let mut pickup_datas = vec![];
+    let mut commerce_data_ids = vec![];
+    let mut fulfillment_ids = vec![];
+    let mut drop_off_datas = vec![];
     let order_fulfillment_map: HashMap<String, &CommerceFulfillment> = order_fulfillments
         .iter()
         .map(|fulfillment| (fulfillment.fulfillment_id.clone(), fulfillment))
         .collect();
+
     for status_fulfillment in status_fulfillments {
         if let Some(order_fulfillment) = order_fulfillment_map.get(&status_fulfillment.id) {
-            let pick_up_data = status_fulfillment
-                .get_fulfillment_start()
-                .map(|ondc_start| {
-                    create_pickup_off_from_on_status_fulfullment(
-                        ondc_start,
-                        status_fulfillment
-                            .get_fulfillment_contact(ONDCFulfillmentStopType::Start)
-                            .unwrap(),
-                        &order_fulfillment.pickup,
-                        status_fulfillment.get_fulfillment_time(ONDCFulfillmentStopType::Start),
-                        status_fulfillment
-                            .get_fulfillment_instruction(ONDCFulfillmentStopType::Start),
-                    )
-                });
-            let drop_off_data = if let Some(order_drop_off) = &order_fulfillment.drop_off {
-                status_fulfillment.get_fulfillment_end().map(|ondc_end| {
-                    create_drop_off_from_on_status_fulfullment(
-                        ondc_end,
-                        status_fulfillment
-                            .get_fulfillment_contact(ONDCFulfillmentStopType::End)
-                            .unwrap(),
-                        order_drop_off,
-                        status_fulfillment.get_fulfillment_time(ONDCFulfillmentStopType::End),
-                        status_fulfillment
-                            .get_fulfillment_instruction(ONDCFulfillmentStopType::End),
-                    )
-                })
-            } else {
-                None
-            };
+            if let Some(ondc_start) = status_fulfillment.get_fulfillment_start() {
+                let pick_up_data = create_pickup_off_from_on_status_fulfullment(
+                    ondc_start,
+                    status_fulfillment
+                        .get_fulfillment_contact(ONDCFulfillmentStopType::Start)
+                        .unwrap(),
+                    &order_fulfillment.pickup,
+                    status_fulfillment.get_fulfillment_time(ONDCFulfillmentStopType::Start),
+                    status_fulfillment.get_fulfillment_instruction(ONDCFulfillmentStopType::Start),
+                );
 
-            let query = sqlx::query!(
-                "UPDATE commerce_fulfillment_data SET fulfillment_status = $1, pickup_data=$2, drop_off_data=$3 FROM commerce_data
-                WHERE commerce_fulfillment_data.commerce_data_id = commerce_data.id
-                AND commerce_data.external_urn =$4 AND fulfillment_id = $5",
-                status_fulfillment.state.descriptor.code.get_fulfillment_state() as FulfillmentStatusType,
-                serde_json::to_value(pick_up_data).unwrap(),
-                serde_json::to_value(drop_off_data).unwrap(),
-                transaction_id,
-                status_fulfillment.id,
-            );
-            transaction.execute(query).await.map_err(|e| {
-                tracing::error!("Failed to execute query: {:?}", e);
-                anyhow::Error::new(e)
-                    .context("A database failure occurred while saving RFQ to database request")
-            })?;
+                let drop_off_data = if let Some(order_drop_off) = &order_fulfillment.drop_off {
+                    status_fulfillment.get_fulfillment_end().map(|ondc_end| {
+                        create_drop_off_from_on_status_fulfullment(
+                            ondc_end,
+                            status_fulfillment
+                                .get_fulfillment_contact(ONDCFulfillmentStopType::End)
+                                .unwrap(),
+                            order_drop_off,
+                            status_fulfillment.get_fulfillment_time(ONDCFulfillmentStopType::End),
+                            status_fulfillment
+                                .get_fulfillment_instruction(ONDCFulfillmentStopType::End),
+                        )
+                    })
+                } else {
+                    None
+                };
+                fulfillment_statuses.push(
+                    status_fulfillment
+                        .state
+                        .descriptor
+                        .code
+                        .get_fulfillment_state(),
+                );
+
+                pickup_datas.push(serde_json::to_value(pick_up_data).unwrap());
+                drop_off_datas.push(serde_json::to_value(drop_off_data).unwrap());
+                fulfillment_ids.push(status_fulfillment.id.to_owned());
+                commerce_data_ids.push(commerce_id);
+            }
         }
     }
+
+    BulkStatusFulfillmentData {
+        fulfillment_statuses,
+        pickup_datas,
+        commerce_data_ids,
+        fulfillment_ids,
+        drop_off_datas,
+    }
+}
+
+// CHANGE THE FOR LOOP UPDATE TO BULK UPDATE
+#[tracing::instrument(name = "save fulfillment  on on_status", skip(transaction))]
+async fn update_commerce_fulfillment_in_on_status(
+    transaction: &mut Transaction<'_, Postgres>,
+    commerce_id: Uuid,
+    status_fulfillments: &Vec<ONDCOnConfirmFulfillment>,
+    order_fulfillments: &Vec<CommerceFulfillment>,
+) -> Result<(), anyhow::Error> {
+    let data = get_bulk_update_on_status_data(commerce_id, status_fulfillments, order_fulfillments);
+    println!("{:?}", data.pickup_datas);
+    println!("{:?}", data.commerce_data_ids);
+    let query = sqlx::query!(
+        r#"
+        UPDATE commerce_fulfillment_data
+        SET
+        fulfillment_status = t.fulfillment_status,
+        pickup_data  = t.pickup_data,
+        drop_off_data = t.drop_off_data
+        FROM UNNEST($1::uuid[],  $2::commerce_fulfillment_status_type[], $3::jsonb[], $4::jsonb[], $5::text[])
+        AS t(commerce_data_id, fulfillment_status, pickup_data, drop_off_data, fulfillment_id)
+        WHERE commerce_fulfillment_data.commerce_data_id = t.commerce_data_id and 
+        commerce_fulfillment_data.fulfillment_id=t.fulfillment_id;
+        "#,
+        &data.commerce_data_ids,
+        &data.fulfillment_statuses as &Vec<FulfillmentStatusType>,
+        &data.pickup_datas,
+        &data.drop_off_datas,
+        &data.fulfillment_ids,
+    );
+    transaction.execute(query).await.map_err(|e| {
+        tracing::error!("Failed to execute query: {:?}", e);
+        anyhow::Error::new(e)
+            .context("A database failure occurred while saving RFQ to database request")
+    })?;
 
     Ok(())
 }
@@ -2406,7 +2493,7 @@ pub async fn initialize_order_on_status(
 
     update_commerce_fulfillment_in_on_status(
         &mut transaction,
-        on_status_request.context.transaction_id,
+        order.id,
         &on_status_request.message.order.fulfillments,
         &order.fulfillments,
     )

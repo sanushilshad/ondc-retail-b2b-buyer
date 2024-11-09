@@ -199,6 +199,7 @@ pub struct TimeRangeModel {
 
 pub struct FulfillmentInstruction {
     pub short_desc: String,
+    pub long_desc: String,
     pub name: String,
     pub images: Option<Vec<String>>,
 }

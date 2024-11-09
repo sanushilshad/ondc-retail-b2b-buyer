@@ -151,7 +151,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [x] Develop realtime search API
 * [x] Develop ONDC on search API
 * [x] Fix integration test + add unit test cases for the apis in milestone 1
-* [x] Add application release + debug + kill bash scripts 
+* [x] Add application release + debug + kill bash scripts + restart scripts
 
 
 
@@ -180,6 +180,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [ ] Update websocket implementation to enable Background Sync.
 * [ ] Remove device wise notification push.
 * [ ] Integrate ElasticSearch
+* [ ] Add limit to the number of failed authentication
 * [ ] Add test cases for milestone 2
 
 ### MILESTONE 4:

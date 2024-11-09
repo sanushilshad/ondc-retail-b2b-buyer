@@ -417,6 +417,17 @@ pub async fn order_status(
     )))
 }
 
+#[utoipa::path(
+    post,
+    path = "/order/cancel",
+    tag = "Order",
+    description="This API generates the ONDC cancel request based on user input.",
+    summary= "Order Cancel Request",
+    request_body(content = OrderCancelRequest, description = "Request Body"),
+    responses(
+        (status=200, description= "Order Cancel Response", body= GenericResponse<TupleUnit>),
+    )
+)]
 #[tracing::instrument(name = "order cancel", skip(pool), fields(transaction_id=body.transaction_id.to_string()))]
 pub async fn order_cancel(
     body: OrderCancelRequest,

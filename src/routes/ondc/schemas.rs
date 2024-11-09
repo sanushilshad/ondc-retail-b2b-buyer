@@ -2143,6 +2143,7 @@ pub struct ONDCFulfillmentInstruction {
     pub name: String,
     pub short_desc: String,
     pub images: Option<Vec<String>>,
+    pub long_desc: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

@@ -13,6 +13,7 @@ use crate::schemas::{CountryCode, CurrencyType, FeeType};
 // use crate::utils::deserialize_non_empty_vector;
 use actix_http::Payload;
 use actix_web::{web, FromRequest, HttpRequest};
+use serde_json::Value;
 
 use crate::domain::EmailObject;
 use bigdecimal::BigDecimal;
@@ -301,7 +302,7 @@ pub struct CommerceSeller {
 }
 
 #[derive(Deserialize, Debug, ToSchema)]
-pub struct BasicNetWorkData {
+pub struct BasicNetworkData {
     pub id: String,
     pub uri: String,
 }
@@ -551,8 +552,8 @@ pub struct Commerce {
     pub created_by: Uuid,
     #[schema(value_type = Option<f64>)]
     pub grand_total: Option<BigDecimal>,
-    pub bap: BasicNetWorkData,
-    pub bpp: BasicNetWorkData,
+    pub bap: BasicNetworkData,
+    pub bpp: BasicNetworkData,
     pub quote_ttl: String,
     pub city_code: String,
     pub country_code: CountryCode,
@@ -761,4 +762,21 @@ pub struct BulkCancelItemData {
     pub refunded_tax_values: Vec<BigDecimal>,
     pub refunded_discount_amounts: Vec<BigDecimal>,
     pub refunded_gross_totals: Vec<BigDecimal>,
+}
+
+#[derive(Debug)]
+pub struct BulkConfirmFulfillmentData {
+    pub fulfillment_statuses: Vec<FulfillmentStatusType>,
+    pub pickup_datas: Vec<Value>,
+    pub commerce_data_ids: Vec<Uuid>,
+    pub fulfillment_ids: Vec<String>,
+}
+
+#[derive(Debug)]
+pub struct BulkStatusFulfillmentData {
+    pub fulfillment_statuses: Vec<FulfillmentStatusType>,
+    pub pickup_datas: Vec<Value>,
+    pub commerce_data_ids: Vec<Uuid>,
+    pub fulfillment_ids: Vec<String>,
+    pub drop_off_datas: Vec<Value>,
 }
