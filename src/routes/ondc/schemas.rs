@@ -1660,6 +1660,7 @@ pub struct BulkSellerProductInfo<'a> {
     pub mrps: Vec<BigDecimal>,
     pub unit_prices: Vec<BigDecimal>,
     pub image_objs: Vec<Value>,
+    pub currency_codes: Vec<&'a CurrencyType>,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -1676,6 +1677,7 @@ pub struct ONDCSellerProductInfo {
     #[schema(value_type = f64)]
     pub unit_price: BigDecimal,
     pub images: Value,
+    pub currency_code: CurrencyType,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

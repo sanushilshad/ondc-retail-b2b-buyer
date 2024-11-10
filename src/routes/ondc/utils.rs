@@ -1028,6 +1028,7 @@ pub fn create_bulk_seller_product_info_objs<'a>(
     let mut image_objs: Vec<Value> = vec![];
     let mut mrps: Vec<BigDecimal> = vec![];
     let mut unit_prices: Vec<BigDecimal> = vec![];
+    let mut currency_codes = vec![];
     for provider in &body.providers {
         for item in &provider.items {
             seller_subscriber_ids.push(body.bpp.subscriber_id);
@@ -1040,6 +1041,7 @@ pub fn create_bulk_seller_product_info_objs<'a>(
             unit_prices.push(item.price.maximum_value.clone());
             // for image_url in item.images.iter() {
             image_objs.push(serde_json::to_value(&item.images).unwrap());
+            currency_codes.push(&item.price.currency);
             // }
             // image_objs.push(item_image_objs)
         }
@@ -1055,6 +1057,7 @@ pub fn create_bulk_seller_product_info_objs<'a>(
         image_objs,
         mrps,
         unit_prices,
+        currency_codes,
     };
 }
 
@@ -1075,7 +1078,8 @@ pub async fn save_ondc_seller_product_info<'a>(
             tax_rate,
             images,
             unit_price,
-            mrp
+            mrp,
+            currency_code
         )
         SELECT *
         FROM UNNEST(
@@ -1087,7 +1091,8 @@ pub async fn save_ondc_seller_product_info<'a>(
             $6::decimal[],
             $7::jsonb[],
             $8::decimal[],
-            $9::decimal[]
+            $9::decimal[],
+            $10::currency_code_type[]
         )
         ON CONFLICT (seller_subscriber_id, provider_id, item_id) 
         DO UPDATE SET 
@@ -1106,6 +1111,7 @@ pub async fn save_ondc_seller_product_info<'a>(
         &product_data.image_objs[..],
         &product_data.unit_prices[..] as &[BigDecimal],
         &product_data.mrps[..] as &[BigDecimal],
+        &product_data.currency_codes[..] as &[&CurrencyType],
     )
     .execute(pool)
     .await
@@ -1126,7 +1132,7 @@ pub async fn fetch_ondc_seller_product_info(
 ) -> Result<Vec<ONDCSellerProductInfo>, anyhow::Error> {
     let row: Vec<ONDCSellerProductInfo> = sqlx::query_as!(
         ONDCSellerProductInfo,
-        r#"SELECT item_name, item_id, item_code, seller_subscriber_id, provider_id, tax_rate, unit_price, mrp, images  from ondc_seller_product_info where 
+        r#"SELECT item_name, currency_code  as "currency_code: CurrencyType", item_id, item_code, seller_subscriber_id, provider_id, tax_rate, unit_price, mrp, images from ondc_seller_product_info where 
         provider_id  = $1 AND seller_subscriber_id=$2 AND item_id::text = ANY($3)"#,
         provider_id,
         bpp_id,

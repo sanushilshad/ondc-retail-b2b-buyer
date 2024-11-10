@@ -97,13 +97,14 @@ pub async fn save_rfq_order(
     bpp_detail: &LookupData,
     bap_detail: &RegisteredNetworkParticipant,
     provider_name: &str,
+    currency_code: &CurrencyType,
 ) -> Result<Uuid, anyhow::Error> {
     let order_id = Uuid::new_v4();
     let query = sqlx::query!(
         r#"
         INSERT INTO commerce_data (id, external_urn, record_type, record_status, 
-        domain_category_code, buyer_id, seller_id, seller_name, buyer_name, source, created_on, created_by, bpp_id, bpp_uri, bap_id, bap_uri, quote_ttl, city_code, country_code)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+        domain_category_code, buyer_id, seller_id, seller_name, buyer_name, source, created_on, created_by, bpp_id, bpp_uri, bap_id, bap_uri, quote_ttl, city_code, country_code, currency_code)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
         ON CONFLICT (external_urn) 
         DO NOTHING
         "#,
@@ -126,6 +127,7 @@ pub async fn save_rfq_order(
         &select_request.ttl,
         &select_request.fulfillments[0].location.city.code,
         &select_request.fulfillments[0].location.country.code as &CountryCode,
+        &currency_code as &CurrencyType,
     );
 
     transaction.execute(query).await.map_err(|e| {
@@ -465,7 +467,11 @@ pub async fn initialize_order_select(
     let (seller_product_map_res, seller_info_map_res) = futures::future::join(task1, task2).await;
     let seller_product_map = seller_product_map_res?;
     let seller_info_map = seller_info_map_res?;
-
+    let currency_code = seller_product_map
+        .iter()
+        .next()
+        .map(|(_, product)| &product.currency_code) // Get the currency code from the first item
+        .unwrap_or(&CurrencyType::Inr);
     let pick_up_location = seller_location_map
         .values()
         .next()
@@ -489,6 +495,7 @@ pub async fn initialize_order_select(
         bpp_detail,
         bap_detail,
         &provider_name,
+        &currency_code,
     )
     .await?;
     save_rfq_fulfillment(
