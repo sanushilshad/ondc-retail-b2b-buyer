@@ -30,8 +30,8 @@ use crate::routes::ondc::utils::{
 };
 use crate::routes::ondc::{
     LookupData, ONDCActionType, ONDCConfirmFulfillmentEndLocation, ONDCDocument,
-    ONDCFulfillmentInstruction, ONDCOnCancelRequest, ONDCOnStatusRequest, ONDCPaymentType,
-    ONDCTitleName,
+    ONDCFulfillmentInstruction, ONDCOnCancelRequest, ONDCOnStatusRequest, ONDCOnUpdateRequest,
+    ONDCPaymentType, ONDCTitleName,
 };
 use crate::routes::order::schemas::{
     CommerceStatusType, DeliveryTerm, FulfillmentCategoryType, FulfillmentStatusType, IncoTermType,
@@ -88,6 +88,7 @@ pub async fn save_ondc_order_request(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 #[tracing::instrument(name = "save rfq", skip(transaction))]
 pub async fn save_rfq_order(
     transaction: &mut Transaction<'_, Postgres>,
@@ -97,13 +98,14 @@ pub async fn save_rfq_order(
     bpp_detail: &LookupData,
     bap_detail: &RegisteredNetworkParticipant,
     provider_name: &str,
+    currency_code: &CurrencyType,
 ) -> Result<Uuid, anyhow::Error> {
     let order_id = Uuid::new_v4();
     let query = sqlx::query!(
         r#"
         INSERT INTO commerce_data (id, external_urn, record_type, record_status, 
-        domain_category_code, buyer_id, seller_id, seller_name, buyer_name, source, created_on, created_by, bpp_id, bpp_uri, bap_id, bap_uri, quote_ttl, city_code, country_code)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+        domain_category_code, buyer_id, seller_id, seller_name, buyer_name, source, created_on, created_by, bpp_id, bpp_uri, bap_id, bap_uri, quote_ttl, city_code, country_code, currency_code)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
         ON CONFLICT (external_urn) 
         DO NOTHING
         "#,
@@ -126,6 +128,7 @@ pub async fn save_rfq_order(
         &select_request.ttl,
         &select_request.fulfillments[0].location.city.code,
         &select_request.fulfillments[0].location.country.code as &CountryCode,
+        &currency_code as &CurrencyType,
     );
 
     transaction.execute(query).await.map_err(|e| {
@@ -465,7 +468,11 @@ pub async fn initialize_order_select(
     let (seller_product_map_res, seller_info_map_res) = futures::future::join(task1, task2).await;
     let seller_product_map = seller_product_map_res?;
     let seller_info_map = seller_info_map_res?;
-
+    let currency_code = seller_product_map
+        .iter()
+        .next()
+        .map(|(_, product)| &product.currency_code) // Get the currency code from the first item
+        .unwrap_or(&CurrencyType::Inr);
     let pick_up_location = seller_location_map
         .values()
         .next()
@@ -489,6 +496,7 @@ pub async fn initialize_order_select(
         bpp_detail,
         bap_detail,
         &provider_name,
+        currency_code,
     )
     .await?;
     save_rfq_fulfillment(
@@ -2546,7 +2554,7 @@ async fn update_commerce_in_on_cancel(
 }
 
 #[tracing::instrument(name = "bulk_update_on_cancel_fulfillments", skip(transaction))]
-async fn bulk_update_on_cancel_fulfillments(
+async fn update_on_cancel_fulfillments(
     transaction: &mut Transaction<'_, Postgres>,
     commerce_id: Uuid,
     request: &ONDCOnCancelRequest,
@@ -2648,12 +2656,12 @@ pub async fn initialize_order_on_cancel(
     )
     .await?;
 
-    bulk_update_on_cancel_fulfillments(&mut transaction, order.id, on_cancel_request).await?;
-    bulk_update_on_cancel_items(&mut transaction, order.id, on_cancel_request, order).await?;
+    update_on_cancel_fulfillments(&mut transaction, order.id, on_cancel_request).await?;
+    update_on_cancel_items(&mut transaction, order.id, on_cancel_request, order).await?;
     transaction
         .commit()
         .await
-        .context("Failed to commit SQL transaction to update order on status")?;
+        .context("Failed to commit SQL transaction to update order on cancel")?;
 
     Ok(())
 }
@@ -2711,7 +2719,7 @@ fn get_on_cancel_bulk_item_data(
     }
 }
 #[tracing::instrument(name = "bulk_update_on_cancel_items", skip(transaction))]
-async fn bulk_update_on_cancel_items(
+async fn update_on_cancel_items(
     transaction: &mut Transaction<'_, Postgres>,
     commerce_id: Uuid,
     request: &ONDCOnCancelRequest,
@@ -2741,5 +2749,33 @@ async fn bulk_update_on_cancel_items(
         anyhow::Error::new(e)
             .context("A database failure occurred while saving RFQ to database request")
     })?;
+    Ok(())
+}
+
+#[tracing::instrument(name = "save order on on_update", skip(pool))]
+pub async fn initialize_order_on_update(
+    pool: &PgPool,
+    on_cancel_request: &ONDCOnUpdateRequest,
+    order: &Commerce,
+) -> Result<(), anyhow::Error> {
+    let mut transaction = pool
+        .begin()
+        .await
+        .context("Failed to acquire a Postgres connection from the pool")?;
+
+    let _ = delete_payment_in_commerce(&mut transaction, on_cancel_request.context.transaction_id)
+        .await?;
+
+    initialize_payment_on_confirm(
+        &mut transaction,
+        order,
+        &on_cancel_request.message.order.payments,
+    )
+    .await?;
+    transaction
+        .commit()
+        .await
+        .context("Failed to commit SQL transaction to update order on update")?;
+
     Ok(())
 }

@@ -463,7 +463,6 @@ CREATE TABLE IF NOT EXISTS commerce_data(
   bpp_uri TEXT NOT NULL,
   bap_id TEXT NOT NULL,
   bap_uri TEXT NOT NULL,
-
   quote_ttl TEXT NOT NULL,
   currency_code currency_code_type,
   city_code TEXT NOT NULL,
@@ -657,6 +656,7 @@ ALTER TABLE ondc_seller_location_info ADD CONSTRAINT ondc_seller_location_constr
 CREATE TABLE IF NOT EXISTS ondc_seller_product_info (
     id SERIAL NOT NULL PRIMARY KEY,
     seller_subscriber_id TEXT NOT NULL,
+    currency_code currency_code_type NOT NULL,
     provider_id TEXT NOT NULL,
     provider_name TEXT,
     item_id TEXT NOT NULL,

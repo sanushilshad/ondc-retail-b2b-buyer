@@ -127,6 +127,8 @@ pub enum GenericError {
     InvalidData(String),
     #[error("{0}")]
     DataNotFound(String),
+    #[error("{0}")]
+    NotImplemented(String),
 }
 
 impl std::fmt::Debug for GenericError {
@@ -147,6 +149,7 @@ impl ResponseError for GenericError {
             GenericError::UnexpectedCustomError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             GenericError::InvalidData(_) => StatusCode::INTERNAL_SERVER_ERROR,
             GenericError::DataNotFound(_) => StatusCode::GONE,
+            GenericError::NotImplemented(_) => StatusCode::NOT_IMPLEMENTED,
         }
     }
 
@@ -163,6 +166,7 @@ impl ResponseError for GenericError {
             GenericError::UnexpectedCustomError(error_msg) => error_msg.to_string(),
             GenericError::InvalidData(error_msg) => error_msg.to_string(),
             GenericError::DataNotFound(error_msg) => error_msg.to_string(),
+            GenericError::NotImplemented(error_msg) => error_msg.to_string(),
         };
 
         HttpResponse::build(status_code).json(GenericResponse::error(

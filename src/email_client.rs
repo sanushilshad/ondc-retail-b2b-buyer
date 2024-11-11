@@ -114,7 +114,7 @@ impl SmtpEmailClient {
                 )
                 .build();
 
-        tracing::info!("SMTP connection created succuessfully");
+        // tracing::info!("SMTP connection created succuessfully");
         Ok(Self { sender, mailer })
     }
 }
