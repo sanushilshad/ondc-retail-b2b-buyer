@@ -155,7 +155,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 
 
 
-### MILESTONE 2: (Jul 23, 2024 - pending)
+### MILESTONE 2: (Jul 23, 2024 - Nov 12, 2024)
 * [x] Develop select API
 * [x] Develop ondc on select API
 * [x] Develop init API
@@ -169,7 +169,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [x] Develop cancel API
 * [x] Develop ONDC on cancel API
 * [x] Develop update API
-* [ ] Develop ONDC on update API
+* [x] Develop ONDC on update API
 
 ### MILESTONE 3:
 
