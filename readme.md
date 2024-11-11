@@ -129,8 +129,8 @@ bash restart.sh
 ## API DOCUMENTATION:
 The API Docmentation can be found at `https://{{domain}}/docs/` after running the server.
 
-## MILESTONES
-### MILESTONE 1:
+## MILESTONES (34/70)
+### MILESTONE 1 (Jan 18, 2023 - Jul 22, 2024):
 * [x] Set up basic actix web server
 * [x] Add environment config fetch
 * [x] Develop custom migration command
@@ -155,7 +155,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 
 
 
-### MILESTONE 2:
+### MILESTONE 2: (Jul 23, 2024 - pending)
 * [x] Develop select API
 * [x] Develop ondc on select API
 * [x] Develop init API
@@ -168,7 +168,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [x] Develop ONDC on status API
 * [x] Develop cancel API
 * [x] Develop ONDC on cancel API
-* [ ] Develop update API
+* [x] Develop update API
 * [ ] Develop ONDC on update API
 
 ### MILESTONE 3:
@@ -181,7 +181,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [ ] Remove device wise notification push.
 * [ ] Integrate ElasticSearch
 * [ ] Add limit to the number of failed authentication
-* [ ] Add test cases for milestone 2
+* [ ] Add test cases for milestone 2 (Only unit tests)
 
 ### MILESTONE 4:
 * [ ] Develop IGM issue API
@@ -202,25 +202,19 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [ ] Develop Password Reset API
 * [ ] Develop Order Fetch API
 * [ ] Develop Cancellation Code Fetch API
-
 * [ ] Integrate with notification microservice to enable WhatsApp, Email and SMS functionality
 
 ### MILESTONE 6:
 * [ ] Complete validation for business_account registration
 * [ ] Complete validation for user_account registration
-* [ ] Complete validation for product search registration
-* [ ] Complete validation ONDC on search registration
+* [ ] Complete validation for search/ select/ init/ confirm/ status/ cancel/ update APIs
+* [ ] Complete validation ONDC for on_search/ on_select/ on_init/ on_confirm/ on_status/ on_cancel/ on_update APIs
 
 
 ### MILESTONE 7:
-* [ ] Integrate Pulser/Kafka/RabbitMQ
-* [ ] Integrate SMS
-* [ ] Integrate Whatsapp
 * [ ] Develop email verfication APIs for user and business account
 * [ ] Develop mobile verfication APIs for user and business account
-* [ ] Develop sms otp API
-* [ ] Develop email otp API
 * [ ] Design product caching
 * [ ] Develop new config fetch (will be given the last priority)
-* [ ] Intergrate etcd for TSP flow (when i have nothing better to do: probably never)
+* [ ] Intergrate etcd for TSP flow (when I have nothing better to do: probably never)
 ### THE MILESTONES ARE SUSCEPTIBLE TO CHANGES ╰(*°▽°*)╯

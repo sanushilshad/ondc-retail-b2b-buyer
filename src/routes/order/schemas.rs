@@ -5,7 +5,7 @@ use crate::routes::ondc::schemas::{
     ONDCFulfillmentStateType, ONDCPaymentSettlementCounterparty, ONDCPaymentSettlementPhase,
     ONDCPaymentSettlementType, ONDCSettlementBasis,
 };
-use crate::routes::ondc::ONDCPaymentCollectedBy;
+use crate::routes::ondc::{ONDCOrderStatus, ONDCOrderUpdateTarget, ONDCPaymentCollectedBy};
 use crate::routes::product::schemas::FulfillmentType;
 use crate::routes::product::schemas::{CategoryDomain, PaymentType};
 use crate::schemas::DataSource;
@@ -219,6 +219,22 @@ pub enum CommerceStatusType {
     InProgress,
     Completed,
     Cancelled,
+}
+
+impl CommerceStatusType {
+    pub fn get_ondc_order_status(&self) -> ONDCOrderStatus {
+        match self {
+            CommerceStatusType::QuoteRequested => ONDCOrderStatus::InProgress,
+            CommerceStatusType::QuoteAccepted => ONDCOrderStatus::InProgress,
+            CommerceStatusType::QuoteRejected => ONDCOrderStatus::Cancelled,
+            CommerceStatusType::Initialized => ONDCOrderStatus::InProgress,
+            CommerceStatusType::Created => ONDCOrderStatus::Created,
+            CommerceStatusType::Accepted => ONDCOrderStatus::Accepted,
+            CommerceStatusType::InProgress => ONDCOrderStatus::InProgress,
+            CommerceStatusType::Completed => ONDCOrderStatus::Completed,
+            CommerceStatusType::Cancelled => ONDCOrderStatus::Cancelled,
+        }
+    }
 }
 
 // #[derive(Deserialize, Debug)]
@@ -779,4 +795,94 @@ pub struct BulkStatusFulfillmentData {
     pub commerce_data_ids: Vec<Uuid>,
     pub fulfillment_ids: Vec<String>,
     pub drop_off_datas: Vec<Value>,
+}
+
+#[derive(Deserialize, Debug, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum OrderUpdateType {
+    Payment,
+    Item,
+    Fulfillment,
+}
+
+impl OrderUpdateType {
+    pub fn get_ondc_type(&self) -> ONDCOrderUpdateTarget {
+        match self {
+            OrderUpdateType::Payment => ONDCOrderUpdateTarget::Payment,
+            OrderUpdateType::Item => ONDCOrderUpdateTarget::Item,
+            OrderUpdateType::Fulfillment => ONDCOrderUpdateTarget::Fulfillment,
+        }
+    }
+}
+
+#[derive(Deserialize, Debug, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateOrderPaymentRequest {
+    #[schema(value_type = String)]
+    pub transaction_id: Uuid,
+    #[schema(value_type = String)]
+    pub message_id: Uuid,
+    pub target_type: OrderUpdateType,
+}
+#[derive(Deserialize, Debug, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateOrderItemRequest {
+    #[schema(value_type = String)]
+    pub transaction_id: Uuid,
+    #[schema(value_type = String)]
+    pub message_id: Uuid,
+    pub target_type: OrderUpdateType,
+    pub items: Vec<String>,
+}
+
+#[derive(Deserialize, Debug, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateOrderFulfillmentRequest {
+    #[schema(value_type = String)]
+    pub transaction_id: Uuid,
+    #[schema(value_type = String)]
+    pub message_id: Uuid,
+    pub target_type: OrderUpdateType,
+    pub fulfillments: Vec<OrderSelectFulfillment>,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(untagged)]
+pub enum OrderUpdateRequest {
+    UpdatePayment(UpdateOrderPaymentRequest),
+    UpdateItem(UpdateOrderItemRequest),
+    UpdateFulfillment(UpdateOrderFulfillmentRequest),
+}
+
+impl OrderUpdateRequest {
+    pub fn transaction_id(&self) -> Uuid {
+        match self {
+            OrderUpdateRequest::UpdatePayment(request) => request.transaction_id,
+            OrderUpdateRequest::UpdateItem(request) => request.transaction_id,
+            OrderUpdateRequest::UpdateFulfillment(request) => request.transaction_id,
+        }
+    }
+    pub fn message_id(&self) -> Uuid {
+        match self {
+            OrderUpdateRequest::UpdatePayment(request) => request.message_id,
+            OrderUpdateRequest::UpdateItem(request) => request.message_id,
+            OrderUpdateRequest::UpdateFulfillment(request) => request.message_id,
+        }
+    }
+}
+
+impl FromRequest for OrderUpdateRequest {
+    type Error = GenericError;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
+
+    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+        let fut = web::Json::<Self>::from_request(req, payload);
+
+        Box::pin(async move {
+            match fut.await {
+                Ok(json) => Ok(json.into_inner()),
+                Err(e) => Err(GenericError::ValidationError(e.to_string())),
+            }
+        })
+    }
 }

@@ -7,7 +7,7 @@ use crate::configuration::ONDCSetting;
 use crate::errors::GenericError;
 use crate::routes::ondc::utils::{
     get_lookup_data_from_db, get_ondc_cancel_payload, get_ondc_seller_location_info_mapping,
-    get_ondc_status_payload,
+    get_ondc_status_payload, get_ondc_update_payload,
 };
 use crate::routes::ondc::utils::{
     get_ondc_confirm_payload, get_ondc_init_payload, get_ondc_select_payload, send_ondc_payload,
@@ -21,7 +21,7 @@ use sqlx::PgPool;
 
 use super::schemas::{
     OrderCancelRequest, OrderConfirmRequest, OrderInitRequest, OrderSelectRequest,
-    OrderStatusRequest, OrderType,
+    OrderStatusRequest, OrderType, OrderUpdateRequest,
 };
 use super::utils::{fetch_order_by_id, initialize_order_select, save_ondc_order_request};
 
@@ -470,12 +470,12 @@ pub async fn order_cancel(
         }
     };
 
-    let ondc_status_payload = get_ondc_cancel_payload(&order, &body)?;
-    let confirm_json_obj = serde_json::to_value(&ondc_status_payload)?;
-    let ondc_status_payload_str = serde_json::to_string(&ondc_status_payload).map_err(|e| {
-        GenericError::SerializationError(format!("Failed to serialize ONDC status payload: {}", e))
+    let ondc_cancel_payload = get_ondc_cancel_payload(&order, &body)?;
+    let confirm_json_obj = serde_json::to_value(&ondc_cancel_payload)?;
+    let ondc_cancel_payload_str = serde_json::to_string(&ondc_cancel_payload).map_err(|e| {
+        GenericError::SerializationError(format!("Failed to serialize ONDC cancel payload: {}", e))
     })?;
-    let header = create_authorization_header(&ondc_status_payload_str, &bap_detail, None, None)?;
+    let header = create_authorization_header(&ondc_cancel_payload_str, &bap_detail, None, None)?;
     let task_3 = save_ondc_order_request(
         &pool,
         &user_account,
@@ -488,7 +488,7 @@ pub async fn order_cancel(
     );
     let task_4 = send_ondc_payload(
         &order.bpp.uri,
-        &ondc_status_payload_str,
+        &ondc_cancel_payload_str,
         &header,
         ONDCActionType::Cancel,
     );
@@ -496,6 +496,89 @@ pub async fn order_cancel(
 
     Ok(web::Json(GenericResponse::success(
         "Successfully send cancel request",
+        Some(()),
+    )))
+}
+
+#[utoipa::path(
+    post,
+    path = "/order/update",
+    tag = "Order",
+    description="This API generates the ONDC update request based on user input.",
+    summary= "Order Update Request",
+    request_body(content = OrderUpdateRequest, description = "Request Body"),
+    responses(
+        (status=200, description= "Order Update Response", body= GenericResponse<TupleUnit>),
+    )
+)]
+#[tracing::instrument(name = "order update", skip(pool), fields(transaction_id = %body.transaction_id()))]
+pub async fn order_update(
+    body: OrderUpdateRequest,
+    pool: web::Data<PgPool>,
+    ondc_obj: web::Data<ONDCSetting>,
+    user_account: UserAccount,
+    business_account: BusinessAccount,
+    meta_data: RequestMetaData,
+) -> Result<web::Json<GenericResponse<()>>, GenericError> {
+    let order = match fetch_order_by_id(&pool, body.transaction_id()).await {
+        Ok(Some(order_detail)) => order_detail,
+        Ok(None) => {
+            return Err(GenericError::ValidationError(format!(
+                "{} is not found in datbase",
+                &body.transaction_id()
+            )))
+        }
+        Err(e) => {
+            return Err(GenericError::DatabaseError(
+                "Something went wrong while fetching Order detail".to_string(),
+                e,
+            ));
+        }
+    };
+
+    let bap_detail = match get_np_detail(&pool, &meta_data.domain_uri, &ONDCNetworkType::Bap).await
+    {
+        Ok(Some(bap_detail)) => bap_detail,
+        Ok(None) => {
+            return Err(GenericError::ValidationError(format!(
+                "{} is not a registered ONDC registered domain",
+                meta_data.domain_uri
+            )))
+        }
+        Err(e) => {
+            return Err(GenericError::DatabaseError(
+                "Something went wrong while fetching NP credentials".to_string(),
+                e,
+            ));
+        }
+    };
+
+    let ondc_update_payload = get_ondc_update_payload(&order, &body, &bap_detail)?;
+    let update_json_obj = serde_json::to_value(&ondc_update_payload)?;
+    let ondc_update_payload_str = serde_json::to_string(&ondc_update_payload).map_err(|e| {
+        GenericError::SerializationError(format!("Failed to serialize ONDC update payload: {}", e))
+    })?;
+    let header = create_authorization_header(&ondc_update_payload_str, &bap_detail, None, None)?;
+    let task_3 = save_ondc_order_request(
+        &pool,
+        &user_account,
+        &business_account,
+        &meta_data,
+        &update_json_obj,
+        body.transaction_id(),
+        body.message_id(),
+        ONDCActionType::Update,
+    );
+    let task_4 = send_ondc_payload(
+        &order.bpp.uri,
+        &ondc_update_payload_str,
+        &header,
+        ONDCActionType::Update,
+    );
+    futures::future::join(task_3, task_4).await.1?;
+
+    Ok(web::Json(GenericResponse::success(
+        "Successfully send update request",
         Some(()),
     )))
 }

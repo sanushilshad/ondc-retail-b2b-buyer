@@ -2524,3 +2524,44 @@ pub struct WSCancel {
     pub message_id: Uuid,
     pub error: Option<String>,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCUpdateProvider {
+    pub id: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCUpdateItem {
+    pub id: String,
+    pub quantity: ONDCQuantitySelect,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCUpdateOrder {
+    pub id: String,
+    pub state: ONDCOrderStatus,
+    pub provider: ONDCUpdateProvider,
+    pub payments: Vec<ONDCOnConfirmPayment>,
+    pub items: Vec<ONDCUpdateItem>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum ONDCOrderUpdateTarget {
+    #[serde(rename = "payments")]
+    Payment,
+    #[serde(rename = "fulfillment")]
+    Fulfillment,
+    #[serde(rename = "iulfillment")]
+    Item,
+}
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCUpdateMessage {
+    pub update_target: ONDCOrderUpdateTarget,
+    pub order: ONDCUpdateOrder,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCUpdateRequest {
+    pub context: ONDCContext,
+    pub message: ONDCUpdateMessage,
+}

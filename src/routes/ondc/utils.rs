@@ -2,7 +2,9 @@ use super::{
     BreakupTitleType, LookupData, LookupRequest, ONDCActionType, ONDCBreakUp, ONDCCancelMessage,
     ONDCCancelRequest, ONDCConfirmMessage, ONDCConfirmOrder, ONDCConfirmProvider, ONDCContext,
     ONDCContextCity, ONDCContextCountry, ONDCContextLocation, ONDCDomain, ONDCFeeType,
-    ONDCSearchStop, ONDCStatusMessage, ONDCStatusRequest, ONDCTag, ONDCVersion, OndcUrl,
+    ONDCSearchStop, ONDCStatusMessage, ONDCStatusRequest, ONDCTag, ONDCUpdateItem,
+    ONDCUpdateMessage, ONDCUpdateOrder, ONDCUpdateProvider, ONDCUpdateRequest, ONDCVersion,
+    OndcUrl,
 };
 
 use crate::user_client::{BusinessAccount, UserAccount};
@@ -45,14 +47,16 @@ use crate::domain::EmailObject;
 use crate::routes::ondc::schemas::{ONDCCity, ONDCPerson, ONDCSellerInfo, OrderRequestParamsModel};
 use crate::routes::ondc::{ONDCErrorCode, ONDCResponse};
 use crate::routes::order::errors::{
-    ConfirmOrderError, InitOrderError, OrderCancelError, OrderStatusError, SelectOrderError,
+    ConfirmOrderError, InitOrderError, OrderCancelError, OrderStatusError, OrderUpdateError,
+    SelectOrderError,
 };
 use crate::routes::order::schemas::{
     BuyerTerms, CancellationFeeType, Commerce, CommerceBilling, CommerceCancellationFee,
     CommerceCancellationTerm, CommerceFulfillment, CommerceItem, CommercePayment, DropOffData,
     OrderCancelRequest, OrderConfirmRequest, OrderDeliveyTerm, OrderInitBilling, OrderInitRequest,
     OrderSelectFulfillment, OrderSelectItem, OrderSelectRequest, OrderStatusRequest, OrderType,
-    PaymentCollectedBy, PickUpData, SelectFulfillmentLocation, SettlementBasis,
+    OrderUpdateRequest, PaymentCollectedBy, PickUpData, SelectFulfillmentLocation, SettlementBasis,
+    UpdateOrderPaymentRequest,
 };
 use crate::routes::product::schemas::{
     CategoryDomain, FulfillmentType, PaymentType, ProductFulFillmentLocations,
@@ -2094,4 +2098,66 @@ pub fn get_ondc_cancel_payload(
         .ok_or_else(|| OrderCancelError::ValidationError("Order id is missing".to_owned()))?;
     let message = get_ondc_cancel_message(order_id, &cancel_request.reason_id);
     Ok(ONDCCancelRequest { context, message })
+}
+
+fn get_ondc_update_items(order: &Commerce) -> Vec<ONDCUpdateItem> {
+    let mut items_obj = vec![];
+    for item in &order.items {
+        items_obj.push(ONDCUpdateItem {
+            id: item.item_id.clone(),
+            quantity: ONDCQuantitySelect {
+                selected: ONDCQuantityCountInt {
+                    count: item.qty.with_scale(0).to_i32().unwrap_or(0),
+                },
+            },
+        })
+    }
+    items_obj
+}
+
+fn get_ondc_update_message_for_payment(
+    order: &Commerce,
+    body: &UpdateOrderPaymentRequest,
+    bap_detail: &RegisteredNetworkParticipant,
+) -> ONDCUpdateMessage {
+    ONDCUpdateMessage {
+        update_target: body.target_type.get_ondc_type(),
+        order: ONDCUpdateOrder {
+            id: order.urn.clone().unwrap_or(order.external_urn.to_string()),
+            state: order.record_status.get_ondc_order_status(),
+            provider: ONDCUpdateProvider {
+                id: order.seller.id.clone(),
+            },
+            payments: get_ondc_confirm_request_payment(order, bap_detail),
+            items: get_ondc_update_items(order),
+        },
+    }
+}
+
+#[tracing::instrument(name = "get ondc update payload", skip())]
+pub fn get_ondc_update_payload(
+    order: &Commerce,
+    update_request: &OrderUpdateRequest,
+    bap_detail: &RegisteredNetworkParticipant,
+) -> Result<ONDCUpdateRequest, OrderUpdateError> {
+    let context = get_ondc_context_from_order(
+        update_request.transaction_id(),
+        update_request.message_id(),
+        order,
+        ONDCActionType::Update,
+    )?;
+
+    let message = match update_request {
+        OrderUpdateRequest::UpdatePayment(body) => {
+            get_ondc_update_message_for_payment(order, body, bap_detail)
+        }
+        OrderUpdateRequest::UpdateItem(_) => Err(OrderUpdateError::NotImplemented(
+            "Item Updation not implemented".to_string(),
+        ))?,
+        OrderUpdateRequest::UpdateFulfillment(_) => Err(OrderUpdateError::NotImplemented(
+            "Fulfillment Updation not implemented".to_string(),
+        ))?,
+    };
+
+    Ok(ONDCUpdateRequest { context, message })
 }

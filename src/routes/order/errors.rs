@@ -138,3 +138,31 @@ impl From<OrderCancelError> for GenericError {
         }
     }
 }
+
+#[allow(clippy::enum_variant_names)]
+#[derive(thiserror::Error)]
+pub enum OrderUpdateError {
+    #[error("{0}")]
+    ValidationError(String),
+
+    #[error(transparent)]
+    UnexpectedError(#[from] anyhow::Error),
+    #[error("{0}")]
+    NotImplemented(String),
+}
+
+impl std::fmt::Debug for OrderUpdateError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        error_chain_fmt(self, f)
+    }
+}
+
+impl From<OrderUpdateError> for GenericError {
+    fn from(err: OrderUpdateError) -> GenericError {
+        match err {
+            OrderUpdateError::ValidationError(message) => GenericError::ValidationError(message),
+            OrderUpdateError::UnexpectedError(error) => GenericError::UnexpectedError(error),
+            OrderUpdateError::NotImplemented(message) => GenericError::NotImplemented(message),
+        }
+    }
+}

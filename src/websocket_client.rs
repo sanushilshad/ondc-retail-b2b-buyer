@@ -37,11 +37,13 @@ pub struct WebSocketClient {
 }
 
 impl WebSocketClient {
+    #[tracing::instrument]
     pub fn new(
         base_url: String,
         authorization_token: SecretString,
         timeout: std::time::Duration,
     ) -> Self {
+        tracing::info!("Establishing connection to the Websocket server.");
         let http_client = Client::builder().timeout(timeout).build().unwrap();
         Self {
             http_client,

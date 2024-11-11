@@ -217,7 +217,9 @@ pub struct UserClient {
 }
 
 impl UserClient {
+    #[tracing::instrument]
     pub fn new(base_url: String, auth_token: SecretString, timeout: std::time::Duration) -> Self {
+        tracing::info!("Establishing connection to the user server.");
         let http_client = Client::builder().timeout(timeout).build().unwrap();
         Self {
             http_client,
