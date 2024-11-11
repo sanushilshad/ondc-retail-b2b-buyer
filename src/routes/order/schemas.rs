@@ -848,6 +848,7 @@ pub struct UpdateOrderFulfillmentRequest {
 
 #[derive(Debug, Deserialize, ToSchema)]
 #[serde(untagged)]
+#[allow(clippy::enum_variant_names)]
 pub enum OrderUpdateRequest {
     UpdatePayment(UpdateOrderPaymentRequest),
     UpdateItem(UpdateOrderItemRequest),

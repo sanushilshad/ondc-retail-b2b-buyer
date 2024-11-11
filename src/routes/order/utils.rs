@@ -30,8 +30,8 @@ use crate::routes::ondc::utils::{
 };
 use crate::routes::ondc::{
     LookupData, ONDCActionType, ONDCConfirmFulfillmentEndLocation, ONDCDocument,
-    ONDCFulfillmentInstruction, ONDCOnCancelRequest, ONDCOnStatusRequest, ONDCPaymentType,
-    ONDCTitleName,
+    ONDCFulfillmentInstruction, ONDCOnCancelRequest, ONDCOnStatusRequest, ONDCOnUpdateRequest,
+    ONDCPaymentType, ONDCTitleName,
 };
 use crate::routes::order::schemas::{
     CommerceStatusType, DeliveryTerm, FulfillmentCategoryType, FulfillmentStatusType, IncoTermType,
@@ -88,6 +88,7 @@ pub async fn save_ondc_order_request(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 #[tracing::instrument(name = "save rfq", skip(transaction))]
 pub async fn save_rfq_order(
     transaction: &mut Transaction<'_, Postgres>,
@@ -495,7 +496,7 @@ pub async fn initialize_order_select(
         bpp_detail,
         bap_detail,
         &provider_name,
-        &currency_code,
+        currency_code,
     )
     .await?;
     save_rfq_fulfillment(
@@ -2553,7 +2554,7 @@ async fn update_commerce_in_on_cancel(
 }
 
 #[tracing::instrument(name = "bulk_update_on_cancel_fulfillments", skip(transaction))]
-async fn bulk_update_on_cancel_fulfillments(
+async fn update_on_cancel_fulfillments(
     transaction: &mut Transaction<'_, Postgres>,
     commerce_id: Uuid,
     request: &ONDCOnCancelRequest,
@@ -2655,12 +2656,12 @@ pub async fn initialize_order_on_cancel(
     )
     .await?;
 
-    bulk_update_on_cancel_fulfillments(&mut transaction, order.id, on_cancel_request).await?;
-    bulk_update_on_cancel_items(&mut transaction, order.id, on_cancel_request, order).await?;
+    update_on_cancel_fulfillments(&mut transaction, order.id, on_cancel_request).await?;
+    update_on_cancel_items(&mut transaction, order.id, on_cancel_request, order).await?;
     transaction
         .commit()
         .await
-        .context("Failed to commit SQL transaction to update order on status")?;
+        .context("Failed to commit SQL transaction to update order on cancel")?;
 
     Ok(())
 }
@@ -2718,7 +2719,7 @@ fn get_on_cancel_bulk_item_data(
     }
 }
 #[tracing::instrument(name = "bulk_update_on_cancel_items", skip(transaction))]
-async fn bulk_update_on_cancel_items(
+async fn update_on_cancel_items(
     transaction: &mut Transaction<'_, Postgres>,
     commerce_id: Uuid,
     request: &ONDCOnCancelRequest,
@@ -2748,5 +2749,33 @@ async fn bulk_update_on_cancel_items(
         anyhow::Error::new(e)
             .context("A database failure occurred while saving RFQ to database request")
     })?;
+    Ok(())
+}
+
+#[tracing::instrument(name = "save order on on_update", skip(pool))]
+pub async fn initialize_order_on_update(
+    pool: &PgPool,
+    on_cancel_request: &ONDCOnUpdateRequest,
+    order: &Commerce,
+) -> Result<(), anyhow::Error> {
+    let mut transaction = pool
+        .begin()
+        .await
+        .context("Failed to acquire a Postgres connection from the pool")?;
+
+    let _ = delete_payment_in_commerce(&mut transaction, on_cancel_request.context.transaction_id)
+        .await?;
+
+    initialize_payment_on_confirm(
+        &mut transaction,
+        order,
+        &on_cancel_request.message.order.payments,
+    )
+    .await?;
+    transaction
+        .commit()
+        .await
+        .context("Failed to commit SQL transaction to update order on update")?;
+
     Ok(())
 }

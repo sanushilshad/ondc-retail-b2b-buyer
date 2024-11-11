@@ -2565,3 +2565,44 @@ pub struct ONDCUpdateRequest {
     pub context: ONDCContext,
     pub message: ONDCUpdateMessage,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCOnUpdateMessage {
+    pub order: ONDCUpdateOrder,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ONDCOnUpdateRequest {
+    pub context: ONDCContext,
+    pub message: ONDCOnUpdateMessage,
+    pub error: Option<ONDCResponseErrorBody<ONDCSellerErrorCode>>,
+}
+
+impl FromRequest for ONDCOnUpdateRequest {
+    type Error = ONDCBuyerError;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
+
+    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+        let fut = web::Json::<Self>::from_request(req, payload);
+
+        Box::pin(async move {
+            match fut.await {
+                Ok(json) => Ok(json.into_inner()),
+                Err(e) => Err(ONDCBuyerError::InvalidResponseError {
+                    path: None,
+                    message: e.to_string(),
+                }),
+            }
+        })
+    }
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WSUpdate {
+    #[schema(value_type = String)]
+    pub transaction_id: Uuid,
+    #[schema(value_type = String)]
+    pub message_id: Uuid,
+    pub error: Option<String>,
+}
