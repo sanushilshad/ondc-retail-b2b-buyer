@@ -129,7 +129,7 @@ bash restart.sh
 ## API DOCUMENTATION:
 The API Docmentation can be found at `https://{{domain}}/docs/` after running the server.
 
-## MILESTONES (34/70)
+## MILESTONES (35/70)
 ### MILESTONE 1 (Jan 18, 2023 - Jul 22, 2024):
 * [x] Set up basic actix web server
 * [x] Add environment config fetch
