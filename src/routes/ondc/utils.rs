@@ -2,9 +2,9 @@ use super::{
     BreakupTitleType, LookupData, LookupRequest, ONDCActionType, ONDCBreakUp, ONDCCancelMessage,
     ONDCCancelRequest, ONDCConfirmMessage, ONDCConfirmOrder, ONDCConfirmProvider, ONDCContext,
     ONDCContextCity, ONDCContextCountry, ONDCContextLocation, ONDCDomain, ONDCFeeType,
-    ONDCSearchStop, ONDCStatusMessage, ONDCStatusRequest, ONDCTag, ONDCUpdateItem,
-    ONDCUpdateMessage, ONDCUpdateOrder, ONDCUpdateProvider, ONDCUpdateRequest, ONDCVersion,
-    OndcUrl,
+    ONDCSearchStop, ONDCSellePriceSlab, ONDCStatusMessage, ONDCStatusRequest, ONDCTag,
+    ONDCUpdateItem, ONDCUpdateMessage, ONDCUpdateOrder, ONDCUpdateProvider, ONDCUpdateRequest,
+    ONDCVersion, OndcUrl,
 };
 
 use crate::user_client::{BusinessAccount, UserAccount};
@@ -41,8 +41,6 @@ use super::schemas::{
     ONDCSellerLocationInfo, ONDCSellerProductInfo, ONDCState, ONDCTagItemCode, ONDCTagType,
     ONDConfirmRequest, OnSearchContentType, TagTrait,
 };
-use serde_json::Value;
-
 use crate::domain::EmailObject;
 use crate::routes::ondc::schemas::{ONDCCity, ONDCPerson, ONDCSellerInfo, OrderRequestParamsModel};
 use crate::routes::ondc::{ONDCErrorCode, ONDCResponse};
@@ -61,11 +59,13 @@ use crate::routes::order::schemas::{
 use crate::routes::product::schemas::{
     CategoryDomain, FulfillmentType, PaymentType, ProductFulFillmentLocations,
     ProductSearchRequest, ProductSearchType, SearchRequestModel, UnitizedProductQty,
-    WSCreatorContactData, WSItemPayment, WSProductCategory, WSProductCreator, WSSearch,
-    WSSearchBPP, WSSearchCity, WSSearchCountry, WSSearchData, WSSearchItem, WSSearchItemPrice,
-    WSSearchItemQty, WSSearchItemQtyMeasure, WSSearchItemQuantity, WSSearchProductProvider,
-    WSSearchProvider, WSSearchProviderLocation, WSSearchState,
+    WSCreatorContactData, WSItemPayment, WSPriceSlab, WSProductCategory, WSProductCreator,
+    WSSearch, WSSearchBPP, WSSearchCity, WSSearchCountry, WSSearchData, WSSearchItem,
+    WSSearchItemPrice, WSSearchItemQty, WSSearchItemQtyMeasure, WSSearchItemQuantity,
+    WSSearchProductProvider, WSSearchProvider, WSSearchProviderLocation, WSSearchState,
 };
+use serde_json::Value;
+use sqlx::types::Json;
 
 use crate::schemas::{
     CountryCode, CurrencyType, FeeType, NetworkCall, ONDCNetworkType, RegisteredNetworkParticipant,
@@ -512,10 +512,12 @@ pub fn _get_order_param_from_param_req(ondc_req: &OrderRequestParamsModel) -> We
 #[tracing::instrument(name = "get price obj from ondc price obj", skip())]
 pub fn get_price_obj_from_ondc_price_obj(
     price: &ONDCOnSearchItemPrice,
+    tax: &BigDecimal,
 ) -> Result<WSSearchItemPrice, anyhow::Error> {
     return Ok(WSSearchItemPrice {
         currency: price.currency.to_owned(),
-        value: BigDecimal::from_str(&price.value).unwrap(),
+        price_with_tax: BigDecimal::from_str(&price.value).unwrap_or(BigDecimal::from(0)),
+        price_without_tax: price.get_price_without_tax(tax),
         offered_value: price
             .offered_value
             .as_ref()
@@ -620,6 +622,51 @@ fn get_ws_quantity_from_ondc_quantity(
     }
 }
 
+fn get_ws_price_slab_from_ondc_slab(
+    ondc_tags: &Vec<ONDCOnSearchItemTag>,
+    tax_rate: &BigDecimal,
+) -> Option<Vec<WSPriceSlab>> {
+    let mut price_slabs = vec![];
+    for tag in ondc_tags
+        .iter()
+        .filter(|t| matches!(t.descriptor.code, ONDCTagType::PriceSlab))
+    {
+        let min = tag
+            .get_tag_value(&ONDCTagItemCode::MinPackSize.to_string())
+            .and_then(|value| BigDecimal::from_str(value).ok())
+            .unwrap_or_else(|| BigDecimal::from(0));
+
+        let max = tag
+            .get_tag_value(&ONDCTagItemCode::MaxPackSize.to_string())
+            .and_then(|value| {
+                if value.is_empty() {
+                    None
+                } else {
+                    BigDecimal::from_str(value).ok()
+                }
+            });
+
+        let price_with_tax = tag
+            .get_tag_value(&ONDCTagItemCode::UnitSalePrice.to_string())
+            .and_then(|value| BigDecimal::from_str(value).ok())
+            .unwrap_or_else(|| BigDecimal::from(0));
+
+        let price_without_tax = price_with_tax.clone() / (BigDecimal::from(1) + tax_rate);
+
+        price_slabs.push(WSPriceSlab {
+            min,
+            max,
+            price_with_tax,
+            price_without_tax,
+        });
+    }
+    if price_slabs.is_empty() {
+        None
+    } else {
+        Some(price_slabs)
+    }
+}
+
 fn map_ws_item_categories(category_ids: &[String]) -> Vec<WSProductCategory> {
     category_ids
         .iter()
@@ -683,7 +730,7 @@ pub fn get_product_from_on_search_request(
             for item in &provider_obj.items {
                 let tax_rate = get_search_tag_item_value(
                     &item.tags,
-                    &ONDCTagType::G3,
+                    &ONDCTagType::G2,
                     &ONDCTagItemCode::TaxRate.to_string(),
                 )
                 .unwrap_or("0.00");
@@ -706,13 +753,17 @@ pub fn get_product_from_on_search_request(
                     })
                     .collect();
                 let images: Vec<&str> = map_item_images(&item.descriptor.images);
+                let tax = BigDecimal::from_str(tax_rate).unwrap_or_else(|_| BigDecimal::from(0));
+                let price_slabs = get_ws_price_slab_from_ondc_slab(&item.tags, &tax);
                 let categories: Vec<WSProductCategory> = map_ws_item_categories(&item.category_ids);
+                // let ondc_price_slab =
+                //     search_tag_item_list_from_tag(&item.tags, &ONDCTagType::PriceSlab);
                 let prod_obj = WSSearchItem {
                     id: &item.id,
                     name: &item.descriptor.name,
                     code: item.descriptor.code.as_deref(),
                     domain_category: on_search_obj.context.domain.get_category_domain(),
-                    price: get_price_obj_from_ondc_price_obj(&item.price)?,
+                    price: get_price_obj_from_ondc_price_obj(&item.price, &tax)?,
                     parent_item_id: item.parent_item_id.as_deref(),
                     recommended: item.recommended,
                     creator: WSProductCreator {
@@ -728,11 +779,11 @@ pub fn get_product_from_on_search_request(
                     images,
                     location_ids: item.location_ids.iter().map(|s| s.as_str()).collect(),
                     categories,
-                    tax_rate: BigDecimal::from_str(tax_rate)
-                        .unwrap_or_else(|_| BigDecimal::from(0)),
+                    tax_rate: tax,
 
                     quantity: get_ws_quantity_from_ondc_quantity(&item.quantity),
                     payment_types: payment_obj, // payment_types: todo!(),
+                    price_slabs: price_slabs,
                 };
                 product_list.push(prod_obj)
             }
@@ -1019,6 +1070,19 @@ pub fn get_ondc_select_payload(
     Ok(ONDCSelectRequest { context, message })
 }
 
+fn get_ondc_seller_slab_from_ws_slab(ws_slabs: &Vec<WSPriceSlab>) -> Vec<ONDCSellePriceSlab> {
+    let mut price_slabs = vec![];
+    for ws_slab in ws_slabs {
+        price_slabs.push(ONDCSellePriceSlab {
+            min: ws_slab.min.clone(),
+            max: ws_slab.max.clone(),
+            price_with_tax: ws_slab.price_with_tax.clone(),
+            price_without_tax: ws_slab.price_without_tax.clone(),
+        })
+    }
+    price_slabs
+}
+
 #[tracing::instrument(name = "save ondc seller product info", skip())]
 pub fn create_bulk_seller_product_info_objs<'a>(
     body: &'a WSSearchData,
@@ -1031,8 +1095,10 @@ pub fn create_bulk_seller_product_info_objs<'a>(
     let mut tax_rates: Vec<BigDecimal> = vec![];
     let mut image_objs: Vec<Value> = vec![];
     let mut mrps: Vec<BigDecimal> = vec![];
-    let mut unit_prices: Vec<BigDecimal> = vec![];
+    let mut unit_price_with_taxes: Vec<BigDecimal> = vec![];
+    let mut unit_price_without_taxes: Vec<BigDecimal> = vec![];
     let mut currency_codes = vec![];
+    let mut price_slabs = vec![];
     for provider in &body.providers {
         for item in &provider.items {
             seller_subscriber_ids.push(body.bpp.subscriber_id);
@@ -1042,12 +1108,20 @@ pub fn create_bulk_seller_product_info_objs<'a>(
             item_names.push(item.name);
             tax_rates.push(item.tax_rate.clone());
             mrps.push(item.price.maximum_value.clone());
-            unit_prices.push(item.price.maximum_value.clone());
+            unit_price_with_taxes.push(item.price.price_with_tax.clone());
+            unit_price_without_taxes.push(item.price.price_without_tax.clone());
             // for image_url in item.images.iter() {
             image_objs.push(serde_json::to_value(&item.images).unwrap());
             currency_codes.push(&item.price.currency);
-            // }
-            // image_objs.push(item_image_objs)
+            if let Some(price_slab_obj) = item
+                .price_slabs
+                .as_ref()
+                .map(|e| get_ondc_seller_slab_from_ws_slab(&e))
+            {
+                price_slabs.push(Some(serde_json::to_value(price_slab_obj).unwrap()));
+            } else {
+                price_slabs.push(None);
+            }
         }
     }
 
@@ -1060,8 +1134,10 @@ pub fn create_bulk_seller_product_info_objs<'a>(
         tax_rates,
         image_objs,
         mrps,
-        unit_prices,
+        unit_price_with_taxes,
+        unit_price_without_taxes,
         currency_codes,
+        price_slabs,
     };
 }
 
@@ -1081,9 +1157,11 @@ pub async fn save_ondc_seller_product_info<'a>(
             item_name,
             tax_rate,
             images,
-            unit_price,
+            unit_price_with_tax,
+            unit_price_without_tax,
             mrp,
-            currency_code
+            currency_code,
+            price_slab
         )
         SELECT *
         FROM UNNEST(
@@ -1096,15 +1174,19 @@ pub async fn save_ondc_seller_product_info<'a>(
             $7::jsonb[],
             $8::decimal[],
             $9::decimal[],
-            $10::currency_code_type[]
+            $10::decimal[],
+            $11::currency_code_type[],
+            $12::jsonb[]
         )
         ON CONFLICT (seller_subscriber_id, provider_id, item_id) 
         DO UPDATE SET 
             item_name = EXCLUDED.item_name,
             tax_rate = EXCLUDED.tax_rate,
             images = EXCLUDED.images,
-            unit_price = EXCLUDED.unit_price,
-            mrp =  EXCLUDED.mrp;
+            unit_price_with_tax = EXCLUDED.unit_price_with_tax,
+            unit_price_without_tax = EXCLUDED.unit_price_with_tax,
+            mrp =  EXCLUDED.mrp,
+            price_slab = EXCLUDED.price_slab;
         "#,
         &product_data.seller_subscriber_ids[..] as &[&str],
         &product_data.provider_ids[..] as &[&str],
@@ -1113,9 +1195,11 @@ pub async fn save_ondc_seller_product_info<'a>(
         &product_data.item_names[..] as &[&str],
         &product_data.tax_rates[..] as &[BigDecimal],
         &product_data.image_objs[..],
-        &product_data.unit_prices[..] as &[BigDecimal],
+        &product_data.unit_price_with_taxes[..] as &[BigDecimal],
+        &product_data.unit_price_without_taxes[..] as &[BigDecimal],
         &product_data.mrps[..] as &[BigDecimal],
         &product_data.currency_codes[..] as &[&CurrencyType],
+        &product_data.price_slabs[..] as &[Option<Value>],
     )
     .execute(pool)
     .await
@@ -1136,14 +1220,20 @@ pub async fn fetch_ondc_seller_product_info(
 ) -> Result<Vec<ONDCSellerProductInfo>, anyhow::Error> {
     let row: Vec<ONDCSellerProductInfo> = sqlx::query_as!(
         ONDCSellerProductInfo,
-        r#"SELECT item_name, currency_code  as "currency_code: CurrencyType", item_id, item_code, seller_subscriber_id, provider_id, tax_rate, unit_price, mrp, images from ondc_seller_product_info where 
+        r#"SELECT item_name, currency_code  as "currency_code: CurrencyType", item_id, item_code, seller_subscriber_id,
+        price_slab as "price_slab?: Json<Vec<ONDCSellePriceSlab>>", provider_id, tax_rate, 
+        unit_price_with_tax,unit_price_without_tax, mrp, images from ondc_seller_product_info where 
         provider_id  = $1 AND seller_subscriber_id=$2 AND item_id::text = ANY($3)"#,
         provider_id,
         bpp_id,
         item_id_list as &Vec<&str>
     )
     .fetch_all(pool)
-    .await?;
+    .await.map_err(|e| {
+        tracing::error!("Failed to execute query: {:?}", e);
+        anyhow::Error::new(e)
+            .context("A database failure occurred while fetching ondc seller product info")
+    })?;
     Ok(row)
 }
 /// Key for for the seller mapping key

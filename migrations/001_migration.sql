@@ -665,7 +665,9 @@ CREATE TABLE IF NOT EXISTS ondc_seller_product_info (
     tax_rate DECIMAL(5, 2) NOT NULL,
     images JSONB NOT NULL,
     mrp DECIMAL(20, 3) NOT NULL DEFAULT 0.0,
-    unit_price DECIMAL(20, 3) NOT NULL DEFAULT 0.0,
+    unit_price_with_tax DECIMAL(20, 3) NOT NULL DEFAULT 0.0,
+    unit_price_without_tax DECIMAL(20, 3) NOT NULL DEFAULT 0.0,
+    price_slab JSONB,
     created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 ALTER TABLE ondc_seller_product_info ADD CONSTRAINT ondc_seller_product_info_constraint UNIQUE (seller_subscriber_id, provider_id, item_id);

@@ -332,7 +332,11 @@ pub async fn save_order_select_items(
                     .unwrap_or(""),
             );
             mrp_list.push(seller_item_obj.mrp.clone());
-            unit_price_list.push(seller_item_obj.unit_price.clone());
+            unit_price_list.push(
+                seller_item_obj
+                    .get_price(&BigDecimal::from(item.qty))
+                    .clone(),
+            );
             tax_rate_list.push(seller_item_obj.tax_rate.clone());
         } else {
             item_code_list.push(None);

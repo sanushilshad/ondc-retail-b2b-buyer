@@ -179,7 +179,9 @@ pub struct SearchRequestModel {
 pub struct WSSearchItemPrice {
     pub currency: CurrencyType,
     #[schema(value_type = f64)]
-    pub value: BigDecimal,
+    pub price_with_tax: BigDecimal,
+    #[schema(value_type = f64)]
+    pub price_without_tax: BigDecimal,
     #[schema(value_type =Option<f64>)]
     pub offered_value: Option<BigDecimal>,
     #[schema(value_type = f64)]
@@ -242,6 +244,7 @@ pub struct WSSearchItemQuantity {
     pub maximum: WSSearchItemQty,
     pub minimum: Option<WSSearchItemQty>,
 }
+
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct WSSearchProductProvider<'a> {
@@ -282,6 +285,20 @@ pub struct WSItemPayment<'a> {
 #[derive(Debug, Serialize, ToSchema)]
 #[skip_serializing_none]
 #[serde(rename_all = "camelCase")]
+pub struct WSPriceSlab {
+    #[schema(value_type = f64)]
+    pub min: BigDecimal,
+    #[schema(value_type = Option<f64>)]
+    pub max: Option<BigDecimal>,
+    #[schema(value_type = f64)]
+    pub price_with_tax: BigDecimal,
+    #[schema(value_type = f64)]
+    pub price_without_tax: BigDecimal,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[skip_serializing_none]
+#[serde(rename_all = "camelCase")]
 pub struct WSSearchItem<'a> {
     pub id: &'a str,
     pub name: &'a str,
@@ -300,6 +317,7 @@ pub struct WSSearchItem<'a> {
     pub tax_rate: BigDecimal,
     // pub country_of_origin: CountryCode,
     pub images: Vec<&'a str>,
+    pub price_slabs: Option<Vec<WSPriceSlab>>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]

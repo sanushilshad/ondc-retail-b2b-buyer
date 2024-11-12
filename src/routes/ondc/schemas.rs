@@ -1010,6 +1010,16 @@ pub struct ONDCOnSearchItemPrice {
     pub maximum_value: String,
 }
 
+impl ONDCOnSearchItemPrice {
+    pub fn get_price_without_tax(&self, tax_rate: &BigDecimal) -> BigDecimal {
+        let price_with_tax =
+            BigDecimal::from_str(&self.value).unwrap_or_else(|_| BigDecimal::from(0));
+
+        let divisor = BigDecimal::from(1) + tax_rate;
+        price_with_tax / divisor
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCOnSearchQtyMeasure {
     pub unit: ONDCItemUOM,
@@ -1658,28 +1668,49 @@ pub struct BulkSellerProductInfo<'a> {
     pub item_names: Vec<&'a str>,
     pub tax_rates: Vec<BigDecimal>,
     pub mrps: Vec<BigDecimal>,
-    pub unit_prices: Vec<BigDecimal>,
+    pub unit_price_with_taxes: Vec<BigDecimal>,
+    pub unit_price_without_taxes: Vec<BigDecimal>,
     pub image_objs: Vec<Value>,
     pub currency_codes: Vec<&'a CurrencyType>,
+    pub price_slabs: Vec<Option<Value>>,
 }
 
-#[derive(Debug, Deserialize, ToSchema)]
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ONDCSellePriceSlab {
+    pub min: BigDecimal,
+    pub max: Option<BigDecimal>,
+    pub price_with_tax: BigDecimal,
+    pub price_without_tax: BigDecimal,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct ONDCSellerProductInfo {
     pub item_name: String,
     pub item_code: Option<String>,
     pub item_id: String,
     pub seller_subscriber_id: String,
     pub provider_id: String,
-    #[schema(value_type = f64)]
     pub tax_rate: BigDecimal,
-    #[schema(value_type = f64)]
     pub mrp: BigDecimal,
-    #[schema(value_type = f64)]
-    pub unit_price: BigDecimal,
+    pub unit_price_with_tax: BigDecimal,
+    pub unit_price_without_tax: BigDecimal,
     pub images: Value,
     pub currency_code: CurrencyType,
+    pub price_slab: Option<sqlx::types::Json<Vec<ONDCSellePriceSlab>>>,
 }
-
+impl ONDCSellerProductInfo {
+    pub fn get_price(&self, qty: &BigDecimal) -> &BigDecimal {
+        if let Some(ref price_slabs) = self.price_slab {
+            for slab in price_slabs.0.iter() {
+                if qty >= &slab.min && (slab.max.is_none() || qty <= slab.max.as_ref().unwrap()) {
+                    return &slab.price_without_tax;
+                }
+            }
+        }
+        &self.unit_price_without_tax
+    }
+}
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCRequestModel {
     pub transaction_id: Uuid,
