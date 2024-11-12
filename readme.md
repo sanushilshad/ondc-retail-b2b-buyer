@@ -171,7 +171,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [x] Develop update API
 * [x] Develop ONDC on update API
 
-### MILESTONE 3:
+### MILESTONE 3: (Nov 14, 2024 - Pending)
 
 * [ ] Integrate BAP Payment Gateway
 * [ ] Develop Business Specific Config Module.
@@ -182,6 +182,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [ ] Integrate ElasticSearch
 * [ ] Add limit to the number of failed authentication
 * [ ] Add test cases for milestone 2 (Only unit tests)
+* [ ] Add Chat Functionality
 
 ### MILESTONE 4:
 * [ ] Develop IGM issue API
@@ -194,7 +195,6 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 ### MILESTONE 5:
 * [ ] Develop info API
 * [ ] Develop ONDC info API
-* [ ] Add Chat Functionality
 * [ ] Develop Business Account fetch API
 * [ ] Develop User Account fetch API
 * [ ] Develop Business Account Update API
