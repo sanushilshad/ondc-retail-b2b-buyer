@@ -330,7 +330,10 @@ pub async fn get_network_participant_detail_model(
         &network_participant_type as &ONDCNetworkType,
     )
     .fetch_optional(pool)
-    .await?;
+    .await.map_err(|e| {
+        tracing::error!("Failed to execute query: {:?}", e);
+        anyhow::Error::new(e).context("failed to fetch network participant detail from database")
+    })?;
     Ok(row)
 }
 

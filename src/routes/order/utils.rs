@@ -469,9 +469,14 @@ pub async fn initialize_order_select(
     );
     let task2 =
         fetch_ondc_seller_info(pool, &bpp_detail.subscriber_id, &select_request.provider_id);
-    let (seller_product_map_res, seller_info_map_res) = futures::future::join(task1, task2).await;
-    let seller_product_map = seller_product_map_res?;
-    let seller_info_map = seller_info_map_res?;
+    // let (seller_product_map_res, seller_info_map_res) = futures::future::join(task1, task2).await;
+
+    let (seller_product_map, seller_info_map) = match tokio::try_join!(task1, task2) {
+        Ok((seller_product_map, seller_info_map)) => (seller_product_map, seller_info_map),
+        Err(e) => {
+            return Err(e);
+        }
+    };
     let currency_code = seller_product_map
         .iter()
         .next()
@@ -833,15 +838,19 @@ pub async fn initialize_order_on_select(
         &location_id_list,
     );
     let task3 = fetch_ondc_seller_info(pool, bpp_id, &on_select_request.message.order.provider.id);
-    let (seller_product_map_res, seller_location_map_res, seller_info_map_res) =
-        futures::future::join3(task1, task2, task3).await;
-    let seller_product_map = seller_product_map_res?;
-    let seller_location_map = seller_location_map_res?;
+    let (seller_product_map, seller_location_map, seller_info_map) =
+        match tokio::try_join!(task1, task2, task3) {
+            Ok((seller_product_map, seller_info_map, seller_location_map)) => {
+                (seller_product_map, seller_info_map, seller_location_map)
+            }
+            Err(e) => {
+                return Err(e);
+            }
+        };
     let pick_up_location = seller_location_map
         .values()
         .next()
         .ok_or_else(|| anyhow!("Invalid Location Id"))?;
-    let seller_info_map = seller_info_map_res?;
 
     let provider_name = seller_info_map.provider_name.unwrap_or_default();
     let mut transaction = pool

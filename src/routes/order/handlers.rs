@@ -55,56 +55,47 @@ pub async fn order_select(
         .collect::<HashSet<_>>()
         .into_iter()
         .collect();
-    println!("a{}", &meta_data.domain_uri);
+
     let task3 = get_ondc_seller_location_info_mapping(
         &pool,
         &body.bpp_id,
         &body.provider_id,
         &location_id_list,
     );
-    let (bap_detail_res, bpp_detail_res, seller_location_info_mapping_res) =
-        futures::future::join3(task1, task2, task3).await;
-    let bap_detail = match bap_detail_res {
-        Ok(Some(bap_detail)) => bap_detail,
-        Ok(None) => {
+    let (bap_detail, bpp_detail, seller_location_info_mapping) =
+        match tokio::try_join!(task1, task2, task3) {
+            Ok((bap_detail_res, bpp_detail_res, seller_location_info_mapping_res)) => (
+                bap_detail_res,
+                bpp_detail_res,
+                seller_location_info_mapping_res,
+            ),
+            Err(e) => {
+                return Err(GenericError::DatabaseError(e.to_string(), e));
+            }
+        };
+    let bap_detail = match bap_detail {
+        Some(bap_detail) => bap_detail,
+        None => {
             return Err(GenericError::ValidationError(format!(
                 "{} is not a registered ONDC registered domain",
                 meta_data.domain_uri
             )))
         }
-        Err(e) => {
-            return Err(GenericError::DatabaseError(
-                "Something went wrong while fetching NP credentials".to_string(),
-                e,
-            ));
-        }
     };
-    let bpp_detail = match bpp_detail_res {
-        Ok(Some(np_detail)) => np_detail,
-        Ok(None) => {
+    let bpp_detail = match bpp_detail {
+        Some(np_detail) => np_detail,
+        None => {
             return Err(GenericError::ValidationError(format!(
                 "{} is not a Valid BPP Id",
                 &body.bpp_id
             )))
         }
-        Err(e) => {
-            return Err(GenericError::DatabaseError(
-                "Something went wrong while fetching BPP credentials".to_string(),
-                e,
-            ));
-        }
     };
-    let seller_location_info_mapping = match seller_location_info_mapping_res {
-        Ok(location_info_mapping) if !location_info_mapping.is_empty() => location_info_mapping,
-        Ok(_) => {
+    let seller_location_info_mapping = match seller_location_info_mapping {
+        location_info_mapping if !location_info_mapping.is_empty() => location_info_mapping,
+        _ => {
             return Err(GenericError::ValidationError(
                 "Location mapping is Invalid".to_string(),
-            ));
-        }
-        Err(e) => {
-            return Err(GenericError::DatabaseError(
-                "Something went wrong while fetching locations".to_string(),
-                e,
             ));
         }
     };
@@ -139,7 +130,14 @@ pub async fn order_select(
         &header,
         ONDCActionType::Select,
     );
-    futures::future::join(task_4, task_5).await.1?;
+    // futures::future::join(task_4, task_5).await.1?;
+    match tokio::try_join!(task_4, task_5) {
+        Ok(_) => (),
+        Err(e) => {
+            return Err(GenericError::DatabaseError(e.to_string(), e));
+        }
+    };
+
     if body.order_type == OrderType::PurchaseOrder {
         if let Err(e) = initialize_order_select(
             &pool,
@@ -185,36 +183,33 @@ pub async fn order_init(
     business_account: BusinessAccount,
     meta_data: RequestMetaData,
 ) -> Result<web::Json<GenericResponse<()>>, GenericError> {
-    let order = match fetch_order_by_id(&pool, body.transaction_id).await {
-        Ok(Some(order_detail)) => order_detail,
-        Ok(None) => {
+    let task1 = fetch_order_by_id(&pool, body.transaction_id);
+    let task2 = get_np_detail(&pool, &meta_data.domain_uri, &ONDCNetworkType::Bap);
+
+    let (order, bap_detail) = match tokio::try_join!(task1, task2) {
+        Ok((order_res, bap_detail_res)) => (order_res, bap_detail_res),
+        Err(e) => {
+            return Err(GenericError::DatabaseError(e.to_string(), e));
+        }
+    };
+
+    let order = match order {
+        Some(order_detail) => order_detail,
+        None => {
             return Err(GenericError::ValidationError(format!(
                 "{} is not found in datbase",
                 &body.transaction_id
             )))
         }
-        Err(e) => {
-            return Err(GenericError::DatabaseError(
-                "Something went wrong while fetching Order detail".to_string(),
-                e,
-            ));
-        }
     };
 
-    let bap_detail = match get_np_detail(&pool, &meta_data.domain_uri, &ONDCNetworkType::Bap).await
-    {
-        Ok(Some(bap_detail)) => bap_detail,
-        Ok(None) => {
+    let bap_detail = match bap_detail {
+        Some(bap_detail) => bap_detail,
+        None => {
             return Err(GenericError::ValidationError(format!(
-                "{} is not a registered ONDC registered domain",
-                meta_data.domain_uri
+                "{} is not found in datbase",
+                &body.transaction_id
             )))
-        }
-        Err(e) => {
-            return Err(GenericError::DatabaseError(
-                "Something went wrong while fetching NP credentials".to_string(),
-                e,
-            ));
         }
     };
 
@@ -241,6 +236,7 @@ pub async fn order_init(
         &header,
         ONDCActionType::Init,
     );
+
     futures::future::join(task_3, task_4).await.1?;
 
     Ok(web::Json(GenericResponse::success(
@@ -269,36 +265,33 @@ pub async fn order_confirm(
     business_account: BusinessAccount,
     meta_data: RequestMetaData,
 ) -> Result<web::Json<GenericResponse<()>>, GenericError> {
-    let order = match fetch_order_by_id(&pool, body.transaction_id).await {
-        Ok(Some(order_detail)) => order_detail,
-        Ok(None) => {
+    let task1 = fetch_order_by_id(&pool, body.transaction_id);
+    let task2 = get_np_detail(&pool, &meta_data.domain_uri, &ONDCNetworkType::Bap);
+
+    let (order, bap_detail) = match tokio::try_join!(task1, task2) {
+        Ok((order_res, bap_detail_res)) => (order_res, bap_detail_res),
+        Err(e) => {
+            return Err(GenericError::DatabaseError(e.to_string(), e));
+        }
+    };
+
+    let order = match order {
+        Some(order_detail) => order_detail,
+        None => {
             return Err(GenericError::ValidationError(format!(
                 "{} is not found in datbase",
                 &body.transaction_id
             )))
         }
-        Err(e) => {
-            return Err(GenericError::DatabaseError(
-                "Something went wrong while fetching Order detail".to_string(),
-                e,
-            ));
-        }
     };
 
-    let bap_detail = match get_np_detail(&pool, &meta_data.domain_uri, &ONDCNetworkType::Bap).await
-    {
-        Ok(Some(bap_detail)) => bap_detail,
-        Ok(None) => {
+    let bap_detail = match bap_detail {
+        Some(bap_detail) => bap_detail,
+        None => {
             return Err(GenericError::ValidationError(format!(
-                "{} is not a registered ONDC registered domain",
-                meta_data.domain_uri
+                "{} is not found in datbase",
+                &body.transaction_id
             )))
-        }
-        Err(e) => {
-            return Err(GenericError::DatabaseError(
-                "Something went wrong while fetching NP credentials".to_string(),
-                e,
-            ));
         }
     };
 
@@ -327,7 +320,6 @@ pub async fn order_confirm(
         ONDCActionType::Confirm,
     );
     futures::future::join(task_3, task_4).await.1?;
-
     Ok(web::Json(GenericResponse::success(
         "Successfully send confirm request",
         Some(()),
@@ -354,36 +346,33 @@ pub async fn order_status(
     business_account: BusinessAccount,
     meta_data: RequestMetaData,
 ) -> Result<web::Json<GenericResponse<()>>, GenericError> {
-    let order = match fetch_order_by_id(&pool, body.transaction_id).await {
-        Ok(Some(order_detail)) => order_detail,
-        Ok(None) => {
+    let task1 = fetch_order_by_id(&pool, body.transaction_id);
+    let task2 = get_np_detail(&pool, &meta_data.domain_uri, &ONDCNetworkType::Bap);
+
+    let (order, bap_detail) = match tokio::try_join!(task1, task2) {
+        Ok((order_res, bap_detail_res)) => (order_res, bap_detail_res),
+        Err(e) => {
+            return Err(GenericError::DatabaseError(e.to_string(), e));
+        }
+    };
+
+    let order = match order {
+        Some(order_detail) => order_detail,
+        None => {
             return Err(GenericError::ValidationError(format!(
                 "{} is not found in datbase",
                 &body.transaction_id
             )))
         }
-        Err(e) => {
-            return Err(GenericError::DatabaseError(
-                "Something went wrong while fetching Order detail".to_string(),
-                e,
-            ));
-        }
     };
 
-    let bap_detail = match get_np_detail(&pool, &meta_data.domain_uri, &ONDCNetworkType::Bap).await
-    {
-        Ok(Some(bap_detail)) => bap_detail,
-        Ok(None) => {
+    let bap_detail = match bap_detail {
+        Some(bap_detail) => bap_detail,
+        None => {
             return Err(GenericError::ValidationError(format!(
-                "{} is not a registered ONDC registered domain",
-                meta_data.domain_uri
+                "{} is not found in datbase",
+                &body.transaction_id
             )))
-        }
-        Err(e) => {
-            return Err(GenericError::DatabaseError(
-                "Something went wrong while fetching NP credentials".to_string(),
-                e,
-            ));
         }
     };
 
@@ -437,36 +426,33 @@ pub async fn order_cancel(
     business_account: BusinessAccount,
     meta_data: RequestMetaData,
 ) -> Result<web::Json<GenericResponse<()>>, GenericError> {
-    let order = match fetch_order_by_id(&pool, body.transaction_id).await {
-        Ok(Some(order_detail)) => order_detail,
-        Ok(None) => {
+    let task1 = fetch_order_by_id(&pool, body.transaction_id);
+    let task2 = get_np_detail(&pool, &meta_data.domain_uri, &ONDCNetworkType::Bap);
+
+    let (order, bap_detail) = match tokio::try_join!(task1, task2) {
+        Ok((order_res, bap_detail_res)) => (order_res, bap_detail_res),
+        Err(e) => {
+            return Err(GenericError::DatabaseError(e.to_string(), e));
+        }
+    };
+
+    let order = match order {
+        Some(order_detail) => order_detail,
+        None => {
             return Err(GenericError::ValidationError(format!(
                 "{} is not found in datbase",
                 &body.transaction_id
             )))
         }
-        Err(e) => {
-            return Err(GenericError::DatabaseError(
-                "Something went wrong while fetching Order detail".to_string(),
-                e,
-            ));
-        }
     };
 
-    let bap_detail = match get_np_detail(&pool, &meta_data.domain_uri, &ONDCNetworkType::Bap).await
-    {
-        Ok(Some(bap_detail)) => bap_detail,
-        Ok(None) => {
+    let bap_detail = match bap_detail {
+        Some(bap_detail) => bap_detail,
+        None => {
             return Err(GenericError::ValidationError(format!(
-                "{} is not a registered ONDC registered domain",
-                meta_data.domain_uri
+                "{} is not found in datbase",
+                &body.transaction_id
             )))
-        }
-        Err(e) => {
-            return Err(GenericError::DatabaseError(
-                "Something went wrong while fetching NP credentials".to_string(),
-                e,
-            ));
         }
     };
 
@@ -520,36 +506,33 @@ pub async fn order_update(
     business_account: BusinessAccount,
     meta_data: RequestMetaData,
 ) -> Result<web::Json<GenericResponse<()>>, GenericError> {
-    let order = match fetch_order_by_id(&pool, body.transaction_id()).await {
-        Ok(Some(order_detail)) => order_detail,
-        Ok(None) => {
+    let task1 = fetch_order_by_id(&pool, body.transaction_id());
+    let task2 = get_np_detail(&pool, &meta_data.domain_uri, &ONDCNetworkType::Bap);
+
+    let (order, bap_detail) = match tokio::try_join!(task1, task2) {
+        Ok((order_res, bap_detail_res)) => (order_res, bap_detail_res),
+        Err(e) => {
+            return Err(GenericError::DatabaseError(e.to_string(), e));
+        }
+    };
+
+    let order = match order {
+        Some(order_detail) => order_detail,
+        None => {
             return Err(GenericError::ValidationError(format!(
                 "{} is not found in datbase",
                 &body.transaction_id()
             )))
         }
-        Err(e) => {
-            return Err(GenericError::DatabaseError(
-                "Something went wrong while fetching Order detail".to_string(),
-                e,
-            ));
-        }
     };
 
-    let bap_detail = match get_np_detail(&pool, &meta_data.domain_uri, &ONDCNetworkType::Bap).await
-    {
-        Ok(Some(bap_detail)) => bap_detail,
-        Ok(None) => {
+    let bap_detail = match bap_detail {
+        Some(bap_detail) => bap_detail,
+        None => {
             return Err(GenericError::ValidationError(format!(
-                "{} is not a registered ONDC registered domain",
-                meta_data.domain_uri
+                "{} is not found in datbase",
+                &body.transaction_id()
             )))
-        }
-        Err(e) => {
-            return Err(GenericError::DatabaseError(
-                "Something went wrong while fetching NP credentials".to_string(),
-                e,
-            ));
         }
     };
 

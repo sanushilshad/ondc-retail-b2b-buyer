@@ -132,7 +132,10 @@ pub async fn get_lookup_data_from_db(
         domain.to_string()
     )
     .fetch_optional(pool)
-    .await?;
+    .await.map_err(|e| {
+        tracing::error!("Failed to execute query: {:?}", e);
+        anyhow::Error::new(e).context("failed to fetch network lookup data from database")
+    })?;
     Ok(row)
 }
 
@@ -623,7 +626,7 @@ fn get_ws_quantity_from_ondc_quantity(
 }
 
 fn get_ws_price_slab_from_ondc_slab(
-    ondc_tags: &Vec<ONDCOnSearchItemTag>,
+    ondc_tags: &[ONDCOnSearchItemTag],
     tax_rate: &BigDecimal,
 ) -> Option<Vec<WSPriceSlab>> {
     let mut price_slabs = vec![];
@@ -783,7 +786,7 @@ pub fn get_product_from_on_search_request(
 
                     quantity: get_ws_quantity_from_ondc_quantity(&item.quantity),
                     payment_types: payment_obj, // payment_types: todo!(),
-                    price_slabs: price_slabs,
+                    price_slabs,
                 };
                 product_list.push(prod_obj)
             }
@@ -1116,7 +1119,7 @@ pub fn create_bulk_seller_product_info_objs<'a>(
             if let Some(price_slab_obj) = item
                 .price_slabs
                 .as_ref()
-                .map(|e| get_ondc_seller_slab_from_ws_slab(&e))
+                .map(get_ondc_seller_slab_from_ws_slab)
             {
                 price_slabs.push(Some(serde_json::to_value(price_slab_obj).unwrap()));
             } else {
@@ -2021,6 +2024,7 @@ pub fn get_ondc_seller_location_mapping_key(
     format!("{}_{}_{}", bpp_id, provider_id, location_id)
 }
 
+#[tracing::instrument(name = "fetch fetch_ondc_seller_location_info", skip(pool))]
 pub async fn fetch_ondc_seller_location_info(
     pool: &PgPool,
     bpp_id: &str,
@@ -2038,7 +2042,10 @@ pub async fn fetch_ondc_seller_location_info(
         location_id_list as &Vec<String>
     )
     .fetch_all(pool)
-    .await?;
+    .await.map_err(|e| {
+        tracing::error!("Failed to execute query: {:?}", e);
+        anyhow::Error::new(e).context("failed to fetch ondc seller location info data from database")
+    })?;
     Ok(row)
 }
 
