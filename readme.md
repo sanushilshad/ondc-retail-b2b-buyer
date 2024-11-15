@@ -129,7 +129,7 @@ bash restart.sh
 ## API DOCUMENTATION:
 The API Docmentation can be found at `https://{{domain}}/docs/` after running the server.
 
-## MILESTONES (35/70)
+## MILESTONES (37/70)
 ### MILESTONE 1 (Jan 18, 2023 - Jul 22, 2024):
 * [x] Set up basic actix web server
 * [x] Add environment config fetch
@@ -172,13 +172,13 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [x] Develop ONDC on update API
 
 ### MILESTONE 3: (Nov 14, 2024 - Pending)
-
+* [x] Update websocket implementation to enable Background Sync.
+* [x] Remove device wise notification push for order flow.
 * [ ] Integrate BAP Payment Gateway
 * [ ] Develop Business Specific Config Module.
 * [ ] Develop & Integrate permission flow
 * [ ] Add Import flow to order
-* [ ] Update websocket implementation to enable Background Sync.
-* [ ] Remove device wise notification push.
+
 * [ ] Integrate ElasticSearch
 * [ ] Add limit to the number of failed authentication
 * [ ] Add test cases for milestone 2 (Only unit tests)
