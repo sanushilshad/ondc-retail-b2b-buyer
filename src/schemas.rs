@@ -571,25 +571,9 @@ pub enum ONDCNPType {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct WebSocketParam {
-    pub user_id: Uuid,
+    pub user_id: Option<Uuid>,
     pub business_id: Uuid,
     pub device_id: Option<String>,
-}
-
-pub trait WSKeyTrait {
-    fn get_key(&self) -> String;
-}
-
-impl WSKeyTrait for WebSocketParam {
-    fn get_key(&self) -> String {
-        let mut key = format!("{}#{}", self.user_id, self.business_id);
-
-        if let Some(device_id) = &self.device_id {
-            key.push_str(&format!("#{}", device_id));
-        }
-
-        key
-    }
 }
 
 #[derive(Debug, Serialize, Deserialize, sqlx::Type, Clone, ToSchema, PartialEq)]

@@ -313,9 +313,7 @@ fn get_search_by_item(search_request: &ProductSearchRequest) -> Option<ONDCSearc
 }
 
 fn get_search_by_category(search_request: &ProductSearchRequest) -> Option<ONDCSearchCategory> {
-    if search_request.search_type == ProductSearchType::Category
-        || search_request.search_type == ProductSearchType::City
-    {
+    if search_request.search_type == ProductSearchType::Category {
         return Some(ONDCSearchCategory {
             id: search_request.query.to_owned(),
         });
@@ -446,7 +444,7 @@ pub async fn send_ondc_payload(
 #[tracing::instrument(name = "Fetch Search WebSocket Params", skip())]
 pub fn get_websocket_params_from_search_req(search_model: SearchRequestModel) -> WebSocketParam {
     WebSocketParam {
-        user_id: search_model.user_id,
+        user_id: Some(search_model.user_id),
         business_id: search_model.business_id,
         device_id: Some(search_model.device_id),
     }
@@ -498,8 +496,8 @@ pub async fn get_ondc_order_params(
 
 pub fn get_ondc_order_param_from_req(ondc_req: &ONDCRequestModel) -> WebSocketParam {
     WebSocketParam {
-        device_id: ondc_req.device_id.clone(),
-        user_id: ondc_req.user_id,
+        device_id: None,
+        user_id: None,
         business_id: ondc_req.business_id,
     }
 }
@@ -507,7 +505,7 @@ pub fn get_ondc_order_param_from_req(ondc_req: &ONDCRequestModel) -> WebSocketPa
 pub fn _get_order_param_from_param_req(ondc_req: &OrderRequestParamsModel) -> WebSocketParam {
     WebSocketParam {
         device_id: ondc_req.device_id.clone(),
-        user_id: ondc_req.user_id,
+        user_id: Some(ondc_req.user_id),
         business_id: ondc_req.business_id,
     }
 }

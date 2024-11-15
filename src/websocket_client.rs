@@ -21,8 +21,8 @@ pub enum WebSocketActionType {
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct WSRequest {
-    #[schema(value_type = String)]
-    pub user_id: Uuid,
+    #[schema(value_type = Option<String>)]
+    pub user_id: Option<Uuid>,
     #[schema(value_type = String)]
     pub business_id: Option<Uuid>,
     pub device_id: Option<String>,

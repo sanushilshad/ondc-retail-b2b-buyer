@@ -1,6 +1,6 @@
 [package]
 name = "ondc-retail-b2b-buyer"
-version = "0.1.0"
+version = "2.0.2"
 authors = ["Sanu Shilshad <sanushilshad@gmail.com>"]
 edition = "2021"
 
