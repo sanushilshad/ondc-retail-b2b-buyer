@@ -178,7 +178,6 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [ ] Develop Business Specific Config Module.
 * [ ] Develop & Integrate permission flow
 * [ ] Add Import flow to order
-
 * [ ] Integrate ElasticSearch
 * [ ] Add limit to the number of failed authentication
 * [ ] Add test cases for milestone 2 (Only unit tests)

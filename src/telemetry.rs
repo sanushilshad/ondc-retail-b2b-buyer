@@ -55,11 +55,15 @@ pub fn get_subscriber_with_jeager<Sink>(
 where
     Sink: for<'a> MakeWriter<'a> + Send + Sync + 'static,
 {
-    let tracer: opentelemetry_sdk::trace::Tracer = opentelemetry_otlp::new_pipeline()
-        .tracing()
-        .with_exporter(opentelemetry_otlp::new_exporter().tonic())
-        .install_batch(opentelemetry_sdk::runtime::Tokio)
-        .expect("Couldn't create OTLP tracer")
+    let tracer = opentelemetry_sdk::trace::TracerProvider::builder()
+        .with_batch_exporter(
+            opentelemetry_otlp::SpanExporter::builder()
+                .with_tonic()
+                .build()
+                .expect("Couldn't create OTLP tracer"),
+            opentelemetry_sdk::runtime::Tokio,
+        )
+        .build()
         .tracer(name);
     let telemetry_layer: tracing_opentelemetry::OpenTelemetryLayer<
         Registry,
