@@ -129,6 +129,79 @@ bash restart.sh
 ## API DOCUMENTATION:
 The API Docmentation can be found at `https://{{domain}}/docs/` after running the server.
 
+## DEBUG SETUP:
+- launch.json
+```json
+{
+
+    "version": "0.2.0",
+    "configurations": [
+
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'ondc-retail-b2b-buyer'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=ondc-retail-b2b-buyer",
+                    "--package=ondc-retail-b2b-buyer"
+                ],
+                "filter": {
+                    "name": "ondc-retail-b2b-buyer",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "envFile": "${workspaceFolder}/.env",
+            "preLaunchTask": "cargo build",
+        },
+    ]
+}
+```
+- settings.json
+
+```json
+{
+    "[rust]": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "rust-lang.rust-analyzer"
+    },
+    "editor.formatOnSave": true,
+    "rust-analyzer.linkedProjects": [
+        "./Cargo.toml"
+    ],
+}
+```
+
+- tasks.json
+```json
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "cargo build",
+            "type": "shell",
+            "command": "cargo",
+            "args": [
+                "build",
+                "--bin=ondc-retail-b2b-buyer",
+                "--package=ondc-retail-b2b-buyer"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": [
+                "$rustc"
+            ]
+        }
+    ]
+}
+```
+
+
 ## MILESTONES (37/70)
 ### MILESTONE 1 (Jan 18, 2023 - Jul 22, 2024):
 * [x] Set up basic actix web server
