@@ -24,7 +24,7 @@ use crate::routes::order::utils::{
 use crate::routes::product::schemas::WSSearchData;
 use crate::user_client::CustomerType;
 use crate::user_client::UserClient;
-use crate::websocket_client::{WebSocketActionType, WebSocketClient};
+use crate::websocket_client::{ProcessType, WebSocketActionType, WebSocketClient};
 
 #[tracing::instrument(name = "ONDC On Search Payload", skip(pool, body), fields())]
 pub async fn on_search(
@@ -55,7 +55,12 @@ pub async fn on_search(
                 );
                 let ws_json = serde_json::to_value(ws_body).unwrap();
                 let _ = websocket_srv
-                    .send_msg(ws_params, WebSocketActionType::Search, ws_json)
+                    .send_msg(
+                        ws_params,
+                        WebSocketActionType::Search,
+                        ws_json,
+                        Some(ProcessType::Immediate),
+                    )
                     .await;
             }
             let task1 = save_ondc_seller_product_info(&pool, &product_objs);
@@ -119,7 +124,7 @@ pub async fn on_select(
             .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
     };
     let _ = websocket_srv
-        .send_msg(ws_params_obj, WebSocketActionType::Select, ws_json)
+        .send_msg(ws_params_obj, WebSocketActionType::Select, ws_json, None)
         .await;
     Ok(web::Json(ONDCResponse::successful_response(None)))
 }
@@ -165,7 +170,7 @@ pub async fn on_init(
         .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
 
     let _ = websocket_srv
-        .send_msg(ws_params_obj, WebSocketActionType::Init, ws_json)
+        .send_msg(ws_params_obj, WebSocketActionType::Init, ws_json, None)
         .await;
 
     Ok(web::Json(ONDCResponse::successful_response(None)))
@@ -218,7 +223,7 @@ pub async fn on_confirm(
         .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
 
     let _ = websocket_srv
-        .send_msg(ws_params_obj, WebSocketActionType::Confirm, ws_json)
+        .send_msg(ws_params_obj, WebSocketActionType::Confirm, ws_json, None)
         .await;
 
     Ok(web::Json(ONDCResponse::successful_response(None)))
@@ -260,7 +265,7 @@ pub async fn on_status(
         let ws_json = serde_json::to_value(ws_obj).unwrap();
         let ws_params_obj = get_ondc_order_param_from_req(&order_request_model);
         let _ = websocket_srv
-            .send_msg(ws_params_obj, WebSocketActionType::Status, ws_json)
+            .send_msg(ws_params_obj, WebSocketActionType::Status, ws_json, None)
             .await;
     }
 
@@ -303,7 +308,7 @@ pub async fn on_cancel(
         let ws_json = serde_json::to_value(ws_obj).unwrap();
         let ws_params_obj = get_ondc_order_param_from_req(&order_request_model);
         let _ = websocket_srv
-            .send_msg(ws_params_obj, WebSocketActionType::Cancel, ws_json)
+            .send_msg(ws_params_obj, WebSocketActionType::Cancel, ws_json, None)
             .await;
     }
 
@@ -346,7 +351,7 @@ pub async fn on_update(
         let ws_json = serde_json::to_value(ws_obj).unwrap();
         let ws_params_obj = get_ondc_order_param_from_req(&order_request_model);
         let _ = websocket_srv
-            .send_msg(ws_params_obj, WebSocketActionType::Update, ws_json)
+            .send_msg(ws_params_obj, WebSocketActionType::Update, ws_json, None)
             .await;
     }
 

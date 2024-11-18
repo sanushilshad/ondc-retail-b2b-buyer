@@ -927,9 +927,23 @@ pub struct ONDCOnSearchFullFillment {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub enum ONDCCredentialType {
+    License,
+}
+
+impl ONDCCredentialType {
+    pub fn get_description(&self, value: &str) -> String {
+        match self {
+            ONDCCredentialType::License => format!("Import License No. {}", value),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCCredential {
     pub id: String,
-    pub r#type: String,
+    pub r#type: ONDCCredentialType,
     pub desc: String,
     pub icon: Option<String>,
     pub url: String,

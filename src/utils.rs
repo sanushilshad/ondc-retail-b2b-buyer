@@ -8,7 +8,7 @@ use crate::schemas::{
     CommunicationType, FeeType, ONDCNetworkType, RegisteredNetworkParticipant, Status,
 };
 use crate::schemas::{KycStatus, ONDCAuthParams};
-use crate::user_client::{BusinessAccount, UserVector, VectorType};
+use crate::user_client::BusinessAccount;
 use actix_http::h1;
 use actix_web::dev::Payload;
 use actix_web::dev::ServiceRequest;
@@ -451,17 +451,26 @@ where
     }
 }
 
-pub fn get_default_vector_value<'a>(
-    default_vector_type: &'a VectorType,
-    vectors: &'a Vec<UserVector>,
-) -> Option<&'a str> {
-    for vector in vectors {
-        if vector.key == *default_vector_type {
-            return Some(&vector.value);
-        }
-    }
-    None
-}
+// pub fn get_default_vector_value<'a>(
+//     default_vector_type: &'a VectorType,
+//     vectors: &'a Vec<UserVector>,
+// ) -> Option<&'a str> {
+//     for vector in vectors {
+//         if vector.key == *default_vector_type {
+//             return Some(&vector.value);
+//         }
+//     }
+//     None
+// }
+
+// pub fn get_vector_from_list<'a>(
+//     default_vector_type: &'a VectorType,
+//     vectors: &'a [UserVector],
+// ) -> Option<&'a UserVector> {
+//     vectors
+//         .iter()
+//         .find(|&vector| vector.key == *default_vector_type)
+// }
 
 pub fn validate_business_account_active(business_obj: &BusinessAccount) -> Option<String> {
     match (

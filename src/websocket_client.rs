@@ -19,15 +19,20 @@ pub enum WebSocketActionType {
     Update,
 }
 
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Debug, Serialize, PartialEq)]
+pub enum ProcessType {
+    Immediate,
+    Deferred,
+}
+
+#[derive(Debug, Serialize)]
 pub struct WSRequest {
-    #[schema(value_type = Option<String>)]
     pub user_id: Option<Uuid>,
-    #[schema(value_type = String)]
     pub business_id: Option<Uuid>,
     pub device_id: Option<String>,
     pub action_type: WebSocketActionType,
     pub data: Value,
+    pub process_type: Option<ProcessType>,
 }
 
 #[derive(Debug)]
@@ -61,6 +66,7 @@ impl WebSocketClient {
         params: WebSocketParam,
         action_type: WebSocketActionType,
         data: Value,
+        process_type: Option<ProcessType>,
     ) -> Result<(), reqwest::Error> {
         let url = format!("{}/send", self.base_url);
         let request_body = WSRequest {
@@ -69,6 +75,7 @@ impl WebSocketClient {
             device_id: params.device_id,
             action_type,
             data,
+            process_type,
         };
         self.http_client
             .post(&url)

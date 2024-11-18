@@ -1,3 +1,4 @@
+use super::errors::SelectOrderError;
 use super::models::{
     CommerceBppTermsModel, CommerceDataModel, CommerceDocumentModel, CommerceFulfillmentModel,
     CommerceItemModel, CommercePaymentModel, DropOffContactModel, DropOffDataModel,
@@ -42,7 +43,7 @@ use crate::schemas::DataSource;
 use crate::schemas::{
     CountryCode, CurrencyType, FeeType, RegisteredNetworkParticipant, RequestMetaData,
 };
-use crate::user_client::{BusinessAccount, UserAccount};
+use crate::user_client::{get_vector_val_from_list, BusinessAccount, UserAccount, VectorType};
 use crate::utils::get_gps_string;
 use anyhow::{anyhow, Context};
 use bigdecimal::{BigDecimal, ToPrimitive};
@@ -1513,6 +1514,7 @@ fn get_order_fulfillment_from_model(
             packaging_charge: fulfillment.packaging_charge,
             delivery_charge: fulfillment.delivery_charge,
             convenience_fee: fulfillment.convenience_fee,
+            trade_type: fulfillment.trade_type,
         })
     }
     fulfillment_obj
@@ -2789,6 +2791,33 @@ pub async fn initialize_order_on_update(
         .commit()
         .await
         .context("Failed to commit SQL transaction to update order on update")?;
+
+    Ok(())
+}
+
+pub fn validate_select_request(
+    body: &OrderSelectRequest,
+    business_account: &BusinessAccount,
+    seller_location_map: &HashMap<String, ONDCSellerLocationInfo>,
+) -> Result<(), SelectOrderError> {
+    let seller_location_obj = seller_location_map.iter().next().unwrap();
+    let vector_val =
+        get_vector_val_from_list(&VectorType::ImportLicenseNo, &business_account.vectors);
+    for fulfillment in body.fulfillments.iter() {
+        if seller_location_obj.1.country_code != fulfillment.location.country.code {
+            if let Some(vector_val) = vector_val {
+                if !vector_val.verified {
+                    return Err(SelectOrderError::ValidationError(
+                        "Import License is not verified".to_string(),
+                    ));
+                }
+            } else {
+                return Err(SelectOrderError::ValidationError(
+                    "Import License is not present".to_string(),
+                ));
+            }
+        }
+    }
 
     Ok(())
 }

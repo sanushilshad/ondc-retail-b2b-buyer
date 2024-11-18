@@ -247,22 +247,22 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 ### MILESTONE 3: (Nov 14, 2024 - Pending)
 * [x] Update websocket implementation to enable Background Sync.
 * [x] Remove device wise notification push for order flow.
-* [ ] Integrate BAP Payment Gateway
+* [x] Add Import flow to order.
 * [ ] Develop Business Specific Config Module.
-* [ ] Develop & Integrate permission flow
-* [ ] Add Import flow to order
-* [ ] Integrate ElasticSearch
+* [ ] Develop & Integrate permission flow.
 * [ ] Add limit to the number of failed authentication
+* [ ] Integrate BAP Payment Gateway.
+* [ ] Integrate ElasticSearch.
 * [ ] Add test cases for milestone 2 (Only unit tests)
-* [ ] Add Chat Functionality
+* [ ] Add Chat Functionality.
 
 ### MILESTONE 4:
-* [ ] Develop IGM issue API
-* [ ] Develop ONDC on issue API
-* [ ] Develop IGM issue_status API
-* [ ] Develop ONDC on issue_status API
-* [ ] Develop IGM issue close API
-* [ ] Integrate Observability Module
+* [ ] Develop IGM issue API.
+* [ ] Develop ONDC on issue API.
+* [ ] Develop IGM issue_status API.
+* [ ] Develop ONDC on issue_status API.
+* [ ] Develop IGM issue close API.
+* [ ] Integrate Observability Module.
 
 ### MILESTONE 5:
 * [ ] Develop info API

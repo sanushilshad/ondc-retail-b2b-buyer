@@ -481,6 +481,7 @@ pub struct CommerceFulfillment {
     pub delivery_charge: BigDecimal,
     #[schema(value_type = f64)]
     pub convenience_fee: BigDecimal,
+    pub trade_type: Option<TradeType>,
 }
 
 #[derive(Deserialize, Debug, ToSchema)]
@@ -754,7 +755,7 @@ impl FromRequest for OrderCancelRequest {
     }
 }
 
-#[derive(Deserialize, Debug, ToSchema, sqlx::Type)]
+#[derive(Deserialize, Debug, ToSchema, sqlx::Type, PartialEq)]
 #[serde(rename_all = "snake_case")]
 #[sqlx(type_name = "trade_type", rename_all = "snake_case")]
 pub enum TradeType {

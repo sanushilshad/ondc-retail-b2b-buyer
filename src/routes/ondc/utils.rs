@@ -1,16 +1,14 @@
 use super::{
     BreakupTitleType, LookupData, LookupRequest, ONDCActionType, ONDCBreakUp, ONDCCancelMessage,
     ONDCCancelRequest, ONDCConfirmMessage, ONDCConfirmOrder, ONDCConfirmProvider, ONDCContext,
-    ONDCContextCity, ONDCContextCountry, ONDCContextLocation, ONDCDomain, ONDCFeeType,
-    ONDCSearchStop, ONDCSellePriceSlab, ONDCStatusMessage, ONDCStatusRequest, ONDCTag,
-    ONDCUpdateItem, ONDCUpdateMessage, ONDCUpdateOrder, ONDCUpdateProvider, ONDCUpdateRequest,
-    ONDCVersion, OndcUrl,
+    ONDCContextCity, ONDCContextCountry, ONDCContextLocation, ONDCCredential, ONDCCredentialType,
+    ONDCDomain, ONDCFeeType, ONDCSearchStop, ONDCSellePriceSlab, ONDCStatusMessage,
+    ONDCStatusRequest, ONDCTag, ONDCUpdateItem, ONDCUpdateMessage, ONDCUpdateOrder,
+    ONDCUpdateProvider, ONDCUpdateRequest, ONDCVersion, OndcUrl,
 };
 
-use crate::user_client::{BusinessAccount, UserAccount};
-use crate::{
-    constants::ONDC_TTL, routes::product::ProductSearchError, utils::get_default_vector_value,
-};
+use crate::user_client::{get_vector_val_from_list, BusinessAccount, UserAccount, VectorType};
+use crate::{constants::ONDC_TTL, routes::product::ProductSearchError};
 use anyhow::anyhow;
 use chrono::{DateTime, Utc};
 use reqwest::Client;
@@ -20,6 +18,7 @@ use uuid::Uuid;
 
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
+use std::vec;
 
 use bigdecimal::{BigDecimal, ToPrimitive};
 
@@ -54,7 +53,7 @@ use crate::routes::order::schemas::{
     OrderCancelRequest, OrderConfirmRequest, OrderDeliveyTerm, OrderInitBilling, OrderInitRequest,
     OrderSelectFulfillment, OrderSelectItem, OrderSelectRequest, OrderStatusRequest, OrderType,
     OrderUpdateRequest, PaymentCollectedBy, PickUpData, SelectFulfillmentLocation, SettlementBasis,
-    UpdateOrderPaymentRequest,
+    TradeType, UpdateOrderPaymentRequest,
 };
 use crate::routes::product::schemas::{
     CategoryDomain, FulfillmentType, PaymentType, ProductFulFillmentLocations,
@@ -239,15 +238,15 @@ pub fn get_common_context(
 }
 
 fn get_buyer_id_tag(business_account: &BusinessAccount) -> Result<ONDCTag, anyhow::Error> {
-    let buyer_id: Option<&str> = get_default_vector_value(
+    let vector_obj = get_vector_val_from_list(
         &business_account.default_vector_type,
         &business_account.vectors,
     );
     let ondc_buyer_id_type = &business_account
         .default_vector_type
         .get_ondc_vector_type()?;
-    match buyer_id {
-        Some(id) => Ok(ONDCTag::get_buyer_id_tag(ondc_buyer_id_type, id)),
+    match vector_obj {
+        Some(vector) => Ok(ONDCTag::get_buyer_id_tag(ondc_buyer_id_type, &vector.value)),
         None => Err(anyhow!(
             "Failed to get buyer ID tag: {}",
             &business_account.default_vector_type.to_string()
@@ -985,36 +984,75 @@ fn get_ondc_select_fulfillment_end(
     // fulfillment_end
 }
 
+fn get_ondc_customer_detail(
+    business_account: &BusinessAccount,
+    trade_type: Option<&TradeType>,
+) -> ONDCCustomer {
+    let mut creds: Option<Vec<ONDCCredential>> = None;
+
+    if trade_type == Some(&TradeType::Import) {
+        creds = get_vector_val_from_list(&VectorType::ImportLicenseNo, &business_account.proofs)
+            .and_then(|proof| {
+                proof.value.first().map(|first_value| {
+                    vec![ONDCCredential {
+                        r#type: ONDCCredentialType::License,
+                        desc: ONDCCredentialType::License.get_description(&proof.kyc_id),
+                        id: proof.kyc_id.clone(),
+                        icon: None,
+                        url: first_value.to_owned(),
+                    }]
+                })
+            });
+    };
+
+    ONDCCustomer {
+        person: ONDCPerson {
+            creds,
+            name: business_account.company_name.clone(),
+        },
+    }
+}
+
 #[tracing::instrument(name = "get ondc select message body", skip())]
 fn get_ondc_select_fulfillments(
     seller_location_mapping: &HashMap<String, ONDCSellerLocationInfo>,
     fulfillments: &Vec<OrderSelectFulfillment>,
+    business_account: &BusinessAccount,
 ) -> Vec<ONDCFulfillment> {
     let mut fulfillment_objs: Vec<ONDCFulfillment> = vec![];
     let location_obj = seller_location_mapping.iter().next().unwrap();
-    for fulfillment in fulfillments {
-        let stops: Option<Vec<ONDCOrderFulfillmentEnd>> =
-            if fulfillment.r#type == FulfillmentType::Delivery {
-                Some(get_ondc_select_fulfillment_end(&fulfillment.location))
-            } else {
-                None
-            };
 
-        let tags = if location_obj.1.country_code != fulfillment.location.country.code {
-            get_fulfillment_tags(&fulfillment.delivery_terms)
+    for fulfillment in fulfillments {
+        let mut customer = None;
+        let mut tags = None;
+        let mut stops = None;
+        let trade_type = if location_obj.1.country_code != fulfillment.location.country.code {
+            TradeType::Import
         } else {
-            None
+            TradeType::Domestic
         };
+
+        if fulfillment.r#type == FulfillmentType::Delivery {
+            stops = Some(get_ondc_select_fulfillment_end(&fulfillment.location));
+            if trade_type == TradeType::Import {
+                tags = get_fulfillment_tags(&fulfillment.delivery_terms);
+                customer = Some(get_ondc_customer_detail(
+                    business_account,
+                    Some(&trade_type),
+                ));
+            };
+        }
+
         fulfillment_objs.push(ONDCFulfillment {
             id: fulfillment.id.clone(),
             r#type: fulfillment.r#type.get_ondc_fulfillment_type(),
             tags,
             stops,
-            customer: None,
+            customer,
         })
     }
 
-    return fulfillment_objs;
+    fulfillment_objs
 }
 
 #[tracing::instrument(name = "get ondc select message body", skip())]
@@ -1047,6 +1085,7 @@ fn get_ondc_select_message(
             fulfillments: get_ondc_select_fulfillments(
                 seller_location_mapping,
                 &order_request.fulfillments,
+                business_account,
             ),
         },
     })
@@ -1489,12 +1528,10 @@ fn get_get_ondc_init_fulfillment(
                 id: fulfillment.fulfillment_id.clone(),
                 r#type: fulfillment.fulfillment_type.get_ondc_fulfillment_type(),
                 tags: tags_result,
-                customer: Some(ONDCCustomer {
-                    person: ONDCPerson {
-                        creds: None,
-                        name: business_account.company_name.clone(),
-                    },
-                }),
+                customer: Some(get_ondc_customer_detail(
+                    business_account,
+                    fulfillment.trade_type.as_ref(),
+                )),
                 stops: Some(get_ondc_init_fulfillment_stops(
                     &fulfillment.fulfillment_type,
                     &fulfillment.drop_off,

@@ -71,6 +71,7 @@ pub enum VectorType {
     Tin,
     ExportLicenseNo,
     FssaiLicenseNumber,
+    ImportLicenseNo,
 }
 
 impl std::fmt::Display for VectorType {
@@ -93,12 +94,21 @@ impl VectorType {
     }
 }
 
+pub trait VectorHasKey {
+    fn key(&self) -> &VectorType;
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct UserVector {
     pub key: VectorType,
     pub value: String,
     pub masking: MaskingType,
     pub verified: bool,
+}
+impl VectorHasKey for UserVector {
+    fn key(&self) -> &VectorType {
+        &self.key
+    }
 }
 
 #[derive(Debug, Serialize, Clone, Deserialize)]
@@ -169,10 +179,16 @@ pub enum MerchantType {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 
-pub struct KYCProof {
+pub struct Proof {
     pub key: VectorType,
     pub kyc_id: String,
     pub value: Vec<String>,
+}
+
+impl VectorHasKey for Proof {
+    fn key(&self) -> &VectorType {
+        &self.key
+    }
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -186,6 +202,7 @@ pub struct BusinessAccount {
     pub is_deleted: bool,
     pub verified: bool,
     pub default_vector_type: VectorType,
+    pub proofs: Vec<Proof>,
 }
 
 impl FromRequest for BusinessAccount {
@@ -317,4 +334,11 @@ impl UserClient {
             Err(error_message)
         }
     }
+}
+
+pub fn get_vector_val_from_list<'a, T>(vector_type: &'a VectorType, items: &'a [T]) -> Option<&'a T>
+where
+    T: VectorHasKey,
+{
+    items.iter().find(|&item| item.key() == vector_type)
 }

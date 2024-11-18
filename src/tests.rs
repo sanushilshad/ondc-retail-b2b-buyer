@@ -57,6 +57,7 @@ pub mod tests {
             is_deleted: false,
             verified: true,
             default_vector_type: VectorType::PanCardNo,
+            proofs: vec![],
         }
     }
 
@@ -94,6 +95,7 @@ pub mod tests {
             is_deleted: false,
             verified: true,
             default_vector_type: VectorType::Gstin,
+            proofs: vec![],
         };
 
         // Test case 2: KYC is pending

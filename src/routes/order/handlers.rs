@@ -23,7 +23,9 @@ use super::schemas::{
     OrderCancelRequest, OrderConfirmRequest, OrderInitRequest, OrderSelectRequest,
     OrderStatusRequest, OrderType, OrderUpdateRequest,
 };
-use super::utils::{fetch_order_by_id, initialize_order_select, save_ondc_order_request};
+use super::utils::{
+    fetch_order_by_id, initialize_order_select, save_ondc_order_request, validate_select_request,
+};
 
 #[utoipa::path(
     post,
@@ -73,6 +75,7 @@ pub async fn order_select(
                 return Err(GenericError::DatabaseError(e.to_string(), e));
             }
         };
+
     let bap_detail = match bap_detail {
         Some(bap_detail) => bap_detail,
         None => {
@@ -99,6 +102,8 @@ pub async fn order_select(
             ));
         }
     };
+    validate_select_request(&body, &business_account, &seller_location_info_mapping)
+        .map_err(|e| GenericError::ValidationError(e.to_string()))?;
 
     let ondc_select_payload = get_ondc_select_payload(
         &user_account,
