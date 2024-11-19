@@ -16,6 +16,16 @@ The progress can be tracked here: [milestones](#MILESTONES)
 | API Documention | OpenAPI Swagger |
 
 
+## DEPENDENT MICROSERVIES
+
+| Service Name | Description |
+|---|---|
+| Websocket Service | Service for all ONDC related Websocket connections |
+| User Service | Service for all ONDC related User APIs |
+| Short URL Service | Service for generating Short URL |
+
+
+
 ## CUSTOM MIGRATION COMMAND FOR DEBUG:
 
 ```
@@ -202,7 +212,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 ```
 
 
-## MILESTONES (38/70)
+## MILESTONES (38/72)
 ### MILESTONE 1 (Jan 18, 2023 - Jul 22, 2024):
 * [x] Set up basic actix web server
 * [x] Add environment config fetch
@@ -256,7 +266,13 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [ ] Add test cases for milestone 2 (Only unit tests)
 * [ ] Add Chat Functionality.
 
+
 ### MILESTONE 4:
+* [ ] Develop common Microservice to fetch city codes, etc.
+* [ ] API to set address for each business Account (Changes)
+
+
+### MILESTONE 5:
 * [ ] Develop IGM issue API.
 * [ ] Develop ONDC on issue API.
 * [ ] Develop IGM issue_status API.
@@ -264,7 +280,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [ ] Develop IGM issue close API.
 * [ ] Integrate Observability Module.
 
-### MILESTONE 5:
+### MILESTONE 6:
 * [ ] Develop info API
 * [ ] Develop ONDC info API
 * [ ] Develop Business Account fetch API
@@ -276,14 +292,14 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [ ] Develop Cancellation Code Fetch API
 * [ ] Integrate with notification microservice to enable WhatsApp, Email and SMS functionality
 
-### MILESTONE 6:
+### MILESTONE 7:
 * [ ] Complete validation for business_account registration
 * [ ] Complete validation for user_account registration
 * [ ] Complete validation for search/ select/ init/ confirm/ status/ cancel/ update APIs
 * [ ] Complete validation ONDC for on_search/ on_select/ on_init/ on_confirm/ on_status/ on_cancel/ on_update APIs
 
 
-### MILESTONE 7:
+### MILESTONE 8:
 * [ ] Develop email verfication APIs for user and business account
 * [ ] Develop mobile verfication APIs for user and business account
 * [ ] Design product caching

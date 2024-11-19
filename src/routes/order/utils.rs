@@ -1626,6 +1626,7 @@ fn get_order_from_model(
         documents: order
             .documents
             .map(|f| get_document_from_document_model(f.0)),
+        buyer_id: order.buyer_id,
     }
 }
 

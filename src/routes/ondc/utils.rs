@@ -509,6 +509,14 @@ pub fn _get_order_param_from_param_req(ondc_req: &OrderRequestParamsModel) -> We
     }
 }
 
+pub fn get_ondc_order_param_from_commerce(ondc_req: &Commerce) -> WebSocketParam {
+    WebSocketParam {
+        device_id: None,
+        user_id: None,
+        business_id: ondc_req.buyer_id,
+    }
+}
+
 #[tracing::instrument(name = "get price obj from ondc price obj", skip())]
 pub fn get_price_obj_from_ondc_price_obj(
     price: &ONDCOnSearchItemPrice,

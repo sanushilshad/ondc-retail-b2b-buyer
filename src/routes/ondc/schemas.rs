@@ -2410,12 +2410,20 @@ pub struct ONDCStatusRequest {
 }
 
 #[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ONDCRequestType {
+    Solicted,
+    UnSolicted,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct WSStatus {
     #[schema(value_type = String)]
     pub transaction_id: Uuid,
     #[schema(value_type = String)]
     pub message_id: Uuid,
+    pub request_type: ONDCRequestType,
     pub error: Option<String>,
 }
 
