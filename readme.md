@@ -265,12 +265,12 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [ ] Integrate ElasticSearch.
 * [ ] Add test cases for milestone 2 (Only unit tests)
 * [ ] Add Chat Functionality.
-
+* [ ] Integrate Address Module.
 
 ### MILESTONE 4:
 * [ ] Develop common Microservice to fetch city codes, etc.
 * [ ] API to set address for each business Account (Changes).
-* [ ] Integrate Address Module.
+
 
 
 ### MILESTONE 5:
