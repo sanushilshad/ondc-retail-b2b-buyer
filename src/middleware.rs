@@ -1,7 +1,7 @@
 use crate::errors::GenericError;
 use crate::schemas::{RequestMetaData, Status};
-use crate::user_client::UserClient;
-use crate::user_client::{BusinessAccount, CustomerType, UserAccount};
+use crate::user_client::{AllowedPermission, BusinessAccount, CustomerType, UserAccount};
+use crate::user_client::{PermissionType, UserClient};
 use crate::utils::{bytes_to_payload, get_header_value, validate_business_account_active};
 // use actix_http::body::BoxBody;
 use actix_web::body::{BoxBody, EitherBody, MessageBody};
@@ -466,59 +466,84 @@ where
     }
 }
 
-// Middlware for verifying the permission
-// pub struct UserBusinessPermissionMiddleware<S> {
-//     service: Rc<S>,
-//     pub permission_list: Vec<String>,
-// }
-// impl<S> Service<ServiceRequest> for UserBusinessPermissionMiddleware<S>
-// where
-//     S: Service<ServiceRequest, Response = ServiceResponse<actix_web::body::BoxBody>, Error = Error>
-//         + 'static,
-// {
-//     type Response = ServiceResponse<actix_web::body::BoxBody>;
-//     type Error = Error;
-//     type Future = LocalBoxFuture<'static, Result<Self::Response, Error>>;
+//Middlware for verifying the permission
+pub struct BusinessPermissionMiddleware<S> {
+    service: Rc<S>,
+    pub permission_list: Vec<PermissionType>,
+}
+impl<S> Service<ServiceRequest> for BusinessPermissionMiddleware<S>
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<actix_web::body::BoxBody>, Error = Error>
+        + 'static,
+{
+    type Response = ServiceResponse<actix_web::body::BoxBody>;
+    type Error = Error;
+    type Future = LocalBoxFuture<'static, Result<Self::Response, Error>>;
 
-//     forward_ready!(service);
+    forward_ready!(service);
 
-//     /// Handles incoming requests.
-//     fn call(&self, req: ServiceRequest) -> Self::Future {
-//         println!("Hi from start. You requested: {}", req.path());
+    /// Handles incoming requests.
+    fn call(&self, req: ServiceRequest) -> Self::Future {
+        let srv = Rc::clone(&self.service);
 
-//         let fut = self.service.call(req);
+        let permission_list = self.permission_list.clone();
+        Box::pin(async move {
+            let user_client = req.app_data::<web::Data<UserClient>>().unwrap();
+            let user_account = req
+                .extensions()
+                .get::<UserAccount>()
+                .ok_or_else(|| {
+                    GenericError::ValidationError("User Account doesn't exist".to_string())
+                })?
+                .to_owned();
+            let business_account = req
+                .extensions()
+                .get::<BusinessAccount>()
+                .ok_or_else(|| {
+                    GenericError::ValidationError(
+                        "Business Account Account doesn't exist".to_string(),
+                    )
+                })?
+                .to_owned();
+            let permission_list = user_client
+                .permission_validation(user_account.id, business_account.id, permission_list)
+                .await?;
 
-//         Box::pin(async move {
-//             let res = fut.await?;
+            req.extensions_mut()
+                .insert::<AllowedPermission>(AllowedPermission::new(
+                    user_account.id,
+                    business_account.id,
+                    permission_list,
+                ));
 
-//             println!("Hi from response");
-//             Ok(res)
-//         })
-//     }
-// }
+            let res = srv.call(req).await?;
+            Ok(res)
+        })
+    }
+}
 
-// // Middleware factory for business account validation.
-// pub struct UserBusinessPermissionValidation {
-//     pub permission_list: Vec<String>,
-// }
+// Middleware factory for business account validation.
+pub struct BusinessPermissionValidation {
+    pub permission_list: Vec<PermissionType>,
+}
 
-// impl<S> Transform<S, ServiceRequest> for UserBusinessPermissionValidation
-// where
-//     S: Service<ServiceRequest, Response = ServiceResponse<actix_web::body::BoxBody>, Error = Error>
-//         + 'static,
-// {
-//     type Response = ServiceResponse<actix_web::body::BoxBody>;
-//     type Error = Error;
-//     type Transform = UserBusinessPermissionMiddleware<S>;
-//     type InitError = ();
-//     type Future = Ready<Result<Self::Transform, Self::InitError>>;
+impl<S> Transform<S, ServiceRequest> for BusinessPermissionValidation
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<actix_web::body::BoxBody>, Error = Error>
+        + 'static,
+{
+    type Response = ServiceResponse<actix_web::body::BoxBody>;
+    type Error = Error;
+    type Transform = BusinessPermissionMiddleware<S>;
+    type InitError = ();
+    type Future = Ready<Result<Self::Transform, Self::InitError>>;
 
-//     /// Creates and returns a new AuthMiddleware wrapped in a Result.
-//     fn new_transform(&self, service: S) -> Self::Future {
-//         // Wrap the AuthMiddleware instance in a Result and return it.
-//         ready(Ok(UserBusinessPermissionMiddleware {
-//             service: Rc::new(service),
-//             permission_list: self.permission_list.clone(),
-//         }))
-//     }
-// }
+    /// Creates and returns a new AuthMiddleware wrapped in a Result.
+    fn new_transform(&self, service: S) -> Self::Future {
+        // Wrap the AuthMiddleware instance in a Result and return it.
+        ready(Ok(BusinessPermissionMiddleware {
+            service: Rc::new(service),
+            permission_list: self.permission_list.clone(),
+        }))
+    }
+}

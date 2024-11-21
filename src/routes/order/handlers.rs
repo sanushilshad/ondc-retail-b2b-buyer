@@ -13,7 +13,7 @@ use crate::routes::ondc::utils::{
     get_ondc_confirm_payload, get_ondc_init_payload, get_ondc_select_payload, send_ondc_payload,
 };
 use crate::routes::ondc::{ONDCActionType, ONDCDomain};
-use crate::user_client::{BusinessAccount, UserAccount};
+use crate::user_client::{AllowedPermission, BusinessAccount, PermissionType, UserAccount};
 use crate::utils::{create_authorization_header, get_np_detail};
 
 use crate::schemas::{GenericResponse, ONDCNetworkType, RequestMetaData};
@@ -430,6 +430,7 @@ pub async fn order_cancel(
     user_account: UserAccount,
     business_account: BusinessAccount,
     meta_data: RequestMetaData,
+    allowed_permission: AllowedPermission,
 ) -> Result<web::Json<GenericResponse<()>>, GenericError> {
     let task1 = fetch_order_by_id(&pool, body.transaction_id);
     let task2 = get_np_detail(&pool, &meta_data.domain_uri, &ONDCNetworkType::Bap);
@@ -450,6 +451,11 @@ pub async fn order_cancel(
             )))
         }
     };
+    if !allowed_permission.validate_commerce_self(&order, PermissionType::CancelOrderSelf) {
+        return Err(GenericError::InsufficientPrevilegeError(
+            "You do not have sufficent preveliege to cancel the order".to_owned(),
+        ));
+    }
 
     let bap_detail = match bap_detail {
         Some(bap_detail) => bap_detail,
@@ -510,6 +516,7 @@ pub async fn order_update(
     user_account: UserAccount,
     business_account: BusinessAccount,
     meta_data: RequestMetaData,
+    allowed_permission: AllowedPermission,
 ) -> Result<web::Json<GenericResponse<()>>, GenericError> {
     let task1 = fetch_order_by_id(&pool, body.transaction_id());
     let task2 = get_np_detail(&pool, &meta_data.domain_uri, &ONDCNetworkType::Bap);
@@ -530,6 +537,12 @@ pub async fn order_update(
             )))
         }
     };
+
+    if !allowed_permission.validate_commerce_self(&order, PermissionType::UpdateOrderSelf) {
+        return Err(GenericError::InsufficientPrevilegeError(
+            "You do not have sufficent preveliege to update the order".to_owned(),
+        ));
+    }
 
     let bap_detail = match bap_detail {
         Some(bap_detail) => bap_detail,

@@ -1636,11 +1636,12 @@ pub async fn fetch_order_by_id(
     transaction_id: Uuid,
 ) -> Result<Option<Commerce>, anyhow::Error> {
     if let Some(order_data) = get_commerce_data(pool, transaction_id).await? {
-        let lines = get_commerce_data_line(pool, order_data.id).await?;
-        //let payments_2 = get_commerce_payments_2(pool, &order_data.id).await?;
-        let payments = get_commerce_payments(pool, order_data.id).await?;
+        let task1 = get_commerce_data_line(pool, order_data.id);
 
-        let fulfillmets = get_commerce_fulfillments(pool, order_data.id).await?;
+        let task2 = get_commerce_payments(pool, order_data.id);
+
+        let task3 = get_commerce_fulfillments(pool, order_data.id);
+        let (lines, payments, fulfillmets) = tokio::try_join!(task1, task2, task3)?;
         Ok(Some(get_order_from_model(
             order_data,
             lines,

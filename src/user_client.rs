@@ -1,3 +1,4 @@
+use crate::routes::order::schemas::Commerce;
 use crate::schemas::GenericResponse;
 use anyhow::anyhow;
 use reqwest::{Client, StatusCode};
@@ -50,6 +51,20 @@ pub enum MaskingType {
     Encrypt,
     PartialMask,
     FullMask,
+}
+
+#[derive(Debug, Serialize, Clone, Deserialize, PartialEq)]
+pub enum PermissionType {
+    #[serde(rename = "create:order")]
+    CreateOrder,
+    #[serde(rename = "update:order:self")]
+    UpdateOrderSelf,
+    #[serde(rename = "update:order")]
+    UpdateOrder,
+    #[serde(rename = "cancel:order")]
+    CancelOrder,
+    #[serde(rename = "cancel:order:self")]
+    CancelOrderSelf,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -257,11 +272,13 @@ impl UserClient {
         user_auth_token: Option<&SecretString>,
         user_id: Option<Uuid>,
     ) -> Result<UserAccount, GenericError> {
-        let url = format!("{}/user/fetch/", self.base_url);
+        let url = format!("{}/user/fetch", self.base_url);
         let mut request = self
             .http_client
             .post(&url)
-            .header("Authorization", self.get_auth_token(user_auth_token));
+            .header("Authorization", self.get_auth_token(user_auth_token))
+            .header("x-request-id", "internal".to_string())
+            .header("x-device-id", "internal".to_string());
 
         if user_auth_token.is_none() {
             if let Some(user_id) = user_id {
@@ -301,7 +318,7 @@ impl UserClient {
         business_id: Uuid,
         customer_type_list: Vec<CustomerType>,
     ) -> Result<Option<BusinessAccount>, GenericError> {
-        let url = format!("{}/business/fetch/", self.base_url);
+        let url = format!("{}/business/fetch", self.base_url);
         let body = BusinessFetchRequest::new(business_id, customer_type_list);
 
         let response = self
@@ -309,8 +326,9 @@ impl UserClient {
             .post(&url)
             .json(&body)
             .header("Authorization", self.get_auth_token(None))
-            .header("x-business-id", business_id.to_string())
             .header("x-user-id", user_id.to_string())
+            .header("x-request-id", "internal".to_string())
+            .header("x-device-id", "internal".to_string())
             .send()
             .await
             .map_err(|err| GenericError::UnexpectedError(anyhow!("Request error: {}", err)))?;
@@ -334,6 +352,50 @@ impl UserClient {
             Err(error_message)
         }
     }
+
+    #[tracing::instrument]
+    pub async fn permission_validation(
+        &self,
+        user_id: Uuid,
+        business_id: Uuid,
+        permission_list: Vec<PermissionType>,
+    ) -> Result<Vec<PermissionType>, GenericError> {
+        let url = format!("{}/business/permission", self.base_url);
+        let body = BusinessPermissionRequest::new(business_id, permission_list);
+
+        let response = self
+            .http_client
+            .post(&url)
+            .json(&body)
+            .header("Authorization", self.get_auth_token(None))
+            .header("x-user-id", user_id.to_string())
+            .header("x-request-id", "internal".to_string())
+            .header("x-device-id", "internal".to_string())
+            .send()
+            .await
+            .map_err(|err| GenericError::UnexpectedError(anyhow!("Request error: {}", err)))?;
+
+        let status = response.status();
+        let response_body: GenericResponse<Vec<PermissionType>> =
+            response.json().await.map_err(|err| {
+                GenericError::SerializationError(format!("Failed to parse response: {}", err))
+            })?;
+        if status.is_success() {
+            Ok(response_body.data.unwrap())
+        } else {
+            let error_message = match status {
+                StatusCode::BAD_REQUEST => {
+                    GenericError::ValidationError(response_body.customer_message)
+                }
+                StatusCode::FORBIDDEN => {
+                    GenericError::InsufficientPrevilegeError(response_body.customer_message)
+                }
+                StatusCode::GONE => GenericError::DataNotFound(response_body.customer_message),
+                _ => GenericError::UnexpectedCustomError(response_body.customer_message),
+            };
+            return Err(error_message);
+        }
+    }
 }
 
 pub fn get_vector_val_from_list<'a, T>(vector_type: &'a VectorType, items: &'a [T]) -> Option<&'a T>
@@ -341,4 +403,67 @@ where
     T: VectorHasKey,
 {
     items.iter().find(|&item| item.key() == vector_type)
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BusinessPermissionRequest {
+    business_id: Uuid,
+    action_list: Vec<PermissionType>,
+}
+
+impl BusinessPermissionRequest {
+    fn new(business_id: Uuid, action_list: Vec<PermissionType>) -> Self {
+        Self {
+            business_id,
+            action_list,
+        }
+    }
+}
+#[derive(Debug, Clone)]
+pub struct AllowedPermission {
+    user_id: Uuid,
+    business_id: Uuid,
+    permission_list: Vec<PermissionType>,
+}
+
+impl AllowedPermission {
+    pub fn new(user_id: Uuid, business_id: Uuid, permission_list: Vec<PermissionType>) -> Self {
+        AllowedPermission {
+            user_id,
+            business_id,
+            permission_list,
+        }
+    }
+
+    pub fn validate_commerce_self(
+        &self,
+        commerce_data: &Commerce,
+        permission_type: PermissionType,
+    ) -> bool {
+        self.permission_list.contains(&permission_type)
+            && self.user_id == commerce_data.created_by
+            && self.business_id == commerce_data.buyer_id
+    }
+}
+
+impl FromRequest for AllowedPermission {
+    type Error = GenericError;
+    type Future = Ready<Result<Self, Self::Error>>;
+
+    fn from_request(
+        req: &actix_web::HttpRequest,
+        _payload: &mut actix_web::dev::Payload,
+    ) -> Self::Future {
+        let value = req.extensions().get::<AllowedPermission>().cloned();
+
+        let result = match value {
+            Some(user) => Ok(user),
+            None => Err(GenericError::UnexpectedError(anyhow!(
+                "Something went wrong while parsing allowed_permission data".to_string()
+            ))),
+        };
+
+        ready(result)
+    }
 }

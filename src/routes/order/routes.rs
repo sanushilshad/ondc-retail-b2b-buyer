@@ -1,5 +1,5 @@
-use crate::middleware::{BusinessAccountValidation, RequireAuth};
-use crate::user_client::CustomerType;
+use crate::middleware::{BusinessAccountValidation, BusinessPermissionValidation, RequireAuth};
+use crate::user_client::{CustomerType, PermissionType};
 use actix_web::web;
 
 use super::handlers::{
@@ -10,6 +10,9 @@ pub fn order_route(cfg: &mut web::ServiceConfig) {
         web::resource("/select").route(
             web::post()
                 .to(order_select)
+                .wrap(BusinessPermissionValidation {
+                    permission_list: vec![PermissionType::CreateOrder],
+                })
                 .wrap(BusinessAccountValidation {
                     business_type_list: vec![CustomerType::RetailB2bBuyer],
                 })
@@ -20,6 +23,9 @@ pub fn order_route(cfg: &mut web::ServiceConfig) {
         web::resource("/init").route(
             web::post()
                 .to(order_init)
+                .wrap(BusinessPermissionValidation {
+                    permission_list: vec![PermissionType::CreateOrder],
+                })
                 .wrap(BusinessAccountValidation {
                     business_type_list: vec![CustomerType::RetailB2bBuyer],
                 })
@@ -31,6 +37,9 @@ pub fn order_route(cfg: &mut web::ServiceConfig) {
         web::resource("/confirm").route(
             web::post()
                 .to(order_confirm)
+                .wrap(BusinessPermissionValidation {
+                    permission_list: vec![PermissionType::CreateOrder],
+                })
                 .wrap(BusinessAccountValidation {
                     business_type_list: vec![CustomerType::RetailB2bBuyer],
                 })
@@ -41,6 +50,9 @@ pub fn order_route(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::resource("/status")
             .route(web::post().to(order_status))
+            .wrap(BusinessPermissionValidation {
+                permission_list: vec![PermissionType::CreateOrder],
+            })
             .wrap(BusinessAccountValidation {
                 business_type_list: vec![CustomerType::RetailB2bBuyer],
             })
@@ -49,6 +61,9 @@ pub fn order_route(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::resource("/cancel")
             .route(web::post().to(order_cancel))
+            .wrap(BusinessPermissionValidation {
+                permission_list: vec![PermissionType::CancelOrder, PermissionType::CancelOrderSelf],
+            })
             .wrap(BusinessAccountValidation {
                 business_type_list: vec![CustomerType::RetailB2bBuyer],
             })
@@ -58,6 +73,9 @@ pub fn order_route(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::resource("/update")
             .route(web::post().to(order_update))
+            .wrap(BusinessPermissionValidation {
+                permission_list: vec![PermissionType::UpdateOrder, PermissionType::UpdateOrderSelf],
+            })
             .wrap(BusinessAccountValidation {
                 business_type_list: vec![CustomerType::RetailB2bBuyer],
             })
