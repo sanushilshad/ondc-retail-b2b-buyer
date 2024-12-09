@@ -15,6 +15,9 @@ use super::schemas::{
     PickUpData, PickUpFulfillmentLocation, SelectFulfillmentLocation, SellerPaymentDetail,
     TimeRange, TradeType,
 };
+use crate::chat_client::{
+    ChatClient, ChatData, ChatMessageType, ChatParticipant, SendMessageDataDescription,
+};
 use crate::constants::ONDC_TTL;
 use crate::routes::ondc::schemas::{
     BreakupTitleType, ONDCBilling, ONDCBreakUp, ONDCConfirmFulfillmentStartLocation, ONDCContact,
@@ -26,13 +29,12 @@ use crate::routes::ondc::schemas::{
 };
 use crate::routes::ondc::utils::{
     fetch_ondc_seller_info, get_ondc_seller_location_info_mapping,
-    get_ondc_seller_product_info_mapping, get_ondc_seller_product_mapping_key,
-    get_tag_value_from_list,
+    get_ondc_seller_product_mapping_key, get_tag_value_from_list,
 };
 use crate::routes::ondc::{
     LookupData, ONDCActionType, ONDCConfirmFulfillmentEndLocation, ONDCDocument,
     ONDCFulfillmentInstruction, ONDCOnCancelRequest, ONDCOnStatusRequest, ONDCOnUpdateRequest,
-    ONDCPaymentType, ONDCTitleName,
+    ONDCPaymentType, ONDCSellerInfo, ONDCTitleName,
 };
 use crate::routes::order::schemas::{
     CommerceStatusType, DeliveryTerm, FulfillmentCategoryType, FulfillmentStatusType, IncoTermType,
@@ -100,13 +102,15 @@ pub async fn save_rfq_order(
     bap_detail: &RegisteredNetworkParticipant,
     provider_name: &str,
     currency_code: &CurrencyType,
+    chat_data: &Option<ChatData>,
 ) -> Result<Uuid, anyhow::Error> {
     let order_id = Uuid::new_v4();
     let query = sqlx::query!(
         r#"
         INSERT INTO commerce_data (id, external_urn, record_type, record_status, 
-        domain_category_code, buyer_id, seller_id, seller_name, buyer_name, source, created_on, created_by, bpp_id, bpp_uri, bap_id, bap_uri, quote_ttl, city_code, country_code, currency_code)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+        domain_category_code, buyer_id, seller_id, seller_name, buyer_name, source, created_on, created_by, bpp_id,
+         bpp_uri, bap_id, bap_uri, quote_ttl, city_code, country_code, currency_code, buyer_chat_link, seller_chat_link)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
         ON CONFLICT (external_urn) 
         DO NOTHING
         "#,
@@ -130,6 +134,8 @@ pub async fn save_rfq_order(
         &select_request.fulfillments[0].location.city.code,
         &select_request.fulfillments[0].location.country.code as &CountryCode,
         &currency_code as &CurrencyType,
+        chat_data.as_ref().map(|a| &a.buyer_link),
+        chat_data.as_ref().map(|a| &a.seller_link)
     );
 
     transaction.execute(query).await.map_err(|e| {
@@ -446,38 +452,21 @@ pub async fn save_payment_obj_select(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 #[tracing::instrument(name = "save request for quote", skip(pool))]
 pub async fn initialize_order_select(
     pool: &PgPool,
+    chat_client: &ChatClient,
     user_account: &UserAccount,
     business_account: &BusinessAccount,
     select_request: &OrderSelectRequest,
     bap_detail: &RegisteredNetworkParticipant,
     bpp_detail: &LookupData,
     seller_location_map: &HashMap<String, ONDCSellerLocationInfo>,
+    seller_info_map: &ONDCSellerInfo,
+    seller_product_map: &HashMap<String, ONDCSellerProductInfo>,
+    chat_data: &Option<ChatData>,
 ) -> Result<(), anyhow::Error> {
-    let item_code_list: Vec<&str> = select_request
-        .items
-        .iter()
-        .map(|item| item.item_id.as_str())
-        .collect();
-
-    let task1 = get_ondc_seller_product_info_mapping(
-        pool,
-        &bpp_detail.subscriber_id,
-        &select_request.provider_id,
-        &item_code_list,
-    );
-    let task2 =
-        fetch_ondc_seller_info(pool, &bpp_detail.subscriber_id, &select_request.provider_id);
-    // let (seller_product_map_res, seller_info_map_res) = futures::future::join(task1, task2).await;
-
-    let (seller_product_map, seller_info_map) = match tokio::try_join!(task1, task2) {
-        Ok((seller_product_map, seller_info_map)) => (seller_product_map, seller_info_map),
-        Err(e) => {
-            return Err(e);
-        }
-    };
     let currency_code = seller_product_map
         .iter()
         .next()
@@ -490,7 +479,8 @@ pub async fn initialize_order_select(
 
     let provider_name = seller_info_map
         .provider_name
-        .ok_or_else(|| anyhow!("Invalid Product / Location"))?;
+        .as_ref()
+        .ok_or_else(|| anyhow!("Invalid Provider name"))?;
 
     let mut transaction = pool
         .begin()
@@ -505,8 +495,9 @@ pub async fn initialize_order_select(
         business_account,
         bpp_detail,
         bap_detail,
-        &provider_name,
+        provider_name,
         currency_code,
+        chat_data,
     )
     .await?;
     save_rfq_fulfillment(
@@ -522,7 +513,7 @@ pub async fn initialize_order_select(
         &mut transaction,
         order_id,
         select_request,
-        &seller_product_map,
+        seller_product_map,
     )
     .await?;
 
@@ -742,6 +733,7 @@ pub async fn save_buyer_order_data_on_select(
     user_account: &UserAccount,
     business_account: &BusinessAccount,
     provider_name: &str,
+    chat_data: &Option<ChatData>,
 ) -> Result<Uuid, anyhow::Error> {
     let grand_total =
         BigDecimal::from_str(&ondc_on_select_req.message.order.quote.price.value).unwrap();
@@ -761,8 +753,8 @@ pub async fn save_buyer_order_data_on_select(
         r#"
         INSERT INTO commerce_data (id, external_urn, record_type, record_status,
         domain_category_code, buyer_id, seller_id, seller_name, buyer_name, source, created_on, created_by, bpp_id, bpp_uri,
-        bap_id, bap_uri, quote_ttl, updated_on, currency_code, grand_total, city_code, country_code)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+        bap_id, bap_uri, quote_ttl, updated_on, currency_code, grand_total, city_code, country_code, seller_chat_link, buyer_chat_link)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
         ON CONFLICT (external_urn)
         DO UPDATE SET
         record_status = EXCLUDED.record_status,
@@ -792,6 +784,8 @@ pub async fn save_buyer_order_data_on_select(
         &grand_total,
         &ondc_select_req.context.location.city.code,
         &ondc_select_req.context.location.country.code as &CountryCode,
+        chat_data.as_ref().map(|a| &a.buyer_link),
+        chat_data.as_ref().map(|a| &a.seller_link)
     );
 
     let result = query.fetch_one(&mut **transaction).await.map_err(|e| {
@@ -809,15 +803,11 @@ pub async fn initialize_order_on_select(
     user_account: &UserAccount,
     business_account: &BusinessAccount,
     ondc_select_req: &ONDCSelectRequest,
+    chat_client: &ChatClient,
+    seller_product_map: &HashMap<String, ONDCSellerProductInfo>,
 ) -> Result<(), anyhow::Error> {
     let bpp_id = on_select_request.context.bpp_id.as_deref().unwrap_or("");
-    let item_code_list: Vec<&str> = on_select_request
-        .message
-        .order
-        .items
-        .iter()
-        .map(|item| item.id.as_str()) // Assuming item_id is a String
-        .collect();
+
     let location_id_list: Vec<String> = on_select_request
         .message
         .order
@@ -826,12 +816,7 @@ pub async fn initialize_order_on_select(
         .iter()
         .map(|location| location.id.to_owned())
         .collect();
-    let task1 = get_ondc_seller_product_info_mapping(
-        pool,
-        bpp_id,
-        &on_select_request.message.order.provider.id,
-        &item_code_list,
-    );
+
     let task2 = get_ondc_seller_location_info_mapping(
         pool,
         bpp_id,
@@ -839,21 +824,34 @@ pub async fn initialize_order_on_select(
         &location_id_list,
     );
     let task3 = fetch_ondc_seller_info(pool, bpp_id, &on_select_request.message.order.provider.id);
-    let (seller_product_map, seller_location_map, seller_info_map) =
-        match tokio::try_join!(task1, task2, task3) {
-            Ok((seller_product_map, seller_info_map, seller_location_map)) => {
-                (seller_product_map, seller_info_map, seller_location_map)
-            }
-            Err(e) => {
-                return Err(e);
-            }
-        };
+    let (seller_location_map, seller_info_map) = match tokio::try_join!(task2, task3) {
+        Ok((seller_info_map, seller_location_map)) => (seller_info_map, seller_location_map),
+        Err(e) => {
+            return Err(e);
+        }
+    };
     let pick_up_location = seller_location_map
         .values()
         .next()
         .ok_or_else(|| anyhow!("Invalid Location Id"))?;
 
-    let provider_name = seller_info_map.provider_name.unwrap_or_default();
+    let provider_name = seller_info_map
+        .provider_name
+        .as_ref()
+        .ok_or_else(|| anyhow!("Invalid Provider name"))?;
+    let chat_data = if ondc_select_req.context.ttl != ONDC_TTL {
+        Some(
+            get_chat_links(
+                chat_client,
+                ondc_select_req.context.transaction_id,
+                business_account,
+                &seller_info_map,
+            )
+            .await?,
+        )
+    } else {
+        None
+    };
     let mut transaction = pool
         .begin()
         .await
@@ -867,7 +865,8 @@ pub async fn initialize_order_on_select(
         on_select_request,
         user_account,
         business_account,
-        &provider_name,
+        provider_name,
+        &chat_data,
     )
     .await?;
 
@@ -875,7 +874,7 @@ pub async fn initialize_order_on_select(
         &mut transaction,
         order_id,
         on_select_request,
-        &seller_product_map,
+        seller_product_map,
     )
     .await;
 
@@ -2822,4 +2821,391 @@ pub fn validate_select_request(
     }
 
     Ok(())
+}
+
+pub async fn get_chat_links(
+    client: &ChatClient,
+    transaction_id: Uuid,
+    business_account: &BusinessAccount,
+    seller_info: &ONDCSellerInfo,
+) -> Result<ChatData, anyhow::Error> {
+    let seller = client.get_chat_participant(
+        &seller_info.provider_id,
+        seller_info.provider_name.as_ref().map_or("NA", |v| v),
+    );
+    let buyer = client.get_chat_participant(
+        &business_account.id.to_string(),
+        &business_account.company_name,
+    );
+    client.get_chat_link(transaction_id, seller, buyer).await
+}
+
+pub async fn send_rfq_request_chat(
+    chat_client: &ChatClient,
+    select_request: &OrderSelectRequest,
+    business_account: &BusinessAccount,
+    seller_product_mapping: &HashMap<String, ONDCSellerProductInfo>,
+) -> Result<(), anyhow::Error> {
+    let description = send_rfq_request_chat_description(select_request, seller_product_mapping);
+    let data = chat_client.get_send_message_data("Quotation Requested", description);
+    let sender = ChatParticipant {
+        id: business_account.id.to_string(),
+        name: business_account.company_name.to_owned(),
+    };
+    chat_client
+        .send_chat_data(select_request.transaction_id, sender, data)
+        .await
+}
+
+pub fn send_rfq_request_chat_description(
+    select_request: &OrderSelectRequest,
+    seller_product_mapping: &HashMap<String, ONDCSellerProductInfo>,
+) -> Vec<SendMessageDataDescription> {
+    let mut descriptions = vec![];
+    for item in select_request.items.iter() {
+        let key = get_ondc_seller_product_mapping_key(
+            &select_request.bpp_id,
+            &select_request.provider_id,
+            &item.item_id,
+        );
+        let item_obj = seller_product_mapping.get(&key);
+        let vals = vec![
+            SendMessageDataDescription {
+                text: "".to_owned(),
+                r#type: ChatMessageType::Divider,
+            },
+            SendMessageDataDescription {
+                text: "Product".to_owned(),
+                r#type: ChatMessageType::Header,
+            },
+            SendMessageDataDescription {
+                text: item_obj.map_or_else(|| "".to_owned(), |a| a.item_name.to_owned()),
+                r#type: ChatMessageType::Text,
+            },
+            SendMessageDataDescription {
+                text: format!("Item Qty: {}", item.qty).to_owned(),
+                r#type: ChatMessageType::Text,
+            },
+            SendMessageDataDescription {
+                text: format!(
+                    "Item Requirement: {}",
+                    item.buyer_term
+                        .as_ref()
+                        .map_or_else(|| "NA", |f| &f.item_req)
+                )
+                .to_owned(),
+                r#type: ChatMessageType::Text,
+            },
+            SendMessageDataDescription {
+                text: format!(
+                    "Packaging Requirement: {}",
+                    item.buyer_term
+                        .as_ref()
+                        .map_or_else(|| "NA", |f| &f.packaging_req)
+                ),
+
+                r#type: ChatMessageType::Text,
+            },
+        ];
+        descriptions.extend(vals)
+    }
+    descriptions
+}
+
+pub fn send_rfq_accept_chat_description(
+    select_request: &ONDCOnSelectRequest,
+    seller_product_mapping: &HashMap<String, ONDCSellerProductInfo>,
+) -> Vec<SendMessageDataDescription> {
+    let mut descriptions = vec![];
+    for item in select_request.message.order.items.iter() {
+        let key = get_ondc_seller_product_mapping_key(
+            select_request.context.bpp_id.as_ref().unwrap(),
+            &select_request.message.order.provider.id,
+            &item.id,
+        );
+        let item_obj = seller_product_mapping.get(&key);
+        let vals = vec![
+            SendMessageDataDescription {
+                text: "".to_owned(),
+                r#type: ChatMessageType::Divider,
+            },
+            SendMessageDataDescription {
+                text: "Product".to_owned(),
+                r#type: ChatMessageType::Header,
+            },
+            SendMessageDataDescription {
+                text: item_obj.map_or_else(|| "".to_owned(), |a| a.item_name.to_owned()),
+                r#type: ChatMessageType::Text,
+            },
+            SendMessageDataDescription {
+                text: format!("Item Qty: {}", item.quantity.selected.count).to_owned(),
+                r#type: ChatMessageType::Text,
+            },
+            SendMessageDataDescription {
+                text: format!(
+                    "Item Requirement: {}",
+                    item.tags.as_ref().map_or_else(
+                        || "NA",
+                        |tag| {
+                            get_tag_value_from_list(
+                                tag,
+                                ONDCTagType::BuyerTerms,
+                                &ONDCTagItemCode::PackagingsReq.to_string(),
+                            )
+                            .map_or_else(|| "NA", |f| f)
+                        }
+                    )
+                )
+                .to_owned(),
+                r#type: ChatMessageType::Text,
+            },
+            SendMessageDataDescription {
+                text: format!(
+                    "Packaging Requirement: {}",
+                    item.tags.as_ref().map_or_else(
+                        || "NA",
+                        |tag| {
+                            get_tag_value_from_list(
+                                tag,
+                                ONDCTagType::BuyerTerms,
+                                &ONDCTagItemCode::ItemReq.to_string(),
+                            )
+                            .map_or_else(|| "NA", |f| f)
+                        }
+                    )
+                ),
+
+                r#type: ChatMessageType::Text,
+            },
+        ];
+        descriptions.extend(vals)
+    }
+    descriptions
+}
+
+pub async fn send_rfq_accept_chat(
+    chat_client: &ChatClient,
+    select_request: &ONDCOnSelectRequest,
+    seller_product_mapping: &HashMap<String, ONDCSellerProductInfo>,
+) -> Result<(), anyhow::Error> {
+    let description = send_rfq_accept_chat_description(select_request, seller_product_mapping);
+    let data = chat_client.get_send_message_data("Quotation Accepted", description);
+    let sender = ChatParticipant {
+        id: select_request.message.order.provider.id.to_string(),
+        name: "NA".to_owned(),
+    };
+    chat_client
+        .send_chat_data(select_request.context.transaction_id, sender, data)
+        .await
+}
+
+pub async fn send_rfq_reject_chat(
+    chat_client: &ChatClient,
+    error: &str,
+    transaction_id: Uuid,
+    provider_id: &str,
+) -> Result<(), anyhow::Error> {
+    let description = SendMessageDataDescription {
+        text: error.to_owned(),
+        r#type: ChatMessageType::Text,
+    };
+    let data = chat_client.get_send_message_data("Quotation Rejected", vec![description]);
+    let sender = ChatParticipant {
+        id: provider_id.to_owned(),
+        name: "NA".to_owned(),
+    };
+    chat_client
+        .send_chat_data(transaction_id, sender, data)
+        .await
+}
+
+pub async fn send_rfq_init_chat(
+    chat_client: &ChatClient,
+    transaction_id: Uuid,
+    order: &Commerce,
+) -> Result<(), anyhow::Error> {
+    let description = send_chat_description_from_commerce(order);
+    let data = chat_client.get_send_message_data("Quotation Initiated", description);
+    let sender = ChatParticipant {
+        id: order.seller.id.to_string(),
+        name: "NA".to_owned(),
+    };
+    chat_client
+        .send_chat_data(transaction_id, sender, data)
+        .await
+}
+
+pub fn send_chat_description_from_commerce(order: &Commerce) -> Vec<SendMessageDataDescription> {
+    let mut descriptions = vec![];
+    for item in order.items.iter() {
+        let vals = vec![
+            SendMessageDataDescription {
+                text: "".to_owned(),
+                r#type: ChatMessageType::Divider,
+            },
+            SendMessageDataDescription {
+                text: "Product".to_owned(),
+                r#type: ChatMessageType::Header,
+            },
+            SendMessageDataDescription {
+                text: item.item_name.to_owned(),
+                r#type: ChatMessageType::Text,
+            },
+            SendMessageDataDescription {
+                text: format!("Item Qty: {}", item.qty).to_owned(),
+                r#type: ChatMessageType::Text,
+            },
+            SendMessageDataDescription {
+                text: format!(
+                    "Item Requirement: {}",
+                    item.buyer_terms
+                        .as_ref()
+                        .map_or_else(|| "", |f| &f.item_req)
+                )
+                .to_owned(),
+                r#type: ChatMessageType::Text,
+            },
+            SendMessageDataDescription {
+                text: format!(
+                    "Packaging Requirement: {}",
+                    item.buyer_terms
+                        .as_ref()
+                        .map_or_else(|| "", |f| &f.packaging_req)
+                        .to_owned(),
+                ),
+
+                r#type: ChatMessageType::Text,
+            },
+        ];
+        descriptions.extend(vals)
+    }
+    descriptions
+}
+
+pub async fn send_rfq_confirmed_chat(
+    chat_client: &ChatClient,
+    transaction_id: Uuid,
+    order: &Commerce,
+) -> Result<(), anyhow::Error> {
+    let description = send_chat_description_from_commerce(order);
+    let data = chat_client.get_send_message_data("Purchase Order Accepted", description);
+    let sender = ChatParticipant {
+        id: order.seller.id.to_string(),
+        name: "NA".to_owned(),
+    };
+    chat_client
+        .send_chat_data(transaction_id, sender, data)
+        .await
+}
+
+pub async fn send_rfq_cancel_chat(
+    chat_client: &ChatClient,
+    transaction_id: Uuid,
+    order: &Commerce,
+) -> Result<(), anyhow::Error> {
+    let description = send_chat_description_from_commerce(order);
+    let data = chat_client.get_send_message_data("Purchase Order Cancelled", description);
+    let sender = ChatParticipant {
+        id: order.seller.id.to_string(),
+        name: "NA".to_owned(),
+    };
+    chat_client
+        .send_chat_data(transaction_id, sender, data)
+        .await
+}
+
+pub async fn send_rfq_update_chat(
+    chat_client: &ChatClient,
+    transaction_id: Uuid,
+    order: &Commerce,
+) -> Result<(), anyhow::Error> {
+    let mut description = send_chat_description_from_commerce(order);
+    description.push(SendMessageDataDescription {
+        text: "Payment Status Updated".to_owned(),
+        r#type: ChatMessageType::Text,
+    });
+    let data = chat_client.get_send_message_data("Purchase Order Updated", description);
+    let sender = ChatParticipant {
+        id: order.buyer_id.to_string(),
+        name: "NA".to_owned(),
+    };
+    chat_client
+        .send_chat_data(transaction_id, sender, data)
+        .await
+}
+
+fn get_status_fulfillments(
+    fulfillments: &Vec<ONDCOnConfirmFulfillment>,
+    error_message: Option<String>,
+) -> Vec<SendMessageDataDescription> {
+    let mut descriptions = vec![];
+    if let Some(error) = error_message {
+        let vals = vec![
+            SendMessageDataDescription {
+                text: "".to_owned(),
+                r#type: ChatMessageType::Divider,
+            },
+            SendMessageDataDescription {
+                text: "Error".to_owned(),
+                r#type: ChatMessageType::Header,
+            },
+            SendMessageDataDescription {
+                text: error.to_owned(),
+                r#type: ChatMessageType::Text,
+            },
+        ];
+        descriptions.extend(vals)
+    } else {
+        for fulfillment in fulfillments {
+            let vals = vec![
+                SendMessageDataDescription {
+                    text: "".to_owned(),
+                    r#type: ChatMessageType::Divider,
+                },
+                SendMessageDataDescription {
+                    text: "Fulfillment ID".to_owned(),
+                    r#type: ChatMessageType::Header,
+                },
+                SendMessageDataDescription {
+                    text: fulfillment.id.to_owned(),
+                    r#type: ChatMessageType::Text,
+                },
+                SendMessageDataDescription {
+                    text: fulfillment
+                        .state
+                        .descriptor
+                        .code
+                        .get_fulfillment_state()
+                        .to_string(),
+                    r#type: ChatMessageType::Text,
+                },
+            ];
+            descriptions.extend(vals)
+        }
+    }
+
+    descriptions
+}
+
+pub async fn send_rfq_status_chat(
+    chat_client: &ChatClient,
+    transaction_id: Uuid,
+    order_status: CommerceStatusType,
+    fulfillments: &Vec<ONDCOnConfirmFulfillment>,
+    error_message: Option<String>,
+    order: &Commerce,
+) -> Result<(), anyhow::Error> {
+    let mut description = send_chat_description_from_commerce(order);
+    description.extend(get_status_fulfillments(fulfillments, error_message));
+    let data = chat_client.get_send_message_data(
+        &format!("Order Status Updated: {}", order_status),
+        description,
+    );
+    let sender = ChatParticipant {
+        id: order.seller.id.to_string(),
+        name: "NA".to_owned(),
+    };
+    chat_client
+        .send_chat_data(transaction_id, sender, data)
+        .await
 }

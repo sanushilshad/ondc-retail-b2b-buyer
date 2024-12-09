@@ -1,4 +1,7 @@
-use crate::{domain::EmailObject, user_client::UserClient, websocket_client::WebSocketClient};
+use crate::{
+    chat_client::ChatClient, domain::EmailObject, user_client::UserClient,
+    websocket_client::WebSocketClient,
+};
 use config::{self, ConfigError, Environment};
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
@@ -37,10 +40,11 @@ pub struct Setting {
     pub database: DatabaseSetting,
     pub application: ApplicationSetting,
     pub redis: RedisSetting,
-    pub email_client: EmailClientSetting,
-    pub user_client: UserSetting,
+    pub email: EmailClientSetting,
+    pub user_obj: UserSetting,
     pub ondc: ONDCSetting,
-    pub websocket_client: WebSocketSetting,
+    pub websocket: WebSocketSetting,
+    pub chat: ChatSetting,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -82,6 +86,23 @@ impl WebSocketSetting {
     pub fn client(self) -> WebSocketClient {
         let timeout = self.timeout();
         WebSocketClient::new(self.base_url, self.token, timeout)
+    }
+    fn timeout(&self) -> std::time::Duration {
+        std::time::Duration::from_millis(self.timeout_milliseconds)
+    }
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct ChatSetting {
+    token: SecretString,
+    base_url: String,
+    timeout_milliseconds: u64,
+}
+
+impl ChatSetting {
+    pub fn client(self) -> ChatClient {
+        let timeout = self.timeout();
+        ChatClient::new(self.base_url, self.token, timeout)
     }
     fn timeout(&self) -> std::time::Duration {
         std::time::Duration::from_millis(self.timeout_milliseconds)

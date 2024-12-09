@@ -1,12 +1,14 @@
 use std::collections::HashSet;
 
+use crate::chat_client::ChatClient;
 use actix_web::web;
 use utoipa::TupleUnit;
 // use anyhow::Context;
 use crate::configuration::ONDCSetting;
 use crate::errors::GenericError;
 use crate::routes::ondc::utils::{
-    get_lookup_data_from_db, get_ondc_cancel_payload, get_ondc_seller_location_info_mapping,
+    fetch_ondc_seller_info, get_lookup_data_from_db, get_ondc_cancel_payload,
+    get_ondc_seller_location_info_mapping, get_ondc_seller_product_info_mapping,
     get_ondc_status_payload, get_ondc_update_payload,
 };
 use crate::routes::ondc::utils::{
@@ -24,7 +26,8 @@ use super::schemas::{
     OrderStatusRequest, OrderType, OrderUpdateRequest,
 };
 use super::utils::{
-    fetch_order_by_id, initialize_order_select, save_ondc_order_request, validate_select_request,
+    fetch_order_by_id, get_chat_links, initialize_order_select, save_ondc_order_request,
+    send_rfq_request_chat, validate_select_request,
 };
 
 #[utoipa::path(
@@ -46,10 +49,12 @@ pub async fn order_select(
     user_account: UserAccount,
     business_account: BusinessAccount,
     meta_data: RequestMetaData,
+    chat_client: web::Data<ChatClient>,
 ) -> Result<web::Json<GenericResponse<()>>, GenericError> {
     let task1 = get_np_detail(&pool, &meta_data.domain_uri, &ONDCNetworkType::Bap);
     let ondc_domain = ONDCDomain::get_ondc_domain(&body.domain_category_code);
     let task2 = get_lookup_data_from_db(&pool, &body.bpp_id, &ONDCNetworkType::Bpp, &ondc_domain);
+
     let location_id_list: Vec<String> = body
         .items
         .iter()
@@ -64,12 +69,19 @@ pub async fn order_select(
         &body.provider_id,
         &location_id_list,
     );
-    let (bap_detail, bpp_detail, seller_location_info_mapping) =
-        match tokio::try_join!(task1, task2, task3) {
-            Ok((bap_detail_res, bpp_detail_res, seller_location_info_mapping_res)) => (
+    let task4 = fetch_ondc_seller_info(&pool, &body.bpp_id, &body.provider_id);
+    let (bap_detail, bpp_detail, seller_location_info_mapping, seller_info) =
+        match tokio::try_join!(task1, task2, task3, task4) {
+            Ok((
                 bap_detail_res,
                 bpp_detail_res,
                 seller_location_info_mapping_res,
+                seller_info_map_res,
+            )) => (
+                bap_detail_res,
+                bpp_detail_res,
+                seller_location_info_mapping_res,
+                seller_info_map_res,
             ),
             Err(e) => {
                 return Err(GenericError::DatabaseError(e.to_string(), e));
@@ -94,6 +106,7 @@ pub async fn order_select(
             )))
         }
     };
+
     let seller_location_info_mapping = match seller_location_info_mapping {
         location_info_mapping if !location_info_mapping.is_empty() => location_info_mapping,
         _ => {
@@ -102,8 +115,23 @@ pub async fn order_select(
             ));
         }
     };
+
     validate_select_request(&body, &business_account, &seller_location_info_mapping)
         .map_err(|e| GenericError::ValidationError(e.to_string()))?;
+
+    let chat_data = if body.order_type == OrderType::PurchaseOrder {
+        Some(
+            get_chat_links(
+                &chat_client,
+                body.transaction_id,
+                &business_account,
+                &seller_info,
+            )
+            .await?,
+        )
+    } else {
+        None
+    };
 
     let ondc_select_payload = get_ondc_select_payload(
         &user_account,
@@ -112,6 +140,7 @@ pub async fn order_select(
         &bap_detail,
         &bpp_detail,
         &seller_location_info_mapping,
+        &chat_data,
     )?;
 
     let ondc_select_payload_str = serde_json::to_string(&ondc_select_payload).map_err(|e| {
@@ -119,7 +148,7 @@ pub async fn order_select(
     })?;
     let header = create_authorization_header(&ondc_select_payload_str, &bap_detail, None, None)?;
     let select_json_obj = serde_json::to_value(&ondc_select_payload)?;
-    let task_4 = save_ondc_order_request(
+    let task_5 = save_ondc_order_request(
         &pool,
         &user_account,
         &business_account,
@@ -129,14 +158,14 @@ pub async fn order_select(
         body.message_id,
         ONDCActionType::Select,
     );
-    let task_5 = send_ondc_payload(
+    let task_6 = send_ondc_payload(
         &bpp_detail.subscriber_url,
         &ondc_select_payload_str,
         &header,
         ONDCActionType::Select,
     );
     // futures::future::join(task_4, task_5).await.1?;
-    match tokio::try_join!(task_4, task_5) {
+    match tokio::try_join!(task_5, task_6) {
         Ok(_) => (),
         Err(e) => {
             return Err(GenericError::DatabaseError(e.to_string(), e));
@@ -144,21 +173,46 @@ pub async fn order_select(
     };
 
     if body.order_type == OrderType::PurchaseOrder {
-        if let Err(e) = initialize_order_select(
+        let item_code_list: Vec<&str> = body
+            .items
+            .iter()
+            .map(|item| item.item_id.as_str())
+            .collect();
+        let seller_product_map = match get_ondc_seller_product_info_mapping(
             &pool,
+            &bpp_detail.subscriber_id,
+            &body.provider_id,
+            &item_code_list,
+        )
+        .await
+        {
+            Ok(a) => a,
+            Err(e) => return Err(GenericError::DatabaseError(e.to_string(), e)),
+        };
+        // .map_err(|e| return Err(GenericError::DatabaseError(e.to_string(), e)))?;
+
+        let task_7 = initialize_order_select(
+            &pool,
+            &chat_client,
             &user_account,
             &business_account,
             &body,
             &bap_detail,
             &bpp_detail,
             &seller_location_info_mapping,
-        )
-        .await
-        {
-            return Err(GenericError::DatabaseError(
-                "Something went wrong while commiting order to database".to_string(),
-                e,
-            ));
+            &seller_info,
+            &seller_product_map,
+            &chat_data,
+        );
+
+        let task_8 =
+            send_rfq_request_chat(&chat_client, &body, &business_account, &seller_product_map);
+
+        match tokio::try_join!(task_7, task_8) {
+            Ok(_) => (),
+            Err(e) => {
+                return Err(GenericError::UnexpectedCustomError(e.to_string()));
+            }
         };
     }
 

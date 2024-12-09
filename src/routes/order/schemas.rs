@@ -10,6 +10,7 @@ use crate::routes::product::schemas::FulfillmentType;
 use crate::routes::product::schemas::{CategoryDomain, PaymentType};
 use crate::schemas::DataSource;
 use crate::schemas::{CountryCode, CurrencyType, FeeType};
+use crate::utils::pascal_to_snake_case;
 // use crate::utils::deserialize_non_empty_vector;
 use actix_http::Payload;
 use actix_web::{web, FromRequest, HttpRequest};
@@ -119,12 +120,18 @@ pub struct OrderSelectFulfillment {
 //     PurchaseOrder,
 // }
 
-#[derive(Deserialize, Debug, ToSchema, PartialEq, sqlx::Type)]
+#[derive(Deserialize, Debug, ToSchema, PartialEq, sqlx::Type, Serialize)]
 #[sqlx(type_name = "commerce_data_type", rename_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
 pub enum OrderType {
     PurchaseOrder,
     SaleOrder,
+}
+
+impl OrderType {
+    pub fn is_purchase_order(&self) -> bool {
+        matches!(self, OrderType::PurchaseOrder)
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, sqlx::Type, ToSchema)]
@@ -234,6 +241,12 @@ impl CommerceStatusType {
             CommerceStatusType::Completed => ONDCOrderStatus::Completed,
             CommerceStatusType::Cancelled => ONDCOrderStatus::Cancelled,
         }
+    }
+}
+
+impl std::fmt::Display for CommerceStatusType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", pascal_to_snake_case(&format!("{:?}", self)))
     }
 }
 
@@ -405,6 +418,11 @@ impl FulfillmentStatusType {
     }
 }
 
+impl std::fmt::Display for FulfillmentStatusType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", pascal_to_snake_case(&format!("{:?}", self)))
+    }
+}
 #[derive(Deserialize, Debug, ToSchema)]
 pub struct DeliveryTerm {
     pub inco_terms: IncoTermType,

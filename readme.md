@@ -23,6 +23,7 @@ The progress can be tracked here: [milestones](#MILESTONES)
 | Websocket Service | Service for all ONDC related Websocket connections |
 | User Service | Service for all ONDC related User APIs |
 | Short URL Service | Service for generating Short URL |
+| Chat Service | Service for generating chat links |
 
 
 
@@ -67,11 +68,11 @@ export DATABASE__MAX_CONNECTIONS=500
 export DATABASE__MIN_CONNECTIONS=10
 
 ## EMAIL VARIABLES
-export EMAIL_CLIENT__USERNAME=""
-export EMAIL_CLIENT__PASSWORD=""
-export EMAIL_CLIENT__BASE_URL=""
-export EMAIL_CLIENT__SENDER_EMAIL=""
-export EMAIL_CLIENT__TIMEOUT_MILLISECONDS=10000
+export EMAIL__USERNAME=""
+export EMAIL__PASSWORD=""
+export EMAIL__BASE_URL=""
+export EMAIL__SENDER_EMAIL=""
+export EMAIL__TIMEOUT_MILLISECONDS=10000
 
 
 ## TARACING VARIABLES
@@ -106,10 +107,15 @@ export WEBSOCKET__BASE_URL="http://0.0.0.0:8229"
 export WEBSOCKET__TIMEOUT_MILLISECONDS=600000
 
 ##USER VARIABLE
-export USER__TOKEN=""
-export USER__BASE_URL="http://0.0.0.0:8230"
-export USER__TIMEOUT_MILLISECONDS=600000
+export USER_OBJ__TOKEN=""
+export USER_OBJ__BASE_URL="http://0.0.0.0:8230"
+export USER_OBJ__TIMEOUT_MILLISECONDS=600000
 
+
+## CHAT VARIABLE
+export CHAT__TOKEN=""
+export CHAT__BASE_URL="http://0.0.0.0:8232"
+export CHAT__TIMEOUT_MILLISECONDS=600000
 ```
 
 
@@ -259,12 +265,12 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [x] Remove device wise notification push for order flow.
 * [x] Add Import flow to order.
 * [x] Develop & Integrate permission flow.
+* [x] Add Chat Functionality.
 * [ ] Develop Business Specific Config Module.
 * [ ] Add limit to the number of failed authentication
 * [ ] Integrate BAP Payment Gateway.
 * [ ] Integrate ElasticSearch.
 * [ ] Add test cases for milestone 2 (Only unit tests)
-* [ ] Add Chat Functionality.
 * [ ] Integrate Address Module.
 
 ### MILESTONE 4:

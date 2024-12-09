@@ -7,6 +7,7 @@ use super::{
     ONDCUpdateProvider, ONDCUpdateRequest, ONDCVersion, OndcUrl,
 };
 
+use crate::chat_client::ChatData;
 use crate::user_client::{get_vector_val_from_list, BusinessAccount, UserAccount, VectorType};
 use crate::{constants::ONDC_TTL, routes::product::ProductSearchError};
 use anyhow::anyhow;
@@ -41,7 +42,7 @@ use super::schemas::{
     ONDConfirmRequest, OnSearchContentType, TagTrait,
 };
 use crate::domain::EmailObject;
-use crate::routes::ondc::schemas::{ONDCCity, ONDCPerson, ONDCSellerInfo, OrderRequestParamsModel};
+use crate::routes::ondc::schemas::{ONDCCity, ONDCPerson, ONDCSellerInfo};
 use crate::routes::ondc::{ONDCErrorCode, ONDCResponse};
 use crate::routes::order::errors::{
     ConfirmOrderError, InitOrderError, OrderCancelError, OrderStatusError, OrderUpdateError,
@@ -501,13 +502,13 @@ pub fn get_ondc_order_param_from_req(ondc_req: &ONDCRequestModel) -> WebSocketPa
     }
 }
 
-pub fn _get_order_param_from_param_req(ondc_req: &OrderRequestParamsModel) -> WebSocketParam {
-    WebSocketParam {
-        device_id: ondc_req.device_id.clone(),
-        user_id: Some(ondc_req.user_id),
-        business_id: ondc_req.business_id,
-    }
-}
+// pub fn _get_order_param_from_param_req(ondc_req: &OrderRequestParamsModel) -> WebSocketParam {
+//     WebSocketParam {
+//         device_id: ondc_req.device_id.clone(),
+//         user_id: Some(ondc_req.user_id),
+//         business_id: ondc_req.business_id,
+//     }
+// }
 
 pub fn get_ondc_order_param_from_commerce(ondc_req: &Commerce) -> WebSocketParam {
     WebSocketParam {
@@ -907,11 +908,18 @@ fn get_ondc_select_payment_obs(payment_types: &[PaymentType]) -> Vec<ONDCSelectP
         .collect()
 }
 
-fn get_ondc_select_tags(business_account: &BusinessAccount) -> Result<Vec<ONDCTag>, anyhow::Error> {
-    match get_buyer_id_tag(business_account) {
+fn get_ondc_select_tags(
+    business_account: &BusinessAccount,
+    chat_data: &Option<ChatData>,
+) -> Result<Vec<ONDCTag>, anyhow::Error> {
+    let mut tags = match get_buyer_id_tag(business_account) {
         Ok(tag_option) => Ok(vec![tag_option]),
         Err(e) => Err(anyhow!("Failed to get buyer ID tag: {}", e)),
+    }?;
+    if let Some(chat_data) = chat_data {
+        tags.push(ONDCTag::get_chat_tag(chat_data))
     }
+    Ok(tags)
 }
 
 #[tracing::instrument(name = "get ondc select order item", skip())]
@@ -1069,6 +1077,7 @@ fn get_ondc_select_message(
     business_account: &BusinessAccount,
     order_request: &OrderSelectRequest,
     seller_location_mapping: &HashMap<String, ONDCSellerLocationInfo>,
+    chat_data: &Option<ChatData>,
 ) -> Result<ONDCSelectMessage, SelectOrderError> {
     let location_ids: HashSet<&str> = order_request
         .items
@@ -1080,7 +1089,7 @@ fn get_ondc_select_message(
         &order_request.provider_id,
         &order_request.ttl,
     );
-    let select_tag = get_ondc_select_tags(business_account)
+    let select_tag = get_ondc_select_tags(business_account, chat_data)
         .map_err(|e| SelectOrderError::InvalidDataError(e.to_string()))?;
     Ok(ONDCSelectMessage {
         order: ONDCSelectOrder {
@@ -1107,6 +1116,7 @@ pub fn get_ondc_select_payload(
     bap_detail: &RegisteredNetworkParticipant,
     bpp_detail: &LookupData,
     seller_location_mapping: &HashMap<String, ONDCSellerLocationInfo>,
+    chat_data: &Option<ChatData>,
 ) -> Result<ONDCSelectRequest, SelectOrderError> {
     let context = get_ondc_select_context(order_request, bap_detail, bpp_detail)?;
     let message = get_ondc_select_message(
@@ -1114,6 +1124,7 @@ pub fn get_ondc_select_payload(
         business_account,
         order_request,
         seller_location_mapping,
+        chat_data,
     )?;
     Ok(ONDCSelectRequest { context, message })
 }
@@ -1341,28 +1352,28 @@ pub async fn fetch_ondc_order_request(
     Ok(row)
 }
 
-#[tracing::instrument(name = "Fetch order request params", skip(pool))]
-pub async fn fetch_order_params(
-    pool: &PgPool,
-    transaction_id: Uuid,
-    message_id: Uuid,
-    action_type: &ONDCActionType,
-) -> Result<Option<OrderRequestParamsModel>, anyhow::Error> {
-    let row = sqlx::query_as!(
-        OrderRequestParamsModel,
-        r#"SELECT transaction_id, message_id, user_id, business_id, device_id
-        FROM ondc_buyer_order_req
-        WHERE transaction_id = $1 AND message_id = $2 AND action_type = $3 ORDER BY created_on DESC
-        "#,
-        transaction_id,
-        message_id,
-        &action_type.to_string() as &str
-    )
-    .fetch_optional(pool)
-    .await?;
+// #[tracing::instrument(name = "Fetch order request params", skip(pool))]
+// pub async fn fetch_order_params(
+//     pool: &PgPool,
+//     transaction_id: Uuid,
+//     message_id: Uuid,
+//     action_type: &ONDCActionType,
+// ) -> Result<Option<OrderRequestParamsModel>, anyhow::Error> {
+//     let row = sqlx::query_as!(
+//         OrderRequestParamsModel,
+//         r#"SELECT transaction_id, message_id, user_id, business_id, device_id, commerce_type as "commerce_type: OrderType"
+//         FROM ondc_buyer_order_req
+//         WHERE transaction_id = $1 AND message_id = $2 AND action_type = $3 ORDER BY created_on DESC
+//         "#,
+//         transaction_id,
+//         message_id,
+//         &action_type.to_string() as &str
+//     )
+//     .fetch_optional(pool)
+//     .await?;
 
-    Ok(row)
-}
+//     Ok(row)
+// }
 
 #[tracing::instrument(name = "get init context", skip())]
 fn get_ondc_context_from_order(

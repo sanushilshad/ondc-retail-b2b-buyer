@@ -1,3 +1,4 @@
+pub mod chat_client;
 pub mod commands;
 pub mod configuration;
 pub mod constants;
@@ -14,7 +15,7 @@ pub mod schemas;
 pub mod session_state;
 pub mod startup;
 pub mod telemetry;
+pub mod tests;
 pub mod user_client;
 pub mod utils;
 pub mod websocket_client;
-pub mod tests;

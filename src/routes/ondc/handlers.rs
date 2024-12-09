@@ -8,20 +8,23 @@ use super::schemas::{
 };
 use super::utils::{
     fetch_ondc_order_request, get_ondc_order_param_from_commerce, get_ondc_order_param_from_req,
-    get_product_from_on_search_request, get_product_search_params, get_search_ws_body,
-    get_websocket_params_from_search_req, save_ondc_seller_info, save_ondc_seller_location_info,
-    save_ondc_seller_product_info,
+    get_ondc_seller_product_info_mapping, get_product_from_on_search_request,
+    get_product_search_params, get_search_ws_body, get_websocket_params_from_search_req,
+    save_ondc_seller_info, save_ondc_seller_location_info, save_ondc_seller_product_info,
 };
 use super::{
     ONDCOnCancelRequest, ONDCOnStatusRequest, ONDCOnUpdateRequest, ONDCRequestType, WSCancel,
     WSStatus, WSUpdate,
 };
+use crate::chat_client::ChatClient;
 use crate::constants::ONDC_TTL;
 use crate::routes::ondc::{ONDCActionType, ONDCBuyerErrorCode, ONDCResponse};
 use crate::routes::order::utils::{
     fetch_order_by_id, initialize_order_on_cancel, initialize_order_on_confirm,
     initialize_order_on_init, initialize_order_on_select, initialize_order_on_status,
-    initialize_order_on_update,
+    initialize_order_on_update, send_rfq_accept_chat, send_rfq_cancel_chat,
+    send_rfq_confirmed_chat, send_rfq_init_chat, send_rfq_reject_chat, send_rfq_status_chat,
+    send_rfq_update_chat,
 };
 use crate::routes::product::schemas::WSSearchData;
 use crate::user_client::CustomerType;
@@ -81,6 +84,7 @@ pub async fn on_select(
     body: ONDCOnSelectRequest,
     websocket_srv: web::Data<WebSocketClient>,
     user_client: web::Data<UserClient>,
+    chat_client: web::Data<ChatClient>,
 ) -> Result<web::Json<ONDCResponse<ONDCBuyerErrorCode>>, ONDCBuyerError> {
     let ws_obj = WSSelect {
         transaction_id: body.context.transaction_id,
@@ -105,26 +109,76 @@ pub async fn on_select(
 
     let ondc_select_req =
         serde_json::from_value::<ONDCSelectRequest>(ondc_select_model.request_payload).unwrap();
-    let is_rfq = ondc_select_req.context.ttl != ONDC_TTL;
-    if (is_rfq) || body.error.is_none() {
-        let user = user_client
-            .get_user_account(None, Some(ondc_select_model.user_id))
-            .await
-            .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
-        let business_account = user_client
-            .get_business_account(
-                ondc_select_model.user_id,
-                ondc_select_model.business_id,
-                vec![CustomerType::RetailB2bBuyer],
-            )
-            .await
-            .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?
-            .ok_or(ONDCBuyerError::BuyerInternalServerError { path: None })?;
+    let business_account = user_client
+        .get_business_account(
+            ondc_select_model.user_id,
+            ondc_select_model.business_id,
+            vec![CustomerType::RetailB2bBuyer],
+        )
+        .await
+        .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?
+        .ok_or(ONDCBuyerError::BuyerInternalServerError { path: None })?;
 
-        initialize_order_on_select(&pool, &body, &user, &business_account, &ondc_select_req)
-            .await
-            .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
-    };
+    let is_rfq = ondc_select_req.context.ttl != ONDC_TTL;
+    if body.error.is_none() {
+        let task_1 = user_client.get_user_account(None, Some(ondc_select_model.user_id));
+        // .await
+        // .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
+
+        let item_code_list: Vec<&str> = body
+            .message
+            .order
+            .items
+            .iter()
+            .map(|item| item.id.as_str())
+            .collect();
+        let task_2 = get_ondc_seller_product_info_mapping(
+            &pool,
+            body.context.bpp_id.as_ref().unwrap(),
+            &body.message.order.provider.id,
+            &item_code_list,
+        );
+        let (user_res, product_map_res) = futures::future::join(task_1, task_2).await;
+        let user = match user_res {
+            Ok(user) => user,
+            Err(_) => {
+                return Err(ONDCBuyerError::BuyerInternalServerError { path: None });
+            }
+        };
+
+        let product_map = match product_map_res {
+            Ok(product_map) => product_map,
+            Err(_) => {
+                return Err(ONDCBuyerError::BuyerInternalServerError { path: None });
+            }
+        };
+
+        initialize_order_on_select(
+            &pool,
+            &body,
+            &user,
+            &business_account,
+            &ondc_select_req,
+            &chat_client,
+            &product_map,
+        )
+        .await
+        .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
+        if is_rfq {
+            send_rfq_accept_chat(&chat_client, &body, &product_map)
+                .await
+                .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?
+        }
+    } else if let Some(error) = body.error {
+        send_rfq_reject_chat(
+            &chat_client,
+            &error.message,
+            body.context.transaction_id,
+            &body.message.order.provider.id,
+        )
+        .await
+        .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?
+    }
     let _ = websocket_srv
         .send_msg(ws_params_obj, WebSocketActionType::Select, ws_json, None)
         .await;
@@ -136,16 +190,29 @@ pub async fn on_init(
     pool: web::Data<PgPool>,
     body: ONDCOnInitRequest,
     websocket_srv: web::Data<WebSocketClient>,
+    chat_client: web::Data<ChatClient>,
 ) -> Result<web::Json<ONDCResponse<ONDCBuyerErrorCode>>, ONDCBuyerError> {
-    let order_request_model = fetch_ondc_order_request(
+    let task_1 = fetch_ondc_order_request(
         &pool,
         body.context.transaction_id,
         body.context.message_id,
         &ONDCActionType::Init,
-    )
-    .await
-    .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?
-    .ok_or(ONDCBuyerError::BuyerResponseSequenceError { path: None })?;
+    );
+    let task_2 = fetch_order_by_id(&pool, body.context.transaction_id);
+
+    let (order_request_model_opt, commerce_data_opt) = match tokio::try_join!(task_1, task_2) {
+        Ok((order_request_model, commerce_data_opt)) => (order_request_model, commerce_data_opt),
+        Err(_) => {
+            return Err(ONDCBuyerError::BuyerInternalServerError { path: None });
+        }
+    };
+    let order_request_model =
+        order_request_model_opt.ok_or(ONDCBuyerError::BuyerResponseSequenceError { path: None })?;
+    let commerce_data =
+        commerce_data_opt.ok_or(ONDCBuyerError::BuyerResponseSequenceError { path: None })?;
+    // .await
+    // .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?
+    // .ok_or(ONDCBuyerError::BuyerResponseSequenceError { path: None })?;
     let payment_links: Vec<&str> = body
         .message
         .order
@@ -166,7 +233,11 @@ pub async fn on_init(
     };
     let ws_json = serde_json::to_value(ws_obj).unwrap();
     let ws_params_obj = get_ondc_order_param_from_req(&order_request_model);
-
+    if commerce_data.record_type.is_purchase_order() {
+        send_rfq_init_chat(&chat_client, body.context.transaction_id, &commerce_data)
+            .await
+            .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
+    }
     initialize_order_on_init(&pool, &body)
         .await
         .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
@@ -183,6 +254,7 @@ pub async fn on_confirm(
     pool: web::Data<PgPool>,
     body: ONDCOnConfirmRequest,
     websocket_srv: web::Data<WebSocketClient>,
+    chat_client: web::Data<ChatClient>,
 ) -> Result<web::Json<ONDCResponse<ONDCBuyerErrorCode>>, ONDCBuyerError> {
     let task1 = fetch_ondc_order_request(
         &pool,
@@ -219,7 +291,11 @@ pub async fn on_confirm(
     };
     let ws_json = serde_json::to_value(ws_obj).unwrap();
     let ws_params_obj = get_ondc_order_param_from_req(&order_request_model);
-
+    if order.record_type.is_purchase_order() {
+        send_rfq_confirmed_chat(&chat_client, body.context.transaction_id, &order)
+            .await
+            .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
+    }
     initialize_order_on_confirm(&pool, &body, &order)
         .await
         .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
@@ -236,6 +312,7 @@ pub async fn on_status(
     pool: web::Data<PgPool>,
     body: ONDCOnStatusRequest,
     websocket_srv: web::Data<WebSocketClient>,
+    chat_client: web::Data<ChatClient>,
 ) -> Result<web::Json<ONDCResponse<ONDCBuyerErrorCode>>, ONDCBuyerError> {
     let task1 = fetch_ondc_order_request(
         &pool,
@@ -251,7 +328,22 @@ pub async fn on_status(
     let order = res2
         .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?
         .ok_or(ONDCBuyerError::BuyerResponseSequenceError { path: None })?;
-
+    if order.record_type.is_purchase_order() {
+        let proforma_present = body.message.order.documents.is_some();
+        send_rfq_status_chat(
+            &chat_client,
+            body.context.transaction_id,
+            body.message
+                .order
+                .state
+                .get_commerce_status(&order.record_type, Some(proforma_present)),
+            &body.message.order.fulfillments,
+            body.error.as_ref().map(|e| e.message.clone()),
+            &order,
+        )
+        .await
+        .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
+    }
     initialize_order_on_status(&pool, &body, &order)
         .await
         .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
@@ -284,6 +376,7 @@ pub async fn on_cancel(
     pool: web::Data<PgPool>,
     body: ONDCOnCancelRequest,
     websocket_srv: web::Data<WebSocketClient>,
+    chat_client: web::Data<ChatClient>,
 ) -> Result<web::Json<ONDCResponse<ONDCBuyerErrorCode>>, ONDCBuyerError> {
     let task1 = fetch_ondc_order_request(
         &pool,
@@ -299,6 +392,11 @@ pub async fn on_cancel(
     let order = res2
         .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?
         .ok_or(ONDCBuyerError::BuyerResponseSequenceError { path: None })?;
+    if order.record_type.is_purchase_order() {
+        send_rfq_cancel_chat(&chat_client, body.context.transaction_id, &order)
+            .await
+            .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
+    }
 
     initialize_order_on_cancel(&pool, &body, &order)
         .await
@@ -327,6 +425,7 @@ pub async fn on_update(
     pool: web::Data<PgPool>,
     body: ONDCOnUpdateRequest,
     websocket_srv: web::Data<WebSocketClient>,
+    chat_client: web::Data<ChatClient>,
 ) -> Result<web::Json<ONDCResponse<ONDCBuyerErrorCode>>, ONDCBuyerError> {
     let task1 = fetch_ondc_order_request(
         &pool,
@@ -342,7 +441,11 @@ pub async fn on_update(
     let order = res2
         .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?
         .ok_or(ONDCBuyerError::BuyerResponseSequenceError { path: None })?;
-
+    if order.record_type.is_purchase_order() {
+        send_rfq_update_chat(&chat_client, body.context.transaction_id, &order)
+            .await
+            .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
+    }
     initialize_order_on_update(&pool, &body, &order)
         .await
         .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;

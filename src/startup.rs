@@ -25,8 +25,7 @@ impl Application {
     pub async fn build(configuration: Setting) -> Result<Self, anyhow::Error> {
         let connection_pool = get_connection_pool(&configuration.database);
         let email_pool = Arc::new(
-            SmtpEmailClient::new(&configuration.email_client)
-                .expect("Failed to create SmtpEmailClient"),
+            SmtpEmailClient::new(&configuration.email).expect("Failed to create SmtpEmailClient"),
         );
         // UNCOMMENT BELOW CODE TO ENABLE DUMMY EMAIL SERVICE
         // let email_pool =
@@ -78,8 +77,9 @@ async fn run(
     // let secret_obj = web::Data::new(configuration.secret);
     // let user_setting_obj = web::Data::new(configuration.user);
     let ondc_obj = web::Data::new(configuration.ondc);
-    let ws_client = web::Data::new(configuration.websocket_client.client());
-    let user_client = web::Data::new(configuration.user_client.client());
+    let ws_client = web::Data::new(configuration.websocket.client());
+    let user_client = web::Data::new(configuration.user_obj.client());
+    let chat_client = web::Data::new(configuration.chat.client());
     let redis_app = web::Data::new(redis_client);
     let server = HttpServer::new(move || {
         App::new()
@@ -92,6 +92,7 @@ async fn run(
             .app_data(ondc_obj.clone())
             .app_data(ws_client.clone())
             .app_data(user_client.clone())
+            .app_data(chat_client.clone())
             .configure(main_route)
     })
     .workers(configuration.application.workers)

@@ -7,6 +7,7 @@ use uuid::Uuid;
 
 use super::utils::serialize_timestamp_without_nanos;
 use crate::{
+    chat_client::ChatData,
     routes::{order::schemas::OrderType, product::schemas::CategoryDomain},
     schemas::{CountryCode, ONDCNetworkType},
     utils::pascal_to_snake_case,
@@ -238,21 +239,25 @@ pub enum ONDCBuyerErrorCode {
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ONDCSellerErrorCode {
     #[serde(rename = "30016")]
-    SellerInvalidSignatureCode,
+    InvalidSignature,
     #[serde(rename = "30022")]
-    SellerStaleRequestCode,
+    StaleRequest,
     #[serde(rename = "30000")]
-    SellerInvalidRequestCode,
+    InvalidRequest,
     #[serde(rename = "40000")]
-    SellerBusinessErrorCode,
+    BusinessError,
     #[serde(rename = "30001")]
-    SellerProviderNotFoundError,
+    ProviderNotFound,
     #[serde(rename = "30009")]
-    SellerServiceabilityError,
+    ServiceabilityError,
     #[serde(rename = "31004")]
-    SellerPaymentFailure,
+    PaymentFailure,
     #[serde(rename = "50001")]
-    SellerCancelNotPossibleError,
+    CancelNotPossible,
+    #[serde(rename = "40002")]
+    ItemQtyUnavailable,
+    #[serde(rename = "30020")]
+    OrderConfirmFailure,
 }
 
 #[allow(clippy::enum_variant_names)]
@@ -412,6 +417,8 @@ pub enum ONDCTagType {
     #[serde(rename = "BPP_payment")]
     BPPPayment,
     BppTerms,
+    #[serde(rename = "COMM_CHANNEL")]
+    CommChannel,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -472,6 +479,7 @@ pub enum ONDCTagItemCode {
     CourtJurisdiction,
     DelayInterest,
     AcceptBppTerms,
+    ChatUrl,
 }
 
 impl std::fmt::Display for ONDCTagItemCode {
@@ -738,6 +746,18 @@ impl ONDCTag {
             list: vec![ONDCTagItem::set_tag_item(
                 ONDCTagItemCode::AcceptBppTerms,
                 agree,
+            )],
+        }
+    }
+
+    pub fn get_chat_tag(chat_data: &ChatData) -> ONDCTag {
+        ONDCTag {
+            descriptor: ONDCTagDescriptor {
+                code: ONDCTagType::CommChannel,
+            },
+            list: vec![ONDCTagItem::set_tag_item(
+                ONDCTagItemCode::ChatUrl,
+                &chat_data.seller_link,
             )],
         }
     }
@@ -1735,14 +1755,15 @@ pub struct ONDCRequestModel {
     pub request_payload: Value,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct OrderRequestParamsModel {
-    pub transaction_id: Uuid,
-    pub message_id: Uuid,
-    pub user_id: Uuid,
-    pub business_id: Uuid,
-    pub device_id: Option<String>,
-}
+// #[derive(Debug, Serialize, Deserialize)]
+// pub struct OrderRequestParamsModel {
+//     pub transaction_id: Uuid,
+//     pub message_id: Uuid,
+//     pub user_id: Uuid,
+//     pub business_id: Uuid,
+//     pub device_id: Option<String>,
+//     pub commerce_type: OrderType,
+// }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCOnInitProvider {
