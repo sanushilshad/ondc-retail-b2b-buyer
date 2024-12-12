@@ -266,12 +266,13 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [x] Add Import flow to order.
 * [x] Develop & Integrate permission flow.
 * [x] Add Chat Functionality.
+* [x] Integrate Address Module (Address Create and Fetch).
 * [ ] Develop Business Specific Config Module.
 * [ ] Add limit to the number of failed authentication
 * [ ] Integrate BAP Payment Gateway.
 * [ ] Integrate ElasticSearch.
 * [ ] Add test cases for milestone 2 (Only unit tests)
-* [ ] Integrate Address Module.
+
 
 ### MILESTONE 4:
 * [ ] Develop common Microservice to fetch city codes, etc.

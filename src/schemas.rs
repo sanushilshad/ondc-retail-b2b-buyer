@@ -18,6 +18,7 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 #[derive(Serialize, Debug, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct GenericResponse<D> {
     pub status: bool,
     pub customer_message: String,
