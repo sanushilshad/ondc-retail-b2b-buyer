@@ -218,7 +218,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 ```
 
 
-## MILESTONES (39/73)
+## MILESTONES (41/73)
 ### MILESTONE 1 (Jan 18, 2023 - Jul 22, 2024):
 * [x] Set up basic actix web server
 * [x] Add environment config fetch
@@ -268,7 +268,6 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [x] Add Chat Functionality.
 * [x] Integrate Address Module (Address Create and Fetch).
 * [ ] Develop Business Specific Config Module.
-* [ ] Add limit to the number of failed authentication
 * [ ] Integrate BAP Payment Gateway.
 * [ ] Integrate ElasticSearch.
 * [ ] Add test cases for milestone 2 (Only unit tests)
@@ -277,7 +276,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 ### MILESTONE 4:
 * [ ] Develop common Microservice to fetch city codes, etc.
 * [ ] API to set address for each business Account (Changes).
-
+* [ ] Add limit to the number of failed authentication
 
 
 ### MILESTONE 5:
