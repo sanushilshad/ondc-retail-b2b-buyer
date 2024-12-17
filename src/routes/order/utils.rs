@@ -27,10 +27,7 @@ use crate::routes::ondc::schemas::{
     ONDCOrderCancellationTerm, ONDCOrderFulfillmentEnd, ONDCPaymentCollectedBy, ONDCSelectRequest,
     ONDCSellerLocationInfo, ONDCSellerProductInfo, ONDCTag, ONDCTagItemCode, ONDCTagType, TagTrait,
 };
-use crate::routes::ondc::utils::{
-    fetch_ondc_seller_info, get_ondc_seller_location_info_mapping,
-    get_ondc_seller_product_mapping_key, get_tag_value_from_list,
-};
+use crate::routes::ondc::utils::{get_ondc_seller_product_mapping_key, get_tag_value_from_list};
 use crate::routes::ondc::{
     LookupData, ONDCActionType, ONDCConfirmFulfillmentEndLocation, ONDCDocument,
     ONDCFulfillmentInstruction, ONDCOnCancelRequest, ONDCOnStatusRequest, ONDCOnUpdateRequest,
@@ -796,40 +793,19 @@ pub async fn save_buyer_order_data_on_select(
     Ok(result.id)
 }
 
-#[tracing::instrument(name = "save order on on_select", skip(pool))]
+#[allow(clippy::too_many_arguments)]
+#[tracing::instrument(name = "save order on on_select", skip(transaction))]
 pub async fn initialize_order_on_select(
-    pool: &PgPool,
+    transaction: &mut Transaction<'_, Postgres>,
     on_select_request: &ONDCOnSelectRequest,
     user_account: &UserAccount,
     business_account: &BusinessAccount,
     ondc_select_req: &ONDCSelectRequest,
     chat_client: &ChatClient,
     seller_product_map: &HashMap<String, ONDCSellerProductInfo>,
+    seller_location_map: &HashMap<String, ONDCSellerLocationInfo>,
+    seller_info_map: &ONDCSellerInfo,
 ) -> Result<(), anyhow::Error> {
-    let bpp_id = on_select_request.context.bpp_id.as_deref().unwrap_or("");
-
-    let location_id_list: Vec<String> = on_select_request
-        .message
-        .order
-        .provider
-        .locations
-        .iter()
-        .map(|location| location.id.to_owned())
-        .collect();
-
-    let task2 = get_ondc_seller_location_info_mapping(
-        pool,
-        bpp_id,
-        &on_select_request.message.order.provider.id,
-        &location_id_list,
-    );
-    let task3 = fetch_ondc_seller_info(pool, bpp_id, &on_select_request.message.order.provider.id);
-    let (seller_location_map, seller_info_map) = match tokio::try_join!(task2, task3) {
-        Ok((seller_info_map, seller_location_map)) => (seller_info_map, seller_location_map),
-        Err(e) => {
-            return Err(e);
-        }
-    };
     let pick_up_location = seller_location_map
         .values()
         .next()
@@ -845,22 +821,18 @@ pub async fn initialize_order_on_select(
                 chat_client,
                 ondc_select_req.context.transaction_id,
                 business_account,
-                &seller_info_map,
+                seller_info_map,
             )
             .await?,
         )
     } else {
         None
     };
-    let mut transaction = pool
-        .begin()
-        .await
-        .context("Failed to acquire a Postgres connection from the pool")?;
 
-    delete_order(&mut transaction, ondc_select_req.context.transaction_id).await?;
+    delete_order(transaction, ondc_select_req.context.transaction_id).await?;
 
     let order_id = save_buyer_order_data_on_select(
-        &mut transaction,
+        transaction,
         ondc_select_req,
         on_select_request,
         user_account,
@@ -870,22 +842,18 @@ pub async fn initialize_order_on_select(
     )
     .await?;
 
-    let _ = save_order_on_select_items(
-        &mut transaction,
-        order_id,
-        on_select_request,
-        seller_product_map,
-    )
-    .await;
+    let _ =
+        save_order_on_select_items(transaction, order_id, on_select_request, seller_product_map)
+            .await;
 
     save_payment_obj_on_select(
-        &mut transaction,
+        transaction,
         order_id,
         &on_select_request.message.order.payments,
     )
     .await?;
     save_on_select_fulfillment(
-        &mut transaction,
+        transaction,
         order_id,
         &ondc_select_req.message.order.fulfillments,
         &on_select_request.message.order.fulfillments,
@@ -893,10 +861,6 @@ pub async fn initialize_order_on_select(
         pick_up_location,
     )
     .await?;
-    transaction
-        .commit()
-        .await
-        .context("Failed to commit SQL transaction to store an order")?;
 
     Ok(())
 }
@@ -1907,29 +1871,20 @@ async fn update_commerce_in_on_init(
     Ok(())
 }
 
-#[tracing::instrument(name = "save order on on_init", skip(pool))]
+#[tracing::instrument(name = "save order on on_init", skip(transaction))]
 pub async fn initialize_order_on_init(
-    pool: &PgPool,
+    transaction: &mut Transaction<'_, Postgres>,
     on_init_request: &ONDCOnInitRequest,
 ) -> Result<(), anyhow::Error> {
-    let mut transaction = pool
-        .begin()
-        .await
-        .context("Failed to acquire a Postgres connection from the pool")?;
     let commerce_id =
-        delete_payment_in_commerce(&mut transaction, on_init_request.context.transaction_id)
-            .await?;
+        delete_payment_in_commerce(transaction, on_init_request.context.transaction_id).await?;
     initialize_payment_on_init(
-        &mut transaction,
+        transaction,
         commerce_id,
         &on_init_request.message.order.payments,
     )
     .await?;
-    update_commerce_in_on_init(&mut transaction, on_init_request).await?;
-    transaction
-        .commit()
-        .await
-        .context("Failed to commit SQL transaction to update order on init")?;
+    update_commerce_in_on_init(transaction, on_init_request).await?;
     Ok(())
 }
 
@@ -2211,38 +2166,29 @@ pub async fn initialize_payment_on_confirm(
     Ok(())
 }
 
-#[tracing::instrument(name = "save order on on_confirm", skip(pool))]
+#[tracing::instrument(name = "save order on on_confirm", skip(transaction))]
 pub async fn initialize_order_on_confirm(
-    pool: &PgPool,
+    transaction: &mut Transaction<'_, Postgres>,
     on_confirm_request: &ONDCOnConfirmRequest,
     order: &Commerce,
 ) -> Result<(), anyhow::Error> {
-    let mut transaction = pool
-        .begin()
-        .await
-        .context("Failed to acquire a Postgres connection from the pool")?;
-    update_commerce_in_on_confirm(&mut transaction, order, on_confirm_request).await?;
+    update_commerce_in_on_confirm(transaction, order, on_confirm_request).await?;
     update_commerce_fulfillment_in_on_confirm(
-        &mut transaction,
+        transaction,
         order.id,
         &on_confirm_request.message.order.fulfillments,
         &order.fulfillments,
     )
     .await?;
-    let _ = delete_payment_in_commerce(&mut transaction, on_confirm_request.context.transaction_id)
-        .await?;
+    let _ =
+        delete_payment_in_commerce(transaction, on_confirm_request.context.transaction_id).await?;
 
     initialize_payment_on_confirm(
-        &mut transaction,
+        transaction,
         order,
         &on_confirm_request.message.order.payments,
     )
     .await?;
-
-    transaction
-        .commit()
-        .await
-        .context("Failed to commit SQL transaction to update order on init")?;
     Ok(())
 }
 
@@ -2503,39 +2449,31 @@ async fn update_commerce_fulfillment_in_on_status(
     Ok(())
 }
 
-#[tracing::instrument(name = "save order on on_status", skip(pool))]
+#[tracing::instrument(name = "save order on on_status", skip(transaction))]
 pub async fn initialize_order_on_status(
-    pool: &PgPool,
+    transaction: &mut Transaction<'_, Postgres>,
     on_status_request: &ONDCOnStatusRequest,
     order: &Commerce,
 ) -> Result<(), anyhow::Error> {
-    let mut transaction = pool
-        .begin()
-        .await
-        .context("Failed to acquire a Postgres connection from the pool")?;
-    update_commerce_in_on_status(&mut transaction, order, on_status_request).await?;
+    update_commerce_in_on_status(transaction, order, on_status_request).await?;
 
     update_commerce_fulfillment_in_on_status(
-        &mut transaction,
+        transaction,
         order.id,
         &on_status_request.message.order.fulfillments,
         &order.fulfillments,
     )
     .await?;
 
-    let _ = delete_payment_in_commerce(&mut transaction, on_status_request.context.transaction_id)
-        .await?;
+    let _ =
+        delete_payment_in_commerce(transaction, on_status_request.context.transaction_id).await?;
 
     initialize_payment_on_confirm(
-        &mut transaction,
+        transaction,
         order,
         &on_status_request.message.order.payments,
     )
     .await?;
-    transaction
-        .commit()
-        .await
-        .context("Failed to commit SQL transaction to update order on status")?;
     Ok(())
 }
 
@@ -2650,34 +2588,26 @@ fn get_on_cancel_bulk_fulfillment_data(
 }
 // save refund amount in commerce data and commerce line data and fulfillment
 
-#[tracing::instrument(name = "save order on on_cancel", skip(pool))]
+#[tracing::instrument(name = "save order on on_cancel", skip(transaction))]
 pub async fn initialize_order_on_cancel(
-    pool: &PgPool,
+    transaction: &mut Transaction<'_, Postgres>,
     on_cancel_request: &ONDCOnCancelRequest,
     order: &Commerce,
 ) -> Result<(), anyhow::Error> {
-    let mut transaction = pool
-        .begin()
-        .await
-        .context("Failed to acquire a Postgres connection from the pool")?;
-    update_commerce_in_on_cancel(&mut transaction, order, on_cancel_request).await?;
+    update_commerce_in_on_cancel(transaction, order, on_cancel_request).await?;
 
-    let _ = delete_payment_in_commerce(&mut transaction, on_cancel_request.context.transaction_id)
-        .await?;
+    let _ =
+        delete_payment_in_commerce(transaction, on_cancel_request.context.transaction_id).await?;
 
     initialize_payment_on_confirm(
-        &mut transaction,
+        transaction,
         order,
         &on_cancel_request.message.order.payments,
     )
     .await?;
 
-    update_on_cancel_fulfillments(&mut transaction, order.id, on_cancel_request).await?;
-    update_on_cancel_items(&mut transaction, order.id, on_cancel_request, order).await?;
-    transaction
-        .commit()
-        .await
-        .context("Failed to commit SQL transaction to update order on cancel")?;
+    update_on_cancel_fulfillments(transaction, order.id, on_cancel_request).await?;
+    update_on_cancel_items(transaction, order.id, on_cancel_request, order).await?;
 
     Ok(())
 }
@@ -2768,30 +2698,21 @@ async fn update_on_cancel_items(
     Ok(())
 }
 
-#[tracing::instrument(name = "save order on on_update", skip(pool))]
+#[tracing::instrument(name = "save order on on_update", skip(transaction))]
 pub async fn initialize_order_on_update(
-    pool: &PgPool,
+    transaction: &mut Transaction<'_, Postgres>,
     on_cancel_request: &ONDCOnUpdateRequest,
     order: &Commerce,
 ) -> Result<(), anyhow::Error> {
-    let mut transaction = pool
-        .begin()
-        .await
-        .context("Failed to acquire a Postgres connection from the pool")?;
-
-    let _ = delete_payment_in_commerce(&mut transaction, on_cancel_request.context.transaction_id)
-        .await?;
+    let _ =
+        delete_payment_in_commerce(transaction, on_cancel_request.context.transaction_id).await?;
 
     initialize_payment_on_confirm(
-        &mut transaction,
+        transaction,
         order,
         &on_cancel_request.message.order.payments,
     )
     .await?;
-    transaction
-        .commit()
-        .await
-        .context("Failed to commit SQL transaction to update order on update")?;
 
     Ok(())
 }

@@ -1,4 +1,5 @@
 use actix_web::web;
+use anyhow::Context;
 use sqlx::PgPool;
 
 use super::errors::ONDCBuyerError;
@@ -7,7 +8,8 @@ use super::schemas::{
     ONDCSelectRequest, WSConfirm, WSConfirmData, WSInit, WSInitData, WSSelect,
 };
 use super::utils::{
-    fetch_ondc_order_request, get_ondc_order_param_from_commerce, get_ondc_order_param_from_req,
+    fetch_ondc_order_request, fetch_ondc_seller_info, get_ondc_order_param_from_commerce,
+    get_ondc_order_param_from_req, get_ondc_seller_location_info_mapping,
     get_ondc_seller_product_info_mapping, get_product_from_on_search_request,
     get_product_search_params, get_search_ws_body, get_websocket_params_from_search_req,
     save_ondc_seller_info, save_ondc_seller_location_info, save_ondc_seller_product_info,
@@ -120,11 +122,24 @@ pub async fn on_select(
         .ok_or(ONDCBuyerError::BuyerInternalServerError { path: None })?;
 
     let is_rfq = ondc_select_req.context.ttl != ONDC_TTL;
+    let mut transaction = pool
+        .begin()
+        .await
+        .context("Failed to acquire a Postgres connection from the pool")
+        .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
     if body.error.is_none() {
         let task_1 = user_client.get_user_account(None, Some(ondc_select_model.user_id));
         // .await
         // .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
-
+        let bpp_id = body.context.bpp_id.as_deref().unwrap_or("");
+        let location_id_list: Vec<String> = body
+            .message
+            .order
+            .provider
+            .locations
+            .iter()
+            .map(|location| location.id.to_owned())
+            .collect();
         let item_code_list: Vec<&str> = body
             .message
             .order
@@ -138,7 +153,16 @@ pub async fn on_select(
             &body.message.order.provider.id,
             &item_code_list,
         );
-        let (user_res, product_map_res) = futures::future::join(task_1, task_2).await;
+
+        let task_3 = get_ondc_seller_location_info_mapping(
+            &pool,
+            bpp_id,
+            &body.message.order.provider.id,
+            &location_id_list,
+        );
+        let task_4 = fetch_ondc_seller_info(&pool, bpp_id, &body.message.order.provider.id);
+        let (user_res, product_map_res, seller_info_map_res, seller_location_map_res) =
+            futures::future::join4(task_1, task_2, task_3, task_4).await;
         let user = match user_res {
             Ok(user) => user,
             Err(_) => {
@@ -152,15 +176,29 @@ pub async fn on_select(
                 return Err(ONDCBuyerError::BuyerInternalServerError { path: None });
             }
         };
+        let seller_info_map = match seller_info_map_res {
+            Ok(seller_info_map) => seller_info_map,
+            Err(_) => {
+                return Err(ONDCBuyerError::BuyerInternalServerError { path: None });
+            }
+        };
+        let seller_location_map = match seller_location_map_res {
+            Ok(seller_location_map) => seller_location_map,
+            Err(_) => {
+                return Err(ONDCBuyerError::BuyerInternalServerError { path: None });
+            }
+        };
 
         initialize_order_on_select(
-            &pool,
+            &mut transaction,
             &body,
             &user,
             &business_account,
             &ondc_select_req,
             &chat_client,
             &product_map,
+            &seller_info_map,
+            &seller_location_map,
         )
         .await
         .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
@@ -179,6 +217,12 @@ pub async fn on_select(
         .await
         .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?
     }
+
+    transaction
+        .commit()
+        .await
+        .context("Failed to commit SQL transaction to store an order")
+        .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
     let _ = websocket_srv
         .send_msg(ws_params_obj, WebSocketActionType::Select, ws_json, None)
         .await;
@@ -233,18 +277,31 @@ pub async fn on_init(
     };
     let ws_json = serde_json::to_value(ws_obj).unwrap();
     let ws_params_obj = get_ondc_order_param_from_req(&order_request_model);
+    let mut transaction = pool
+        .begin()
+        .await
+        .context("Failed to acquire a Postgres connection from the pool")
+        .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
+
+    initialize_order_on_init(&mut transaction, &body)
+        .await
+        .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
+
     if commerce_data.record_type.is_purchase_order() {
         send_rfq_init_chat(&chat_client, body.context.transaction_id, &commerce_data)
             .await
             .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
     }
-    initialize_order_on_init(&pool, &body)
-        .await
-        .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
 
     let _ = websocket_srv
         .send_msg(ws_params_obj, WebSocketActionType::Init, ws_json, None)
         .await;
+
+    transaction
+        .commit()
+        .await
+        .context("Failed to commit SQL transaction to store an order")
+        .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
 
     Ok(web::Json(ONDCResponse::successful_response(None)))
 }
@@ -291,19 +348,29 @@ pub async fn on_confirm(
     };
     let ws_json = serde_json::to_value(ws_obj).unwrap();
     let ws_params_obj = get_ondc_order_param_from_req(&order_request_model);
+    let mut transaction = pool
+        .begin()
+        .await
+        .context("Failed to acquire a Postgres connection from the pool")
+        .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
+    initialize_order_on_confirm(&mut transaction, &body, &order)
+        .await
+        .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
+
     if order.record_type.is_purchase_order() {
         send_rfq_confirmed_chat(&chat_client, body.context.transaction_id, &order)
             .await
             .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
     }
-    initialize_order_on_confirm(&pool, &body, &order)
-        .await
-        .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
 
     let _ = websocket_srv
         .send_msg(ws_params_obj, WebSocketActionType::Confirm, ws_json, None)
         .await;
-
+    transaction
+        .commit()
+        .await
+        .context("Failed to commit SQL transaction to store an order")
+        .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
     Ok(web::Json(ONDCResponse::successful_response(None)))
 }
 
@@ -328,6 +395,12 @@ pub async fn on_status(
     let order = res2
         .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?
         .ok_or(ONDCBuyerError::BuyerResponseSequenceError { path: None })?;
+    let mut transaction = pool
+        .begin()
+        .await
+        .context("Failed to acquire a Postgres connection from the pool")
+        .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
+
     if order.record_type.is_purchase_order() {
         let proforma_present = body.message.order.documents.is_some();
         send_rfq_status_chat(
@@ -344,7 +417,7 @@ pub async fn on_status(
         .await
         .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
     }
-    initialize_order_on_status(&pool, &body, &order)
+    initialize_order_on_status(&mut transaction, &body, &order)
         .await
         .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
     let request_type = if order_request_model.is_some() {
@@ -367,7 +440,11 @@ pub async fn on_status(
     let _ = websocket_srv
         .send_msg(ws_params_obj, WebSocketActionType::Status, ws_json, None)
         .await;
-
+    transaction
+        .commit()
+        .await
+        .context("Failed to commit SQL transaction to store an order")
+        .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
     Ok(web::Json(ONDCResponse::successful_response(None)))
 }
 
@@ -397,8 +474,13 @@ pub async fn on_cancel(
             .await
             .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
     }
+    let mut transaction = pool
+        .begin()
+        .await
+        .context("Failed to acquire a Postgres connection from the pool")
+        .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
 
-    initialize_order_on_cancel(&pool, &body, &order)
+    initialize_order_on_cancel(&mut transaction, &body, &order)
         .await
         .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
     if let Some(order_request_model) = order_request_model {
@@ -416,6 +498,11 @@ pub async fn on_cancel(
             .send_msg(ws_params_obj, WebSocketActionType::Cancel, ws_json, None)
             .await;
     }
+    transaction
+        .commit()
+        .await
+        .context("Failed to commit SQL transaction to store an order")
+        .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
 
     Ok(web::Json(ONDCResponse::successful_response(None)))
 }
@@ -446,7 +533,13 @@ pub async fn on_update(
             .await
             .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
     }
-    initialize_order_on_update(&pool, &body, &order)
+    let mut transaction = pool
+        .begin()
+        .await
+        .context("Failed to acquire a Postgres connection from the pool")
+        .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
+
+    initialize_order_on_update(&mut transaction, &body, &order)
         .await
         .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
     if let Some(order_request_model) = order_request_model {
@@ -464,6 +557,11 @@ pub async fn on_update(
             .send_msg(ws_params_obj, WebSocketActionType::Update, ws_json, None)
             .await;
     }
+    transaction
+        .commit()
+        .await
+        .context("Failed to commit SQL transaction to store an order")
+        .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
 
     Ok(web::Json(ONDCResponse::successful_response(None)))
 }

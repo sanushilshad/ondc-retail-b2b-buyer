@@ -275,9 +275,8 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 
 ### MILESTONE 4:
 * [ ] Develop common Microservice to fetch city codes, etc.
-* [ ] API to set address for each business Account (Changes).
 * [ ] Add limit to the number of failed authentication
-
+* [ ] Develop and Integrate Observability Module.
 
 ### MILESTONE 5:
 * [ ] Develop IGM issue API.
@@ -285,7 +284,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [ ] Develop IGM issue_status API.
 * [ ] Develop ONDC on issue_status API.
 * [ ] Develop IGM issue close API.
-* [ ] Integrate Observability Module.
+
 
 ### MILESTONE 6:
 * [ ] Develop info API
