@@ -1,7 +1,7 @@
 use crate::configuration::DatabaseSetting;
-use crate::email_client::{GenericEmailService, SmtpEmailClient};
+// use crate::email_client::{GenericEmailService, SmtpEmailClient};
+// use crate::kafka_client::TopicType;
 use crate::middleware::SaveRequestResponse;
-use crate::redis::RedisClient;
 // use crate::middleware::tracing_middleware;
 
 use crate::routes::main_route;
@@ -15,7 +15,6 @@ use crate::configuration::Setting;
 use actix_web::{web, App, HttpServer};
 use sqlx::postgres::{PgPool, PgPoolOptions};
 use std::net::TcpListener;
-use std::sync::Arc;
 use tracing_actix_web::TracingLogger;
 pub struct Application {
     port: u16,
@@ -24,9 +23,9 @@ pub struct Application {
 impl Application {
     pub async fn build(configuration: Setting) -> Result<Self, anyhow::Error> {
         let connection_pool = get_connection_pool(&configuration.database);
-        let email_pool = Arc::new(
-            SmtpEmailClient::new(&configuration.email).expect("Failed to create SmtpEmailClient"),
-        );
+        // let email_pool = Arc::new(
+        //     SmtpEmailClient::new(&configuration.email).expect("Failed to create SmtpEmailClient"),
+        // );
         // UNCOMMENT BELOW CODE TO ENABLE DUMMY EMAIL SERVICE
         // let email_pool =
         //     Arc::new(DummyEmailClient::new().expect("Failed to create SmtpEmailClient"));
@@ -34,17 +33,9 @@ impl Application {
             "{}:{}",
             &configuration.application.host, &configuration.application.port
         );
-        let redis_obj = RedisClient::new(&configuration.redis).await?;
         let listener = TcpListener::bind(&address)?;
         let port = listener.local_addr().unwrap().port();
-        let server = run(
-            listener,
-            connection_pool,
-            email_pool,
-            redis_obj,
-            configuration,
-        )
-        .await?;
+        let server = run(listener, connection_pool, configuration).await?;
         Ok(Self { port, server })
     }
     pub fn port(&self) -> u16 {
@@ -68,19 +59,23 @@ pub fn get_connection_pool(configuration: &DatabaseSetting) -> PgPool {
 async fn run(
     listener: TcpListener,
     db_pool: PgPool,
-    email_obj: Arc<dyn GenericEmailService>,
-    redis_client: RedisClient,
+    // email_obj: Arc<dyn GenericEmailService>,
     configuration: Setting,
 ) -> Result<Server, anyhow::Error> {
     let db_pool = web::Data::new(db_pool);
-    let email_client: web::Data<dyn GenericEmailService> = web::Data::from(email_obj);
-    // let secret_obj = web::Data::new(configuration.secret);
-    // let user_setting_obj = web::Data::new(configuration.user);
+    let email_client = web::Data::new(configuration.email.client());
+    let kafka_client = configuration.kafka.client();
     let ondc_obj = web::Data::new(configuration.ondc);
     let ws_client = web::Data::new(configuration.websocket.client());
     let user_client = web::Data::new(configuration.user_obj.client());
     let chat_client = web::Data::new(configuration.chat.client());
-    let redis_app = web::Data::new(redis_client);
+    let redis_app = web::Data::new(configuration.redis.client());
+    // let kafka_producer = kafka_client.create_producer().await;
+
+    let _ = kafka_client
+        .kafka_client_search_consumer(ws_client.clone(), db_pool.clone())
+        .await;
+    let kafka_client = web::Data::new(kafka_client);
     let server = HttpServer::new(move || {
         App::new()
             .app_data(web::PayloadConfig::new(1 << 25))
@@ -93,6 +88,7 @@ async fn run(
             .app_data(ws_client.clone())
             .app_data(user_client.clone())
             .app_data(chat_client.clone())
+            .app_data(kafka_client.clone())
             .configure(main_route)
     })
     .workers(configuration.application.workers)

@@ -116,6 +116,10 @@ export USER_OBJ__TIMEOUT_MILLISECONDS=600000
 export CHAT__TOKEN=""
 export CHAT__BASE_URL="http://0.0.0.0:8232"
 export CHAT__TIMEOUT_MILLISECONDS=600000
+
+## KAFKA SERVICE
+export KAFKA__SERVERS="kafka10:9091"
+export KAFKA__SEARCH_TOPIC_NAME="test_ondc_search"
 ```
 
 
@@ -267,16 +271,18 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [x] Develop & Integrate permission flow.
 * [x] Add Chat Functionality.
 * [x] Integrate Address Module (Address Create and Fetch).
+* [x] Integrate Kafka to reduce load due to On-Search API.
 * [ ] Develop Business Specific Config Module.
 * [ ] Integrate BAP Payment Gateway.
 * [ ] Integrate ElasticSearch.
-* [ ] Add test cases for milestone 2 (Only unit tests)
+
 
 
 ### MILESTONE 4:
 * [ ] Develop common Microservice to fetch city codes, etc.
 * [ ] Add limit to the number of failed authentication
 * [ ] Develop and Integrate Observability Module.
+* [ ] Add test cases for milestone 2 (Only unit tests)
 
 ### MILESTONE 5:
 * [ ] Develop IGM issue API.

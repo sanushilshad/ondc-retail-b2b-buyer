@@ -165,7 +165,7 @@ impl Display for CategoryDomain {
     }
 }
 
-#[derive(Debug, sqlx::Type)]
+#[derive(Debug, sqlx::Type, Deserialize, Serialize)]
 pub struct SearchRequestModel {
     pub transaction_id: String,
     pub update_cache: bool,

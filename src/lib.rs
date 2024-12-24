@@ -1,10 +1,10 @@
 pub mod chat_client;
-pub mod commands;
 pub mod configuration;
 pub mod constants;
 pub mod domain;
 pub mod email_client;
 pub mod errors;
+mod kafka_client;
 pub mod middleware;
 pub mod migration;
 pub mod models;

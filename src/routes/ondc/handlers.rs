@@ -1,5 +1,7 @@
 use actix_web::web;
 use anyhow::Context;
+use rdkafka::producer::FutureRecord;
+use rdkafka::util::Timeout;
 use sqlx::PgPool;
 
 use super::errors::ONDCBuyerError;
@@ -10,16 +12,15 @@ use super::schemas::{
 use super::utils::{
     fetch_ondc_order_request, fetch_ondc_seller_info, get_ondc_order_param_from_commerce,
     get_ondc_order_param_from_req, get_ondc_seller_location_info_mapping,
-    get_ondc_seller_product_info_mapping, get_product_from_on_search_request,
-    get_product_search_params, get_search_ws_body, get_websocket_params_from_search_req,
-    save_ondc_seller_info, save_ondc_seller_location_info, save_ondc_seller_product_info,
+    get_ondc_seller_product_info_mapping, get_product_search_params,
 };
 use super::{
-    ONDCOnCancelRequest, ONDCOnStatusRequest, ONDCOnUpdateRequest, ONDCRequestType, WSCancel,
-    WSStatus, WSUpdate,
+    KafkaSearchData, ONDCOnCancelRequest, ONDCOnStatusRequest, ONDCOnUpdateRequest,
+    ONDCRequestType, WSCancel, WSStatus, WSUpdate,
 };
 use crate::chat_client::ChatClient;
 use crate::constants::ONDC_TTL;
+use crate::kafka_client::{KafkaClient, KafkaGroupName};
 use crate::routes::ondc::{ONDCActionType, ONDCBuyerErrorCode, ONDCResponse};
 use crate::routes::order::utils::{
     fetch_order_by_id, initialize_order_on_cancel, initialize_order_on_confirm,
@@ -28,16 +29,21 @@ use crate::routes::order::utils::{
     send_rfq_confirmed_chat, send_rfq_init_chat, send_rfq_reject_chat, send_rfq_status_chat,
     send_rfq_update_chat,
 };
-use crate::routes::product::schemas::WSSearchData;
+
 use crate::user_client::CustomerType;
 use crate::user_client::UserClient;
-use crate::websocket_client::{ProcessType, WebSocketActionType, WebSocketClient};
+use crate::websocket_client::{WebSocketActionType, WebSocketClient};
 
-#[tracing::instrument(name = "ONDC On Search Payload", skip(pool, body), fields())]
+#[tracing::instrument(
+    name = "ONDC On Search Payload",
+    skip(pool, body, kafka_client),
+    fields()
+)]
 pub async fn on_search(
     pool: web::Data<PgPool>,
     body: ONDCOnSearchRequest,
     websocket_srv: web::Data<WebSocketClient>,
+    kafka_client: web::Data<KafkaClient>,
 ) -> Result<web::Json<ONDCResponse<ONDCBuyerErrorCode>>, ONDCBuyerError> {
     let search_obj =
         get_product_search_params(&pool, body.context.transaction_id, body.context.message_id)
@@ -45,36 +51,23 @@ pub async fn on_search(
             .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
     let extracted_search_obj =
         search_obj.ok_or(ONDCBuyerError::BuyerResponseSequenceError { path: None })?;
-    let product_objs: Option<WSSearchData<'_>> = get_product_from_on_search_request(&body)
-        .map_err(|e| ONDCBuyerError::InvalidResponseError {
-            path: None,
-            message: e.to_string(),
-        })?;
-
-    if let Some(product_objs) = product_objs {
-        if !product_objs.providers.is_empty() {
-            if !extracted_search_obj.update_cache {
-                let ws_params = get_websocket_params_from_search_req(extracted_search_obj);
-                let ws_body = get_search_ws_body(
-                    body.context.message_id,
-                    body.context.transaction_id,
-                    &product_objs,
-                );
-                let ws_json = serde_json::to_value(ws_body).unwrap();
-                let _ = websocket_srv
-                    .send_msg(
-                        ws_params,
-                        WebSocketActionType::Search,
-                        ws_json,
-                        Some(ProcessType::Immediate),
-                    )
-                    .await;
-            }
-            let task1 = save_ondc_seller_product_info(&pool, &product_objs);
-            let task2 = save_ondc_seller_info(&pool, &product_objs);
-            let task3 = save_ondc_seller_location_info(&pool, &product_objs);
-            let (_, _, _) = futures::future::join3(task1, task2, task3).await;
-        }
+    let data = serde_json::to_string(&KafkaSearchData {
+        ondc_on_search: body,
+        search_obj: extracted_search_obj,
+    })
+    .unwrap();
+    match kafka_client
+        .producer
+        .send(
+            FutureRecord::to(&kafka_client.search_topic_name)
+                .key(&KafkaGroupName::Search.to_string())
+                .payload(&data),
+            Timeout::After(std::time::Duration::from_secs(5)),
+        )
+        .await
+    {
+        Ok(delivery) => println!("Message delivered: {:?}", delivery),
+        Err(_) => return Err(ONDCBuyerError::BuyerInternalServerError { path: None }),
     }
 
     Ok(web::Json(ONDCResponse::successful_response(None)))

@@ -8,7 +8,10 @@ use uuid::Uuid;
 use super::utils::serialize_timestamp_without_nanos;
 use crate::{
     chat_client::ChatData,
-    routes::{order::schemas::OrderType, product::schemas::CategoryDomain},
+    routes::{
+        order::schemas::OrderType,
+        product::schemas::{CategoryDomain, SearchRequestModel},
+    },
     schemas::{CountryCode, ONDCNetworkType},
     utils::pascal_to_snake_case,
 };
@@ -1272,7 +1275,7 @@ pub struct ONDCOnSearchMessage {
     pub catalog: Option<ONDCOnSearchCatalog>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct ONDCOnSearchRequest {
     pub context: ONDCContext,
@@ -2679,4 +2682,10 @@ pub struct WSUpdate {
     #[schema(value_type = String)]
     pub message_id: Uuid,
     pub error: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct KafkaSearchData {
+    pub ondc_on_search: ONDCOnSearchRequest,
+    pub search_obj: SearchRequestModel,
 }

@@ -9,6 +9,7 @@ use super::{
 
 use crate::chat_client::ChatData;
 use crate::user_client::{get_vector_val_from_list, BusinessAccount, UserAccount, VectorType};
+use crate::websocket_client::{ProcessType, WebSocketActionType, WebSocketClient};
 use crate::{constants::ONDC_TTL, routes::product::ProductSearchError};
 use anyhow::anyhow;
 use chrono::{DateTime, Utc};
@@ -2311,4 +2312,41 @@ pub fn get_ondc_update_payload(
     };
 
     Ok(ONDCUpdateRequest { context, message })
+}
+
+pub async fn process_on_search(
+    pool: &PgPool,
+    body: ONDCOnSearchRequest,
+    extracted_search_obj: SearchRequestModel,
+    websocket_srv: &WebSocketClient,
+) -> Result<(), anyhow::Error> {
+    let product_objs: Option<WSSearchData<'_>> =
+        get_product_from_on_search_request(&body).map_err(|op| anyhow!("error:{}", op))?;
+
+    if let Some(product_objs) = product_objs {
+        if !product_objs.providers.is_empty() {
+            if !extracted_search_obj.update_cache {
+                let ws_params = get_websocket_params_from_search_req(extracted_search_obj);
+                let ws_body = get_search_ws_body(
+                    body.context.message_id,
+                    body.context.transaction_id,
+                    &product_objs,
+                );
+                let ws_json = serde_json::to_value(ws_body).unwrap();
+                let _ = websocket_srv
+                    .send_msg(
+                        ws_params,
+                        WebSocketActionType::Search,
+                        ws_json,
+                        Some(ProcessType::Immediate),
+                    )
+                    .await;
+            }
+            let task1 = save_ondc_seller_product_info(pool, &product_objs);
+            let task2 = save_ondc_seller_info(pool, &product_objs);
+            let task3 = save_ondc_seller_location_info(pool, &product_objs);
+            let (_, _, _) = futures::future::join3(task1, task2, task3).await;
+        }
+    }
+    Ok(())
 }

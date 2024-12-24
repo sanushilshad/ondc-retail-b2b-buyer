@@ -1,5 +1,6 @@
 use crate::{
-    chat_client::ChatClient, domain::EmailObject, user_client::UserClient,
+    chat_client::ChatClient, domain::EmailObject, email_client::SmtpEmailClient,
+    kafka_client::KafkaClient, redis::RedisClient, user_client::UserClient,
     websocket_client::WebSocketClient,
 };
 use config::{self, ConfigError, Environment};
@@ -45,6 +46,7 @@ pub struct Setting {
     pub ondc: ONDCSetting,
     pub websocket: WebSocketSetting,
     pub chat: ChatSetting,
+    pub kafka: KafkaSetting,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -72,6 +74,9 @@ impl RedisSetting {
             )
             .into(),
         )
+    }
+    pub fn client(self) -> RedisClient {
+        RedisClient::new(&self).unwrap()
     }
 }
 
@@ -160,6 +165,9 @@ impl EmailClientSetting {
 
     pub fn timeout(&self) -> std::time::Duration {
         std::time::Duration::from_millis(self.timeout_milliseconds)
+    }
+    pub fn client(&self) -> SmtpEmailClient {
+        SmtpEmailClient::new(self).expect("Failed to create SmtpEmailClient")
     }
 }
 
@@ -292,3 +300,15 @@ pub fn get_configuration() -> Result<Setting, ConfigError> {
 //         websocket,
 //     })
 // }
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct KafkaSetting {
+    pub servers: String,
+    pub search_topic_name: String,
+}
+
+impl KafkaSetting {
+    pub fn client(&self) -> KafkaClient {
+        KafkaClient::new(self.servers.to_owned(), self.search_topic_name.to_owned())
+    }
+}

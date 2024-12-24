@@ -1,7 +1,7 @@
 use crate::configuration::{DatabaseSetting, EmailClientSetting};
 use crate::constants::AUTHORIZATION_PATTERN;
 use crate::email_client::{GenericEmailService, SmtpEmailClient};
-use crate::migration;
+// use crate::kafka_client::TopicType;
 use crate::models::RegisteredNetworkParticipantModel;
 use crate::routes::order::schemas::{PaymentSettlementPhase, PaymentSettlementType};
 use crate::schemas::{
@@ -9,6 +9,7 @@ use crate::schemas::{
 };
 use crate::schemas::{KycStatus, ONDCAuthParams};
 use crate::user_client::BusinessAccount;
+use crate::{kafka_client, migration};
 use actix_http::h1;
 use actix_web::dev::Payload;
 use actix_web::dev::ServiceRequest;
@@ -243,16 +244,25 @@ pub fn create_email_type_pool(
 
 #[tracing::instrument(name = "Run custom command")]
 pub async fn run_custom_commands(args: Vec<String>) -> Result<(), anyhow::Error> {
-    if args.len() > 1 {
-        if args[1] == "migrate" {
+    if args.len() < 2 {
+        eprintln!("Invalid command. Please provide a valid command.");
+        return Ok(());
+    }
+    let command = args[1].as_str();
+    match command {
+        "migrate" => {
             migration::run_migrations().await;
         }
-
-        if args[1] == "sqlx_migrate" {
+        "sqlx_migrate" => {
             migration::migrate_using_sqlx().await;
         }
-    } else {
-        eprintln!("Invalid command. Use Enter a valid command");
+        "generate_kafka_topic" => {
+            // let arg = args.get(2).unwrap_or(&TopicType::Search.to_string());
+            kafka_client::create_kafka_topic_command().await;
+        }
+        _ => {
+            eprintln!("Unknown command: {}. Please use a valid command.", command);
+        }
     }
 
     Ok(())
