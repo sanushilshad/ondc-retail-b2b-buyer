@@ -14,6 +14,7 @@ The progress can be tracked here: [milestones](#MILESTONES)
 | Caching | Redis, ElasticSearch |
 | Email Service | Amazon Email Service |
 | API Documention | OpenAPI Swagger |
+| Messaging System | Apache Kafka |
 
 
 ## DEPENDENT MICROSERVIES
