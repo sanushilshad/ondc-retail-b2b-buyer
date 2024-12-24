@@ -46,6 +46,17 @@ OR
   ./target/release/ondc-retail-b2b-buyer migrate
 ```
 
+## COMMAND FOR KAFKA TOPIC CREATION:
+
+```
+cargo run --release --bin  ondc-retail-b2b-buyer -- generate_kafka_topic
+```
+OR 
+
+```
+  ./target/release/ondc-retail-b2b-buyer generate_kafka_topic
+```
+
 ## SQLX OFFLINE MODE:
 
 ```
