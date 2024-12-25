@@ -234,7 +234,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 ```
 
 
-## MILESTONES (41/73)
+## MILESTONES (42/74)
 ### MILESTONE 1 (Jan 18, 2023 - Jul 22, 2024):
 * [x] Set up basic actix web server
 * [x] Add environment config fetch
