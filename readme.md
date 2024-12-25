@@ -283,6 +283,8 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [x] Develop & Integrate permission flow.
 * [x] Add Chat Functionality.
 * [x] Integrate Address Module (Address Create and Fetch).
+* [x] Develop Business Account fetch API
+* [x] Develop User Account fetch API
 * [x] Integrate Kafka to reduce load due to On-Search API.
 * [ ] Develop Business Specific Config Module.
 * [ ] Develop and Integrate Observability Module.
@@ -306,8 +308,6 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 ### MILESTONE 6:
 * [ ] Develop info API
 * [ ] Develop ONDC info API
-* [ ] Develop Business Account fetch API
-* [ ] Develop User Account fetch API
 * [ ] Develop Business Account Update API
 * [ ] Develop User Account Update API
 * [ ] Develop Password Reset API
@@ -325,7 +325,6 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 ### MILESTONE 8:
 * [ ] Develop email verfication APIs for user and business account
 * [ ] Develop mobile verfication APIs for user and business account
-* [ ] Design product caching
 * [ ] Develop new config fetch (will be given the last priority)
 * [ ] Intergrate etcd for TSP flow (when I have nothing better to do: probably never)
 * [ ] Add limit to the number of failed authentication
