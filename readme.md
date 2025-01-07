@@ -286,10 +286,11 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [x] Develop Business Account fetch API
 * [x] Develop User Account fetch API
 * [x] Integrate Kafka to reduce load due to On-Search API.
-* [ ] Develop Business Specific Config Module.
-* [ ] Develop and Integrate Observability Module.
-* [ ] Integrate BAP Payment Gateway.
+* [x] Develop Business Specific Config Module.
+* [x] Add Order series generation.
 * [ ] Integrate ElasticSearch.
+* [ ] Integrate BAP Payment Gateway.
+* [ ] Develop and Integrate Observability Module.
 
 
 

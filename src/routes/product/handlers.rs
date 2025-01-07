@@ -3,7 +3,7 @@ use utoipa::TupleUnit;
 // use anyhow::Context;
 use super::schemas::ProductSearchRequest;
 use super::utils::save_search_request;
-use crate::configuration::ONDCSetting;
+use crate::configuration::ONDCConfig;
 use crate::errors::GenericError;
 use crate::routes::ondc::utils::{get_ondc_search_payload, send_ondc_payload};
 use crate::routes::ondc::ONDCActionType;
@@ -27,7 +27,7 @@ use sqlx::PgPool;
 pub async fn realtime_product_search(
     body: ProductSearchRequest,
     pool: web::Data<PgPool>,
-    ondc_obj: web::Data<ONDCSetting>,
+    ondc_obj: web::Data<ONDCConfig>,
     user_account: UserAccount,
     business_account: BusinessAccount,
     meta_data: RequestMetaData,

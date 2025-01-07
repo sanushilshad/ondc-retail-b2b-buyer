@@ -1,4 +1,4 @@
-use crate::{configuration::EmailClientSetting, domain::EmailObject};
+use crate::{configuration::EmailClientConfig, domain::EmailObject};
 use async_trait::async_trait;
 use lettre::{
     message::SinglePart,
@@ -94,7 +94,7 @@ pub struct SmtpEmailClient {
 
 impl SmtpEmailClient {
     #[tracing::instrument]
-    pub fn new(email_config: &EmailClientSetting) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new(email_config: &EmailClientConfig) -> Result<Self, Box<dyn std::error::Error>> {
         let sender = email_config
             .sender()
             .expect("Invalid sender email address.");

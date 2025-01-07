@@ -439,7 +439,7 @@ CREATE TYPE domain_category AS ENUM (
 
 CREATE TABLE IF NOT EXISTS commerce_data(
   id uuid PRIMARY KEY,
-  urn TEXT,
+  urn TEXT NOT NULL,
   external_urn uuid NOT NULL,
   record_type commerce_data_type NOT NULL,
   record_status commerce_status NOT NULL,
@@ -676,3 +676,18 @@ ALTER TABLE ondc_seller_product_info ADD CONSTRAINT ondc_seller_product_info_con
 ALTER TABLE ondc_seller_location_info ADD FOREIGN KEY (seller_subscriber_id, provider_id) REFERENCES ondc_seller_info (seller_subscriber_id, provider_id) ON DELETE CASCADE;
 
 ALTER TABLE ondc_seller_product_info ADD FOREIGN KEY (seller_subscriber_id, provider_id) REFERENCES ondc_seller_info (seller_subscriber_id, provider_id) ON DELETE CASCADE;
+
+CREATE TYPE series_type AS ENUM (
+  'order'
+);
+
+
+CREATE TABLE IF NOT EXISTS series_no_generator(
+  id SERIAL NOT NULL PRIMARY KEY,
+  subscriber_id TEXT NOT NULL,
+  series_type series_type NOT NULL,
+  prefix TEXT NOT NULL,
+  series_no BIGINT NOT NULL
+);
+
+ALTER TABLE series_no_generator ADD CONSTRAINT series_no_generator_constraint UNIQUE (subscriber_id, series_type, prefix);

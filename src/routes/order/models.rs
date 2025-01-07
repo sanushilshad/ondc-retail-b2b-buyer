@@ -39,7 +39,7 @@ pub struct CommerceBppTermsModel {
 #[derive(Deserialize, Debug, FromRow)]
 pub struct CommerceDataModel {
     pub id: Uuid,
-    pub urn: Option<String>,
+    pub urn: String,
     pub external_urn: Uuid,
     pub record_type: OrderType,
     pub record_status: CommerceStatusType,

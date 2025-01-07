@@ -38,12 +38,14 @@ use crate::routes::order::schemas::{
     OrderType, PaymentCollectedBy, PaymentStatus, ServiceableType, SettlementBasis,
 };
 use crate::routes::product::schemas::{CategoryDomain, FulfillmentType, PaymentType};
-use crate::schemas::DataSource;
 use crate::schemas::{
     CountryCode, CurrencyType, FeeType, RegisteredNetworkParticipant, RequestMetaData,
 };
-use crate::user_client::{get_vector_val_from_list, BusinessAccount, UserAccount, VectorType};
-use crate::utils::get_gps_string;
+use crate::schemas::{DataSource, SeriesNoType};
+use crate::user_client::{
+    get_vector_val_from_list, BusinessAccount, SettingData, UserAccount, VectorType,
+};
+use crate::utils::{get_gps_string, get_series_no};
 use anyhow::{anyhow, Context};
 use bigdecimal::{BigDecimal, ToPrimitive};
 use chrono::Utc;
@@ -100,19 +102,22 @@ pub async fn save_rfq_order(
     provider_name: &str,
     currency_code: &CurrencyType,
     chat_data: &Option<ChatData>,
+    order_no: &str,
 ) -> Result<Uuid, anyhow::Error> {
     let order_id = Uuid::new_v4();
+
     let query = sqlx::query!(
         r#"
-        INSERT INTO commerce_data (id, external_urn, record_type, record_status, 
+        INSERT INTO commerce_data (id, external_urn, urn,  record_type, record_status, 
         domain_category_code, buyer_id, seller_id, seller_name, buyer_name, source, created_on, created_by, bpp_id,
          bpp_uri, bap_id, bap_uri, quote_ttl, city_code, country_code, currency_code, buyer_chat_link, seller_chat_link)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
         ON CONFLICT (external_urn) 
         DO NOTHING
         "#,
         order_id,
         &select_request.transaction_id,
+        order_no,
         &select_request.order_type as &OrderType,
         CommerceStatusType::QuoteRequested as CommerceStatusType,
         &select_request.domain_category_code as &CategoryDomain,
@@ -398,24 +403,25 @@ pub async fn save_order_select_items(
 pub async fn delete_order(
     transaction: &mut Transaction<'_, Postgres>,
     id: Uuid,
-) -> Result<(), anyhow::Error> {
-    let query = sqlx::query(
+) -> Result<Option<String>, anyhow::Error> {
+    let query = sqlx::query!(
         r#"
         DELETE FROM commerce_data
         WHERE external_urn = $1
+        RETURNING urn;
         "#,
-    )
-    .bind(id);
+        id
+    );
 
-    transaction
-        .execute(query) // Dereference the transaction
+    let result = query
+        .fetch_optional(&mut **transaction)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to execute delete query: {:?}", e);
-            anyhow::Error::new(e).context("A database failure occurred while deleting the order")
+            tracing::error!("Failed to execute query: {:?}", e);
+            anyhow::Error::new(e)
+                .context("A database failure occurred while saving RFQ to database request")
         })?;
-
-    Ok(())
+    Ok(result.map(|record| record.urn))
 }
 
 #[tracing::instrument(name = "save select payments", skip(transaction))]
@@ -463,6 +469,7 @@ pub async fn initialize_order_select(
     seller_info_map: &ONDCSellerInfo,
     seller_product_map: &HashMap<String, ONDCSellerProductInfo>,
     chat_data: &Option<ChatData>,
+    setting: &SettingData,
 ) -> Result<(), anyhow::Error> {
     let currency_code = seller_product_map
         .iter()
@@ -483,7 +490,19 @@ pub async fn initialize_order_select(
         .begin()
         .await
         .context("Failed to acquire a Postgres connection from the pool")?;
-    delete_order(&mut transaction, select_request.transaction_id).await?;
+    let order_no = if let Some(order_no) =
+        delete_order(&mut transaction, select_request.transaction_id).await?
+    {
+        order_no
+    } else {
+        get_series_no(
+            &mut transaction,
+            setting,
+            &bap_detail.subscriber_id,
+            SeriesNoType::Order,
+        )
+        .await?
+    };
 
     let order_id = save_rfq_order(
         &mut transaction,
@@ -495,6 +514,7 @@ pub async fn initialize_order_select(
         provider_name,
         currency_code,
         chat_data,
+        &order_no,
     )
     .await?;
     save_rfq_fulfillment(
@@ -721,7 +741,7 @@ pub async fn save_on_select_fulfillment(
     })?;
     Ok(())
 }
-
+#[allow(clippy::too_many_arguments)]
 #[tracing::instrument(name = "save order on select", skip(transaction))]
 pub async fn save_buyer_order_data_on_select(
     transaction: &mut Transaction<'_, Postgres>,
@@ -731,6 +751,7 @@ pub async fn save_buyer_order_data_on_select(
     business_account: &BusinessAccount,
     provider_name: &str,
     chat_data: &Option<ChatData>,
+    order_no: &str,
 ) -> Result<Uuid, anyhow::Error> {
     let grand_total =
         BigDecimal::from_str(&ondc_on_select_req.message.order.quote.price.value).unwrap();
@@ -748,10 +769,10 @@ pub async fn save_buyer_order_data_on_select(
     };
     let query = sqlx::query!(
         r#"
-        INSERT INTO commerce_data (id, external_urn, record_type, record_status,
+        INSERT INTO commerce_data (id, external_urn, urn, record_type, record_status,
         domain_category_code, buyer_id, seller_id, seller_name, buyer_name, source, created_on, created_by, bpp_id, bpp_uri,
         bap_id, bap_uri, quote_ttl, updated_on, currency_code, grand_total, city_code, country_code, seller_chat_link, buyer_chat_link)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
         ON CONFLICT (external_urn)
         DO UPDATE SET
         record_status = EXCLUDED.record_status,
@@ -761,6 +782,7 @@ pub async fn save_buyer_order_data_on_select(
         "#,
         order_id,
         &ondc_on_select_req.context.transaction_id,
+        order_no,
         &order_type as &OrderType,
         &order_status as &CommerceStatusType,
         &ondc_on_select_req.context.domain.get_category_domain() as &CategoryDomain,
@@ -805,6 +827,7 @@ pub async fn initialize_order_on_select(
     seller_product_map: &HashMap<String, ONDCSellerProductInfo>,
     seller_location_map: &HashMap<String, ONDCSellerLocationInfo>,
     seller_info_map: &ONDCSellerInfo,
+    setting: &SettingData,
 ) -> Result<(), anyhow::Error> {
     let pick_up_location = seller_location_map
         .values()
@@ -829,8 +852,19 @@ pub async fn initialize_order_on_select(
         None
     };
 
-    delete_order(transaction, ondc_select_req.context.transaction_id).await?;
-
+    let order_no = if let Some(order_no) =
+        delete_order(transaction, on_select_request.context.transaction_id).await?
+    {
+        order_no
+    } else {
+        get_series_no(
+            transaction,
+            setting,
+            &business_account.subscriber_id,
+            SeriesNoType::Order,
+        )
+        .await?
+    };
     let order_id = save_buyer_order_data_on_select(
         transaction,
         ondc_select_req,
@@ -839,6 +873,7 @@ pub async fn initialize_order_on_select(
         business_account,
         provider_name,
         &chat_data,
+        &order_no,
     )
     .await?;
 
@@ -910,13 +945,13 @@ pub async fn delete_on_select_payment(
     transaction: &mut Transaction<'_, Postgres>,
     id: Uuid,
 ) -> Result<(), anyhow::Error> {
-    let query = sqlx::query(
+    let query = sqlx::query!(
         r#"
-        DELETE FROM commerce_payment
+        DELETE FROM commerce_payment_data
         WHERE commerce_data_id = $1
         "#,
-    )
-    .bind(id);
+        id
+    );
 
     transaction
         .execute(query) // Dereference the transaction
@@ -1628,7 +1663,7 @@ async fn delete_payment_in_commerce(
         AND commerce_data.external_urn = $1 
         RETURNING commerce_data.id AS bc_id;
         "#,
-        transaction_id // Pass the parameter here
+        transaction_id
     );
 
     let result = query.fetch_one(&mut **transaction).await.map_err(|e| {
@@ -1896,7 +1931,7 @@ async fn update_commerce_in_on_confirm(
 ) -> Result<(), anyhow::Error> {
     let query = sqlx::query!(
         r#"
-        UPDATE commerce_data SET record_status=$1, updated_on=$2, urn=$3 WHERE external_urn=$4
+        UPDATE commerce_data SET record_status=$1, updated_on=$2 WHERE external_urn=$3
         "#,
         confirm_req
             .message
@@ -1904,7 +1939,6 @@ async fn update_commerce_in_on_confirm(
             .state
             .get_commerce_status(&order.record_type, None) as CommerceStatusType,
         confirm_req.message.order.updated_at,
-        confirm_req.message.order.id,
         confirm_req.context.transaction_id,
     );
 

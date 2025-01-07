@@ -178,6 +178,12 @@ pub enum CustomerType {
     ExternalPartner,
 }
 
+impl std::fmt::Display for CustomerType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", pascal_to_snake_case(&format!("{:?}", self)))
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum MerchantType {
@@ -218,6 +224,7 @@ pub struct BusinessAccount {
     pub verified: bool,
     pub default_vector_type: VectorType,
     pub proofs: Vec<Proof>,
+    pub subscriber_id: String,
 }
 
 impl FromRequest for BusinessAccount {
@@ -239,6 +246,56 @@ impl FromRequest for BusinessAccount {
 
         ready(result)
     }
+}
+
+#[derive(Deserialize, Debug)]
+pub struct Setting {
+    pub id: Uuid,
+    pub key: SettingKey,
+    pub value: String,
+    pub label: String,
+    pub enum_id: Option<Uuid>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum SettingKey {
+    OrderNoPrefix,
+}
+
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct FetchSettingRequest {
+    pub keys: Vec<SettingKey>,
+}
+
+impl FetchSettingRequest {
+    fn new(keys: Vec<SettingKey>) -> Self {
+        Self { keys }
+    }
+}
+
+#[derive(Deserialize, Debug)]
+pub struct Settings {
+    pub global_level: Vec<Setting>,
+    pub user_level: Vec<Setting>,
+    pub business_level: Vec<Setting>,
+}
+
+impl Settings {
+    pub fn get_setting(&self, key: &SettingKey) -> Option<String> {
+        self.user_level
+            .iter()
+            .chain(self.business_level.iter())
+            .chain(self.global_level.iter())
+            .find(|obj| &obj.key == key)
+            .map(|obj| obj.value.clone())
+    }
+}
+
+#[derive(Deserialize, Debug)]
+pub struct SettingData {
+    pub settings: Settings,
 }
 
 #[derive(Debug)]
@@ -394,6 +451,40 @@ impl UserClient {
                 _ => GenericError::UnexpectedCustomError(response_body.customer_message),
             };
             return Err(error_message);
+        }
+    }
+
+    #[tracing::instrument]
+    pub async fn fetch_setting(
+        &self,
+        user_id: Uuid,
+        business_id: Uuid,
+        keys: Vec<SettingKey>,
+    ) -> Result<SettingData, anyhow::Error> {
+        let url = format!("{}/setting/fetch", self.base_url);
+        let body = FetchSettingRequest::new(keys);
+        let response = self
+            .http_client
+            .post(&url)
+            .json(&body)
+            .header("Authorization", self.get_auth_token(None))
+            .header("x-user-id", user_id.to_string())
+            .header("x-request-id", "internal".to_string())
+            .header("x-device-id", "internal".to_string())
+            .header("x-business-id", business_id.to_string())
+            .header("x-customer-type", CustomerType::RetailB2bBuyer.to_string())
+            .send()
+            .await
+            .map_err(|err| GenericError::UnexpectedError(anyhow!("Request error: {}", err)))?;
+
+        let status = response.status();
+        let response_body: GenericResponse<SettingData> = response.json().await.map_err(|err| {
+            GenericError::SerializationError(format!("Failed to parse response: {}", err))
+        })?;
+        if status.is_success() {
+            Ok(response_body.data.unwrap())
+        } else {
+            return Err(anyhow!(response_body.customer_message));
         }
     }
 }

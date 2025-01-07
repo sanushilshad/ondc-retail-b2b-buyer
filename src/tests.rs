@@ -58,6 +58,7 @@ pub mod tests {
             verified: true,
             default_vector_type: VectorType::PanCardNo,
             proofs: vec![],
+            subscriber_id: DUMMY_DOMAIN.to_owned(),
         }
     }
 
@@ -96,6 +97,7 @@ pub mod tests {
             verified: true,
             default_vector_type: VectorType::Gstin,
             proofs: vec![],
+            subscriber_id: DUMMY_DOMAIN.to_owned(),
         };
 
         // Test case 2: KYC is pending

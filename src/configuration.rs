@@ -15,13 +15,13 @@ pub struct JWT {
 }
 
 #[derive(Debug, Deserialize, Clone)]
-pub struct UserSetting {
+pub struct UserConfig {
     token: SecretString,
     base_url: String,
     timeout_milliseconds: u64,
 }
 
-impl UserSetting {
+impl UserConfig {
     pub fn client(self) -> UserClient {
         let timeout = self.timeout();
         UserClient::new(self.base_url, self.token, timeout)
@@ -32,38 +32,38 @@ impl UserSetting {
 }
 
 #[derive(Debug, Deserialize, Clone)]
-pub struct ONDCSetting {
+pub struct ONDCConfig {
     pub gateway_uri: String,
     pub registry_base_url: String,
 }
 #[derive(Debug, Deserialize, Clone)]
-pub struct Setting {
-    pub database: DatabaseSetting,
-    pub application: ApplicationSetting,
-    pub redis: RedisSetting,
-    pub email: EmailClientSetting,
-    pub user_obj: UserSetting,
-    pub ondc: ONDCSetting,
-    pub websocket: WebSocketSetting,
-    pub chat: ChatSetting,
-    pub kafka: KafkaSetting,
+pub struct Config {
+    pub database: DatabaseConfig,
+    pub application: ApplicationConfig,
+    pub redis: RedisConfig,
+    pub email: EmailClientConfig,
+    pub user_obj: UserConfig,
+    pub ondc: ONDCConfig,
+    pub websocket: WebSocketConfig,
+    pub chat: ChatConfig,
+    pub kafka: KafkaConfig,
 }
 
 #[derive(Debug, Deserialize, Clone)]
-pub struct ApplicationSetting {
+pub struct ApplicationConfig {
     pub port: u16,
     pub host: String,
     pub workers: usize,
 }
 
 #[derive(Debug, Deserialize, Clone)]
-pub struct RedisSetting {
+pub struct RedisConfig {
     pub port: u16,
     pub host: String,
     pub password: SecretString,
 }
 
-impl RedisSetting {
+impl RedisConfig {
     pub fn get_string(&self) -> SecretString {
         SecretString::new(
             format!(
@@ -81,13 +81,13 @@ impl RedisSetting {
 }
 
 #[derive(Debug, Deserialize, Clone)]
-pub struct WebSocketSetting {
+pub struct WebSocketConfig {
     token: SecretString,
     base_url: String,
     timeout_milliseconds: u64,
 }
 
-impl WebSocketSetting {
+impl WebSocketConfig {
     pub fn client(self) -> WebSocketClient {
         let timeout = self.timeout();
         WebSocketClient::new(self.base_url, self.token, timeout)
@@ -98,13 +98,13 @@ impl WebSocketSetting {
 }
 
 #[derive(Debug, Deserialize, Clone)]
-pub struct ChatSetting {
+pub struct ChatConfig {
     token: SecretString,
     base_url: String,
     timeout_milliseconds: u64,
 }
 
-impl ChatSetting {
+impl ChatConfig {
     pub fn client(self) -> ChatClient {
         let timeout = self.timeout();
         ChatClient::new(self.base_url, self.token, timeout)
@@ -115,7 +115,7 @@ impl ChatSetting {
 }
 
 #[derive(Debug, Deserialize, Clone)]
-pub struct DatabaseSetting {
+pub struct DatabaseConfig {
     pub username: String,
     pub password: SecretString,
     pub port: u16,
@@ -127,7 +127,7 @@ pub struct DatabaseSetting {
     pub acquire_timeout: u64,
 }
 
-impl DatabaseSetting {
+impl DatabaseConfig {
     // Renamed from `connection_string_without_db`
     pub fn without_db(&self) -> PgConnectOptions {
         PgConnectOptions::new()
@@ -151,14 +151,14 @@ impl DatabaseSetting {
 }
 
 #[derive(Debug, Deserialize, Clone)]
-pub struct EmailClientSetting {
+pub struct EmailClientConfig {
     pub base_url: String,
     pub username: String,
     pub password: SecretString,
     pub sender_email: String,
     pub timeout_milliseconds: u64,
 }
-impl EmailClientSetting {
+impl EmailClientConfig {
     pub fn sender(&self) -> Result<EmailObject, String> {
         EmailObject::parse(self.sender_email.clone())
     }
@@ -172,13 +172,13 @@ impl EmailClientSetting {
 }
 
 /// do not add any env variable starting with user, this crate doesn't support it
-pub fn get_configuration() -> Result<Setting, ConfigError> {
+pub fn get_configuration() -> Result<Config, ConfigError> {
     // let base_path = std::env::current_dir().expect("Failed to determine the current directory");
     let builder = config::Config::builder()
         .add_source(Environment::default().separator("__"))
         // .add_source(config::File::from(base_path.join("configuration.yaml")))
         .build()?;
-    builder.try_deserialize::<Setting>()
+    builder.try_deserialize::<Config>()
 }
 
 // pub fn get_configuration_by_custom() -> Result<Setting, anyhow::Error> {
@@ -302,12 +302,12 @@ pub fn get_configuration() -> Result<Setting, ConfigError> {
 // }
 
 #[derive(Debug, Deserialize, Clone)]
-pub struct KafkaSetting {
+pub struct KafkaConfig {
     pub servers: String,
     pub search_topic_name: String,
 }
 
-impl KafkaSetting {
+impl KafkaConfig {
     pub fn client(&self) -> KafkaClient {
         KafkaClient::new(self.servers.to_owned(), self.search_topic_name.to_owned())
     }

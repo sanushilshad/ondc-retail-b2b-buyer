@@ -573,7 +573,7 @@ pub struct CommerceBPPTerms {
 pub struct Commerce {
     #[schema(value_type = String)]
     pub id: Uuid,
-    pub urn: Option<String>,
+    pub urn: String,
     #[schema(value_type = String)]
     pub external_urn: Uuid,
     pub record_type: OrderType,

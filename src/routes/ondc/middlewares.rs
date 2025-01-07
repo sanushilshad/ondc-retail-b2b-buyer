@@ -6,7 +6,7 @@ use sqlx::PgPool;
 use std::future::{ready, Ready};
 use std::rc::Rc;
 
-use crate::configuration::ONDCSetting;
+use crate::configuration::ONDCConfig;
 use crate::routes::ondc::utils::fetch_lookup_data;
 use crate::schemas::ONDCNetworkType;
 use crate::utils::{create_signing_string, get_header_value, hash_message, verify_response};
@@ -60,7 +60,7 @@ where
             let request_body =
                 serde_json::from_str::<serde_json::Value>(&request_body_str).unwrap();
             let registry_base_url = &req
-                .app_data::<web::Data<ONDCSetting>>()
+                .app_data::<web::Data<ONDCConfig>>()
                 .unwrap()
                 .registry_base_url;
 

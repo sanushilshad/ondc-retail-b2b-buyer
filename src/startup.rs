@@ -1,4 +1,4 @@
-use crate::configuration::DatabaseSetting;
+use crate::configuration::DatabaseConfig;
 // use crate::email_client::{GenericEmailService, SmtpEmailClient};
 // use crate::kafka_client::TopicType;
 use crate::middleware::SaveRequestResponse;
@@ -10,7 +10,7 @@ use crate::routes::main_route;
 // use actix_web::cookie::Key;
 use actix_web::dev::Server;
 // use actix_web::middleware::Logger;
-use crate::configuration::Setting;
+use crate::configuration::Config;
 
 use actix_web::{web, App, HttpServer};
 use sqlx::postgres::{PgPool, PgPoolOptions};
@@ -21,7 +21,7 @@ pub struct Application {
     server: Server,
 }
 impl Application {
-    pub async fn build(configuration: Setting) -> Result<Self, anyhow::Error> {
+    pub async fn build(configuration: Config) -> Result<Self, anyhow::Error> {
         let connection_pool = get_connection_pool(&configuration.database);
         // let email_pool = Arc::new(
         //     SmtpEmailClient::new(&configuration.email).expect("Failed to create SmtpEmailClient"),
@@ -46,7 +46,7 @@ impl Application {
     }
 }
 
-pub fn get_connection_pool(configuration: &DatabaseSetting) -> PgPool {
+pub fn get_connection_pool(configuration: &DatabaseConfig) -> PgPool {
     PgPoolOptions::new()
         .acquire_timeout(std::time::Duration::from_secs(
             configuration.acquire_timeout,
@@ -60,7 +60,7 @@ async fn run(
     listener: TcpListener,
     db_pool: PgPool,
     // email_obj: Arc<dyn GenericEmailService>,
-    configuration: Setting,
+    configuration: Config,
 ) -> Result<Server, anyhow::Error> {
     let db_pool = web::Data::new(db_pool);
     let email_client = web::Data::new(configuration.email.client());

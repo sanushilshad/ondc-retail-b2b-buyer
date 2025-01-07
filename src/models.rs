@@ -28,3 +28,15 @@ pub struct RegisteredNetworkParticipantModel {
     pub bank_beneficiary_name: String,
     pub bank_name: String,
 }
+
+#[derive(Debug)]
+pub struct SeriesNoModel {
+    pub prefix: String,
+    pub series_no: i64,
+}
+
+impl SeriesNoModel {
+    pub fn get_final_no(&self) -> String {
+        format!("{}{}", self.prefix, self.series_no)
+    }
+}

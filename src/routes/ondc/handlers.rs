@@ -30,8 +30,8 @@ use crate::routes::order::utils::{
     send_rfq_update_chat,
 };
 
-use crate::user_client::CustomerType;
 use crate::user_client::UserClient;
+use crate::user_client::{CustomerType, SettingKey};
 use crate::websocket_client::{WebSocketActionType, WebSocketClient};
 
 #[tracing::instrument(
@@ -104,15 +104,6 @@ pub async fn on_select(
 
     let ondc_select_req =
         serde_json::from_value::<ONDCSelectRequest>(ondc_select_model.request_payload).unwrap();
-    let business_account = user_client
-        .get_business_account(
-            ondc_select_model.user_id,
-            ondc_select_model.business_id,
-            vec![CustomerType::RetailB2bBuyer],
-        )
-        .await
-        .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?
-        .ok_or(ONDCBuyerError::BuyerInternalServerError { path: None })?;
 
     let is_rfq = ondc_select_req.context.ttl != ONDC_TTL;
     let mut transaction = pool
@@ -154,14 +145,41 @@ pub async fn on_select(
             &location_id_list,
         );
         let task_4 = fetch_ondc_seller_info(&pool, bpp_id, &body.message.order.provider.id);
-        let (user_res, product_map_res, seller_info_map_res, seller_location_map_res) =
-            futures::future::join4(task_1, task_2, task_3, task_4).await;
+        let task_5 = user_client.fetch_setting(
+            ondc_select_model.user_id,
+            ondc_select_model.business_id,
+            vec![SettingKey::OrderNoPrefix],
+        );
+
+        let task_6 = user_client.get_business_account(
+            ondc_select_model.user_id,
+            ondc_select_model.business_id,
+            vec![CustomerType::RetailB2bBuyer],
+        );
+        // .await
+        // .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?
+        // .ok_or(ONDCBuyerError::BuyerInternalServerError { path: None })?;
+        let (
+            user_res,
+            product_map_res,
+            seller_info_map_res,
+            seller_location_map_res,
+            setting_res,
+            business_res,
+        ) = tokio::join!(task_1, task_2, task_3, task_4, task_5, task_6);
+
         let user = match user_res {
             Ok(user) => user,
             Err(_) => {
                 return Err(ONDCBuyerError::BuyerInternalServerError { path: None });
             }
         };
+        let business_account = business_res
+            .map_err(|e| {
+                tracing::error!("Failed to retrieve business: {:?}", e);
+                ONDCBuyerError::BuyerInternalServerError { path: None }
+            })?
+            .ok_or(ONDCBuyerError::BuyerInternalServerError { path: None })?;
 
         let product_map = match product_map_res {
             Ok(product_map) => product_map,
@@ -181,6 +199,12 @@ pub async fn on_select(
                 return Err(ONDCBuyerError::BuyerInternalServerError { path: None });
             }
         };
+        let setting = match setting_res {
+            Ok(setting) => setting,
+            Err(_) => {
+                return Err(ONDCBuyerError::BuyerInternalServerError { path: None });
+            }
+        };
 
         initialize_order_on_select(
             &mut transaction,
@@ -192,6 +216,7 @@ pub async fn on_select(
             &product_map,
             &seller_info_map,
             &seller_location_map,
+            &setting,
         )
         .await
         .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;

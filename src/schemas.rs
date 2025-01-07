@@ -625,3 +625,10 @@ pub enum RequestType {
     Internal,
     External,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::Type)]
+#[sqlx(type_name = "series_type")]
+#[sqlx(rename_all = "lowercase")]
+pub enum SeriesNoType {
+    Order,
+}

@@ -1,20 +1,21 @@
-use crate::configuration::{DatabaseSetting, EmailClientSetting};
+use crate::configuration::{DatabaseConfig, EmailClientConfig};
 use crate::constants::AUTHORIZATION_PATTERN;
 use crate::email_client::{GenericEmailService, SmtpEmailClient};
 // use crate::kafka_client::TopicType;
-use crate::models::RegisteredNetworkParticipantModel;
+use crate::models::{RegisteredNetworkParticipantModel, SeriesNoModel};
 use crate::routes::order::schemas::{PaymentSettlementPhase, PaymentSettlementType};
 use crate::schemas::{
-    CommunicationType, FeeType, ONDCNetworkType, RegisteredNetworkParticipant, Status,
+    CommunicationType, FeeType, ONDCNetworkType, RegisteredNetworkParticipant, SeriesNoType, Status,
 };
 use crate::schemas::{KycStatus, ONDCAuthParams};
-use crate::user_client::BusinessAccount;
+use crate::user_client::{BusinessAccount, SettingData, SettingKey};
 use crate::{kafka_client, migration};
 use actix_http::h1;
 use actix_web::dev::Payload;
 use actix_web::dev::ServiceRequest;
 use actix_web::rt::task::JoinHandle;
 use actix_web::web;
+use anyhow::anyhow;
 use base64::engine::general_purpose;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
@@ -24,7 +25,7 @@ use chrono::Utc;
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use secrecy::ExposeSecret;
 use serde::{Deserialize, Deserializer, Serialize};
-use sqlx::{Connection, Executor, PgConnection, PgPool};
+use sqlx::{Connection, Executor, PgConnection, PgPool, Postgres, Transaction};
 use std::collections::HashMap;
 use std::str::FromStr;
 use std::{fmt, fs, io, sync::Arc};
@@ -86,7 +87,7 @@ pub fn error_chain_fmt(
     Ok(())
 }
 
-pub async fn configure_database_using_sqlx(config: &DatabaseSetting) -> PgPool {
+pub async fn configure_database_using_sqlx(config: &DatabaseConfig) -> PgPool {
     // Create database
     create_database(config).await;
     // Migrate database
@@ -111,7 +112,7 @@ pub async fn configure_database_using_sqlx(config: &DatabaseSetting) -> PgPool {
     connection_pool
 }
 #[tracing::instrument(name = "Confiure Database")]
-pub async fn configure_database(config: &DatabaseSetting) -> PgPool {
+pub async fn configure_database(config: &DatabaseConfig) -> PgPool {
     create_database(config).await;
     let connection_pool = PgPool::connect_with(config.with_db())
         .await
@@ -125,7 +126,7 @@ pub async fn configure_database(config: &DatabaseSetting) -> PgPool {
     connection_pool
 }
 #[tracing::instrument(name = "Create Database")]
-pub async fn create_database(config: &DatabaseSetting) {
+pub async fn create_database(config: &DatabaseConfig) {
     // Create database
     let mut connection = PgConnection::connect_with(&config.without_db())
         .await
@@ -230,7 +231,7 @@ pub struct EmailTypeMapping {
     pub type_1: HashMap<CommunicationType, Arc<dyn GenericEmailService>>,
 }
 pub fn create_email_type_pool(
-    email_config: EmailClientSetting,
+    email_config: EmailClientConfig,
 ) -> HashMap<CommunicationType, Arc<dyn GenericEmailService>> {
     let smtp_client =
         Arc::new(SmtpEmailClient::new(&email_config).expect("Failed to create SmtpEmailClient"))
@@ -497,4 +498,56 @@ pub fn validate_business_account_active(business_obj: &BusinessAccount) -> Optio
         (_, _, _, false) => Some("Business User relation is not verified".to_string()),
         _ => None,
     }
+}
+
+#[tracing::instrument(name = "generating series")]
+async fn generate_series(
+    transaction: &mut Transaction<'_, Postgres>,
+    subscriber_id: &str,
+    series_type: SeriesNoType,
+    prefix: &str,
+) -> Result<SeriesNoModel, anyhow::Error> {
+    let record = sqlx::query_as!(
+        SeriesNoModel,
+        r#"
+            INSERT INTO series_no_generator (subscriber_id, series_type, prefix, series_no)
+            VALUES ($1, $2, $3, COALESCE(
+                (SELECT series_no + 1 FROM series_no_generator 
+                 WHERE subscriber_id = $1 AND series_type = $2 AND prefix = $3 
+                 LIMIT 1 FOR UPDATE), 1))
+            ON CONFLICT (subscriber_id, series_type, prefix) 
+            DO UPDATE 
+            SET series_no = series_no_generator.series_no + 1
+            RETURNING prefix, series_no;
+    "#,
+        subscriber_id,
+        series_type as SeriesNoType,
+        prefix
+    )
+    .fetch_one(&mut **transaction)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to execute query for series creation: {:?}", e);
+        anyhow::Error::new(e).context("Something went wrong while generating series NO")
+    })?;
+
+    Ok(record)
+}
+
+#[tracing::instrument(name = "get series")]
+pub async fn get_series_no(
+    transaction: &mut Transaction<'_, Postgres>,
+    setting: &SettingData,
+    subscriber_id: &str,
+    series_type: SeriesNoType,
+) -> Result<String, anyhow::Error> {
+    let order_no_prefix = setting
+        .settings
+        .get_setting(&SettingKey::OrderNoPrefix)
+        .ok_or_else(|| anyhow!("Order No Prefix is not configured"))?;
+
+    let series_model = generate_series(transaction, subscriber_id, series_type, &order_no_prefix)
+        .await
+        .map_err(|e| anyhow!(e))?;
+    Ok(series_model.get_final_no())
 }

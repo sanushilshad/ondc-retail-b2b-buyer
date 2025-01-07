@@ -4,7 +4,7 @@ use crate::chat_client::ChatClient;
 use actix_web::web;
 use utoipa::TupleUnit;
 // use anyhow::Context;
-use crate::configuration::ONDCSetting;
+use crate::configuration::ONDCConfig;
 use crate::errors::GenericError;
 use crate::routes::ondc::utils::{
     fetch_ondc_seller_info, get_lookup_data_from_db, get_ondc_cancel_payload,
@@ -16,6 +16,7 @@ use crate::routes::ondc::utils::{
 };
 use crate::routes::ondc::{ONDCActionType, ONDCDomain};
 use crate::user_client::{AllowedPermission, BusinessAccount, PermissionType, UserAccount};
+use crate::user_client::{SettingKey, UserClient};
 use crate::utils::{create_authorization_header, get_np_detail};
 
 use crate::schemas::{GenericResponse, ONDCNetworkType, RequestMetaData};
@@ -41,15 +42,17 @@ use super::utils::{
         (status=200, description= "Order Select Response", body= GenericResponse<TupleUnit>),
     )
 )]
+#[allow(clippy::too_many_arguments)]
 #[tracing::instrument(name = "order select", skip(pool), fields(transaction_id=body.transaction_id.to_string()))]
 pub async fn order_select(
     body: OrderSelectRequest,
     pool: web::Data<PgPool>,
-    ondc_obj: web::Data<ONDCSetting>,
+    ondc_obj: web::Data<ONDCConfig>,
     user_account: UserAccount,
     business_account: BusinessAccount,
     meta_data: RequestMetaData,
     chat_client: web::Data<ChatClient>,
+    user_client: web::Data<UserClient>,
 ) -> Result<web::Json<GenericResponse<()>>, GenericError> {
     let task1 = get_np_detail(&pool, &meta_data.domain_uri, &ONDCNetworkType::Bap);
     let ondc_domain = ONDCDomain::get_ondc_domain(&body.domain_category_code);
@@ -70,18 +73,25 @@ pub async fn order_select(
         &location_id_list,
     );
     let task4 = fetch_ondc_seller_info(&pool, &body.bpp_id, &body.provider_id);
-    let (bap_detail, bpp_detail, seller_location_info_mapping, seller_info) =
-        match tokio::try_join!(task1, task2, task3, task4) {
+    let task5 = user_client.fetch_setting(
+        user_account.id,
+        business_account.id,
+        vec![SettingKey::OrderNoPrefix],
+    );
+    let (bap_detail, bpp_detail, seller_location_info_mapping, seller_info, setting_data) =
+        match tokio::try_join!(task1, task2, task3, task4, task5) {
             Ok((
                 bap_detail_res,
                 bpp_detail_res,
                 seller_location_info_mapping_res,
                 seller_info_map_res,
+                setting_res,
             )) => (
                 bap_detail_res,
                 bpp_detail_res,
                 seller_location_info_mapping_res,
                 seller_info_map_res,
+                setting_res,
             ),
             Err(e) => {
                 return Err(GenericError::DatabaseError(e.to_string(), e));
@@ -203,6 +213,7 @@ pub async fn order_select(
             &seller_info,
             &seller_product_map,
             &chat_data,
+            &setting_data,
         );
 
         let task_8 =
@@ -237,7 +248,7 @@ pub async fn order_select(
 pub async fn order_init(
     body: OrderInitRequest,
     pool: web::Data<PgPool>,
-    ondc_obj: web::Data<ONDCSetting>,
+    ondc_obj: web::Data<ONDCConfig>,
     user_account: UserAccount,
     business_account: BusinessAccount,
     meta_data: RequestMetaData,
@@ -319,7 +330,7 @@ pub async fn order_init(
 pub async fn order_confirm(
     body: OrderConfirmRequest,
     pool: web::Data<PgPool>,
-    ondc_obj: web::Data<ONDCSetting>,
+    ondc_obj: web::Data<ONDCConfig>,
     user_account: UserAccount,
     business_account: BusinessAccount,
     meta_data: RequestMetaData,
@@ -400,7 +411,7 @@ pub async fn order_confirm(
 pub async fn order_status(
     body: OrderStatusRequest,
     pool: web::Data<PgPool>,
-    ondc_obj: web::Data<ONDCSetting>,
+    ondc_obj: web::Data<ONDCConfig>,
     user_account: UserAccount,
     business_account: BusinessAccount,
     meta_data: RequestMetaData,
@@ -480,7 +491,7 @@ pub async fn order_status(
 pub async fn order_cancel(
     body: OrderCancelRequest,
     pool: web::Data<PgPool>,
-    ondc_obj: web::Data<ONDCSetting>,
+    ondc_obj: web::Data<ONDCConfig>,
     user_account: UserAccount,
     business_account: BusinessAccount,
     meta_data: RequestMetaData,
@@ -566,7 +577,7 @@ pub async fn order_cancel(
 pub async fn order_update(
     body: OrderUpdateRequest,
     pool: web::Data<PgPool>,
-    ondc_obj: web::Data<ONDCSetting>,
+    ondc_obj: web::Data<ONDCConfig>,
     user_account: UserAccount,
     business_account: BusinessAccount,
     meta_data: RequestMetaData,

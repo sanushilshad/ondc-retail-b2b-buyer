@@ -1870,7 +1870,7 @@ fn get_ondc_confirm_message(
     })?;
     Ok(ONDCConfirmMessage {
         order: ONDCConfirmOrder {
-            id: "RAP:001".to_string(),
+            id: order.urn.to_owned(),
             state: ONDCOrderStatus::Created,
             provider: ONDCConfirmProvider {
                 id: order.seller.id.clone(),
@@ -2218,11 +2218,8 @@ pub fn get_ondc_status_payload(
         order,
         ONDCActionType::Status,
     )?;
-    let order_id = order
-        .urn
-        .as_deref()
-        .ok_or_else(|| OrderStatusError::ValidationError("Order id is missing".to_owned()))?;
-    let message = get_ondc_status_message(order_id);
+
+    let message = get_ondc_status_message(&order.urn);
     Ok(ONDCStatusRequest { context, message })
 }
 
@@ -2244,11 +2241,8 @@ pub fn get_ondc_cancel_payload(
         order,
         ONDCActionType::Cancel,
     )?;
-    let order_id = order
-        .urn
-        .as_deref()
-        .ok_or_else(|| OrderCancelError::ValidationError("Order id is missing".to_owned()))?;
-    let message = get_ondc_cancel_message(order_id, &cancel_request.reason_id);
+
+    let message = get_ondc_cancel_message(&order.urn, &cancel_request.reason_id);
     Ok(ONDCCancelRequest { context, message })
 }
 
@@ -2275,7 +2269,7 @@ fn get_ondc_update_message_for_payment(
     ONDCUpdateMessage {
         update_target: body.target_type.get_ondc_type(),
         order: ONDCUpdateOrder {
-            id: order.urn.clone().unwrap_or(order.external_urn.to_string()),
+            id: order.urn.clone(),
             state: order.record_status.get_ondc_order_status(),
             provider: ONDCUpdateProvider {
                 id: order.seller.id.clone(),
