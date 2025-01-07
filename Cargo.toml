@@ -10,9 +10,9 @@ edition = "2021"
 actix = "0.13.5"
 actix-web = "4.9"
 actix-http =  "3.9"
-anyhow = "1.0.94"
+anyhow = "1.0.95"
 argon2 = { version = "0.5", default-features = false, features = ["std"] }
-async-trait = "0.1.74"
+async-trait = "0.1.85"
 bigdecimal = { version = "0.4.7", default-features = false, features = ["serde"] }
 base64 = "0.22.1"
 blake2 = "0.10.6"
@@ -30,11 +30,11 @@ opentelemetry_sdk = { version = "0.27.1", features = ["rt-tokio"] }
 rand = { version = "0.8", features=["std_rng"] }
 redis = { version = "0.27.6", features = ["tokio-comp"] }
 regex = "1.11.1"
-reqwest = { version = "0.12.9", default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { version = "0.12.12", default-features = false, features = ["json", "rustls-tls"] }
 secrecy = { version = "0.10.3", features = ["serde"] }
-serde = { version = "1.0.216"}
-serde_json = { version = "1.0.134", default-features = false}
-serde_with = "3.11.0"
+serde = { version = "1.0.217"}
+serde_json = { version = "1.0.135", default-features = false}
+serde_with = "3.12.0"
 sqlx = { version = "0.8.2", default-features = false, features = ["runtime-tokio-rustls", "macros", "postgres", "uuid", "chrono", "migrate", "json", "bigdecimal"] }
 thiserror = "2.0.9"
 tokio = { version = "1.42.0", features = ["macros", "rt-multi-thread"] }
@@ -44,15 +44,17 @@ tracing-bunyan-formatter = "0.3.10"
 tracing-log = "0.2"
 tracing-opentelemetry = {version="0.28.0"}
 tracing-subscriber = { version = "0.3.19", features = ["registry", "env-filter"] }
-utoipa = {version="5.3.0", features=["actix_extras", "chrono"]}
-utoipa-swagger-ui = {version ="8.1.0", features=["actix-web"]}
+utoipa = {version="5.3.1", features=["actix_extras", "chrono"]}
+utoipa-swagger-ui = {version ="8.1.1", features=["actix-web"]}
 utoipauto = "0.2.0"
 validator = {version="0.19.0", features = ["derive"]}
 uuid = { version = "1.11.0", default-features = false, features = ["v4", "serde"] }
 rdkafka = { version = "0.37", features = [ "ssl", "sasl", "cmake-build"] }
+elasticsearch = "8.17.0-alpha.1"
+
 [dev-dependencies]
 once_cell = "1.20.2"
-fake = "3.0.1"
+fake = "3.1.0"
 quickcheck = "1.0.3"
 quickcheck_macros = "1"
 rand = "0.8.5"
