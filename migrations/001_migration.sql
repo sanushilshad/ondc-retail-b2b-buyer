@@ -657,6 +657,7 @@ CREATE TABLE IF NOT EXISTS ondc_seller_product_info (
     id SERIAL NOT NULL PRIMARY KEY,
     seller_subscriber_id TEXT NOT NULL,
     currency_code currency_code_type NOT NULL,
+    country_code country_code NOT NULL,
     provider_id TEXT NOT NULL,
     provider_name TEXT,
     item_id TEXT NOT NULL,
@@ -670,7 +671,7 @@ CREATE TABLE IF NOT EXISTS ondc_seller_product_info (
     price_slab JSONB,
     created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-ALTER TABLE ondc_seller_product_info ADD CONSTRAINT ondc_seller_product_info_constraint UNIQUE (seller_subscriber_id, provider_id, item_id);
+ALTER TABLE ondc_seller_product_info ADD CONSTRAINT ondc_seller_product_info_constraint UNIQUE (seller_subscriber_id, country_code, provider_id, item_id);
 
 
 ALTER TABLE ondc_seller_location_info ADD FOREIGN KEY (seller_subscriber_id, provider_id) REFERENCES ondc_seller_info (seller_subscriber_id, provider_id) ON DELETE CASCADE;

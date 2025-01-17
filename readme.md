@@ -130,9 +130,13 @@ export CHAT__BASE_URL="http://0.0.0.0:8232"
 export CHAT__TIMEOUT_MILLISECONDS=600000
 
 ## KAFKA SERVICE
-export KAFKA__SERVERS="kafka10:9091"
+export KAFKA__SERVERS="kafka12:9091"
 export KAFKA__SEARCH_TOPIC_NAME="test_ondc_search"
 ```
+
+
+## ELASTICSEARCH SEARCH 
+export ELASTIC_SEARCH__URL="https://0.0.0.0:9200"
 
 
 - In order to verify SQL queries at compile time, set the below config in `.env` file:
@@ -234,7 +238,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 ```
 
 
-## MILESTONES (42/74)
+## MILESTONES (47/68)
 ### MILESTONE 1 (Jan 18, 2023 - Jul 22, 2024):
 * [x] Set up basic actix web server
 * [x] Add environment config fetch
@@ -288,7 +292,8 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [x] Integrate Kafka to reduce load due to On-Search API.
 * [x] Develop Business Specific Config Module.
 * [x] Add Order series generation.
-* [ ] Integrate ElasticSearch.
+* [x] Integrate ElasticSearch.
+* [ ] Develop Product Caching.
 * [ ] Integrate BAP Payment Gateway.
 * [ ] Develop and Integrate Observability Module.
 
@@ -307,25 +312,19 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 
 
 ### MILESTONE 6:
-* [ ] Develop info API
-* [ ] Develop ONDC info API
-* [ ] Develop Business Account Update API
-* [ ] Develop User Account Update API
-* [ ] Develop Password Reset API
-* [ ] Develop Order Fetch API
+* [ ] Develop Order Meta Data Fetch API
+* [ ] Develop Order Detail Fetch API
 * [ ] Develop Cancellation Code Fetch API
 * [ ] Integrate with notification microservice to enable WhatsApp, Email and SMS functionality
 
 ### MILESTONE 7:
-* [ ] Complete validation for business_account registration
-* [ ] Complete validation for user_account registration
 * [ ] Complete validation for search/ select/ init/ confirm/ status/ cancel/ update APIs
 * [ ] Complete validation ONDC for on_search/ on_select/ on_init/ on_confirm/ on_status/ on_cancel/ on_update APIs
 
 
 ### MILESTONE 8:
-* [ ] Develop email verfication APIs for user and business account
-* [ ] Develop mobile verfication APIs for user and business account
+* [ ] Develop info API
+* [ ] Develop ONDC info API
 * [ ] Develop new config fetch (will be given the last priority)
 * [ ] Intergrate etcd for TSP flow (when I have nothing better to do: probably never)
 * [ ] Add limit to the number of failed authentication

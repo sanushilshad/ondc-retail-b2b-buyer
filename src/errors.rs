@@ -72,14 +72,13 @@ impl ResponseError for RequestMetaError {
 
     fn error_response(&self) -> HttpResponse {
         let status_code = self.status_code();
-        let status_code_str = status_code.as_str();
         let inner_error_msg = match self {
             RequestMetaError::ValidationStringError(message) => message.to_string(),
         };
 
         HttpResponse::build(status_code).json(GenericResponse::error(
             &inner_error_msg,
-            status_code_str,
+            status_code,
             Some(()),
         ))
     }
@@ -155,7 +154,6 @@ impl ResponseError for GenericError {
 
     fn error_response(&self) -> HttpResponse {
         let status_code = self.status_code();
-        let status_code_str = status_code.as_str();
         let inner_error_msg = match self {
             GenericError::ValidationError(message) => message.to_string(),
             GenericError::UnexpectedError(error_msg) => error_msg.to_string(),
@@ -171,7 +169,7 @@ impl ResponseError for GenericError {
 
         HttpResponse::build(status_code).json(GenericResponse::error(
             &inner_error_msg,
-            status_code_str,
+            status_code,
             Some(()),
         ))
     }

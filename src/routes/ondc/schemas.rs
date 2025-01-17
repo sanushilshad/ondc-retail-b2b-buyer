@@ -1709,6 +1709,7 @@ pub struct BulkSellerProductInfo<'a> {
     pub unit_price_without_taxes: Vec<BigDecimal>,
     pub image_objs: Vec<Value>,
     pub currency_codes: Vec<&'a CurrencyType>,
+    pub country_codes: Vec<&'a CountryCode>,
     pub price_slabs: Vec<Option<Value>>,
 }
 

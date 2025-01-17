@@ -6,6 +6,7 @@ use std::{
 
 use crate::routes::order::schemas::PaymentSettlementType;
 use crate::{errors::RequestMetaError, routes::order::schemas::PaymentSettlementPhase};
+use actix_http::StatusCode;
 use actix_web::{error::ErrorInternalServerError, FromRequest, HttpMessage};
 use bigdecimal::BigDecimal;
 use futures_util::future::{ready, Ready};
@@ -31,16 +32,16 @@ impl<D> GenericResponse<D> {
         Self {
             status: true,
             customer_message: String::from(message),
-            code: String::from("200"),
+            code: StatusCode::OK.as_str().to_owned(),
             data,
         }
     }
 
-    pub fn error(message: &str, code: &str, data: Option<D>) -> Self {
+    pub fn error(message: &str, code: StatusCode, data: Option<D>) -> Self {
         Self {
             status: false,
             customer_message: String::from(message),
-            code: String::from(code),
+            code: code.as_str().to_owned(),
             data,
         }
     }

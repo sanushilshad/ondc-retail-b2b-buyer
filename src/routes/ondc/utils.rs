@@ -1146,6 +1146,7 @@ fn get_ondc_seller_slab_from_ws_slab(ws_slabs: &Vec<WSPriceSlab>) -> Vec<ONDCSel
 #[tracing::instrument(name = "save ondc seller product info", skip())]
 pub fn create_bulk_seller_product_info_objs<'a>(
     body: &'a WSSearchData,
+    code: &'a CountryCode,
 ) -> BulkSellerProductInfo<'a> {
     let mut seller_subscriber_ids: Vec<&str> = vec![];
     let mut provider_ids: Vec<&str> = vec![];
@@ -1159,6 +1160,7 @@ pub fn create_bulk_seller_product_info_objs<'a>(
     let mut unit_price_without_taxes: Vec<BigDecimal> = vec![];
     let mut currency_codes = vec![];
     let mut price_slabs = vec![];
+    let mut country_codes = vec![];
     for provider in &body.providers {
         for item in &provider.items {
             seller_subscriber_ids.push(body.bpp.subscriber_id);
@@ -1170,6 +1172,7 @@ pub fn create_bulk_seller_product_info_objs<'a>(
             mrps.push(item.price.maximum_value.clone());
             unit_price_with_taxes.push(item.price.price_with_tax.clone());
             unit_price_without_taxes.push(item.price.price_without_tax.clone());
+            country_codes.push(code);
             // for image_url in item.images.iter() {
             image_objs.push(serde_json::to_value(&item.images).unwrap());
             currency_codes.push(&item.price.currency);
@@ -1198,6 +1201,7 @@ pub fn create_bulk_seller_product_info_objs<'a>(
         unit_price_without_taxes,
         currency_codes,
         price_slabs,
+        country_codes,
     };
 }
 
@@ -1205,8 +1209,9 @@ pub fn create_bulk_seller_product_info_objs<'a>(
 pub async fn save_ondc_seller_product_info<'a>(
     pool: &PgPool,
     data: &'a WSSearchData<'a>,
+    code: &CountryCode,
 ) -> Result<(), anyhow::Error> {
-    let product_data = create_bulk_seller_product_info_objs(data);
+    let product_data = create_bulk_seller_product_info_objs(data, code);
     sqlx::query!(
         r#"
         INSERT INTO ondc_seller_product_info (
@@ -1221,7 +1226,8 @@ pub async fn save_ondc_seller_product_info<'a>(
             unit_price_without_tax,
             mrp,
             currency_code,
-            price_slab
+            price_slab,
+            country_code
         )
         SELECT *
         FROM UNNEST(
@@ -1236,9 +1242,10 @@ pub async fn save_ondc_seller_product_info<'a>(
             $9::decimal[],
             $10::decimal[],
             $11::currency_code_type[],
-            $12::jsonb[]
+            $12::jsonb[],
+            $13::country_code[]
         )
-        ON CONFLICT (seller_subscriber_id, provider_id, item_id) 
+        ON CONFLICT (seller_subscriber_id, country_code, provider_id, item_id) 
         DO UPDATE SET 
             item_name = EXCLUDED.item_name,
             tax_rate = EXCLUDED.tax_rate,
@@ -1260,6 +1267,7 @@ pub async fn save_ondc_seller_product_info<'a>(
         &product_data.mrps[..] as &[BigDecimal],
         &product_data.currency_codes[..] as &[&CurrencyType],
         &product_data.price_slabs[..] as &[Option<Value>],
+        &product_data.country_codes[..] as &[&CountryCode],
     )
     .execute(pool)
     .await
@@ -1277,16 +1285,18 @@ pub async fn fetch_ondc_seller_product_info(
     bpp_id: &str,
     provider_id: &str,
     item_id_list: &Vec<&str>,
+    country_code: &CountryCode,
 ) -> Result<Vec<ONDCSellerProductInfo>, anyhow::Error> {
     let row: Vec<ONDCSellerProductInfo> = sqlx::query_as!(
         ONDCSellerProductInfo,
         r#"SELECT item_name, currency_code  as "currency_code: CurrencyType", item_id, item_code, seller_subscriber_id,
         price_slab as "price_slab?: Json<Vec<ONDCSellePriceSlab>>", provider_id, tax_rate, 
         unit_price_with_tax,unit_price_without_tax, mrp, images from ondc_seller_product_info where 
-        provider_id  = $1 AND seller_subscriber_id=$2 AND item_id::text = ANY($3)"#,
+        provider_id  = $1 AND seller_subscriber_id=$2 AND item_id::text = ANY($3) AND country_code =$4"#,
         provider_id,
         bpp_id,
-        item_id_list as &Vec<&str>
+        item_id_list as &Vec<&str>,
+        country_code as &CountryCode,
     )
     .fetch_all(pool)
     .await.map_err(|e| {
@@ -1311,9 +1321,11 @@ pub async fn get_ondc_seller_product_info_mapping(
     bpp_id: &str,
     provider_id: &str,
     item_id_list: &Vec<&str>,
+    country_code: &CountryCode,
 ) -> Result<HashMap<String, ONDCSellerProductInfo>, anyhow::Error> {
     let seller_product_info =
-        fetch_ondc_seller_product_info(pool, bpp_id, provider_id, item_id_list).await?;
+        fetch_ondc_seller_product_info(pool, bpp_id, provider_id, item_id_list, country_code)
+            .await?;
     let seller_product_map: HashMap<String, ONDCSellerProductInfo> = seller_product_info
         .into_iter()
         .map(|obj| {
@@ -2336,7 +2348,11 @@ pub async fn process_on_search(
                     )
                     .await;
             }
-            let task1 = save_ondc_seller_product_info(pool, &product_objs);
+            let task1 = save_ondc_seller_product_info(
+                pool,
+                &product_objs,
+                &body.context.location.country.code,
+            );
             let task2 = save_ondc_seller_info(pool, &product_objs);
             let task3 = save_ondc_seller_location_info(pool, &product_objs);
             let (_, _, _) = futures::future::join3(task1, task2, task3).await;

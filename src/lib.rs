@@ -2,6 +2,7 @@ pub mod chat_client;
 pub mod configuration;
 pub mod constants;
 pub mod domain;
+pub mod elastic_search_client;
 pub mod email_client;
 pub mod errors;
 mod kafka_client;

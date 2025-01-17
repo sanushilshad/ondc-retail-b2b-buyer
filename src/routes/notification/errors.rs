@@ -34,7 +34,6 @@ impl ResponseError for OTPError {
 
     fn error_response(&self) -> HttpResponse {
         let status_code = self.status_code();
-        let status_code_str = status_code.as_str();
         let inner_error_msg = match self {
             // OTPError::ValidationError(inner_error) => inner_error.to_string(),
             // OTPError::ValidationStringError(message) => message.to_string(),
@@ -44,7 +43,7 @@ impl ResponseError for OTPError {
 
         HttpResponse::build(status_code).json(GenericResponse::error(
             &inner_error_msg,
-            status_code_str,
+            status_code,
             Some(()),
         ))
     }

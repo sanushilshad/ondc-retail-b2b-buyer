@@ -193,6 +193,7 @@ pub async fn order_select(
             &bpp_detail.subscriber_id,
             &body.provider_id,
             &item_code_list,
+            &ondc_select_payload.context.location.country.code,
         )
         .await
         {

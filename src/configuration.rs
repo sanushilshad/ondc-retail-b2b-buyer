@@ -1,7 +1,7 @@
 use crate::{
-    chat_client::ChatClient, domain::EmailObject, email_client::SmtpEmailClient,
-    kafka_client::KafkaClient, redis::RedisClient, user_client::UserClient,
-    websocket_client::WebSocketClient,
+    chat_client::ChatClient, domain::EmailObject, elastic_search_client::ElasticSearchClient,
+    email_client::SmtpEmailClient, kafka_client::KafkaClient, redis::RedisClient,
+    user_client::UserClient, websocket_client::WebSocketClient,
 };
 use config::{self, ConfigError, Environment};
 use secrecy::{ExposeSecret, SecretString};
@@ -47,6 +47,7 @@ pub struct Config {
     pub websocket: WebSocketConfig,
     pub chat: ChatConfig,
     pub kafka: KafkaConfig,
+    pub elastic_search: ElasticSearchConfig,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -160,7 +161,7 @@ pub struct EmailClientConfig {
 }
 impl EmailClientConfig {
     pub fn sender(&self) -> Result<EmailObject, String> {
-        EmailObject::parse(self.sender_email.clone())
+        EmailObject::parse(self.sender_email.to_owned())
     }
 
     pub fn timeout(&self) -> std::time::Duration {
@@ -308,7 +309,18 @@ pub struct KafkaConfig {
 }
 
 impl KafkaConfig {
-    pub fn client(&self) -> KafkaClient {
-        KafkaClient::new(self.servers.to_owned(), self.search_topic_name.to_owned())
+    pub fn client(self) -> KafkaClient {
+        KafkaClient::new(self.servers, self.search_topic_name)
+    }
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct ElasticSearchConfig {
+    pub url: String,
+}
+
+impl ElasticSearchConfig {
+    pub fn client(self) -> ElasticSearchClient {
+        ElasticSearchClient::new(self.url)
     }
 }

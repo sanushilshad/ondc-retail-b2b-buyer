@@ -136,6 +136,7 @@ pub async fn on_select(
             body.context.bpp_id.as_ref().unwrap(),
             &body.message.order.provider.id,
             &item_code_list,
+            &body.context.location.country.code,
         );
 
         let task_3 = get_ondc_seller_location_info_mapping(
