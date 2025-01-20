@@ -542,8 +542,7 @@ pub async fn get_series_no(
     series_type: SeriesNoType,
 ) -> Result<String, anyhow::Error> {
     let order_no_prefix = setting
-        .settings
-        .get_setting(&SettingKey::OrderNoPrefix)
+        .get_setting(SettingKey::OrderNoPrefix)
         .ok_or_else(|| anyhow!("Order No Prefix is not configured"))?;
 
     let series_model = generate_series(transaction, subscriber_id, series_type, &order_no_prefix)

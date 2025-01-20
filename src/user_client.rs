@@ -247,16 +247,6 @@ impl FromRequest for BusinessAccount {
         ready(result)
     }
 }
-
-#[derive(Deserialize, Debug)]
-pub struct Setting {
-    pub id: Uuid,
-    pub key: SettingKey,
-    pub value: String,
-    pub label: String,
-    pub enum_id: Option<Uuid>,
-}
-
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum SettingKey {
@@ -276,26 +266,49 @@ impl FetchSettingRequest {
 }
 
 #[derive(Deserialize, Debug)]
-pub struct Settings {
-    pub global_level: Vec<Setting>,
-    pub user_level: Vec<Setting>,
-    pub business_level: Vec<Setting>,
+pub struct SettingValue {
+    pub value: String,
+    pub id: Uuid,
 }
 
-impl Settings {
-    pub fn get_setting(&self, key: &SettingKey) -> Option<String> {
-        self.user_level
-            .iter()
-            .chain(self.business_level.iter())
-            .chain(self.global_level.iter())
-            .find(|obj| &obj.key == key)
-            .map(|obj| obj.value.clone())
+#[derive(Deserialize, Debug)]
+pub struct Setting {
+    pub key: SettingKey,
+    pub label: String,
+    pub enum_id: Option<Uuid>,
+    pub is_editable: bool,
+    pub global_level: Vec<SettingValue>,
+    pub user_level: Vec<SettingValue>,
+    pub business_level: Vec<SettingValue>,
+}
+
+impl Setting {
+    pub fn compute_setting(&self) -> Option<String> {
+        if !self.user_level.is_empty() {
+            return self.user_level.first().map(|obj| obj.value.to_owned());
+        }
+        if !self.business_level.is_empty() {
+            return self.business_level.first().map(|obj| obj.value.to_owned());
+        }
+        if !self.global_level.is_empty() {
+            return self.global_level.first().map(|obj| obj.value.to_owned());
+        }
+        None
     }
 }
 
 #[derive(Deserialize, Debug)]
 pub struct SettingData {
-    pub settings: Settings,
+    pub settings: Vec<Setting>,
+}
+
+impl SettingData {
+    pub fn get_setting(&self, key: SettingKey) -> Option<String> {
+        self.settings
+            .iter()
+            .find(|setting| setting.key == key)
+            .and_then(|setting| setting.compute_setting())
+    }
 }
 
 #[derive(Debug)]
