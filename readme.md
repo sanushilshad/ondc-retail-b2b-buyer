@@ -132,11 +132,11 @@ export CHAT__TIMEOUT_MILLISECONDS=600000
 ## KAFKA SERVICE
 export KAFKA__SERVERS="kafka12:9091"
 export KAFKA__SEARCH_TOPIC_NAME="test_ondc_search"
-```
 
 
 ## ELASTICSEARCH SEARCH 
 export ELASTIC_SEARCH__URL="https://0.0.0.0:9200"
+```
 
 
 - In order to verify SQL queries at compile time, set the below config in `.env` file:
