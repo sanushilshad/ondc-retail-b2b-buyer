@@ -84,7 +84,7 @@ pub async fn on_select(
     let ws_obj = WSSelect {
         transaction_id: body.context.transaction_id,
         message_id: body.context.message_id,
-        action_type: WebSocketActionType::Select,
+        action_type: WebSocketActionType::OrderSelect,
         error: body
             .error
             .as_ref()
@@ -243,7 +243,12 @@ pub async fn on_select(
         .context("Failed to commit SQL transaction to store an order")
         .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
     let _ = websocket_srv
-        .send_msg(ws_params_obj, WebSocketActionType::Select, ws_json, None)
+        .send_msg(
+            ws_params_obj,
+            WebSocketActionType::OrderSelect,
+            ws_json,
+            None,
+        )
         .await;
     Ok(web::Json(ONDCResponse::successful_response(None)))
 }
@@ -287,7 +292,7 @@ pub async fn on_init(
     let ws_obj = WSInit {
         transaction_id: body.context.transaction_id,
         message_id: body.context.message_id,
-        action_type: WebSocketActionType::Init,
+        action_type: WebSocketActionType::OrderInit,
         error: body
             .error
             .as_ref()
@@ -313,7 +318,7 @@ pub async fn on_init(
     }
 
     let _ = websocket_srv
-        .send_msg(ws_params_obj, WebSocketActionType::Init, ws_json, None)
+        .send_msg(ws_params_obj, WebSocketActionType::OrderInit, ws_json, None)
         .await;
 
     transaction
@@ -383,7 +388,12 @@ pub async fn on_confirm(
     }
 
     let _ = websocket_srv
-        .send_msg(ws_params_obj, WebSocketActionType::Confirm, ws_json, None)
+        .send_msg(
+            ws_params_obj,
+            WebSocketActionType::OrderConfirm,
+            ws_json,
+            None,
+        )
         .await;
     transaction
         .commit()
@@ -457,7 +467,12 @@ pub async fn on_status(
     let ws_json = serde_json::to_value(ws_obj).unwrap();
     let ws_params_obj = get_ondc_order_param_from_commerce(&order);
     let _ = websocket_srv
-        .send_msg(ws_params_obj, WebSocketActionType::Status, ws_json, None)
+        .send_msg(
+            ws_params_obj,
+            WebSocketActionType::OrderStatus,
+            ws_json,
+            None,
+        )
         .await;
     transaction
         .commit()
@@ -514,7 +529,12 @@ pub async fn on_cancel(
         let ws_json = serde_json::to_value(ws_obj).unwrap();
         let ws_params_obj = get_ondc_order_param_from_req(&order_request_model);
         let _ = websocket_srv
-            .send_msg(ws_params_obj, WebSocketActionType::Cancel, ws_json, None)
+            .send_msg(
+                ws_params_obj,
+                WebSocketActionType::OrderCancel,
+                ws_json,
+                None,
+            )
             .await;
     }
     transaction
@@ -573,7 +593,12 @@ pub async fn on_update(
         let ws_json = serde_json::to_value(ws_obj).unwrap();
         let ws_params_obj = get_ondc_order_param_from_req(&order_request_model);
         let _ = websocket_srv
-            .send_msg(ws_params_obj, WebSocketActionType::Update, ws_json, None)
+            .send_msg(
+                ws_params_obj,
+                WebSocketActionType::OrderUpdate,
+                ws_json,
+                None,
+            )
             .await;
     }
     transaction

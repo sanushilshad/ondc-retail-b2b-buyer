@@ -10,13 +10,13 @@ use crate::schemas::WebSocketParam;
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum WebSocketActionType {
-    Search,
-    Select,
-    Init,
-    Confirm,
-    Status,
-    Cancel,
-    Update,
+    ProductSearch,
+    OrderSelect,
+    OrderInit,
+    OrderConfirm,
+    OrderStatus,
+    OrderCancel,
+    OrderUpdate,
 }
 
 #[derive(Debug, Serialize, PartialEq)]

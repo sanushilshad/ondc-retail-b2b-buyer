@@ -2342,7 +2342,7 @@ pub async fn process_on_search(
                 let _ = websocket_srv
                     .send_msg(
                         ws_params,
-                        WebSocketActionType::Search,
+                        WebSocketActionType::ProductSearch,
                         ws_json,
                         Some(ProcessType::Immediate),
                     )
