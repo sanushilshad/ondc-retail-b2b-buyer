@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        \n        SELECT id, urn, external_urn, record_type as \"record_type:OrderType\", \n           record_status as \"record_status:CommerceStatusType\",\n           domain_category_code as \"domain_category_code:CategoryDomain\", \n           buyer_id, seller_id, buyer_name, seller_name, source as \"source:DataSource\", \n           created_on, updated_on, deleted_on, is_deleted, created_by, grand_total, \n           bpp_id, bpp_uri, bap_id, bap_uri, is_import, quote_ttl,\n           currency_code as \"currency_code?:CurrencyType\", city_code,\n           country_code as \"country_code:CountryCode\",\n           billing as \"billing?:  Json<OrderBillingModel>\",\n           cancellation_terms as \"cancellation_terms?: Json<Vec<OrderCancellationTermModel>>\",\n           bpp_terms as \"bpp_terms?: Json<CommerceBppTermsModel>\"\n        FROM commerce_data where external_urn= $1;",
+  "query": "\n        \n        SELECT id, urn, external_urn, record_type as \"record_type:OrderType\", \n           record_status as \"record_status:CommerceStatusType\",\n           domain_category_code as \"domain_category_code:CategoryDomain\", \n           buyer_id, seller_id, buyer_name, seller_name, source as \"source:DataSource\", \n           created_on, updated_on, deleted_on, is_deleted, created_by, grand_total, \n           bpp_id, bpp_uri, bap_id, bap_uri, quote_ttl,\n           currency_code as \"currency_code?:CurrencyType\", city_code,\n           country_code as \"country_code:CountryCode\",\n           billing as \"billing?:  Json<OrderBillingModel>\",\n           cancellation_terms as \"cancellation_terms?: Json<Vec<OrderCancellationTermModel>>\",\n           bpp_terms as \"bpp_terms?: Json<CommerceBppTermsModel>\", documents as \"documents?: Json<Vec<CommerceDocumentModel>>\"\n        FROM commerce_data where external_urn= $1;",
   "describe": {
     "columns": [
       {
@@ -49,7 +49,8 @@
                 "accepted",
                 "in_progess",
                 "completed",
-                "cancelled"
+                "cancelled",
+                "in_progress"
               ]
             }
           }
@@ -165,16 +166,11 @@
       },
       {
         "ordinal": 21,
-        "name": "is_import",
-        "type_info": "Bool"
-      },
-      {
-        "ordinal": 22,
         "name": "quote_ttl",
         "type_info": "Text"
       },
       {
-        "ordinal": 23,
+        "ordinal": 22,
         "name": "currency_code?:CurrencyType",
         "type_info": {
           "Custom": {
@@ -191,12 +187,12 @@
         }
       },
       {
-        "ordinal": 24,
+        "ordinal": 23,
         "name": "city_code",
         "type_info": "Text"
       },
       {
-        "ordinal": 25,
+        "ordinal": 24,
         "name": "country_code:CountryCode",
         "type_info": {
           "Custom": {
@@ -455,18 +451,23 @@
         }
       },
       {
-        "ordinal": 26,
+        "ordinal": 25,
         "name": "billing?:  Json<OrderBillingModel>",
         "type_info": "Jsonb"
       },
       {
-        "ordinal": 27,
+        "ordinal": 26,
         "name": "cancellation_terms?: Json<Vec<OrderCancellationTermModel>>",
         "type_info": "Jsonb"
       },
       {
-        "ordinal": 28,
+        "ordinal": 27,
         "name": "bpp_terms?: Json<CommerceBppTermsModel>",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 28,
+        "name": "documents?: Json<Vec<CommerceDocumentModel>>",
         "type_info": "Jsonb"
       }
     ],
@@ -477,22 +478,8 @@
     },
     "nullable": [
       false,
-      true,
       false,
       false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      true,
-      false,
-      false,
-      true,
-      true,
-      false,
-      false,
-      true,
       false,
       false,
       false,
@@ -502,10 +489,24 @@
       true,
       false,
       false,
+      true,
+      true,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
       true,
       true,
       true
     ]
   },
-  "hash": "19a3db01597b219be48710c1c52e3970b440489e63378f0910533df04cebbd19"
+  "hash": "6d7353a5c9f5b7acad224e73542fec407ea796b95d79aedff487d464cce5d18d"
 }

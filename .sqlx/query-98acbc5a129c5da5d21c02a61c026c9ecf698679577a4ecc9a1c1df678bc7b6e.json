@@ -1,0 +1,39 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO series_no_generator (subscriber_id, series_type, prefix, series_no)\n            VALUES ($1, $2, $3, COALESCE(\n                (SELECT series_no + 1 FROM series_no_generator \n                 WHERE subscriber_id = $1 AND series_type = $2 AND prefix = $3 \n                 LIMIT 1 FOR UPDATE), 1))\n            ON CONFLICT (subscriber_id, series_type, prefix) \n            DO UPDATE \n            SET series_no = series_no_generator.series_no + 1\n            RETURNING prefix, series_no;\n    ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "prefix",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "series_no",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        {
+          "Custom": {
+            "name": "series_type",
+            "kind": {
+              "Enum": [
+                "order"
+              ]
+            }
+          }
+        },
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "98acbc5a129c5da5d21c02a61c026c9ecf698679577a4ecc9a1c1df678bc7b6e"
+}

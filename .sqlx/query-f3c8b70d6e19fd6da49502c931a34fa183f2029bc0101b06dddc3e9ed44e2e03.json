@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT \n            id,\n            commerce_data_id,\n            fulfillment_id,\n            tat,\n            fulfillment_type as \"fulfillment_type: FulfillmentType\",\n            fulfillment_status as \"fulfillment_status: FulfillmentStatusType\",\n            inco_terms as \"inco_terms?: IncoTermType\",\n            place_of_delivery,\n            provider_name,\n            category as \"category?: FulfillmentCategoryType\",\n            servicable_status as \"servicable_status!: ServiceableType\", \n            drop_off_data as \"drop_off_data!:  Json<Option<DropOffDataModel>>\",\n            pickup_data as \"pickup_data!:  Json<PickUpDataModel>\",\n            tracking,\n            packaging_charge,\n            delivery_charge,\n            convenience_fee\n        FROM commerce_fulfillment_data \n        WHERE commerce_data_id = $1\n        ",
+  "query": "\n        SELECT \n            id,\n            commerce_data_id,\n            fulfillment_id,\n            tat,\n            fulfillment_type as \"fulfillment_type: FulfillmentType\",\n            fulfillment_status as \"fulfillment_status: FulfillmentStatusType\",\n            inco_terms as \"inco_terms?: IncoTermType\",\n            place_of_delivery,\n            provider_name,\n            category as \"category?: FulfillmentCategoryType\",\n            servicable_status as \"servicable_status?: ServiceableType\", \n            drop_off_data as \"drop_off_data!:  Json<Option<DropOffDataModel>>\",\n            pickup_data as \"pickup_data!:  Json<PickUpDataModel>\",\n            tracking,\n            packaging_charge,\n            delivery_charge,\n            convenience_fee,\n            trade_type as \"trade_type?: TradeType\"\n        FROM commerce_fulfillment_data \n        WHERE commerce_data_id = $1\n        ",
   "describe": {
     "columns": [
       {
@@ -105,7 +105,7 @@
       },
       {
         "ordinal": 10,
-        "name": "servicable_status!: ServiceableType",
+        "name": "servicable_status?: ServiceableType",
         "type_info": {
           "Custom": {
             "name": "fulfillment_servicability_status",
@@ -147,6 +147,21 @@
         "ordinal": 16,
         "name": "convenience_fee",
         "type_info": "Numeric"
+      },
+      {
+        "ordinal": 17,
+        "name": "trade_type?: TradeType",
+        "type_info": {
+          "Custom": {
+            "name": "trade_type",
+            "kind": {
+              "Enum": [
+                "domestic",
+                "import"
+              ]
+            }
+          }
+        }
       }
     ],
     "parameters": {
@@ -171,8 +186,9 @@
       true,
       false,
       false,
-      false
+      false,
+      true
     ]
   },
-  "hash": "472920a3036aef0ec58ddfd6f438e1dd36d543f7f4ec766ecb60d0cf97b707b6"
+  "hash": "f3c8b70d6e19fd6da49502c931a34fa183f2029bc0101b06dddc3e9ed44e2e03"
 }

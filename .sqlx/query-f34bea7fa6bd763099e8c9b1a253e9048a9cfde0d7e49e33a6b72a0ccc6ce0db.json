@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        DELETE FROM commerce_payment_data\n        WHERE commerce_data_id = $1\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f34bea7fa6bd763099e8c9b1a253e9048a9cfde0d7e49e33a6b72a0ccc6ce0db"
+}

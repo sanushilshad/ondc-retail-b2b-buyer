@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE commerce_fulfillment_data\n        SET\n        fulfillment_status = t.fulfillment_status,\n        pickup_data  = t.pickup_data,\n        drop_off_data = t.drop_off_data\n        FROM UNNEST($1::uuid[],  $2::commerce_fulfillment_status_type[], $3::jsonb[], $4::jsonb[], $5::text[])\n        AS t(commerce_data_id, fulfillment_status, pickup_data, drop_off_data, fulfillment_id)\n        WHERE commerce_fulfillment_data.commerce_data_id = t.commerce_data_id and \n        commerce_fulfillment_data.fulfillment_id=t.fulfillment_id;\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        {
+          "Custom": {
+            "name": "commerce_fulfillment_status_type[]",
+            "kind": {
+              "Array": {
+                "Custom": {
+                  "name": "commerce_fulfillment_status_type",
+                  "kind": {
+                    "Enum": [
+                      "agent_assigned",
+                      "packed",
+                      "out_for_delivery",
+                      "order_picked_up",
+                      "searching_for_agent",
+                      "pending",
+                      "order_delivered",
+                      "cancelled"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "JsonbArray",
+        "JsonbArray",
+        "TextArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2385ab6148f0cdbe5244ae7133d194983cbc064c95200a288f986d2db76c3263"
+}

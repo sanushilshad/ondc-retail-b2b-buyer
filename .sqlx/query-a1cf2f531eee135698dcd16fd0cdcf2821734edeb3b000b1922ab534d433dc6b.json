@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE commerce_fulfillment_data\n        SET\n            refunded_convenience_fee  = t.refunded_convenience_fee,\n            refunded_delivery_charge = t.refunded_delivery_charge,\n            refunded_packaging_charge = t.refunded_packaging_charge\n        FROM UNNEST($1::uuid[], $2::text[], $3::decimal[], $4::decimal[], $5::decimal[]) AS t(id, fulfillment_id, \n            refunded_convenience_fee, refunded_delivery_charge, refunded_packaging_charge)\n        WHERE commerce_data_id = t.id and commerce_fulfillment_data.fulfillment_id=t.fulfillment_id;\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "TextArray",
+        "NumericArray",
+        "NumericArray",
+        "NumericArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a1cf2f531eee135698dcd16fd0cdcf2821734edeb3b000b1922ab534d433dc6b"
+}

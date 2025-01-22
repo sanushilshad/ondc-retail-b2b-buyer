@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO commerce_fulfillment_data (id, commerce_data_id, fulfillment_id, fulfillment_type, inco_terms, place_of_delivery, drop_off_data,pickup_data)\n        SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::text[], $4::fulfillment_type[],$5::inco_term_type [], $6::text[], $7::jsonb[],  $8::jsonb[]);\n        ",
+  "query": "\n            INSERT INTO commerce_fulfillment_data (id, commerce_data_id, fulfillment_id, fulfillment_type, inco_terms, place_of_delivery, drop_off_data, pickup_data, trade_type)\n            SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::text[], $4::fulfillment_type[],$5::inco_term_type [], $6::text[], $7::jsonb[],  $8::jsonb[], $9::trade_type[]);\n            ",
   "describe": {
     "columns": [],
     "parameters": {
@@ -49,10 +49,28 @@
         },
         "TextArray",
         "JsonbArray",
-        "JsonbArray"
+        "JsonbArray",
+        {
+          "Custom": {
+            "name": "trade_type[]",
+            "kind": {
+              "Array": {
+                "Custom": {
+                  "name": "trade_type",
+                  "kind": {
+                    "Enum": [
+                      "domestic",
+                      "import"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
       ]
     },
     "nullable": []
   },
-  "hash": "9955bc15bd9f21163645262b5bdf0ea4ccfd6b4b6d209d3f2c7e3001959072f6"
+  "hash": "f1380f2339454c07d138341393f2a9601cec571b232f019e11bec25e3c5cea9e"
 }

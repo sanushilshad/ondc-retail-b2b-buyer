@@ -1,12 +1,19 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO commerce_data (id, external_urn, record_type, record_status, \n        domain_category_code, buyer_id, seller_id, seller_name, buyer_name, source, created_on, created_by, bpp_id, bpp_uri, bap_id, bap_uri, is_import, quote_ttl, city_code, country_code)\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)\n        ON CONFLICT (external_urn) \n        DO NOTHING\n        ",
+  "query": "\n        INSERT INTO commerce_data (id, external_urn, urn, record_type, record_status,\n        domain_category_code, buyer_id, seller_id, seller_name, buyer_name, source, created_on, created_by, bpp_id, bpp_uri,\n        bap_id, bap_uri, quote_ttl, updated_on, currency_code, grand_total, city_code, country_code, seller_chat_link, buyer_chat_link)\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)\n        ON CONFLICT (external_urn)\n        DO UPDATE SET\n        record_status = EXCLUDED.record_status,\n        updated_on = EXCLUDED.updated_on,\n        currency_code = EXCLUDED.currency_code\n        RETURNING id\n        ",
   "describe": {
-    "columns": [],
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
     "parameters": {
       "Left": [
         "Uuid",
         "Uuid",
+        "Text",
         {
           "Custom": {
             "name": "commerce_data_type",
@@ -31,7 +38,8 @@
                 "accepted",
                 "in_progess",
                 "completed",
-                "cancelled"
+                "cancelled",
+                "in_progress"
               ]
             }
           }
@@ -76,8 +84,22 @@
         "Text",
         "Text",
         "Text",
-        "Bool",
         "Text",
+        "Timestamptz",
+        {
+          "Custom": {
+            "name": "currency_code_type",
+            "kind": {
+              "Enum": [
+                "INR",
+                "SGD",
+                "AED",
+                "GHS"
+              ]
+            }
+          }
+        },
+        "Numeric",
         "Text",
         {
           "Custom": {
@@ -333,10 +355,14 @@
               ]
             }
           }
-        }
+        },
+        "Text",
+        "Text"
       ]
     },
-    "nullable": []
+    "nullable": [
+      false
+    ]
   },
-  "hash": "eefadd19b80a235b94e3d63327987a011098e649d3b6e4eea80c864b805d1e78"
+  "hash": "ea8dcb0a87891957a442991fe8273809661075a22a9ab2f2f614d6264bc5ff04"
 }

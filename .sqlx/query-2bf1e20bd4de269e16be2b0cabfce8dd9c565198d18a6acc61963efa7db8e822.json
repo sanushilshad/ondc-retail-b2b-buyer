@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO commerce_payment_data(id, commerce_data_id, collected_by, payment_type, buyer_fee_type,\n             buyer_fee_amount, settlement_window, withholding_amount, seller_payment_uri, settlement_basis,\n             seller_payment_ttl, seller_payment_dsa, seller_payment_signature, settlement_details)\n            SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::ondc_network_participant_type[],\n            $4::payment_type[], $5::ondc_np_fee_type[], $6::decimal[], $7::text[], $8::decimal[],\n            $9::text[], $10::settlement_basis_type[], $11::text[], $12::text[],  $13::text[],$14::jsonb[])\n        ",
+  "query": "\n        INSERT INTO commerce_payment_data(id, commerce_data_id, collected_by, payment_type, buyer_fee_type,\n             buyer_fee_amount, settlement_window, withholding_amount, settlement_basis,\n             settlement_details, transaction_id,payment_status, payment_amount, seller_payment_detail, payment_id)\n            SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::payment_collected_by_type[],\n            $4::payment_type[], $5::ondc_np_fee_type[], $6::decimal[], $7::text[], $8::decimal[],\n            $9::settlement_basis_type[],  $10::jsonb[],\n            $11::text[], $12::payment_status[], $13::decimal[], $14::jsonb[], $15::text[])\n        ",
   "describe": {
     "columns": [],
     "parameters": {
@@ -9,15 +9,16 @@
         "UuidArray",
         {
           "Custom": {
-            "name": "ondc_network_participant_type[]",
+            "name": "payment_collected_by_type[]",
             "kind": {
               "Array": {
                 "Custom": {
-                  "name": "ondc_network_participant_type",
+                  "name": "payment_collected_by_type",
                   "kind": {
                     "Enum": [
                       "BAP",
-                      "BPP"
+                      "BPP",
+                      "buyer"
                     ]
                   }
                 }
@@ -65,7 +66,6 @@
         "NumericArray",
         "TextArray",
         "NumericArray",
-        "TextArray",
         {
           "Custom": {
             "name": "settlement_basis_type[]",
@@ -85,13 +85,33 @@
             }
           }
         },
+        "JsonbArray",
         "TextArray",
-        "TextArray",
-        "TextArray",
-        "JsonbArray"
+        {
+          "Custom": {
+            "name": "payment_status[]",
+            "kind": {
+              "Array": {
+                "Custom": {
+                  "name": "payment_status",
+                  "kind": {
+                    "Enum": [
+                      "paid",
+                      "not_paid",
+                      "pending"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "NumericArray",
+        "JsonbArray",
+        "TextArray"
       ]
     },
     "nullable": []
   },
-  "hash": "8a53b67e4d52710a68e4c93eb904416e8663c6ecd240f8bf1bea2b61227e720e"
+  "hash": "2bf1e20bd4de269e16be2b0cabfce8dd9c565198d18a6acc61963efa7db8e822"
 }

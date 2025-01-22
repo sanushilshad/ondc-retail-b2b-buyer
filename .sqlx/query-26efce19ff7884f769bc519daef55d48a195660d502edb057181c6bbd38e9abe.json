@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        UPDATE commerce_data SET record_status=$1, updated_on=$2, urn=$3 WHERE external_urn=$4\n        ",
+  "query": "\n        UPDATE commerce_data SET record_status=$1, updated_on=$2, documents=$3 WHERE external_urn=$4\n        ",
   "describe": {
     "columns": [],
     "parameters": {
@@ -18,17 +18,18 @@
                 "accepted",
                 "in_progess",
                 "completed",
-                "cancelled"
+                "cancelled",
+                "in_progress"
               ]
             }
           }
         },
         "Timestamptz",
-        "Text",
+        "Jsonb",
         "Uuid"
       ]
     },
     "nullable": []
   },
-  "hash": "4056ba9c39732acd032c826f0b9f4d701c7b586a9ace2b97082030edce16e6e6"
+  "hash": "26efce19ff7884f769bc519daef55d48a195660d502edb057181c6bbd38e9abe"
 }

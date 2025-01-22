@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT \n            id, \n            collected_by as \"collected_by?: ONDCNetworkType\",\n            payment_type as \"payment_type!: PaymentType\", \n            commerce_data_id,\n            seller_payment_uri,\n            buyer_fee_type  as \"buyer_fee_type?: FeeType\",\n            buyer_fee_amount,\n            settlement_window,\n            settlement_basis as \"settlement_basis?: SettlementBasis\",\n            withholding_amount,\n            settlement_details as \"settlement_details?: Json<Vec<PaymentSettlementDetailModel>>\"\n        FROM commerce_payment_data \n        WHERE commerce_data_id = $1\n        ",
+  "query": "\n        SELECT \n            id, \n            collected_by as \"collected_by?: PaymentCollectedBy\",\n            payment_type as \"payment_type!: PaymentType\", \n            commerce_data_id,\n            seller_payment_detail as \"seller_payment_detail?: Json<SellerPaymentDetailModel>\",\n            buyer_fee_type  as \"buyer_fee_type?: FeeType\",\n            buyer_fee_amount,\n            settlement_window,\n            settlement_basis as \"settlement_basis?: SettlementBasis\",\n            withholding_amount,\n            settlement_details as \"settlement_details?: Json<Vec<PaymentSettlementDetailModel>>\"\n        FROM commerce_payment_data \n        WHERE commerce_data_id = $1\n        ",
   "describe": {
     "columns": [
       {
@@ -10,14 +10,15 @@
       },
       {
         "ordinal": 1,
-        "name": "collected_by?: ONDCNetworkType",
+        "name": "collected_by?: PaymentCollectedBy",
         "type_info": {
           "Custom": {
-            "name": "ondc_network_participant_type",
+            "name": "payment_collected_by_type",
             "kind": {
               "Enum": [
                 "BAP",
-                "BPP"
+                "BPP",
+                "buyer"
               ]
             }
           }
@@ -46,8 +47,8 @@
       },
       {
         "ordinal": 4,
-        "name": "seller_payment_uri",
-        "type_info": "Text"
+        "name": "seller_payment_detail?: Json<SellerPaymentDetailModel>",
+        "type_info": "Jsonb"
       },
       {
         "ordinal": 5,
@@ -120,5 +121,5 @@
       true
     ]
   },
-  "hash": "76e17543e02c12599d31090a10c5e990c3892ff8276b06db510ec32c3aca9e6e"
+  "hash": "d854279d708cb751abb042bb9ee1c0b55e5820fc5b168b68527298f998463957"
 }

@@ -127,11 +127,11 @@
         "Text",
         {
           "Custom": {
-            "name": "network_participant_type",
+            "name": "ondc_network_participant_type",
             "kind": {
               "Enum": [
-                "buyer",
-                "seller"
+                "BAP",
+                "BPP"
               ]
             }
           }

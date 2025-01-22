@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO commerce_fulfillment_data (id, commerce_data_id, fulfillment_id, fulfillment_type, inco_terms, \n            place_of_delivery, drop_off_data, pickup_data, provider_name, servicable_status, tracking, tat, category, packaging_charge,\n            delivery_charge, convenience_fee)\n        SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::text[], $4::fulfillment_type[],$5::inco_term_type [], $6::text[],\n             $7::jsonb[], $8::jsonb[], $9::text[], $10::fulfillment_servicability_status[], $11::bool[], $12::text[],\n            $13::fulfillment_category_type[], $14::decimal[], $15::decimal[], $16::decimal[]);\n        ",
+  "query": "\n        INSERT INTO commerce_fulfillment_data (id, commerce_data_id, fulfillment_id, fulfillment_type, inco_terms, \n            place_of_delivery, drop_off_data, pickup_data, provider_name, servicable_status, tracking, tat, category, packaging_charge,\n            delivery_charge, convenience_fee, trade_type)\n        SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::text[], $4::fulfillment_type[],$5::inco_term_type [], $6::text[],\n             $7::jsonb[], $8::jsonb[], $9::text[], $10::fulfillment_servicability_status[], $11::bool[], $12::text[],\n            $13::fulfillment_category_type[], $14::decimal[], $15::decimal[], $16::decimal[], $17::trade_type[]);\n        ",
   "describe": {
     "columns": [],
     "parameters": {
@@ -92,10 +92,28 @@
         },
         "NumericArray",
         "NumericArray",
-        "NumericArray"
+        "NumericArray",
+        {
+          "Custom": {
+            "name": "trade_type[]",
+            "kind": {
+              "Array": {
+                "Custom": {
+                  "name": "trade_type",
+                  "kind": {
+                    "Enum": [
+                      "domestic",
+                      "import"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
       ]
     },
     "nullable": []
   },
-  "hash": "901c48c5759b76451b5fc80aa6c966c6ee7a8437f911145e15f197cbf0926f37"
+  "hash": "2f8f290544c9fe16fa3167e7d95922b310075db3ca31ca3b6f9b8a78667a98b6"
 }

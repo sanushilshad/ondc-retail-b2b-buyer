@@ -1,91 +1,17 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO commerce_data (id, external_urn, record_type, record_status,\n        domain_category_code, buyer_id, seller_id, seller_name, buyer_name, source, created_on, created_by, bpp_id, bpp_uri,\n        bap_id, bap_uri, is_import, quote_ttl, updated_on, currency_code, grand_total, city_code, country_code)\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)\n        ON CONFLICT (external_urn)\n        DO UPDATE SET\n        record_status = EXCLUDED.record_status,\n        updated_on = EXCLUDED.updated_on,\n        currency_code = EXCLUDED.currency_code\n        RETURNING id\n        ",
+  "query": "SELECT item_name, currency_code  as \"currency_code: CurrencyType\", item_id, item_code, seller_subscriber_id,\n        price_slab as \"price_slab?: Json<Vec<ONDCSellePriceSlab>>\", provider_id, tax_rate, \n        unit_price_with_tax,unit_price_without_tax, mrp, images from ondc_seller_product_info where \n        provider_id  = $1 AND seller_subscriber_id=$2 AND item_id::text = ANY($3) AND country_code =$4",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
-        "name": "id",
-        "type_info": "Uuid"
-      }
-    ],
-    "parameters": {
-      "Left": [
-        "Uuid",
-        "Uuid",
-        {
-          "Custom": {
-            "name": "commerce_data_type",
-            "kind": {
-              "Enum": [
-                "sale_order",
-                "purchase_order"
-              ]
-            }
-          }
-        },
-        {
-          "Custom": {
-            "name": "commerce_status",
-            "kind": {
-              "Enum": [
-                "quote_requested",
-                "quote_accepted",
-                "quote_rejected",
-                "initialized",
-                "created",
-                "accepted",
-                "in_progess",
-                "completed",
-                "cancelled"
-              ]
-            }
-          }
-        },
-        {
-          "Custom": {
-            "name": "domain_category",
-            "kind": {
-              "Enum": [
-                "RET10",
-                "RET12",
-                "RET13",
-                "RET14",
-                "RET15",
-                "RET16",
-                "RET1A",
-                "RET1B",
-                "RET1C"
-              ]
-            }
-          }
-        },
-        "Uuid",
-        "Text",
-        "Text",
-        "Text",
-        {
-          "Custom": {
-            "name": "data_source",
-            "kind": {
-              "Enum": [
-                "place_order",
-                "ondc",
-                "rapidor"
-              ]
-            }
-          }
-        },
-        "Timestamptz",
-        "Uuid",
-        "Text",
-        "Text",
-        "Text",
-        "Text",
-        "Bool",
-        "Text",
-        "Timestamptz",
-        {
+        "name": "item_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "currency_code: CurrencyType",
+        "type_info": {
           "Custom": {
             "name": "currency_code_type",
             "kind": {
@@ -97,9 +23,64 @@
               ]
             }
           }
-        },
-        "Numeric",
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "item_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "item_code",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "seller_subscriber_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "price_slab?: Json<Vec<ONDCSellePriceSlab>>",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 6,
+        "name": "provider_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "tax_rate",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 8,
+        "name": "unit_price_with_tax",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 9,
+        "name": "unit_price_without_tax",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 10,
+        "name": "mrp",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 11,
+        "name": "images",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
         "Text",
+        "Text",
+        "TextArray",
         {
           "Custom": {
             "name": "country_code",
@@ -358,8 +339,19 @@
       ]
     },
     "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
       false
     ]
   },
-  "hash": "3baf654508ff8e8e2a45cda5ef191b4e4c54ec6d52ef3b8298e037ac82c5c971"
+  "hash": "79eac54bfe7deaf055acad181a3afb00ff9b9fef5971413f78b4941729dc3ce0"
 }
