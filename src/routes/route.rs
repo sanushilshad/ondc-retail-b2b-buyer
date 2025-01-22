@@ -1,4 +1,5 @@
 use super::ondc::{ondc_route, SellerHeaderVerification};
+use super::payment::payment_route;
 use crate::middleware::HeaderValidation;
 use crate::openapi::ApiDoc;
 use crate::routes::{notification_route, order_route, product_route, util_route};
@@ -13,6 +14,11 @@ pub fn main_route(cfg: &mut web::ServiceConfig) {
         .service(
             web::scope("/order")
                 .configure(order_route)
+                .wrap(HeaderValidation),
+        )
+        .service(
+            web::scope("/payment")
+                .configure(payment_route)
                 .wrap(HeaderValidation),
         )
         .service(
