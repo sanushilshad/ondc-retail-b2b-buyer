@@ -1,7 +1,7 @@
 mod notification;
 pub mod ondc;
 pub mod order;
-mod payment;
+pub mod payment;
 pub mod product;
 mod route;
 mod util;

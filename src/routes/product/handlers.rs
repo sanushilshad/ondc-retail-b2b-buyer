@@ -17,7 +17,7 @@ use sqlx::PgPool;
     path = "/product/realtime/search",
     tag = "Product",
     description="This API generates the ONDC search request based on user input.",
-    summary= "Realtime Product Search",
+    summary= "Realtime Product Search Request",
     request_body(content = ProductSearchRequest, description = "Request Body"),
     responses(
         (status=200, description= "Realtime Product Search", body= GenericResponse<TupleUnit>),

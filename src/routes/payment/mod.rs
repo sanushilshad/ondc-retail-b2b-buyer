@@ -1,6 +1,6 @@
 mod errors;
-mod handlers;
+pub mod handlers;
 mod routes;
-mod schemas;
+pub(crate) mod schemas;
 mod utils;
 pub use routes::payment_route;

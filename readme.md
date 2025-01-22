@@ -24,8 +24,8 @@ The progress can be tracked here: [milestones](#MILESTONES)
 | User Service | Service for all ONDC related User APIs |
 | Short URL Service | Service for generating Short URL |
 | Chat Service | Service for generating chat links |
-
-
+| Observability Service | Service for Pushing Observability |
+| Payment Service | Service for payment |
 
 ## CUSTOM MIGRATION COMMAND FOR DEBUG:
 
