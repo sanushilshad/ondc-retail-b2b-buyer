@@ -10,6 +10,7 @@ use crate::routes::product::schemas::FulfillmentType;
 use crate::routes::product::schemas::{CategoryDomain, PaymentType};
 use crate::schemas::DataSource;
 use crate::schemas::{CountryCode, CurrencyType, FeeType};
+use crate::user_client::{AllowedPermission, PermissionType};
 use crate::utils::pascal_to_snake_case;
 // use crate::utils::deserialize_non_empty_vector;
 use actix_http::Payload;
@@ -23,7 +24,7 @@ use futures_util::future::LocalBoxFuture;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use uuid::Uuid;
-#[derive(Deserialize, Debug, ToSchema)]
+#[derive(Deserialize, Debug, ToSchema, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BuyerTerms {
     pub item_req: String,
@@ -64,7 +65,7 @@ pub struct SelectFulfillmentLocation {
     pub contact_mobile_no: String,
 }
 
-#[derive(Deserialize, Debug, ToSchema, sqlx::Type)]
+#[derive(Deserialize, Debug, ToSchema, sqlx::Type, Serialize)]
 #[sqlx(type_name = "inco_term_type", rename_all = "UPPERCASE")]
 #[serde(rename_all = "UPPERCASE")]
 pub enum IncoTermType {
@@ -213,7 +214,7 @@ impl FromRequest for OrderSelectRequest {
     }
 }
 
-#[derive(Deserialize, Debug, sqlx::Type, ToSchema)]
+#[derive(Deserialize, Debug, sqlx::Type, ToSchema, Serialize)]
 #[sqlx(type_name = "commerce_status", rename_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
 pub enum CommerceStatusType {
@@ -324,13 +325,13 @@ impl FromRequest for OrderInitRequest {
     }
 }
 
-#[derive(Deserialize, Debug, ToSchema)]
+#[derive(Deserialize, Debug, ToSchema, Serialize)]
 pub struct CommerceSeller {
     pub id: String,
     pub name: Option<String>,
 }
 
-#[derive(Deserialize, Debug, ToSchema)]
+#[derive(Deserialize, Debug, ToSchema, Serialize)]
 pub struct BasicNetworkData {
     pub id: String,
     pub uri: String,
@@ -366,7 +367,7 @@ impl SettlementBasis {
     }
 }
 
-#[derive(Deserialize, Debug, ToSchema)]
+#[derive(Deserialize, Debug, ToSchema, Serialize)]
 pub struct SellerPaymentDetail {
     pub uri: String,
     pub ttl: Option<String>,
@@ -374,7 +375,7 @@ pub struct SellerPaymentDetail {
     pub signature: Option<String>,
 }
 
-#[derive(Deserialize, Debug, ToSchema)]
+#[derive(Deserialize, Debug, ToSchema, Serialize)]
 pub struct CommercePayment {
     #[schema(value_type = String)]
     pub id: Uuid,
@@ -423,7 +424,7 @@ impl std::fmt::Display for FulfillmentStatusType {
         write!(f, "{}", pascal_to_snake_case(&format!("{:?}", self)))
     }
 }
-#[derive(Deserialize, Debug, ToSchema)]
+#[derive(Deserialize, Debug, ToSchema, Serialize)]
 pub struct DeliveryTerm {
     pub inco_terms: IncoTermType,
     pub place_of_delivery: String,
@@ -479,7 +480,7 @@ pub struct PickUpData {
     pub time_range: Option<TimeRange>,
     pub contact: FulfillmentContact,
 }
-#[derive(Deserialize, Debug, ToSchema)]
+#[derive(Deserialize, Debug, ToSchema, Serialize)]
 pub struct CommerceFulfillment {
     pub id: String,
     pub fulfillment_id: String,
@@ -502,7 +503,7 @@ pub struct CommerceFulfillment {
     pub trade_type: Option<TradeType>,
 }
 
-#[derive(Deserialize, Debug, ToSchema)]
+#[derive(Deserialize, Debug, ToSchema, Serialize)]
 pub struct BuyerTerm {
     pub item_req: String,
     pub packaging_req: String,
@@ -519,7 +520,7 @@ pub struct CommerceBilling {
     pub phone: String,
 }
 
-#[derive(Deserialize, Debug, ToSchema)]
+#[derive(Deserialize, Debug, ToSchema, Serialize)]
 pub struct CommerceItem {
     #[schema(value_type = String)]
     pub id: Uuid,
@@ -560,7 +561,7 @@ pub struct CommerceCancellationTerm {
     pub cancellation_fee: CommerceCancellationFee,
 }
 
-#[derive(Deserialize, Debug, ToSchema)]
+#[derive(Deserialize, Debug, ToSchema, Serialize)]
 pub struct CommerceBPPTerms {
     pub max_liability: String,
     pub max_liability_cap: String,
@@ -569,7 +570,7 @@ pub struct CommerceBPPTerms {
     pub delay_interest: String,
 }
 
-#[derive(Deserialize, Debug, ToSchema)]
+#[derive(Deserialize, Debug, ToSchema, Serialize)]
 pub struct Commerce {
     #[schema(value_type = String)]
     pub id: Uuid,
@@ -775,7 +776,7 @@ impl FromRequest for OrderCancelRequest {
     }
 }
 
-#[derive(Deserialize, Debug, ToSchema, sqlx::Type, PartialEq)]
+#[derive(Deserialize, Debug, ToSchema, sqlx::Type, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 #[sqlx(type_name = "trade_type", rename_all = "snake_case")]
 pub enum TradeType {
@@ -907,4 +908,96 @@ impl FromRequest for OrderUpdateRequest {
             }
         })
     }
+}
+
+#[derive(Deserialize, Debug, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct OrderReadRequest {
+    #[schema(value_type = String)]
+    pub transaction_id: Uuid,
+}
+impl FromRequest for OrderReadRequest {
+    type Error = GenericError;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
+
+    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+        let fut = web::Json::<Self>::from_request(req, payload);
+
+        Box::pin(async move {
+            match fut.await {
+                Ok(json) => Ok(json.into_inner()),
+                Err(e) => Err(GenericError::ValidationError(e.to_string())),
+            }
+        })
+    }
+}
+
+#[derive(Deserialize, Debug, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct OrderListRequest {
+    #[schema(value_type = Option<String>)]
+    pub transaction_id: Option<Uuid>,
+    pub start_date: Option<DateTime<Utc>>,
+    pub end_date: Option<DateTime<Utc>>,
+    pub offset: i32,
+    pub limit: i32,
+}
+
+impl FromRequest for OrderListRequest {
+    type Error = GenericError;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
+
+    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+        let fut = web::Json::<Self>::from_request(req, payload);
+
+        Box::pin(async move {
+            match fut.await {
+                Ok(json) => Ok(json.into_inner()),
+                Err(e) => Err(GenericError::ValidationError(e.to_string())),
+            }
+        })
+    }
+}
+
+#[derive(Debug)]
+
+pub struct OrderListFilter {
+    pub transaction_id: Option<Uuid>,
+    pub start_date: Option<DateTime<Utc>>,
+    pub end_date: Option<DateTime<Utc>>,
+    pub offset: i32,
+    pub limit: i32,
+    pub user_id: Uuid,
+    pub business_id: Uuid,
+    pub permission_list: Vec<PermissionType>,
+}
+
+impl OrderListFilter {
+    pub fn new(
+        list_request: OrderListRequest,
+        permission_list: AllowedPermission,
+    ) -> OrderListFilter {
+        OrderListFilter {
+            transaction_id: list_request.transaction_id,
+            start_date: list_request.start_date,
+            end_date: list_request.end_date,
+            offset: list_request.offset,
+            limit: list_request.limit,
+            user_id: permission_list.user_id,
+            business_id: permission_list.business_id,
+            permission_list: permission_list.permission_list,
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommerceList {
+    pub id: Uuid,
+    pub external_urn: Uuid,
+    pub urn: String,
+    pub currency_code: CurrencyType,
+    pub grand_total: BigDecimal,
+    pub record_status: CommerceStatusType,
+    pub created_on: DateTime<Utc>,
 }

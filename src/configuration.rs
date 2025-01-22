@@ -1,7 +1,7 @@
 use crate::{
     chat_client::ChatClient, domain::EmailObject, elastic_search_client::ElasticSearchClient,
-    email_client::SmtpEmailClient, kafka_client::KafkaClient, redis::RedisClient,
-    user_client::UserClient, websocket_client::WebSocketClient,
+    email_client::SmtpEmailClient, kafka_client::KafkaClient, payment_client::PaymentClient,
+    redis::RedisClient, user_client::UserClient, websocket_client::WebSocketClient,
 };
 use config::{self, ConfigError, Environment};
 use secrecy::{ExposeSecret, SecretString};
@@ -48,6 +48,7 @@ pub struct Config {
     pub chat: ChatConfig,
     pub kafka: KafkaConfig,
     pub elastic_search: ElasticSearchConfig,
+    pub payment: PaymentConfig,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -109,6 +110,23 @@ impl ChatConfig {
     pub fn client(self) -> ChatClient {
         let timeout = self.timeout();
         ChatClient::new(self.base_url, self.token, timeout)
+    }
+    fn timeout(&self) -> std::time::Duration {
+        std::time::Duration::from_millis(self.timeout_milliseconds)
+    }
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct PaymentConfig {
+    token: SecretString,
+    base_url: String,
+    timeout_milliseconds: u64,
+}
+
+impl PaymentConfig {
+    pub fn client(self) -> PaymentClient {
+        let timeout = self.timeout();
+        PaymentClient::new(self.base_url, self.token, timeout)
     }
     fn timeout(&self) -> std::time::Duration {
         std::time::Duration::from_millis(self.timeout_milliseconds)

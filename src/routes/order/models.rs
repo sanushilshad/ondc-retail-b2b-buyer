@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use crate::routes::product::schemas::{CategoryDomain, FulfillmentType, PaymentType};
 use crate::schemas::DataSource;
 use crate::schemas::{CountryCode, CurrencyType, FeeType};
@@ -8,7 +10,7 @@ use sqlx::FromRow;
 use uuid::Uuid;
 
 use super::schemas::{
-    CancellationFeeType, CommerceStatusType, DocumentType, FulfillmentCategoryType,
+    CancellationFeeType, CommerceList, CommerceStatusType, DocumentType, FulfillmentCategoryType,
     FulfillmentStatusType, IncoTermType, OrderType, PaymentCollectedBy,
     PaymentSettlementCounterparty, PaymentSettlementPhase, PaymentSettlementType, ServiceableType,
     SettlementBasis, TradeType,
@@ -226,4 +228,32 @@ pub struct PickUpLocationModel {
 pub struct CommerceDocumentModel {
     pub r#type: DocumentType,
     pub url: String,
+}
+
+#[derive(Deserialize, Debug, FromRow)]
+// #[serde(rename_all = "snake_C")]
+pub struct CommerceListModel {
+    pub id: Uuid,
+    pub external_urn: Uuid,
+    pub urn: String,
+    pub currency_code: CurrencyType,
+    pub grand_total: Option<BigDecimal>,
+    pub record_status: CommerceStatusType,
+    pub created_on: DateTime<Utc>,
+}
+
+impl CommerceListModel {
+    pub fn schema(self) -> CommerceList {
+        CommerceList {
+            id: self.id,
+            external_urn: self.external_urn,
+            urn: self.urn,
+            currency_code: self.currency_code,
+            grand_total: self
+                .grand_total
+                .unwrap_or(BigDecimal::from_str("0.00").unwrap()),
+            record_status: self.record_status,
+            created_on: self.created_on,
+        }
+    }
 }

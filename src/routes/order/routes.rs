@@ -3,7 +3,8 @@ use crate::user_client::{CustomerType, PermissionType};
 use actix_web::web;
 
 use super::handlers::{
-    order_cancel, order_confirm, order_init, order_select, order_status, order_update,
+    order_cancel, order_confirm, order_fetch, order_init, order_list, order_select, order_status,
+    order_update,
 };
 pub fn order_route(cfg: &mut web::ServiceConfig) {
     cfg.service(
@@ -75,6 +76,28 @@ pub fn order_route(cfg: &mut web::ServiceConfig) {
             .route(web::post().to(order_update))
             .wrap(BusinessPermissionValidation {
                 permission_list: vec![PermissionType::UpdateOrder, PermissionType::UpdateOrderSelf],
+            })
+            .wrap(BusinessAccountValidation {
+                business_type_list: vec![CustomerType::RetailB2bBuyer],
+            })
+            .wrap(RequireAuth),
+    );
+    cfg.service(
+        web::resource("/read")
+            .route(web::post().to(order_fetch))
+            .wrap(BusinessPermissionValidation {
+                permission_list: vec![PermissionType::ReadOrder, PermissionType::ReadOrderSelf],
+            })
+            .wrap(BusinessAccountValidation {
+                business_type_list: vec![CustomerType::RetailB2bBuyer],
+            })
+            .wrap(RequireAuth),
+    );
+    cfg.service(
+        web::resource("/list")
+            .route(web::post().to(order_list))
+            .wrap(BusinessPermissionValidation {
+                permission_list: vec![PermissionType::ListOrder, PermissionType::ListOrderSelf],
             })
             .wrap(BusinessAccountValidation {
                 business_type_list: vec![CustomerType::RetailB2bBuyer],

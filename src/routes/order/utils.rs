@@ -1,19 +1,20 @@
 use super::errors::SelectOrderError;
 use super::models::{
     CommerceBppTermsModel, CommerceDataModel, CommerceDocumentModel, CommerceFulfillmentModel,
-    CommerceItemModel, CommercePaymentModel, DropOffContactModel, DropOffDataModel,
-    DropOffLocationModel, FulfillmentInstruction, OrderBillingModel, OrderCancellationFeeModel,
-    OrderCancellationTermModel, PaymentSettlementDetailModel, PickUpContactModel, PickUpDataModel,
-    PickUpLocationModel, SellerPaymentDetailModel, TimeRangeModel,
+    CommerceItemModel, CommerceListModel, CommercePaymentModel, DropOffContactModel,
+    DropOffDataModel, DropOffLocationModel, FulfillmentInstruction, OrderBillingModel,
+    OrderCancellationFeeModel, OrderCancellationTermModel, PaymentSettlementDetailModel,
+    PickUpContactModel, PickUpDataModel, PickUpLocationModel, SellerPaymentDetailModel,
+    TimeRangeModel,
 };
 use super::schemas::{
     BasicNetworkData, BulkCancelFulfillmentData, BulkCancelItemData, BulkConfirmFulfillmentData,
     BulkStatusFulfillmentData, BuyerTerm, Commerce, CommerceBPPTerms, CommerceBilling,
     CommerceCancellationFee, CommerceCancellationTerm, CommerceDocument, CommerceFulfillment,
-    CommerceItem, CommercePayment, CommerceSeller, DocumentType, DropOffData, FulfillmentContact,
-    FulfillmentLocation, OrderSelectFulfillment, OrderSelectRequest, PaymentSettlementDetail,
-    PickUpData, PickUpFulfillmentLocation, SelectFulfillmentLocation, SellerPaymentDetail,
-    TimeRange, TradeType,
+    CommerceItem, CommerceList, CommercePayment, CommerceSeller, DocumentType, DropOffData,
+    FulfillmentContact, FulfillmentLocation, OrderListFilter, OrderSelectFulfillment,
+    OrderSelectRequest, PaymentSettlementDetail, PickUpData, PickUpFulfillmentLocation,
+    SelectFulfillmentLocation, SellerPaymentDetail, TimeRange, TradeType,
 };
 use crate::chat_client::{
     ChatClient, ChatData, ChatMessageType, ChatParticipant, SendMessageDataDescription,
@@ -43,7 +44,7 @@ use crate::schemas::{
 };
 use crate::schemas::{DataSource, SeriesNoType};
 use crate::user_client::{
-    get_vector_val_from_list, BusinessAccount, SettingData, UserAccount, VectorType,
+    get_vector_val_from_list, BusinessAccount, PermissionType, SettingData, UserAccount, VectorType,
 };
 use crate::utils::{get_gps_string, get_series_no};
 use anyhow::{anyhow, Context};
@@ -51,7 +52,7 @@ use bigdecimal::{BigDecimal, ToPrimitive};
 use chrono::Utc;
 use serde_json::Value;
 use sqlx::types::Json;
-use sqlx::{Executor, PgPool, Postgres, Transaction};
+use sqlx::{Executor, PgPool, Postgres, QueryBuilder, Transaction};
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 use uuid::Uuid;
@@ -1323,7 +1324,7 @@ async fn get_commerce_fulfillments(
             place_of_delivery,
             provider_name,
             category as "category?: FulfillmentCategoryType",
-            servicable_status as "servicable_status!: ServiceableType", 
+            servicable_status as "servicable_status?: ServiceableType", 
             drop_off_data as "drop_off_data!:  Json<Option<DropOffDataModel>>",
             pickup_data as "pickup_data!:  Json<PickUpDataModel>",
             tracking,
@@ -3163,4 +3164,75 @@ pub async fn send_rfq_status_chat(
     chat_client
         .send_chat_data(transaction_id, sender, data)
         .await
+}
+
+#[tracing::instrument(name = "fetch_order_list_data_model", skip(pool), fields())]
+async fn fetch_order_list_data_model(
+    pool: &PgPool,
+    filter: OrderListFilter,
+) -> Result<Vec<CommerceListModel>, anyhow::Error> {
+    let mut query = QueryBuilder::new(
+        r#"
+        SELECT 
+            id,
+            external_urn, 
+            urn,
+            currency_code,
+            grand_total,
+            record_status,
+            created_on
+        FROM 
+            commerce_data
+        WHERE is_deleted = false
+        "#,
+    );
+
+    query.push(" AND buyer_id = ");
+    query.push_bind(filter.business_id);
+    if filter
+        .permission_list
+        .contains(&PermissionType::ListOrderSelf)
+    {
+        query.push(" AND created_by = ");
+        query.push_bind(filter.user_id);
+    }
+
+    if let Some(transaction_id) = filter.transaction_id {
+        query.push(" AND transaction_id = ");
+        query.push_bind(transaction_id);
+    }
+
+    if let Some(from_date) = filter.start_date {
+        query.push(" AND created_on >= ");
+        query.push_bind(from_date);
+    }
+
+    if let Some(to_date) = filter.end_date {
+        query.push(" AND created_on <= ");
+        query.push_bind(to_date);
+    }
+
+    query.push(" OFFSET ");
+    query.push_bind(filter.offset);
+
+    query.push(" LIMIT ");
+    query.push_bind(filter.limit);
+    let query_string = query.sql();
+    println!("Generated SQL query: {}", query_string);
+    let rows: Vec<CommerceListModel> =
+        query.build_query_as().fetch_all(pool).await.map_err(|e| {
+            tracing::error!("Failed to execute query: {:?}", e);
+            anyhow::Error::new(e).context("Failed to fetch order list from the database")
+        })?;
+
+    Ok(rows)
+}
+
+#[tracing::instrument(name = "get_order_list", skip(pool), fields())]
+pub async fn get_order_list(
+    pool: &PgPool,
+    filter: OrderListFilter,
+) -> Result<Vec<CommerceList>, anyhow::Error> {
+    let models = fetch_order_list_data_model(pool, filter).await?;
+    Ok(models.into_iter().map(|a| a.schema()).collect())
 }

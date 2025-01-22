@@ -10,6 +10,7 @@ pub mod middleware;
 pub mod migration;
 pub mod models;
 pub mod openapi;
+pub mod payment_client;
 pub mod redis;
 pub mod routes;
 pub mod schemas;

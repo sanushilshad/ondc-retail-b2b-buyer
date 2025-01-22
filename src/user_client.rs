@@ -65,6 +65,14 @@ pub enum PermissionType {
     CancelOrder,
     #[serde(rename = "cancel:order:self")]
     CancelOrderSelf,
+    #[serde(rename = "read:order:self")]
+    ReadOrderSelf,
+    #[serde(rename = "list:order:self")]
+    ListOrderSelf,
+    #[serde(rename = "read:order")]
+    ReadOrder,
+    #[serde(rename = "list:order")]
+    ListOrder,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -526,9 +534,9 @@ impl BusinessPermissionRequest {
 }
 #[derive(Debug, Clone)]
 pub struct AllowedPermission {
-    user_id: Uuid,
-    business_id: Uuid,
-    permission_list: Vec<PermissionType>,
+    pub user_id: Uuid,
+    pub business_id: Uuid,
+    pub permission_list: Vec<PermissionType>,
 }
 
 impl AllowedPermission {
@@ -545,9 +553,11 @@ impl AllowedPermission {
         commerce_data: &Commerce,
         permission_type: PermissionType,
     ) -> bool {
-        self.permission_list.contains(&permission_type)
-            && self.user_id == commerce_data.created_by
-            && self.business_id == commerce_data.buyer_id
+        if !self.permission_list.contains(&permission_type) {
+            return true;
+        }
+
+        self.user_id == commerce_data.created_by && self.business_id == commerce_data.buyer_id
     }
 }
 

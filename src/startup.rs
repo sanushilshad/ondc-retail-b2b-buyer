@@ -71,6 +71,7 @@ async fn run(
     let chat_client = web::Data::new(configuration.chat.client());
     let redis_app = web::Data::new(configuration.redis.client());
     let es_client = web::Data::new(configuration.elastic_search.client());
+    let payment_client = web::Data::new(configuration.payment.client());
     // es_client.send().await;
     // let kafka_producer = kafka_client.create_producer().await;
 
@@ -92,6 +93,7 @@ async fn run(
             .app_data(chat_client.clone())
             .app_data(kafka_client.clone())
             .app_data(es_client.clone())
+            .app_data(payment_client.clone())
             .configure(main_route)
     })
     .workers(configuration.application.workers)

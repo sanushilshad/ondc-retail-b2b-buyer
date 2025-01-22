@@ -70,7 +70,7 @@ impl ChatClient {
         authorization_token: SecretString,
         timeout: std::time::Duration,
     ) -> Self {
-        tracing::info!("Establishing connection to the Websocket server.");
+        tracing::info!("Establishing connection to the chat server.");
         let http_client = Client::builder().timeout(timeout).build().unwrap();
         Self {
             http_client,

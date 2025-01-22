@@ -23,12 +23,13 @@ use crate::schemas::{GenericResponse, ONDCNetworkType, RequestMetaData};
 use sqlx::PgPool;
 
 use super::schemas::{
-    OrderCancelRequest, OrderConfirmRequest, OrderInitRequest, OrderSelectRequest,
-    OrderStatusRequest, OrderType, OrderUpdateRequest,
+    Commerce, CommerceList, OrderCancelRequest, OrderConfirmRequest, OrderInitRequest,
+    OrderListFilter, OrderListRequest, OrderReadRequest, OrderSelectRequest, OrderStatusRequest,
+    OrderType, OrderUpdateRequest,
 };
 use super::utils::{
-    fetch_order_by_id, get_chat_links, initialize_order_select, save_ondc_order_request,
-    send_rfq_request_chat, validate_select_request,
+    fetch_order_by_id, get_chat_links, get_order_list, initialize_order_select,
+    save_ondc_order_request, send_rfq_request_chat, validate_select_request,
 };
 
 #[utoipa::path(
@@ -683,5 +684,104 @@ pub async fn order_update(
     Ok(web::Json(GenericResponse::success(
         "Successfully send update request",
         Some(()),
+    )))
+}
+
+#[utoipa::path(
+    post,
+    path = "/order/read",
+    tag = "Order",
+    description="This API fetches Full Order Detail.",
+    summary= "Order Fetch Request",
+    request_body(content = OrderReadRequest, description = "Request Body"),
+    responses(
+        (status=200, description= "Order Update Response", body= GenericResponse<Commerce>),
+        (status=400, description= "Invalid Request body", body= GenericResponse<TupleUnit>),
+        (status=401, description= "Invalid Token", body= GenericResponse<TupleUnit>),
+	    (status=403, description= "Insufficient Previlege", body= GenericResponse<TupleUnit>),
+	    (status=410, description= "Data not found", body= GenericResponse<TupleUnit>),
+        (status=500, description= "Internal Server Error", body= GenericResponse<TupleUnit>),
+	    (status=501, description= "Not Implemented", body= GenericResponse<TupleUnit>),
+    )
+)]
+#[tracing::instrument(name = "order fetch", skip(pool), fields(transaction_id = %body.transaction_id))]
+pub async fn order_fetch(
+    body: OrderReadRequest,
+    pool: web::Data<PgPool>,
+    user_account: UserAccount,
+    business_account: BusinessAccount,
+    allowed_permission: AllowedPermission,
+) -> Result<web::Json<GenericResponse<Commerce>>, GenericError> {
+    println!(
+        "grape {}: {}",
+        allowed_permission.user_id, allowed_permission.business_id
+    );
+    let order = fetch_order_by_id(&pool, body.transaction_id)
+        .await
+        .map_err(|e| {
+            tracing::error!(
+                "Database error while fetching order with transaction_id {}: {:?}",
+                body.transaction_id,
+                e
+            );
+            GenericError::DatabaseError("Failed to fetch order".to_string(), e)
+        })?
+        .ok_or_else(|| {
+            tracing::warn!(
+                "Order not found for transaction_id: {}",
+                body.transaction_id
+            );
+            GenericError::ValidationError("Order not found".to_string())
+        })?;
+
+    println!(
+        "grape1 {}: {}",
+        allowed_permission.user_id, allowed_permission.business_id
+    );
+    if !allowed_permission.validate_commerce_self(&order, PermissionType::ReadOrderSelf) {
+        return Err(GenericError::InsufficientPrevilegeError(
+            "You do not have sufficent preveliege to read the order".to_owned(),
+        ));
+    }
+
+    Ok(web::Json(GenericResponse::success(
+        "Successfully fetched order details",
+        Some(order),
+    )))
+}
+
+#[utoipa::path(
+    post,
+    path = "/order/list",
+    tag = "Order",
+    description="This API List all the orders of given query.",
+    summary= "Order Fetch Request",
+    request_body(content = OrderListRequest, description = "Request Body"),
+    responses(
+        (status=200, description= "Order Update Response", body= GenericResponse<TupleUnit>),
+        (status=400, description= "Invalid Request body", body= GenericResponse<TupleUnit>),
+        (status=401, description= "Invalid Token", body= GenericResponse<TupleUnit>),
+	    (status=403, description= "Insufficient Previlege", body= GenericResponse<TupleUnit>),
+	    (status=410, description= "Data not found", body= GenericResponse<TupleUnit>),
+        (status=500, description= "Internal Server Error", body= GenericResponse<TupleUnit>),
+	    (status=501, description= "Not Implemented", body= GenericResponse<TupleUnit>),
+    )
+)]
+#[tracing::instrument(name = "order fetch", skip(pool), fields())]
+pub async fn order_list(
+    body: OrderListRequest,
+    pool: web::Data<PgPool>,
+    user_account: UserAccount,
+    business_account: BusinessAccount,
+    allowed_permission: AllowedPermission,
+) -> Result<web::Json<GenericResponse<Vec<CommerceList>>>, GenericError> {
+    let list_filter = OrderListFilter::new(body, allowed_permission);
+    let data = get_order_list(&pool, list_filter).await.map_err(|e| {
+        tracing::error!("Database error while fetching order list: {:?}", e);
+        GenericError::DatabaseError("Failed to fetch order list".to_string(), e)
+    })?;
+    Ok(web::Json(GenericResponse::success(
+        "Successfully fetched orders",
+        Some(data),
     )))
 }

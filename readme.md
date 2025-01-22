@@ -138,6 +138,11 @@ export KAFKA__SEARCH_TOPIC_NAME="test_ondc_search"
 ## ELASTICSEARCH SEARCH 
 export ELASTIC_SEARCH__URL="https://0.0.0.0:9200"
 
+## PAYMENT SERVICE
+export PAYMENT__TOKEN=""
+export PAYMENT__BASE_URL="http://0.0.0.0:5608"
+export PAYMENT__TIMEOUT_MILLISECONDS=600000
+
 
 - In order to verify SQL queries at compile time, set the below config in `.env` file:
 ```
@@ -238,7 +243,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 ```
 
 
-## MILESTONES (47/68)
+## MILESTONES (49/64)
 ### MILESTONE 1 (Jan 18, 2023 - Jul 22, 2024):
 * [x] Set up basic actix web server
 * [x] Add environment config fetch
@@ -293,36 +298,29 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [x] Develop Business Specific Config Module.
 * [x] Add Order series generation.
 * [x] Integrate ElasticSearch.
-* [ ] Develop Product Caching.
+* [x] Develop Order Meta Data Fetch API
+* [x] Develop Order Detail Fetch API.
 * [ ] Integrate BAP Payment Gateway.
+* [ ] Develop Product Caching.
 * [ ] Develop and Integrate Observability Module.
 
 
 
 ### MILESTONE 4:
+* [ ] Develop Cancellation Code Fetch API
 * [ ] Develop common Microservice to fetch city codes, etc.
 * [ ] Add test cases for milestone 2 (Only unit tests)
 
 ### MILESTONE 5:
-* [ ] Develop IGM issue API.
-* [ ] Develop ONDC on issue API.
-* [ ] Develop IGM issue_status API.
-* [ ] Develop ONDC on issue_status API.
-* [ ] Develop IGM issue close API.
-
-
-### MILESTONE 6:
-* [ ] Develop Order Meta Data Fetch API
-* [ ] Develop Order Detail Fetch API
-* [ ] Develop Cancellation Code Fetch API
+* [ ] Develop IGM Service and integrate.
 * [ ] Integrate with notification microservice to enable WhatsApp, Email and SMS functionality
 
-### MILESTONE 7:
+### MILESTONE 6:
 * [ ] Complete validation for search/ select/ init/ confirm/ status/ cancel/ update APIs
 * [ ] Complete validation ONDC for on_search/ on_select/ on_init/ on_confirm/ on_status/ on_cancel/ on_update APIs
 
 
-### MILESTONE 8:
+### MILESTONE 7:
 * [ ] Develop info API
 * [ ] Develop ONDC info API
 * [ ] Develop new config fetch (will be given the last priority)

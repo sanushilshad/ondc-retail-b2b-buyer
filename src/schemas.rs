@@ -633,3 +633,9 @@ pub enum RequestType {
 pub enum SeriesNoType {
     Order,
 }
+
+#[derive(Debug, Deserialize, Serialize, ToSchema, sqlx::Type)]
+pub enum TimeZones {
+    #[serde(rename = "Asia/Kolkata")]
+    AsiaKolkata,
+}
