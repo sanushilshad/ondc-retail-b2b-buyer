@@ -15,7 +15,7 @@ impl ElasticSearchClient {
     #[tracing::instrument]
     pub fn new(base_url: String) -> Self {
         let url = Url::parse(&base_url).expect("Something went wrong while parsing url");
-        tracing::info!("Establishing connection to the Websocket server.");
+        tracing::info!("Establishing connection to the ElasticSearch server.");
         let conn_pool = SingleNodeConnectionPool::new(url);
         // let credentials = Credentials::new(
         //     "key".to_owned(),
