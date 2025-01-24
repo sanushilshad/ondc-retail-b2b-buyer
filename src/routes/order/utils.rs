@@ -434,18 +434,21 @@ pub async fn save_payment_obj_select(
     // delete_on_select_payment(transaction, order_id).await?;
     let mut id_list = vec![];
     let mut commerce_data_id_list = vec![];
+    let mut payment_status_list = vec![];
     for _ in 0..payments.len() {
         id_list.push(Uuid::new_v4());
         commerce_data_id_list.push(order_id);
+        payment_status_list.push(PaymentStatus::NotPaid);
     }
     let query = sqlx::query!(
         r#"
-        INSERT INTO commerce_payment_data(id, commerce_data_id, payment_type)
-            SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::payment_type[])
+        INSERT INTO commerce_payment_data(id, commerce_data_id, payment_type, payment_status)
+            SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::payment_type[], $4::payment_status[])
         "#,
         &id_list[..] as &[Uuid],
         &commerce_data_id_list[..] as &[Uuid],
-        &payments[..] as &[PaymentType]
+        &payments[..] as &[PaymentType],
+        &payment_status_list[..] as &[PaymentStatus]
     );
 
     transaction.execute(query).await.map_err(|e| {
@@ -977,21 +980,24 @@ pub async fn save_payment_obj_on_select(
     let mut commerce_data_id_list = vec![];
     let mut collected_by_list = vec![];
     let mut payment_type_list = vec![];
+    let mut payment_status_list = vec![];
     for payment in payments {
         id_list.push(Uuid::new_v4());
         commerce_data_id_list.push(order_id);
         collected_by_list.push(payment.collected_by.get_type());
         payment_type_list.push(payment.r#type.get_payment());
+        payment_status_list.push(PaymentStatus::NotPaid);
     }
     let query = sqlx::query!(
         r#"
-        INSERT INTO commerce_payment_data(id, commerce_data_id, collected_by, payment_type)
-            SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::payment_collected_by_type[],  $4::payment_type[])
+        INSERT INTO commerce_payment_data(id, commerce_data_id, collected_by, payment_type, payment_status)
+            SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::payment_collected_by_type[],  $4::payment_type[],  $5::payment_status[])
         "#,
         &id_list[..] as &[Uuid],
         &commerce_data_id_list[..] as &[Uuid],
         &collected_by_list[..] as &[PaymentCollectedBy],
-        &payment_type_list[..] as &[PaymentType]
+        &payment_type_list[..] as &[PaymentType],
+        &payment_status_list[..] as &[PaymentStatus]
     );
 
     transaction.execute(query).await.map_err(|e| {
@@ -1284,7 +1290,10 @@ async fn get_commerce_payments(
             settlement_window,
             settlement_basis as "settlement_basis?: SettlementBasis",
             withholding_amount,
-            settlement_details as "settlement_details?: Json<Vec<PaymentSettlementDetailModel>>"
+            settlement_details as "settlement_details?: Json<Vec<PaymentSettlementDetailModel>>",
+            payment_status as "payment_status?: PaymentStatus",
+            payment_id,
+            payment_order_id
         FROM commerce_payment_data 
         WHERE commerce_data_id = $1
         "#,
@@ -1690,7 +1699,7 @@ pub async fn initialize_payment_on_init(
     let mut settlement_window_list = vec![];
     let mut withholding_amount_list = vec![];
     let mut settlement_basis_list = vec![];
-
+    let mut payment_status_list = vec![];
     let mut settlement_detail_list = vec![];
     let mut seller_payment_detail_list = vec![];
     for payment in payments {
@@ -1702,7 +1711,7 @@ pub async fn initialize_payment_on_init(
         buyer_fee_amount_list
             .push(BigDecimal::from_str(&payment.buyer_app_finder_fee_amount).unwrap());
         settlement_window_list.push(payment.settlement_window.as_deref());
-
+        payment_status_list.push(PaymentStatus::NotPaid);
         withholding_amount_list.push(
             payment
                 .withholding_amount
@@ -1769,10 +1778,10 @@ pub async fn initialize_payment_on_init(
     let query = sqlx::query!(
         r#"
         INSERT INTO commerce_payment_data(id, commerce_data_id, collected_by, payment_type, buyer_fee_type,
-             buyer_fee_amount, settlement_window, withholding_amount, settlement_basis, settlement_details, seller_payment_detail)
+             buyer_fee_amount, settlement_window, withholding_amount, settlement_basis, settlement_details, seller_payment_detail, payment_status)
             SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::payment_collected_by_type[],
             $4::payment_type[], $5::ondc_np_fee_type[], $6::decimal[], $7::text[], $8::decimal[],
-            $9::settlement_basis_type[],$10::jsonb[], $11::jsonb[])
+            $9::settlement_basis_type[],$10::jsonb[], $11::jsonb[], $12::payment_status[])
         "#,
         &id_list[..] as &[Uuid],
         &commerce_data_id_list[..] as &[Uuid],
@@ -1784,7 +1793,8 @@ pub async fn initialize_payment_on_init(
         &withholding_amount_list[..] as &[BigDecimal],
         &settlement_basis_list[..] as &[Option<SettlementBasis>],
         &settlement_detail_list[..] as &[Option<Value>],
-        &seller_payment_detail_list[..] as &[Option<Value>]
+        &seller_payment_detail_list[..] as &[Option<Value>],
+        &payment_status_list[..] as &[PaymentStatus]
     );
 
     transaction.execute(query).await.map_err(|e| {
@@ -3180,7 +3190,12 @@ async fn fetch_order_list_data_model(
             currency_code,
             grand_total,
             record_status,
-            created_on
+            record_type,
+            created_on,
+            buyer_id,
+            created_by,
+            seller_id,
+            seller_name
         FROM 
             commerce_data
         WHERE is_deleted = false
@@ -3197,9 +3212,19 @@ async fn fetch_order_list_data_model(
         query.push_bind(filter.user_id);
     }
 
-    if let Some(transaction_id) = filter.transaction_id {
-        query.push(" AND transaction_id = ");
-        query.push_bind(transaction_id);
+    if let Some(transaction_ids) = filter.transaction_id_list {
+        if !transaction_ids.is_empty() {
+            query.push(" AND external_urn IN (");
+            let mut first = true;
+            for id in transaction_ids {
+                if !first {
+                    query.push(", ");
+                }
+                query.push_bind(id);
+                first = false;
+            }
+            query.push(")");
+        }
     }
 
     if let Some(from_date) = filter.start_date {

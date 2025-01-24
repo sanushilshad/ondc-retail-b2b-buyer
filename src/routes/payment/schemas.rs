@@ -1,19 +1,24 @@
 use crate::errors::GenericError;
+
+use crate::routes::order::schemas::PaymentCollectedBy;
+use crate::routes::order::schemas::PaymentStatus;
+use crate::routes::product::schemas::PaymentType;
 use actix_http::Payload;
 use actix_web::web::Json;
 use actix_web::FromRequest;
 use actix_web::HttpRequest;
 use futures_util::future::LocalBoxFuture;
 use serde::Deserialize;
+use serde::Serialize;
 use utoipa::ToSchema;
 use uuid::Uuid;
 #[derive(Deserialize, Debug, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct PaymentOrderCreationRequest {
+pub struct CreatePaymentOrderRequest {
     #[schema(value_type = String)]
     pub transaction_id: Uuid,
 }
-impl FromRequest for PaymentOrderCreationRequest {
+impl FromRequest for CreatePaymentOrderRequest {
     type Error = GenericError;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
@@ -27,4 +32,20 @@ impl FromRequest for PaymentOrderCreationRequest {
             }
         })
     }
+}
+
+#[derive(Deserialize, Debug)]
+pub struct CommercePaymentMetaData {
+    pub id: Uuid,
+    pub payment_type: PaymentType,
+    pub payment_status: Option<PaymentStatus>,
+    pub payment_order_id: Option<String>,
+    pub collected_by: Option<PaymentCollectedBy>,
+}
+
+#[derive(Serialize, Debug, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PaymentOrderData {
+    pub order_id: String,
+    pub status: PaymentStatus,
 }

@@ -12,7 +12,10 @@ pub fn order_route(cfg: &mut web::ServiceConfig) {
             web::post()
                 .to(order_select)
                 .wrap(BusinessPermissionValidation {
-                    permission_list: vec![PermissionType::CreateOrder],
+                    permission_list: vec![
+                        PermissionType::CreateOrder,
+                        PermissionType::CreateOrderSelf,
+                    ],
                 })
                 .wrap(BusinessAccountValidation {
                     business_type_list: vec![CustomerType::RetailB2bBuyer],
@@ -25,7 +28,10 @@ pub fn order_route(cfg: &mut web::ServiceConfig) {
             web::post()
                 .to(order_init)
                 .wrap(BusinessPermissionValidation {
-                    permission_list: vec![PermissionType::CreateOrder],
+                    permission_list: vec![
+                        PermissionType::CreateOrder,
+                        PermissionType::CreateOrderSelf,
+                    ],
                 })
                 .wrap(BusinessAccountValidation {
                     business_type_list: vec![CustomerType::RetailB2bBuyer],
@@ -39,7 +45,10 @@ pub fn order_route(cfg: &mut web::ServiceConfig) {
             web::post()
                 .to(order_confirm)
                 .wrap(BusinessPermissionValidation {
-                    permission_list: vec![PermissionType::CreateOrder],
+                    permission_list: vec![
+                        PermissionType::CreateOrder,
+                        PermissionType::CreateOrderSelf,
+                    ],
                 })
                 .wrap(BusinessAccountValidation {
                     business_type_list: vec![CustomerType::RetailB2bBuyer],

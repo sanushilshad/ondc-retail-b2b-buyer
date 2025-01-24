@@ -10,7 +10,7 @@ use crate::routes::product::schemas::FulfillmentType;
 use crate::routes::product::schemas::{CategoryDomain, PaymentType};
 use crate::schemas::DataSource;
 use crate::schemas::{CountryCode, CurrencyType, FeeType};
-use crate::user_client::{AllowedPermission, PermissionType};
+use crate::user_client::PermissionType;
 use crate::utils::pascal_to_snake_case;
 // use crate::utils::deserialize_non_empty_vector;
 use actix_http::Payload;
@@ -214,7 +214,7 @@ impl FromRequest for OrderSelectRequest {
     }
 }
 
-#[derive(Deserialize, Debug, sqlx::Type, ToSchema, Serialize)]
+#[derive(Deserialize, Debug, sqlx::Type, ToSchema, Serialize, PartialEq)]
 #[sqlx(type_name = "commerce_status", rename_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
 pub enum CommerceStatusType {
@@ -351,6 +351,7 @@ pub struct PaymentSettlementDetail {
 #[derive(Debug, Serialize, Deserialize, sqlx::Type, Clone, ToSchema)]
 #[serde(rename_all = "snake_case")]
 #[sqlx(type_name = "settlement_basis_type", rename_all = "snake_case")]
+
 pub enum SettlementBasis {
     ReturnWindowExpiry,
     Shipment,
@@ -368,6 +369,7 @@ impl SettlementBasis {
 }
 
 #[derive(Deserialize, Debug, ToSchema, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SellerPaymentDetail {
     pub uri: String,
     pub ttl: Option<String>,
@@ -376,6 +378,7 @@ pub struct SellerPaymentDetail {
 }
 
 #[derive(Deserialize, Debug, ToSchema, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CommercePayment {
     #[schema(value_type = String)]
     pub id: Uuid,
@@ -481,6 +484,7 @@ pub struct PickUpData {
     pub contact: FulfillmentContact,
 }
 #[derive(Deserialize, Debug, ToSchema, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CommerceFulfillment {
     pub id: String,
     pub fulfillment_id: String,
@@ -504,12 +508,14 @@ pub struct CommerceFulfillment {
 }
 
 #[derive(Deserialize, Debug, ToSchema, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BuyerTerm {
     pub item_req: String,
     pub packaging_req: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct CommerceBilling {
     pub name: String,
     pub address: String,
@@ -521,6 +527,7 @@ pub struct CommerceBilling {
 }
 
 #[derive(Deserialize, Debug, ToSchema, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CommerceItem {
     #[schema(value_type = String)]
     pub id: Uuid,
@@ -548,6 +555,7 @@ pub struct CommerceItem {
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct CommerceCancellationFee {
     pub r#type: CancellationFeeType,
     #[schema(value_type = f64)]
@@ -555,6 +563,7 @@ pub struct CommerceCancellationFee {
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct CommerceCancellationTerm {
     pub fulfillment_state: FulfillmentStatusType,
     pub reason_required: bool,
@@ -562,6 +571,7 @@ pub struct CommerceCancellationTerm {
 }
 
 #[derive(Deserialize, Debug, ToSchema, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CommerceBPPTerms {
     pub max_liability: String,
     pub max_liability_cap: String,
@@ -571,6 +581,7 @@ pub struct CommerceBPPTerms {
 }
 
 #[derive(Deserialize, Debug, ToSchema, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Commerce {
     #[schema(value_type = String)]
     pub id: Uuid,
@@ -706,13 +717,14 @@ impl FromRequest for OrderConfirmRequest {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, sqlx::Type)]
+#[derive(Debug, Serialize, Deserialize, sqlx::Type, ToSchema, PartialEq)]
 #[serde(rename_all = "snake_case")]
 #[sqlx(type_name = "payment_status", rename_all = "snake_case")]
 pub enum PaymentStatus {
     Paid,
     NotPaid,
     Pending,
+    Refunded,
 }
 
 #[derive(Deserialize, Debug, ToSchema)]
@@ -936,7 +948,7 @@ impl FromRequest for OrderReadRequest {
 #[serde(rename_all = "camelCase")]
 pub struct OrderListRequest {
     #[schema(value_type = Option<String>)]
-    pub transaction_id: Option<Uuid>,
+    pub transaction_id: Option<Vec<Uuid>>,
     pub start_date: Option<DateTime<Utc>>,
     pub end_date: Option<DateTime<Utc>>,
     pub offset: i32,
@@ -962,7 +974,7 @@ impl FromRequest for OrderListRequest {
 #[derive(Debug)]
 
 pub struct OrderListFilter {
-    pub transaction_id: Option<Uuid>,
+    pub transaction_id_list: Option<Vec<Uuid>>,
     pub start_date: Option<DateTime<Utc>>,
     pub end_date: Option<DateTime<Utc>>,
     pub offset: i32,
@@ -975,17 +987,37 @@ pub struct OrderListFilter {
 impl OrderListFilter {
     pub fn new(
         list_request: OrderListRequest,
-        permission_list: AllowedPermission,
+        user_id: Uuid,
+        business_id: Uuid,
+        permission_list: Vec<PermissionType>,
     ) -> OrderListFilter {
         OrderListFilter {
-            transaction_id: list_request.transaction_id,
+            transaction_id_list: list_request.transaction_id,
             start_date: list_request.start_date,
             end_date: list_request.end_date,
             offset: list_request.offset,
             limit: list_request.limit,
-            user_id: permission_list.user_id,
-            business_id: permission_list.business_id,
-            permission_list: permission_list.permission_list,
+            user_id,
+            business_id,
+            permission_list,
+        }
+    }
+
+    pub fn from_transaction_id(
+        transaction_id_list: Vec<Uuid>,
+        user_id: Uuid,
+        business_id: Uuid,
+        permission_list: Vec<PermissionType>,
+    ) -> OrderListFilter {
+        OrderListFilter {
+            transaction_id_list: Some(transaction_id_list),
+            start_date: None,
+            end_date: None,
+            offset: 0,
+            limit: 1,
+            permission_list,
+            business_id,
+            user_id,
         }
     }
 }
@@ -1000,4 +1032,8 @@ pub struct CommerceList {
     pub grand_total: BigDecimal,
     pub record_status: CommerceStatusType,
     pub created_on: DateTime<Utc>,
+    pub seller: CommerceSeller,
+    pub buyer_id: Uuid,
+    pub created_by: Uuid,
+    pub record_type: OrderType,
 }

@@ -1,4 +1,3 @@
-use crate::routes::order::schemas::Commerce;
 use crate::schemas::GenericResponse;
 use anyhow::anyhow;
 use reqwest::{Client, StatusCode};
@@ -57,6 +56,8 @@ pub enum MaskingType {
 pub enum PermissionType {
     #[serde(rename = "create:order")]
     CreateOrder,
+    #[serde(rename = "create:order:self")]
+    CreateOrderSelf,
     #[serde(rename = "update:order:self")]
     UpdateOrderSelf,
     #[serde(rename = "update:order")]
@@ -259,6 +260,7 @@ impl FromRequest for BusinessAccount {
 #[serde(rename_all = "snake_case")]
 pub enum SettingKey {
     OrderNoPrefix,
+    PaymentServiceId,
 }
 
 #[derive(Serialize, Debug)]
@@ -550,14 +552,15 @@ impl AllowedPermission {
 
     pub fn validate_commerce_self(
         &self,
-        commerce_data: &Commerce,
+        user_id: Uuid,
+        business_id: Uuid,
         permission_type: PermissionType,
     ) -> bool {
         if !self.permission_list.contains(&permission_type) {
             return true;
         }
 
-        self.user_id == commerce_data.created_by && self.business_id == commerce_data.buyer_id
+        self.user_id == user_id && self.business_id == business_id
     }
 }
 

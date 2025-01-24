@@ -266,6 +266,7 @@ pub async fn order_init(
     user_account: UserAccount,
     business_account: BusinessAccount,
     meta_data: RequestMetaData,
+    allowed_permission: AllowedPermission,
 ) -> Result<web::Json<GenericResponse<()>>, GenericError> {
     let task1 = fetch_order_by_id(&pool, body.transaction_id);
     let task2 = get_np_detail(&pool, &meta_data.domain_uri, &ONDCNetworkType::Bap);
@@ -286,6 +287,15 @@ pub async fn order_init(
             )))
         }
     };
+    if !allowed_permission.validate_commerce_self(
+        order.created_by,
+        order.buyer_id,
+        PermissionType::UpdateOrderSelf,
+    ) {
+        return Err(GenericError::InsufficientPrevilegeError(
+            "You do not have sufficent preveliege to update the order".to_owned(),
+        ));
+    }
 
     let bap_detail = match bap_detail {
         Some(bap_detail) => bap_detail,
@@ -354,6 +364,7 @@ pub async fn order_confirm(
     user_account: UserAccount,
     business_account: BusinessAccount,
     meta_data: RequestMetaData,
+    allowed_permission: AllowedPermission,
 ) -> Result<web::Json<GenericResponse<()>>, GenericError> {
     let task1 = fetch_order_by_id(&pool, body.transaction_id);
     let task2 = get_np_detail(&pool, &meta_data.domain_uri, &ONDCNetworkType::Bap);
@@ -374,6 +385,16 @@ pub async fn order_confirm(
             )))
         }
     };
+
+    if !allowed_permission.validate_commerce_self(
+        order.created_by,
+        order.buyer_id,
+        PermissionType::UpdateOrderSelf,
+    ) {
+        return Err(GenericError::InsufficientPrevilegeError(
+            "You do not have sufficent preveliege to update the order".to_owned(),
+        ));
+    }
 
     let bap_detail = match bap_detail {
         Some(bap_detail) => bap_detail,
@@ -548,7 +569,11 @@ pub async fn order_cancel(
             )))
         }
     };
-    if !allowed_permission.validate_commerce_self(&order, PermissionType::CancelOrderSelf) {
+    if !allowed_permission.validate_commerce_self(
+        order.created_by,
+        order.buyer_id,
+        PermissionType::CancelOrderSelf,
+    ) {
         return Err(GenericError::InsufficientPrevilegeError(
             "You do not have sufficent preveliege to cancel the order".to_owned(),
         ));
@@ -641,7 +666,11 @@ pub async fn order_update(
         }
     };
 
-    if !allowed_permission.validate_commerce_self(&order, PermissionType::UpdateOrderSelf) {
+    if !allowed_permission.validate_commerce_self(
+        order.created_by,
+        order.buyer_id,
+        PermissionType::UpdateOrderSelf,
+    ) {
         return Err(GenericError::InsufficientPrevilegeError(
             "You do not have sufficent preveliege to update the order".to_owned(),
         ));
@@ -712,10 +741,6 @@ pub async fn order_fetch(
     business_account: BusinessAccount,
     allowed_permission: AllowedPermission,
 ) -> Result<web::Json<GenericResponse<Commerce>>, GenericError> {
-    println!(
-        "grape {}: {}",
-        allowed_permission.user_id, allowed_permission.business_id
-    );
     let order = fetch_order_by_id(&pool, body.transaction_id)
         .await
         .map_err(|e| {
@@ -734,11 +759,11 @@ pub async fn order_fetch(
             GenericError::ValidationError("Order not found".to_string())
         })?;
 
-    println!(
-        "grape1 {}: {}",
-        allowed_permission.user_id, allowed_permission.business_id
-    );
-    if !allowed_permission.validate_commerce_self(&order, PermissionType::ReadOrderSelf) {
+    if !allowed_permission.validate_commerce_self(
+        order.created_by,
+        order.buyer_id,
+        PermissionType::ReadOrderSelf,
+    ) {
         return Err(GenericError::InsufficientPrevilegeError(
             "You do not have sufficent preveliege to read the order".to_owned(),
         ));
@@ -775,7 +800,12 @@ pub async fn order_list(
     business_account: BusinessAccount,
     allowed_permission: AllowedPermission,
 ) -> Result<web::Json<GenericResponse<Vec<CommerceList>>>, GenericError> {
-    let list_filter = OrderListFilter::new(body, allowed_permission);
+    let list_filter = OrderListFilter::new(
+        body,
+        allowed_permission.user_id,
+        allowed_permission.business_id,
+        allowed_permission.permission_list,
+    );
     let data = get_order_list(&pool, list_filter).await.map_err(|e| {
         tracing::error!("Database error while fetching order list: {:?}", e);
         GenericError::DatabaseError("Failed to fetch order list".to_string(), e)
