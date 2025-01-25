@@ -325,11 +325,18 @@ where
             .or_else(|| {
                 req.headers()
                     .get(http::header::AUTHORIZATION)
-                    .map(|h| SecretString::from(h.to_str().unwrap().split_at(7).1.to_string()))
+                    .and_then(|h| {
+                        let auth_header = h.to_str().ok()?;
+                        if auth_header.starts_with("Bearer ") {
+                            Some(SecretString::from(auth_header.split_at(7).1.to_string()))
+                        } else {
+                            None
+                        }
+                    })
             });
 
         if token.is_none() {
-            let error_message = "Authorization header is missing".to_string();
+            let error_message = "Authorization header is missing/invalid".to_string();
             let (request, _pl) = req.into_parts();
             let json_error = GenericError::ValidationError(error_message);
             return Box::pin(async { Ok(ServiceResponse::from_err(json_error, request)) });
