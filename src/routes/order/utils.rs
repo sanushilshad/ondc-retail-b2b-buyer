@@ -776,8 +776,8 @@ pub async fn save_buyer_order_data_on_select(
         r#"
         INSERT INTO commerce_data (id, external_urn, urn, record_type, record_status,
         domain_category_code, buyer_id, seller_id, seller_name, buyer_name, source, created_on, created_by, bpp_id, bpp_uri,
-        bap_id, bap_uri, quote_ttl, updated_on, currency_code, grand_total, city_code, country_code, seller_chat_link, buyer_chat_link)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
+        bap_id, bap_uri, quote_ttl, updated_on,updated_by, currency_code, grand_total, city_code, country_code, seller_chat_link, buyer_chat_link)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
         ON CONFLICT (external_urn)
         DO UPDATE SET
         record_status = EXCLUDED.record_status,
@@ -804,6 +804,7 @@ pub async fn save_buyer_order_data_on_select(
         &ondc_on_select_req.context.bap_uri,
         &ondc_select_req.context.ttl,
         ondc_select_req.context.timestamp,
+        user_account.id.to_string(),
         &ondc_on_select_req.message.order.quote.price.currency as &CurrencyType,
         &grand_total,
         &ondc_select_req.context.location.city.code,
@@ -1208,7 +1209,7 @@ async fn get_commerce_data(
            record_status as "record_status:CommerceStatusType",
            domain_category_code as "domain_category_code:CategoryDomain", 
            buyer_id, seller_id, buyer_name, seller_name, source as "source:DataSource", 
-           created_on, updated_on, deleted_on, is_deleted, created_by, grand_total, 
+           created_on, updated_on, updated_by, deleted_on, is_deleted, created_by, grand_total, 
            bpp_id, bpp_uri, bap_id, bap_uri, quote_ttl,
            currency_code as "currency_code?:CurrencyType", city_code,
            country_code as "country_code:CountryCode",
@@ -1608,6 +1609,7 @@ fn get_order_from_model(
         source: order.source,
         created_on: order.created_on,
         updated_on: order.updated_on,
+        updated_by: order.updated_by,
         created_by: order.created_by,
         grand_total: order.grand_total,
         bap: BasicNetworkData {
@@ -1892,6 +1894,7 @@ pub fn get_cancel_term_model_from_ondc_cancel_term(
 async fn update_commerce_in_on_init(
     transaction: &mut Transaction<'_, Postgres>,
     on_init_request: &ONDCOnInitRequest,
+    business_id: Uuid,
 ) -> Result<(), anyhow::Error> {
     let billing = convert_ondc_billing_to_model_billing(&on_init_request.message.order.billing);
     let bpp_terms = get_bpp_term_model_from_tag(&on_init_request.message.order.tags);
@@ -1901,13 +1904,14 @@ async fn update_commerce_in_on_init(
 
     let query = sqlx::query!(
         r#"
-        UPDATE commerce_data SET billing=$1, bpp_terms=$2, record_status=$3, cancellation_terms=$4, updated_on=$5 WHERE external_urn=$6
+        UPDATE commerce_data SET billing=$1, bpp_terms=$2, record_status=$3, cancellation_terms=$4, updated_on=$5, updated_by=$6 WHERE external_urn=$7
         "#,
         serde_json::to_value(billing).unwrap(),
         serde_json::to_value(bpp_terms).unwrap(),
         CommerceStatusType::Initialized as CommerceStatusType,
         serde_json::to_value(cancellation_terms).unwrap(),
         &on_init_request.context.timestamp,
+        &business_id.to_string(),
         on_init_request.context.transaction_id,
     );
 
@@ -1923,6 +1927,7 @@ async fn update_commerce_in_on_init(
 pub async fn initialize_order_on_init(
     transaction: &mut Transaction<'_, Postgres>,
     on_init_request: &ONDCOnInitRequest,
+    business_id: Uuid,
 ) -> Result<(), anyhow::Error> {
     let commerce_id =
         delete_payment_in_commerce(transaction, on_init_request.context.transaction_id).await?;
@@ -1932,7 +1937,7 @@ pub async fn initialize_order_on_init(
         &on_init_request.message.order.payments,
     )
     .await?;
-    update_commerce_in_on_init(transaction, on_init_request).await?;
+    update_commerce_in_on_init(transaction, on_init_request, business_id).await?;
     Ok(())
 }
 
@@ -1941,10 +1946,11 @@ async fn update_commerce_in_on_confirm(
     transaction: &mut Transaction<'_, Postgres>,
     order: &Commerce,
     confirm_req: &ONDCOnConfirmRequest,
+    business_id: Uuid,
 ) -> Result<(), anyhow::Error> {
     let query = sqlx::query!(
         r#"
-        UPDATE commerce_data SET record_status=$1, updated_on=$2 WHERE external_urn=$3
+        UPDATE commerce_data SET record_status=$1, updated_on=$2, updated_by=$3 WHERE external_urn=$4
         "#,
         confirm_req
             .message
@@ -1952,6 +1958,7 @@ async fn update_commerce_in_on_confirm(
             .state
             .get_commerce_status(&order.record_type, None) as CommerceStatusType,
         confirm_req.message.order.updated_at,
+        business_id.to_string(),
         confirm_req.context.transaction_id,
     );
 
@@ -2218,8 +2225,9 @@ pub async fn initialize_order_on_confirm(
     transaction: &mut Transaction<'_, Postgres>,
     on_confirm_request: &ONDCOnConfirmRequest,
     order: &Commerce,
+    business_id: Uuid,
 ) -> Result<(), anyhow::Error> {
-    update_commerce_in_on_confirm(transaction, order, on_confirm_request).await?;
+    update_commerce_in_on_confirm(transaction, order, on_confirm_request, business_id).await?;
     update_commerce_fulfillment_in_on_confirm(
         transaction,
         order.id,
@@ -2528,21 +2536,23 @@ pub async fn initialize_order_on_status(
 async fn update_commerce_in_on_cancel(
     transaction: &mut Transaction<'_, Postgres>,
     order: &Commerce,
-    status_req: &ONDCOnCancelRequest,
+    cancel_req: &ONDCOnCancelRequest,
+    updated_by: &str,
 ) -> Result<(), anyhow::Error> {
     let query = sqlx::query!(
         r#"
-        UPDATE commerce_data SET record_status=$1, updated_on=$2, refund_grand_total=$3 WHERE external_urn=$4
+        UPDATE commerce_data SET record_status=$1, updated_on=$2, updated_by=$3, refund_grand_total=$4 WHERE external_urn=$5
         "#,
-        status_req
+        cancel_req
             .message
             .order
             .state
             .get_commerce_status(&order.record_type, None) as CommerceStatusType,
-        status_req.message.order.updated_at,
-        BigDecimal::from_str(&status_req.message.order.quote.price.value)
+        cancel_req.message.order.updated_at,
+        updated_by,
+        BigDecimal::from_str(&cancel_req.message.order.quote.price.value)
             .unwrap_or(BigDecimal::from(0)),
-        status_req.context.transaction_id,
+        cancel_req.context.transaction_id,
     );
 
     transaction.execute(query).await.map_err(|e| {
@@ -2640,8 +2650,9 @@ pub async fn initialize_order_on_cancel(
     transaction: &mut Transaction<'_, Postgres>,
     on_cancel_request: &ONDCOnCancelRequest,
     order: &Commerce,
+    updated_by: &str,
 ) -> Result<(), anyhow::Error> {
-    update_commerce_in_on_cancel(transaction, order, on_cancel_request).await?;
+    update_commerce_in_on_cancel(transaction, order, on_cancel_request, updated_by).await?;
 
     let _ =
         delete_payment_in_commerce(transaction, on_cancel_request.context.transaction_id).await?;
@@ -2750,6 +2761,7 @@ pub async fn initialize_order_on_update(
     transaction: &mut Transaction<'_, Postgres>,
     on_cancel_request: &ONDCOnUpdateRequest,
     order: &Commerce,
+    updated_by: &str,
 ) -> Result<(), anyhow::Error> {
     let _ =
         delete_payment_in_commerce(transaction, on_cancel_request.context.transaction_id).await?;
@@ -2758,6 +2770,12 @@ pub async fn initialize_order_on_update(
         transaction,
         order,
         &on_cancel_request.message.order.payments,
+    )
+    .await?;
+    update_order_update_field(
+        transaction,
+        on_cancel_request.context.transaction_id,
+        updated_by,
     )
     .await?;
 

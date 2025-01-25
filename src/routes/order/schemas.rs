@@ -607,6 +607,7 @@ pub struct Commerce {
     pub source: DataSource,
     pub created_on: DateTime<Utc>,
     pub updated_on: Option<DateTime<Utc>>,
+    pub updated_by: Option<String>,
     #[schema(value_type = String)]
     pub created_by: Uuid,
     #[schema(value_type = Option<f64>)]

@@ -307,7 +307,7 @@ pub async fn on_init(
         .context("Failed to acquire a Postgres connection from the pool")
         .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
 
-    initialize_order_on_init(&mut transaction, &body)
+    initialize_order_on_init(&mut transaction, &body, order_request_model.business_id)
         .await
         .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
 
@@ -377,9 +377,14 @@ pub async fn on_confirm(
         .await
         .context("Failed to acquire a Postgres connection from the pool")
         .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
-    initialize_order_on_confirm(&mut transaction, &body, &order)
-        .await
-        .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
+    initialize_order_on_confirm(
+        &mut transaction,
+        &body,
+        &order,
+        order_request_model.business_id,
+    )
+    .await
+    .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
 
     if order.record_type.is_purchase_order() {
         send_rfq_confirmed_chat(&chat_client, body.context.transaction_id, &order)
@@ -498,7 +503,7 @@ pub async fn on_cancel(
 
     let task2 = fetch_order_by_id(&pool, body.context.transaction_id);
     let (res1, res2) = futures::future::join(task1, task2).await;
-    let order_request_model =
+    let order_request_model: Option<super::ONDCRequestModel> =
         res1.map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
     let order = res2
         .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?
@@ -513,8 +518,11 @@ pub async fn on_cancel(
         .await
         .context("Failed to acquire a Postgres connection from the pool")
         .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
-
-    initialize_order_on_cancel(&mut transaction, &body, &order)
+    let updated_by = order_request_model.as_ref().map_or_else(
+        || "seller".to_string(),
+        |model| model.business_id.to_string(),
+    );
+    initialize_order_on_cancel(&mut transaction, &body, &order, &updated_by)
         .await
         .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
     if let Some(order_request_model) = order_request_model {
@@ -577,8 +585,11 @@ pub async fn on_update(
         .await
         .context("Failed to acquire a Postgres connection from the pool")
         .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
-
-    initialize_order_on_update(&mut transaction, &body, &order)
+    let updated_by = order_request_model.as_ref().map_or_else(
+        || "seller".to_string(),
+        |model| model.business_id.to_string(),
+    );
+    initialize_order_on_update(&mut transaction, &body, &order, &updated_by)
         .await
         .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
     if let Some(order_request_model) = order_request_model {

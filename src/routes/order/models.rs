@@ -53,6 +53,7 @@ pub struct CommerceDataModel {
     pub source: DataSource,
     pub created_on: DateTime<Utc>,
     pub updated_on: Option<DateTime<Utc>>,
+    pub updated_by: Option<String>,
     pub deleted_on: Option<DateTime<Utc>>,
     pub is_deleted: bool,
     pub created_by: Uuid,

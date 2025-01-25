@@ -6,6 +6,7 @@ use crate::payment_client::PaymentClient;
 use crate::routes::order::schemas::{
     CommerceStatusType, MinimalCommerceData, OrderType, PaymentCollectedBy, PaymentStatus,
 };
+use crate::routes::order::utils::update_order_update_field;
 use crate::routes::product::schemas::PaymentType;
 use crate::schemas::WebSocketParam;
 use crate::user_client::{BusinessAccount, SettingKey, UserAccount, UserClient};
@@ -148,7 +149,13 @@ pub async fn get_payment_order_id(
         .create_order(data)
         .await
         .map_err(|e| PaymentOrderError::UnexpectedCustomError(e.to_string()))?;
-
+    update_order_update_field(
+        &mut transaction,
+        order.external_urn,
+        &user_account.id.to_string(),
+    )
+    .await
+    .map_err(|e| PaymentOrderError::UnexpectedCustomError(e.to_string()))?;
     update_payment_order_id(&mut transaction, payment.id, &payment_order.id)
         .await
         .map_err(|e| PaymentOrderError::UnexpectedCustomError(e.to_string()))?;
