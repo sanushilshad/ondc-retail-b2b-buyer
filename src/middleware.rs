@@ -1,8 +1,11 @@
+use crate::configuration::{ApplicationConfig, SecretConfig};
 use crate::errors::GenericError;
 use crate::schemas::{RequestMetaData, Status};
 use crate::user_client::{AllowedPermission, BusinessAccount, CustomerType, UserAccount};
 use crate::user_client::{PermissionType, UserClient};
-use crate::utils::{bytes_to_payload, get_header_value, validate_business_account_active};
+use crate::utils::{
+    bytes_to_payload, decode_token, get_header_value, validate_business_account_active,
+};
 // use actix_http::body::BoxBody;
 use actix_web::body::{BoxBody, EitherBody, MessageBody};
 use actix_web::dev::{forward_ready, Payload, Service, ServiceRequest, ServiceResponse, Transform};
@@ -551,6 +554,105 @@ where
         ready(Ok(BusinessPermissionMiddleware {
             service: Rc::new(service),
             permission_list: self.permission_list.clone(),
+        }))
+    }
+}
+
+pub struct ServiceAuthMiddleware<S> {
+    service: Rc<S>,
+}
+
+impl<S> Service<ServiceRequest> for ServiceAuthMiddleware<S>
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<actix_web::body::BoxBody>, Error = Error>
+        + 'static,
+{
+    type Response = ServiceResponse<actix_web::body::BoxBody>;
+    type Error = Error;
+    type Future = LocalBoxFuture<'static, Result<Self::Response, Error>>;
+
+    forward_ready!(service);
+
+    fn call(&self, req: ServiceRequest) -> Self::Future {
+        let token = req
+            .cookie("token")
+            .map(|c| c.value().to_string())
+            .or_else(|| {
+                req.headers()
+                    .get(http::header::AUTHORIZATION)
+                    .and_then(|h| {
+                        let auth_header = h.to_str().ok()?;
+                        if auth_header.starts_with("Bearer ") {
+                            Some(auth_header.split_at(7).1.to_string())
+                        } else {
+                            None
+                        }
+                    })
+            });
+
+        let jwt_secret = &req
+            .app_data::<web::Data<SecretConfig>>()
+            .unwrap()
+            .jwt
+            .secret;
+
+        let service_id = req
+            .app_data::<web::Data<ApplicationConfig>>()
+            .unwrap()
+            .service_id;
+
+        if token.is_none() {
+            let error_message = "Authorization header is missing/invalid".to_string();
+            let (request, _pl) = req.into_parts();
+            let json_error = GenericError::ValidationError(error_message);
+            return Box::pin(async { Ok(ServiceResponse::from_err(json_error, request)) });
+        }
+        let decoded_user_id = match decode_token(token.unwrap(), &jwt_secret) {
+            Ok(id) => id,
+            Err(e) => {
+                return Box::pin(async move {
+                    Ok(ServiceResponse::from_err(
+                        GenericError::InvalidJWT(e.to_string()),
+                        req.into_parts().0,
+                    ))
+                });
+            }
+        };
+
+        if service_id != decoded_user_id {
+            return Box::pin(async move {
+                Ok(ServiceResponse::from_err(
+                    GenericError::InvalidJWT("Invalid Token".to_owned()),
+                    req.into_parts().0,
+                ))
+            });
+        }
+
+        let srv = Rc::clone(&self.service);
+        Box::pin(async move {
+            let res = srv.call(req).await?;
+            Ok(res)
+        })
+    }
+}
+
+/// Middleware factory for mirco service authentication authentication.
+pub struct RequireServiceAuth;
+
+impl<S> Transform<S, ServiceRequest> for RequireServiceAuth
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<actix_web::body::BoxBody>, Error = Error>
+        + 'static,
+{
+    type Response = ServiceResponse<actix_web::body::BoxBody>;
+    type Error = Error;
+    type Transform = ServiceAuthMiddleware<S>;
+    type InitError = ();
+    type Future = Ready<Result<Self::Transform, Self::InitError>>;
+
+    fn new_transform(&self, service: S) -> Self::Future {
+        ready(Ok(ServiceAuthMiddleware {
+            service: Rc::new(service),
         }))
     }
 }

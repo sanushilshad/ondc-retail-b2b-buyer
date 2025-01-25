@@ -45,6 +45,8 @@ OR
   ./target/release/ondc-retail-b2b-buyer migrate
 ```
 
+
+
 ## COMMAND FOR KAFKA TOPIC CREATION:
 
 ```
@@ -54,6 +56,18 @@ OR
 
 ```
   ./target/release/ondc-retail-b2b-buyer generate_kafka_topic
+```
+
+
+
+### COMMAND FOR TOKEN GENERATION:
+```
+cargo run --bin ondc-retail-b2b-buyer -- generate_service_token
+```
+OR 
+
+```
+  ./target/release/ondc-retail-b2b-buyer generate_service_token
 ```
 
 ## SQLX OFFLINE MODE:
@@ -111,6 +125,12 @@ export APPLICATION__ACCOUNT_NAME="dev2"
 export APPLICATION__PORT=8228
 export APPLICATION__HOST="0.0.0.0"
 export APPLICATION__WORKERS=12
+export APPLICATION__SERVICE_ID="40cf2e29-5964-4a4b-8228-51aa0081889a"
+
+## SECRET VARIABLE
+export SECRET__JWT__SECRET=""
+export SECRET__JWT__EXPIRY=876600
+
 
 ## WEBSOCKET SERVICE
 export WEBSOCKET__TOKEN=""

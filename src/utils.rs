@@ -1,15 +1,17 @@
-use crate::configuration::{DatabaseConfig, EmailClientConfig};
+use crate::configuration::{get_configuration, DatabaseConfig, EmailClientConfig};
 use crate::constants::AUTHORIZATION_PATTERN;
 use crate::email_client::{GenericEmailService, SmtpEmailClient};
 // use crate::kafka_client::TopicType;
 use crate::models::{RegisteredNetworkParticipantModel, SeriesNoModel};
 use crate::routes::order::schemas::{PaymentSettlementPhase, PaymentSettlementType};
 use crate::schemas::{
-    CommunicationType, FeeType, ONDCNetworkType, RegisteredNetworkParticipant, SeriesNoType, Status,
+    CommunicationType, FeeType, JWTClaims, ONDCNetworkType, RegisteredNetworkParticipant,
+    SeriesNoType, Status,
 };
+
+use crate::errors::CustomJWTTokenError;
 use crate::schemas::{KycStatus, ONDCAuthParams};
 use crate::user_client::{BusinessAccount, SettingData, SettingKey};
-use crate::{kafka_client, migration};
 use actix_http::h1;
 use actix_web::dev::Payload;
 use actix_web::dev::ServiceRequest;
@@ -21,15 +23,19 @@ use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
 use bigdecimal::BigDecimal;
 use blake2::{Blake2b512, Digest};
-use chrono::Utc;
+use chrono::{Duration, Utc};
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
-use secrecy::ExposeSecret;
+use jsonwebtoken::{
+    decode, encode, Algorithm as JWTAlgorithm, DecodingKey, EncodingKey, Header, Validation,
+};
+
+use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::{Connection, Executor, PgConnection, PgPool, Postgres, Transaction};
 use std::collections::HashMap;
 use std::str::FromStr;
 use std::{fmt, fs, io, sync::Arc};
-
+use uuid::Uuid;
 pub fn get_ondc_params_from_header(header: &str) -> Result<ONDCAuthParams, anyhow::Error> {
     let captures = AUTHORIZATION_PATTERN
         .captures(header)
@@ -243,30 +249,40 @@ pub fn create_email_type_pool(
     email_services
 }
 
-#[tracing::instrument(name = "Run custom command")]
-pub async fn run_custom_commands(args: Vec<String>) -> Result<(), anyhow::Error> {
-    if args.len() < 2 {
-        eprintln!("Invalid command. Please provide a valid command.");
-        return Ok(());
-    }
-    let command = args[1].as_str();
-    match command {
-        "migrate" => {
-            migration::run_migrations().await;
-        }
-        "sqlx_migrate" => {
-            migration::migrate_using_sqlx().await;
-        }
-        "generate_kafka_topic" => {
-            // let arg = args.get(2).unwrap_or(&TopicType::Search.to_string());
-            kafka_client::create_kafka_topic_command().await;
-        }
-        _ => {
-            eprintln!("Unknown command: {}. Please use a valid command.", command);
-        }
-    }
+#[tracing::instrument(name = "Generate JWT token for user")]
+pub fn generate_jwt_token_for_user(
+    user_id: Uuid,
+    expiry_time: i64,
+    secret: &SecretString,
+) -> Result<SecretString, anyhow::Error> {
+    let expiration = Utc::now()
+        .checked_add_signed(Duration::hours(expiry_time))
+        .expect("valid timestamp")
+        .timestamp() as usize;
+    let claims = JWTClaims {
+        sub: user_id,
+        exp: expiration,
+    };
+    let header = Header::new(JWTAlgorithm::HS256);
+    let encoding_key = EncodingKey::from_secret(secret.expose_secret().as_bytes());
+    let token: String = encode(&header, &claims, &encoding_key).expect("Failed to generate token");
+    Ok(SecretString::new(token.into()))
+}
 
-    Ok(())
+#[tracing::instrument(name = "Generate user token")]
+pub async fn generate_user_token() {
+    let configuration = get_configuration().expect("Failed to read configuration.");
+    let token = generate_jwt_token_for_user(
+        configuration.application.service_id,
+        configuration.secret.jwt.expiry,
+        &configuration.secret.jwt.secret,
+    )
+    .map_err(|e| anyhow::anyhow!("JWT generation error: {}", e));
+    eprint!(
+        "Token for {} is: {}",
+        configuration.application.service_id,
+        token.unwrap().expose_secret()
+    )
 }
 
 pub fn deserialize_config_list<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
@@ -549,4 +565,24 @@ pub async fn get_series_no(
         .await
         .map_err(|e| anyhow!(e))?;
     Ok(series_model.get_final_no())
+}
+
+#[tracing::instrument(name = "Decode JWT token")]
+pub fn decode_token<T: Into<String> + std::fmt::Debug>(
+    token: T,
+    secret: &SecretString,
+) -> Result<Uuid, CustomJWTTokenError> {
+    let decoding_key = DecodingKey::from_secret(secret.expose_secret().as_bytes());
+    let decoded = decode::<JWTClaims>(
+        &token.into(),
+        &decoding_key,
+        &Validation::new(JWTAlgorithm::HS256),
+    );
+    match decoded {
+        Ok(token) => Ok(token.claims.sub),
+        Err(e) => match e.kind() {
+            jsonwebtoken::errors::ErrorKind::ExpiredSignature => Err(CustomJWTTokenError::Expired),
+            _ => Err(CustomJWTTokenError::Invalid("Invalid Token".to_string())),
+        },
+    }
 }

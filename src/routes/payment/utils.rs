@@ -4,15 +4,16 @@ use super::schemas::{CommercePaymentMetaData, PaymentOrderData};
 
 use crate::payment_client::PaymentClient;
 use crate::routes::order::schemas::{
-    CommerceList, CommerceStatusType, OrderType, PaymentCollectedBy, PaymentStatus,
+    CommerceStatusType, MinimalCommerceData, OrderType, PaymentCollectedBy, PaymentStatus,
 };
 use crate::routes::product::schemas::PaymentType;
+use crate::schemas::WebSocketParam;
 use crate::user_client::{BusinessAccount, SettingKey, UserAccount, UserClient};
 use anyhow::{anyhow, Context};
 use chrono::Utc;
 use sqlx::{Executor, PgPool, Postgres, Transaction};
 use uuid::Uuid;
-pub fn validate_order_for_payment(order: &CommerceList) -> Result<(), anyhow::Error> {
+pub fn validate_order_for_payment(order: &MinimalCommerceData) -> Result<(), anyhow::Error> {
     match order.record_type {
         OrderType::PurchaseOrder if order.record_status != CommerceStatusType::Created => {
             Err(anyhow!("Order is not created"))
@@ -86,7 +87,7 @@ pub async fn get_payment_order_id(
     pool: &PgPool,
     payment_client: &PaymentClient,
     user_client: &UserClient,
-    order: &CommerceList,
+    order: &MinimalCommerceData,
     business_account: &BusinessAccount,
     user_account: &UserAccount,
 ) -> Result<PaymentOrderData, PaymentOrderError> {
@@ -259,3 +260,11 @@ pub async fn update_payment_status(
 
 //     Ok(())
 // }
+
+pub fn get_payment_ws_params(order: &MinimalCommerceData) -> WebSocketParam {
+    WebSocketParam {
+        user_id: None,
+        business_id: order.buyer_id,
+        device_id: None,
+    }
+}

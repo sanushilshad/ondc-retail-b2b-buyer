@@ -1,13 +1,17 @@
-use super::schemas::{CreatePaymentOrderRequest, PaymentNotificationRequest, PaymentOrderData};
-use super::utils::{get_payment_order_id, update_payment_status, validate_order_for_payment};
+use super::schemas::{
+    CreatePaymentOrderRequest, PaymentNotificationRequest, PaymentOrderData, WSPayment,
+};
+use super::utils::{
+    get_payment_order_id, get_payment_ws_params, update_payment_status, validate_order_for_payment,
+};
+use crate::routes::order::utils::fetch_minimal_commerce_data_model;
 use crate::schemas::RequestMetaData;
 // use crate::routes::order::utils::update_order_update_field;
 use crate::user_client::UserClient;
-use crate::websocket_client::WebSocketClient;
+use crate::websocket_client::{WebSocketActionType, WebSocketClient};
 use crate::{
     errors::GenericError,
     payment_client::PaymentClient,
-    routes::order::{schemas::OrderListFilter, utils::get_order_list},
     schemas::GenericResponse,
     user_client::{AllowedPermission, BusinessAccount, PermissionType, UserAccount},
 };
@@ -43,18 +47,9 @@ pub async fn payment_order_creation(
     payment_client: web::Data<PaymentClient>,
     user_client: web::Data<UserClient>,
 ) -> Result<web::Json<GenericResponse<PaymentOrderData>>, GenericError> {
-    let list_filter = OrderListFilter::from_transaction_id(
-        vec![body.transaction_id],
-        allowed_permission.user_id,
-        allowed_permission.business_id,
-        vec![PermissionType::ListOrder],
-    );
-    let data = get_order_list(&pool, list_filter)
+    let order = fetch_minimal_commerce_data_model(&pool, body.transaction_id)
         .await
-        .map_err(|e| GenericError::DatabaseError("Failed to fetch order list".to_string(), e))?;
-    let order = data
-        .first()
-        .ok_or(GenericError::DataNotFound("No orders found".to_string()))?;
+        .map_err(|e| GenericError::DatabaseError("Failed to fetch order".to_string(), e))?;
 
     if !allowed_permission.validate_commerce_self(
         order.created_by,
@@ -66,12 +61,12 @@ pub async fn payment_order_creation(
         ));
     }
 
-    validate_order_for_payment(order).map_err(|e| GenericError::ValidationError(e.to_string()))?;
+    validate_order_for_payment(&order).map_err(|e| GenericError::ValidationError(e.to_string()))?;
     let order_data = get_payment_order_id(
         &pool,
         &payment_client,
         &user_client,
-        order,
+        &order,
         &business_account,
         &user_account,
     )
@@ -106,6 +101,9 @@ pub async fn payment_notification(
     websocket_srv: web::Data<WebSocketClient>,
     meta_data: RequestMetaData,
 ) -> Result<web::Json<GenericResponse<()>>, GenericError> {
+    let order = fetch_minimal_commerce_data_model(&pool, body.transaction_id)
+        .await
+        .map_err(|e| GenericError::DatabaseError("Failed to fetch order".to_string(), e))?;
     let mut transaction = pool
         .begin()
         .await
@@ -125,6 +123,23 @@ pub async fn payment_notification(
         .commit()
         .await
         .context("Failed to commit SQL transaction to store an order")
+        .map_err(|e| GenericError::UnexpectedCustomError(e.to_string()))?;
+    let ws_obj = WSPayment {
+        message: format!(
+            "Payment for Order {} is: {}",
+            order.urn,
+            body.status.payment_status()
+        ),
+    };
+    let ws_json = serde_json::to_value(ws_obj).unwrap();
+    websocket_srv
+        .send_msg(
+            get_payment_ws_params(&order),
+            WebSocketActionType::OrderPayment,
+            ws_json,
+            None,
+        )
+        .await
         .map_err(|e| GenericError::UnexpectedCustomError(e.to_string()))?;
     Ok(web::Json(GenericResponse::success(
         "Successfully recieved notification",

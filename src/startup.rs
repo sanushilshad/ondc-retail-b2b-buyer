@@ -74,7 +74,9 @@ async fn run(
     let payment_client = web::Data::new(configuration.payment.client());
     // es_client.send().await;
     // let kafka_producer = kafka_client.create_producer().await;
-
+    let workers = configuration.application.workers;
+    let application_obj = web::Data::new(configuration.application);
+    let secret_obj = web::Data::new(configuration.secret);
     let _ = kafka_client
         .kafka_client_search_consumer(ws_client.clone(), db_pool.clone())
         .await;
@@ -94,9 +96,11 @@ async fn run(
             .app_data(kafka_client.clone())
             .app_data(es_client.clone())
             .app_data(payment_client.clone())
+            .app_data(secret_obj.clone())
+            .app_data(application_obj.clone())
             .configure(main_route)
     })
-    .workers(configuration.application.workers)
+    .workers(workers)
     .listen(listener)?
     .run();
 

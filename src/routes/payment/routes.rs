@@ -1,5 +1,5 @@
 use crate::{
-    middleware::{BusinessAccountValidation, RequireAuth},
+    middleware::{BusinessAccountValidation, RequireAuth, RequireServiceAuth},
     user_client::CustomerType,
 };
 
@@ -21,5 +21,11 @@ pub fn payment_route(cfg: &mut web::ServiceConfig) {
                 .wrap(RequireAuth),
         ),
     );
-    cfg.service(web::resource("/notification").route(web::post().to(payment_notification)));
+    cfg.service(
+        web::resource("/notification").route(
+            web::post()
+                .to(payment_notification)
+                .wrap(RequireServiceAuth),
+        ),
+    );
 }

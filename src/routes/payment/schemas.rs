@@ -75,3 +75,9 @@ impl FromRequest for PaymentNotificationRequest {
         })
     }
 }
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WSPayment {
+    pub message: String,
+}

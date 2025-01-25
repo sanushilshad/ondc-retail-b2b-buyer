@@ -10,8 +10,8 @@ use crate::routes::product::schemas::FulfillmentType;
 use crate::routes::product::schemas::{CategoryDomain, PaymentType};
 use crate::schemas::DataSource;
 use crate::schemas::{CountryCode, CurrencyType, FeeType};
-use crate::user_client::PermissionType;
 use crate::utils::pascal_to_snake_case;
+use std::fmt;
 // use crate::utils::deserialize_non_empty_vector;
 use actix_http::Payload;
 use actix_web::{web, FromRequest, HttpRequest};
@@ -738,6 +738,11 @@ pub enum PaymentStatus {
     Pending,
     Refunded,
 }
+impl fmt::Display for PaymentStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", pascal_to_snake_case(&format!("{:?}", self)))
+    }
+}
 
 #[derive(Deserialize, Debug, ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -991,17 +996,16 @@ pub struct OrderListFilter {
     pub end_date: Option<DateTime<Utc>>,
     pub offset: i32,
     pub limit: i32,
-    pub user_id: Uuid,
+    pub user_id: Option<Uuid>,
     pub business_id: Uuid,
-    pub permission_list: Vec<PermissionType>,
+    // pub permission_list: Vec<PermissionType>,
 }
 
 impl OrderListFilter {
     pub fn new(
         list_request: OrderListRequest,
-        user_id: Uuid,
+        user_id: Option<Uuid>,
         business_id: Uuid,
-        permission_list: Vec<PermissionType>,
     ) -> OrderListFilter {
         OrderListFilter {
             transaction_id_list: list_request.transaction_id,
@@ -1011,15 +1015,13 @@ impl OrderListFilter {
             limit: list_request.limit,
             user_id,
             business_id,
-            permission_list,
         }
     }
 
     pub fn from_transaction_id(
         transaction_id_list: Vec<Uuid>,
-        user_id: Uuid,
+        user_id: Option<Uuid>,
         business_id: Uuid,
-        permission_list: Vec<PermissionType>,
     ) -> OrderListFilter {
         OrderListFilter {
             transaction_id_list: Some(transaction_id_list),
@@ -1027,7 +1029,6 @@ impl OrderListFilter {
             end_date: None,
             offset: 0,
             limit: 1,
-            permission_list,
             business_id,
             user_id,
         }
@@ -1037,6 +1038,22 @@ impl OrderListFilter {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CommerceList {
+    pub id: Uuid,
+    pub external_urn: Uuid,
+    pub urn: String,
+    pub currency_code: CurrencyType,
+    pub grand_total: BigDecimal,
+    pub record_status: CommerceStatusType,
+    pub created_on: DateTime<Utc>,
+    pub seller: CommerceSeller,
+    pub buyer_id: Uuid,
+    pub created_by: Uuid,
+    pub record_type: OrderType,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MinimalCommerceData {
     pub id: Uuid,
     pub external_urn: Uuid,
     pub urn: String,

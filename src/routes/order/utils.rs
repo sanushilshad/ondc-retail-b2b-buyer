@@ -2,19 +2,20 @@ use super::errors::SelectOrderError;
 use super::models::{
     CommerceBppTermsModel, CommerceDataModel, CommerceDocumentModel, CommerceFulfillmentModel,
     CommerceItemModel, CommerceListModel, CommercePaymentModel, DropOffContactModel,
-    DropOffDataModel, DropOffLocationModel, FulfillmentInstruction, OrderBillingModel,
-    OrderCancellationFeeModel, OrderCancellationTermModel, PaymentSettlementDetailModel,
-    PickUpContactModel, PickUpDataModel, PickUpLocationModel, SellerPaymentDetailModel,
-    TimeRangeModel,
+    DropOffDataModel, DropOffLocationModel, FulfillmentInstruction, MinimalCommerceModel,
+    OrderBillingModel, OrderCancellationFeeModel, OrderCancellationTermModel,
+    PaymentSettlementDetailModel, PickUpContactModel, PickUpDataModel, PickUpLocationModel,
+    SellerPaymentDetailModel, TimeRangeModel,
 };
 use super::schemas::{
     BasicNetworkData, BulkCancelFulfillmentData, BulkCancelItemData, BulkConfirmFulfillmentData,
     BulkStatusFulfillmentData, BuyerTerm, Commerce, CommerceBPPTerms, CommerceBilling,
     CommerceCancellationFee, CommerceCancellationTerm, CommerceDocument, CommerceFulfillment,
     CommerceItem, CommerceList, CommercePayment, CommerceSeller, DocumentType, DropOffData,
-    FulfillmentContact, FulfillmentLocation, OrderListFilter, OrderSelectFulfillment,
-    OrderSelectRequest, PaymentSettlementDetail, PickUpData, PickUpFulfillmentLocation,
-    SelectFulfillmentLocation, SellerPaymentDetail, TimeRange, TradeType,
+    FulfillmentContact, FulfillmentLocation, MinimalCommerceData, OrderListFilter,
+    OrderSelectFulfillment, OrderSelectRequest, PaymentSettlementDetail, PickUpData,
+    PickUpFulfillmentLocation, SelectFulfillmentLocation, SellerPaymentDetail, TimeRange,
+    TradeType,
 };
 use crate::chat_client::{
     ChatClient, ChatData, ChatMessageType, ChatParticipant, SendMessageDataDescription,
@@ -44,7 +45,7 @@ use crate::schemas::{
 };
 use crate::schemas::{DataSource, SeriesNoType};
 use crate::user_client::{
-    get_vector_val_from_list, BusinessAccount, PermissionType, SettingData, UserAccount, VectorType,
+    get_vector_val_from_list, BusinessAccount, SettingData, UserAccount, VectorType,
 };
 use crate::utils::{get_gps_string, get_series_no};
 use anyhow::{anyhow, Context};
@@ -3205,12 +3206,9 @@ async fn fetch_order_list_data_model(
 
     query.push(" AND buyer_id = ");
     query.push_bind(filter.business_id);
-    if filter
-        .permission_list
-        .contains(&PermissionType::ListOrderSelf)
-    {
+    if let Some(user_id) = filter.user_id {
         query.push(" AND created_by = ");
-        query.push_bind(filter.user_id);
+        query.push_bind(user_id);
     }
 
     if let Some(transaction_ids) = filter.transaction_id_list {
@@ -3288,4 +3286,43 @@ pub async fn update_order_update_field(
             .context("A database failure occurred while saving on_init buyer commerce to database")
     })?;
     Ok(())
+}
+
+#[tracing::instrument(name = "fetch_minimal_commerce_data_model", skip(pool), fields())]
+pub async fn fetch_minimal_commerce_data_model(
+    pool: &PgPool,
+    transaction_id: Uuid,
+) -> Result<MinimalCommerceData, anyhow::Error> {
+    let rows = sqlx::query_as!(
+        MinimalCommerceModel,
+        r#"
+        SELECT 
+            id,
+            external_urn, 
+            urn,
+            currency_code as "currency_code:CurrencyType",
+            grand_total,
+            record_status as "record_status:CommerceStatusType",
+            record_type as "record_type:OrderType", 
+            created_on,
+            buyer_id,
+            created_by,
+            seller_id,
+            seller_name
+        FROM 
+            commerce_data
+        WHERE 
+            is_deleted = false
+            AND external_urn = $1
+        "#,
+        transaction_id
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to execute query: {:?}", e);
+        anyhow::Error::new(e).context("Failed to fetch order list from the database")
+    })?;
+
+    Ok(rows.schema())
 }

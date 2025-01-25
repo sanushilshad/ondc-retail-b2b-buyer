@@ -639,3 +639,9 @@ pub enum TimeZones {
     #[serde(rename = "Asia/Kolkata")]
     AsiaKolkata,
 }
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct JWTClaims {
+    pub sub: Uuid,
+    pub exp: usize,
+}

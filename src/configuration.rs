@@ -7,6 +7,7 @@ use config::{self, ConfigError, Environment};
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
 use sqlx::{postgres::PgConnectOptions, ConnectOptions};
+use uuid::Uuid;
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct JWT {
@@ -36,6 +37,18 @@ pub struct ONDCConfig {
     pub gateway_uri: String,
     pub registry_base_url: String,
 }
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct Jwt {
+    pub secret: SecretString,
+    pub expiry: i64,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct SecretConfig {
+    pub jwt: Jwt,
+}
+
 #[derive(Debug, Deserialize, Clone)]
 pub struct Config {
     pub database: DatabaseConfig,
@@ -49,6 +62,7 @@ pub struct Config {
     pub kafka: KafkaConfig,
     pub elastic_search: ElasticSearchConfig,
     pub payment: PaymentConfig,
+    pub secret: SecretConfig,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -56,6 +70,7 @@ pub struct ApplicationConfig {
     pub port: u16,
     pub host: String,
     pub workers: usize,
+    pub service_id: Uuid,
 }
 
 #[derive(Debug, Deserialize, Clone)]

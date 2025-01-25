@@ -11,9 +11,9 @@ use uuid::Uuid;
 
 use super::schemas::{
     CancellationFeeType, CommerceList, CommerceSeller, CommerceStatusType, DocumentType,
-    FulfillmentCategoryType, FulfillmentStatusType, IncoTermType, OrderType, PaymentCollectedBy,
-    PaymentSettlementCounterparty, PaymentSettlementPhase, PaymentSettlementType, PaymentStatus,
-    ServiceableType, SettlementBasis, TradeType,
+    FulfillmentCategoryType, FulfillmentStatusType, IncoTermType, MinimalCommerceData, OrderType,
+    PaymentCollectedBy, PaymentSettlementCounterparty, PaymentSettlementPhase,
+    PaymentSettlementType, PaymentStatus, ServiceableType, SettlementBasis, TradeType,
 };
 use crate::domain::EmailObject;
 #[derive(Debug, Serialize, Deserialize, FromRow)]
@@ -253,6 +253,46 @@ pub struct CommerceListModel {
 impl CommerceListModel {
     pub fn schema(self) -> CommerceList {
         CommerceList {
+            id: self.id,
+            external_urn: self.external_urn,
+            urn: self.urn,
+            currency_code: self.currency_code,
+            grand_total: self
+                .grand_total
+                .unwrap_or(BigDecimal::from_str("0.00").unwrap()),
+            record_status: self.record_status,
+            created_on: self.created_on,
+            buyer_id: self.buyer_id,
+            created_by: self.created_by,
+            seller: CommerceSeller {
+                name: self.seller_name,
+                id: self.seller_id,
+            },
+            record_type: self.record_type,
+        }
+    }
+}
+
+#[derive(Deserialize, Debug, FromRow)]
+// #[serde(rename_all = "snake_C")]
+pub struct MinimalCommerceModel {
+    pub id: Uuid,
+    pub external_urn: Uuid,
+    pub urn: String,
+    pub currency_code: CurrencyType,
+    pub grand_total: Option<BigDecimal>,
+    pub record_status: CommerceStatusType,
+    pub created_on: DateTime<Utc>,
+    pub seller_id: String,
+    pub seller_name: Option<String>,
+    pub created_by: Uuid,
+    pub buyer_id: Uuid,
+    pub record_type: OrderType,
+}
+
+impl MinimalCommerceModel {
+    pub fn schema(self) -> MinimalCommerceData {
+        MinimalCommerceData {
             id: self.id,
             external_urn: self.external_urn,
             urn: self.urn,

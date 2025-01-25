@@ -17,27 +17,28 @@ bigdecimal = { version = "0.4.7", default-features = false, features = ["serde"]
 base64 = "0.22.1"
 blake2 = "0.10.6"
 chrono = { version = "0.4.39", features = ["serde"] }
-config = { version = "0.15.4", features = ["yaml"] }
+config = { version = "0.15.6", features = ["yaml"] }
 ed25519-dalek = {version="2.1.0"}
 futures = "0.3.31"
 futures-util = "0.3.31"
 hex = "0.4"
+jsonwebtoken = "9.2"
 lazy_static = "1.5"
 lettre = { version = "0.11.11", default-features = false, features = ["smtp-transport", "tokio1-rustls-tls", "hostname", "builder", "pool", "tracing"] }
 opentelemetry = "0.27.1"
 opentelemetry-otlp = {version="0.27.0"}
 opentelemetry_sdk = { version = "0.27.1", features = ["rt-tokio"] }
 rand = { version = "0.8", features=["std_rng"] }
-redis = { version = "0.27.6", features = ["tokio-comp"] }
+redis = { version = "0.28.2", features = ["tokio-comp"] }
 regex = "1.11.1"
 reqwest = { version = "0.12.12", default-features = false, features = ["json", "rustls-tls"] }
 secrecy = { version = "0.10.3", features = ["serde"] }
 serde = { version = "1.0.217"}
-serde_json = { version = "1.0.135", default-features = false}
+serde_json = { version = "1.0.137", default-features = false}
 serde_with = "3.12.0"
 sqlx = { version = "0.8.2", default-features = false, features = ["runtime-tokio-rustls", "macros", "postgres", "uuid", "chrono", "migrate", "json", "bigdecimal"] }
-thiserror = "2.0.9"
-tokio = { version = "1.42.0", features = ["macros", "rt-multi-thread"] }
+thiserror = "2.0.11"
+tokio = { version = "1.43.0", features = ["macros", "rt-multi-thread"] }
 tracing = { version = "0.1.41", features = ["log"] }
 tracing-actix-web = "0.7.15"
 tracing-bunyan-formatter = "0.3.10"
@@ -45,10 +46,10 @@ tracing-log = "0.2"
 tracing-opentelemetry = {version="0.28.0"}
 tracing-subscriber = { version = "0.3.19", features = ["registry", "env-filter"] }
 utoipa = {version="5.3.1", features=["actix_extras", "chrono"]}
-utoipa-swagger-ui = {version ="8.1.1", features=["actix-web"]}
+utoipa-swagger-ui = {version ="9.0.0", features=["actix-web"]}
 utoipauto = "0.2.0"
-validator = {version="0.19.0", features = ["derive"]}
-uuid = { version = "1.11.0", default-features = false, features = ["v4", "serde"] }
+validator = {version="0.20.0", features = ["derive"]}
+uuid = { version = "1.12.1", default-features = false, features = ["v4", "serde"] }
 rdkafka = { version = "0.37", features = [ "ssl", "sasl", "cmake-build"] }
 elasticsearch = "8.17.0-alpha.1"
 

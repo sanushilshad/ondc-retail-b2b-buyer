@@ -802,12 +802,15 @@ pub async fn order_list(
     business_account: BusinessAccount,
     allowed_permission: AllowedPermission,
 ) -> Result<web::Json<GenericResponse<Vec<CommerceList>>>, GenericError> {
-    let list_filter = OrderListFilter::new(
-        body,
-        allowed_permission.user_id,
-        allowed_permission.business_id,
-        allowed_permission.permission_list,
-    );
+    let user_id = if allowed_permission
+        .permission_list
+        .contains(&PermissionType::ListOrderSelf)
+    {
+        Some(allowed_permission.user_id)
+    } else {
+        None
+    };
+    let list_filter = OrderListFilter::new(body, user_id, allowed_permission.business_id);
     let data = get_order_list(&pool, list_filter).await.map_err(|e| {
         tracing::error!("Database error while fetching order list: {:?}", e);
         GenericError::DatabaseError("Failed to fetch order list".to_string(), e)

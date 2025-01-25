@@ -465,7 +465,7 @@ CREATE TABLE IF NOT EXISTS commerce_data(
   bap_id TEXT NOT NULL,
   bap_uri TEXT NOT NULL,
   quote_ttl TEXT NOT NULL,
-  currency_code currency_code_type,
+  currency_code currency_code_type NOT NULL,
   city_code TEXT NOT NULL,
   country_code country_code NOT NULL,
   billing JSONB,
