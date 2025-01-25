@@ -70,6 +70,7 @@ pub struct CommerceDataModel {
     pub cancellation_terms: Option<sqlx::types::Json<Vec<OrderCancellationTermModel>>>,
     pub bpp_terms: Option<sqlx::types::Json<CommerceBppTermsModel>>,
     pub documents: Option<sqlx::types::Json<Vec<CommerceDocumentModel>>>,
+    pub buyer_chat_link: Option<String>,
 }
 
 #[allow(dead_code)]

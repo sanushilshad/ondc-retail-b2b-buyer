@@ -625,6 +625,7 @@ pub struct Commerce {
     pub currency_type: Option<CurrencyType>,
     pub bpp_terms: Option<CommerceBPPTerms>,
     pub documents: Option<Vec<CommerceDocument>>,
+    pub chat_link: Option<String>,
     #[schema(value_type = String)]
     pub buyer_id: Uuid,
 }

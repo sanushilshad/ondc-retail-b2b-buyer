@@ -1211,7 +1211,7 @@ async fn get_commerce_data(
            buyer_id, seller_id, buyer_name, seller_name, source as "source:DataSource", 
            created_on, updated_on, updated_by, deleted_on, is_deleted, created_by, grand_total, 
            bpp_id, bpp_uri, bap_id, bap_uri, quote_ttl,
-           currency_code as "currency_code?:CurrencyType", city_code,
+           currency_code as "currency_code?:CurrencyType", city_code, buyer_chat_link,
            country_code as "country_code:CountryCode",
            billing as "billing?:  Json<OrderBillingModel>",
            cancellation_terms as "cancellation_terms?: Json<Vec<OrderCancellationTermModel>>",
@@ -1639,6 +1639,7 @@ fn get_order_from_model(
             .documents
             .map(|f| get_document_from_document_model(f.0)),
         buyer_id: order.buyer_id,
+        chat_link: order.buyer_chat_link,
     }
 }
 
