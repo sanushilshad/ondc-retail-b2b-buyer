@@ -3,6 +3,7 @@ use reqwest::Client;
 use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
 
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::{
@@ -34,7 +35,7 @@ pub enum PaymentServiceOrderStatus {
     Failed,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum PaymentServiceStatusType {
     Created,
@@ -42,6 +43,18 @@ pub enum PaymentServiceStatusType {
     Captured,
     Refunded,
     Failed,
+}
+
+impl PaymentServiceStatusType {
+    pub fn payment_status(&self) -> PaymentStatus {
+        match self {
+            PaymentServiceStatusType::Created => PaymentStatus::NotPaid,
+            PaymentServiceStatusType::Authorized => PaymentStatus::Pending,
+            PaymentServiceStatusType::Captured => PaymentStatus::Paid,
+            PaymentServiceStatusType::Refunded => PaymentStatus::Refunded,
+            PaymentServiceStatusType::Failed => PaymentStatus::NotPaid,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -56,18 +69,6 @@ pub struct PaymentServicePaymentData {
     pub method: String,
     pub captured: bool,
     pub created_at: i64,
-}
-
-impl PaymentServicePaymentData {
-    pub fn payment_status(&self) -> PaymentStatus {
-        match self.status {
-            PaymentServiceStatusType::Created => PaymentStatus::NotPaid,
-            PaymentServiceStatusType::Authorized => PaymentStatus::Paid,
-            PaymentServiceStatusType::Captured => PaymentStatus::Paid,
-            PaymentServiceStatusType::Refunded => PaymentStatus::Refunded,
-            PaymentServiceStatusType::Failed => PaymentStatus::NotPaid,
-        }
-    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -182,20 +183,42 @@ impl PaymentClient {
         &self,
         payment_order: Option<&Vec<PaymentServicePaymentData>>,
     ) -> PaymentStatus {
+        // payment_order
+        //     .and_then(|payment_objs| payment_objs.last()) // Get the last element
+        //     .map_or(PaymentStatus::NotPaid, |last_payment| {
+        //         last_payment.payment_status()
+        //     })
         payment_order.map_or(PaymentStatus::NotPaid, |payment_objs| {
             if payment_objs
                 .iter()
-                .any(|e| e.payment_status() == PaymentStatus::Paid)
+                .any(|e| e.status.payment_status() == PaymentStatus::Paid)
             {
                 PaymentStatus::Paid
             } else if payment_objs
                 .iter()
-                .any(|e| e.payment_status() == PaymentStatus::Refunded)
+                .any(|e| e.status.payment_status() == PaymentStatus::Refunded)
             {
                 PaymentStatus::Refunded
+            } else if payment_objs
+                .iter()
+                .any(|e| e.status.payment_status() == PaymentStatus::Pending)
+            {
+                PaymentStatus::Pending
             } else {
                 PaymentStatus::NotPaid
             }
+        })
+    }
+
+    pub fn get_payment_obj<'a>(
+        &self,
+        payment_order: Option<&'a Vec<PaymentServicePaymentData>>,
+        status_type: PaymentStatus,
+    ) -> Option<&'a PaymentServicePaymentData> {
+        payment_order.and_then(|payment_objs| {
+            payment_objs
+                .iter()
+                .find(|e| e.status.payment_status() == status_type)
         })
     }
 }

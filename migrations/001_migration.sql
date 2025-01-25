@@ -50,7 +50,6 @@ CREATE TABLE IF NOT EXISTS registered_network_participant (
   subscriber_uri TEXT NOT NULL,
   signing_key TEXT NOT NULL,
   network_participant_type ondc_network_participant_type NOT NULL,
-
   logo TEXT NOT NULL,
   long_description TEXT NOT NULL,
   short_description TEXT NOT NULL,
@@ -454,6 +453,8 @@ CREATE TABLE IF NOT EXISTS commerce_data(
   deleted_on timestamptz,
   is_deleted BOOLEAN NOT NULL DEFAULT false,
   created_by uuid NOT NULL,
+  updated_by TEXT,
+  deleted_by uuid,
   refund_grand_total DECIMAL(20, 3),
   grand_total DECIMAL(20, 3),
   documents JSONB,

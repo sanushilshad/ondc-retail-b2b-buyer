@@ -391,6 +391,18 @@ pub struct CommercePayment {
     pub withholding_amount: Option<String>,
     pub seller_payment_detail: Option<SellerPaymentDetail>,
     pub settlement_details: Option<Vec<PaymentSettlementDetail>>,
+    pub payment_id: Option<String>,
+}
+
+impl CommercePayment {
+    pub fn is_bap_payment(&self) -> bool {
+        if self.collected_by == Some(PaymentCollectedBy::Bap)
+            && self.payment_type == PaymentType::PrePaid
+        {
+            return true;
+        }
+        return false;
+    }
 }
 
 #[derive(Deserialize, Debug, ToSchema, sqlx::Type, Serialize, Clone)]

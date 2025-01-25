@@ -1,5 +1,6 @@
 use crate::errors::GenericError;
 
+use crate::payment_client::PaymentServiceStatusType;
 use crate::routes::order::schemas::PaymentCollectedBy;
 use crate::routes::order::schemas::PaymentStatus;
 use crate::routes::product::schemas::PaymentType;
@@ -48,4 +49,29 @@ pub struct CommercePaymentMetaData {
 pub struct PaymentOrderData {
     pub order_id: String,
     pub status: PaymentStatus,
+}
+
+#[derive(Deserialize, Debug, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PaymentNotificationRequest {
+    #[schema(value_type = String)]
+    pub transaction_id: Uuid,
+    pub payment_order_id: String,
+    pub payment_id: String,
+    pub status: PaymentServiceStatusType,
+}
+impl FromRequest for PaymentNotificationRequest {
+    type Error = GenericError;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
+
+    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+        let fut = Json::<Self>::from_request(req, payload);
+
+        Box::pin(async move {
+            match fut.await {
+                Ok(json) => Ok(json.into_inner()),
+                Err(e) => Err(GenericError::ValidationError(e.to_string())),
+            }
+        })
+    }
 }

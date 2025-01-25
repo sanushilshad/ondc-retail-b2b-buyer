@@ -1401,6 +1401,7 @@ fn get_order_payment_from_model(payments: Vec<CommercePaymentModel>) -> Vec<Comm
             settlement_window: payment.settlement_window,
             withholding_amount: payment.withholding_amount.map(|v| v.to_string()),
             settlement_details: Some(settlement_details_list),
+            payment_id: payment.payment_id,
         })
     }
     payment_obj
@@ -3260,4 +3261,31 @@ pub async fn get_order_list(
 ) -> Result<Vec<CommerceList>, anyhow::Error> {
     let models = fetch_order_list_data_model(pool, filter).await?;
     Ok(models.into_iter().map(|a| a.schema()).collect())
+}
+
+pub async fn validate_confirm_req(order: &Commerce) -> Result<(), anyhow::Error> {
+    Ok(())
+}
+
+#[tracing::instrument(name = "update_order_update_field", skip(transaction), fields())]
+pub async fn update_order_update_field(
+    transaction: &mut Transaction<'_, Postgres>,
+    transaction_id: Uuid,
+    updated_by: &str,
+) -> Result<(), anyhow::Error> {
+    let query = sqlx::query!(
+        r#"
+        UPDATE commerce_data SET updated_on=$1, updated_by=$2 WHERE external_urn=$3
+        "#,
+        Utc::now(),
+        updated_by,
+        transaction_id
+    );
+
+    transaction.execute(query).await.map_err(|e| {
+        tracing::error!("Failed to execute query: {:?}", e);
+        anyhow::Error::new(e)
+            .context("A database failure occurred while saving on_init buyer commerce to database")
+    })?;
+    Ok(())
 }

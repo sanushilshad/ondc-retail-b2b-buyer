@@ -17,10 +17,11 @@ pub enum WebSocketActionType {
     OrderStatus,
     OrderCancel,
     OrderUpdate,
+    OrderPayment,
 }
 
 #[derive(Debug, Serialize, PartialEq)]
-pub enum ProcessType {
+pub enum NotificationProcessType {
     Immediate,
     Deferred,
 }
@@ -32,7 +33,7 @@ pub struct WSRequest {
     pub device_id: Option<String>,
     pub action_type: WebSocketActionType,
     pub data: Value,
-    pub process_type: Option<ProcessType>,
+    pub process_type: Option<NotificationProcessType>,
 }
 
 #[derive(Debug)]
@@ -66,7 +67,7 @@ impl WebSocketClient {
         params: WebSocketParam,
         action_type: WebSocketActionType,
         data: Value,
-        process_type: Option<ProcessType>,
+        process_type: Option<NotificationProcessType>,
     ) -> Result<(), reqwest::Error> {
         let url = format!("{}/send", self.base_url);
         let request_body = WSRequest {

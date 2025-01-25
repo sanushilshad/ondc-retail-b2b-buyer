@@ -9,6 +9,7 @@ use crate::routes::order::schemas::{
 use crate::routes::product::schemas::PaymentType;
 use crate::user_client::{BusinessAccount, SettingKey, UserAccount, UserClient};
 use anyhow::{anyhow, Context};
+use chrono::Utc;
 use sqlx::{Executor, PgPool, Postgres, Transaction};
 use uuid::Uuid;
 pub fn validate_order_for_payment(order: &CommerceList) -> Result<(), anyhow::Error> {
@@ -183,3 +184,78 @@ async fn update_payment_order_id(
     })?;
     Ok(())
 }
+
+#[tracing::instrument(name = "update_order_and_payment_status", skip(transaction), fields())]
+pub async fn update_payment_status(
+    transaction: &mut Transaction<'_, Postgres>,
+    transaction_id: Uuid,
+    updated_by: &str,
+    payment_status: PaymentStatus,
+    payment_id: &str,
+    payment_order_id: &str,
+) -> Result<(), anyhow::Error> {
+    let query = sqlx::query!(
+        r#"
+        WITH updated_order AS (
+            UPDATE commerce_data
+            SET updated_on = $1, updated_by = $2
+            WHERE external_urn = $3
+            RETURNING id
+        )
+        UPDATE commerce_payment_data
+        SET payment_id = $4, payment_status = $5
+        FROM updated_order, commerce_data
+        WHERE commerce_payment_data.payment_order_id = $6
+        AND commerce_payment_data.commerce_data_id = updated_order.id
+        AND commerce_payment_data.commerce_data_id = commerce_data.id
+        AND commerce_data.external_urn = $3;
+        "#,
+        Utc::now(),
+        updated_by,
+        transaction_id,
+        payment_id,
+        payment_status as PaymentStatus,
+        payment_order_id
+    );
+
+    transaction.execute(query).await.map_err(|e| {
+        tracing::error!("Failed to execute combined query: {:?}", e);
+        anyhow::Error::new(e)
+            .context("A database failure occurred while updating order and payment status")
+    })?;
+
+    Ok(())
+}
+
+// #[tracing::instrument(name = "update paymentstatus", skip(transaction))]
+// pub async fn update_payment_status(
+//     transaction: &mut Transaction<'_, Postgres>,
+//     payment_status: PaymentStatus,
+//     payment_id: &str,
+//     payment_order_id: &str,
+//     transaction_id: Uuid,
+// ) -> Result<(), anyhow::Error> {
+//     // Execute the query within the transaction
+//     let query = sqlx::query!(
+//         r#"
+//         UPDATE commerce_payment_data
+//         SET payment_id = $1, payment_status = $2
+//         FROM commerce_data
+//         WHERE commerce_payment_data.payment_order_id = $3
+//         AND commerce_payment_data.commerce_data_id = commerce_data.id
+//         AND commerce_data.external_urn = $4
+//         "#,
+//         payment_id,
+//         payment_status as PaymentStatus,
+//         payment_order_id,
+//         transaction_id,
+//     );
+//     transaction.execute(query).await.map_err(|e| {
+//         tracing::error!("Failed to execute query in transaction: {:?}", e);
+//         anyhow::Error::new(e).context(
+//             "A database failure occurred while updating commerce payment data in transaction",
+//         )
+//     })?;
+
+//     Ok(())
+// }

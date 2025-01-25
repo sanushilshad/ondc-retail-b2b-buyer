@@ -9,7 +9,7 @@ use super::{
 
 use crate::chat_client::ChatData;
 use crate::user_client::{get_vector_val_from_list, BusinessAccount, UserAccount, VectorType};
-use crate::websocket_client::{ProcessType, WebSocketActionType, WebSocketClient};
+use crate::websocket_client::{NotificationProcessType, WebSocketActionType, WebSocketClient};
 use crate::{constants::ONDC_TTL, routes::product::ProductSearchError};
 use anyhow::anyhow;
 use chrono::{DateTime, Utc};
@@ -1720,7 +1720,12 @@ fn get_ondc_confirm_request_payment(
             params: ONDCPaymentParams {
                 amount: order.grand_total.clone().unwrap_or_default().to_string(),
                 currency: currency_type.clone(),
-                transaction_id: None,
+                transaction_id: order
+                    .payments
+                    .iter()
+                    .find(|p| p.payment_id.is_some())
+                    .map(|e| e.payment_id.to_owned())
+                    .flatten(),
             },
             buyer_app_finder_fee_type: payment.buyer_fee_type.clone().unwrap_or(FeeType::Amount),
             buyer_app_finder_fee_amount: payment
@@ -2344,7 +2349,7 @@ pub async fn process_on_search(
                         ws_params,
                         WebSocketActionType::ProductSearch,
                         ws_json,
-                        Some(ProcessType::Immediate),
+                        Some(NotificationProcessType::Immediate),
                     )
                     .await;
             }

@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
 use utoipa::ToSchema;
 use uuid::Uuid;
-#[derive(Debug, Deserialize, Serialize, ToSchema, sqlx::Type, Clone)]
+#[derive(Debug, Deserialize, Serialize, ToSchema, sqlx::Type, Clone, PartialEq)]
 #[serde(rename_all = "snake_case")]
 #[sqlx(type_name = "payment_type", rename_all = "snake_case")]
 pub enum PaymentType {
