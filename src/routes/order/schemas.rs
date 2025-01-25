@@ -467,6 +467,7 @@ pub struct ExtOffContact {
 }
 
 #[derive(Deserialize, Debug, Serialize, sqlx::FromRow, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct DropOffData {
     pub location: FulfillmentLocation,
     pub contact: FulfillmentContact,
@@ -490,6 +491,7 @@ pub struct TimeRange {
 }
 
 #[derive(Deserialize, Debug, Serialize, sqlx::FromRow, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct PickUpData {
     pub location: PickUpFulfillmentLocation,
     pub time_range: Option<TimeRange>,
