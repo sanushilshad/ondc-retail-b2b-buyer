@@ -386,8 +386,6 @@ pub async fn order_confirm(
         }
     };
 
-    // validate_confirm_req(&order);
-
     if !allowed_permission.validate_commerce_self(
         order.created_by,
         order.buyer_id,

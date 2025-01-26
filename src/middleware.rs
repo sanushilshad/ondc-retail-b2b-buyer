@@ -607,7 +607,7 @@ where
             let json_error = GenericError::ValidationError(error_message);
             return Box::pin(async { Ok(ServiceResponse::from_err(json_error, request)) });
         }
-        let decoded_user_id = match decode_token(token.unwrap(), &jwt_secret) {
+        let decoded_user_id = match decode_token(token.unwrap(), jwt_secret) {
             Ok(id) => id,
             Err(e) => {
                 return Box::pin(async move {

@@ -24,6 +24,7 @@ pub struct PaymentOrderCreateRequest<'a> {
     pub order_no: Uuid,
     pub amount: &'a BigDecimal,
     pub currency_type: &'a CurrencyType,
+    pub webhook: &'a str,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -110,12 +111,14 @@ impl PaymentClient {
         amount: &'a BigDecimal,
         id: &'a str,
         currency_type: &'a CurrencyType,
+        webhook: &'a str,
     ) -> PaymentOrderCreateRequest<'a> {
         PaymentOrderCreateRequest {
             id,
             order_no,
             amount,
             currency_type,
+            webhook,
         }
     }
 

@@ -401,7 +401,7 @@ impl CommercePayment {
         {
             return true;
         }
-        return false;
+        false
     }
 }
 

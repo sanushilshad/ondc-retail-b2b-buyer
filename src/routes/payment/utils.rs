@@ -138,12 +138,16 @@ pub async fn get_payment_order_id(
 
     validate_payment_order_creation(&payment)
         .map_err(|e| PaymentOrderError::ValidationError(e.to_string()))?;
-
+    let webhook = format!(
+        "https://{}/payment/notification",
+        &business_account.subscriber_id
+    );
     let data = payment_client.generate_order_create_request(
         order.external_urn,
         &order.grand_total,
         &payment_service_id,
         &order.currency_code,
+        &webhook,
     );
     let payment_order = payment_client
         .create_order(data)

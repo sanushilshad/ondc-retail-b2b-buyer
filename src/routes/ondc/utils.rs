@@ -1724,8 +1724,7 @@ fn get_ondc_confirm_request_payment(
                     .payments
                     .iter()
                     .find(|p| p.payment_id.is_some())
-                    .map(|e| e.payment_id.to_owned())
-                    .flatten(),
+                    .and_then(|e| e.payment_id.to_owned()),
             },
             buyer_app_finder_fee_type: payment.buyer_fee_type.clone().unwrap_or(FeeType::Amount),
             buyer_app_finder_fee_amount: payment

@@ -763,9 +763,11 @@ pub async fn save_buyer_order_data_on_select(
     let order_id = Uuid::new_v4();
     let mut created_on = ondc_on_select_req.context.timestamp;
     let mut order_type = OrderType::SaleOrder;
+    let mut updated_by = None;
     if ondc_select_req.context.ttl != ONDC_TTL {
         order_type = OrderType::PurchaseOrder;
         created_on = ondc_select_req.context.timestamp;
+        updated_by = Some("seller");
     };
     let order_status = if ondc_on_select_req.error.is_none() {
         CommerceStatusType::QuoteAccepted
@@ -776,12 +778,14 @@ pub async fn save_buyer_order_data_on_select(
         r#"
         INSERT INTO commerce_data (id, external_urn, urn, record_type, record_status,
         domain_category_code, buyer_id, seller_id, seller_name, buyer_name, source, created_on, created_by, bpp_id, bpp_uri,
-        bap_id, bap_uri, quote_ttl, updated_on,updated_by, currency_code, grand_total, city_code, country_code, seller_chat_link, buyer_chat_link)
+        bap_id, bap_uri, quote_ttl, updated_on, updated_by, currency_code, grand_total, city_code, country_code, seller_chat_link, buyer_chat_link)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
         ON CONFLICT (external_urn)
         DO UPDATE SET
         record_status = EXCLUDED.record_status,
         updated_on = EXCLUDED.updated_on,
+        updated_by =  EXCLUDED.updated_by,
+        grand_total = EXCLUDED.grand_total,
         currency_code = EXCLUDED.currency_code
         RETURNING id
         "#,
@@ -804,7 +808,7 @@ pub async fn save_buyer_order_data_on_select(
         &ondc_on_select_req.context.bap_uri,
         &ondc_select_req.context.ttl,
         ondc_select_req.context.timestamp,
-        user_account.id.to_string(),
+        updated_by,
         &ondc_on_select_req.message.order.quote.price.currency as &CurrencyType,
         &grand_total,
         &ondc_select_req.context.location.city.code,
@@ -3278,10 +3282,6 @@ pub async fn get_order_list(
 ) -> Result<Vec<CommerceList>, anyhow::Error> {
     let models = fetch_order_list_data_model(pool, filter).await?;
     Ok(models.into_iter().map(|a| a.schema()).collect())
-}
-
-pub async fn validate_confirm_req(order: &Commerce) -> Result<(), anyhow::Error> {
-    Ok(())
 }
 
 #[tracing::instrument(name = "update_order_update_field", skip(transaction), fields())]
