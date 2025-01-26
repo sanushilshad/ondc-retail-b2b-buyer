@@ -49,7 +49,7 @@ pub enum PaymentServiceStatusType {
 impl PaymentServiceStatusType {
     pub fn payment_status(&self) -> PaymentStatus {
         match self {
-            PaymentServiceStatusType::Created => PaymentStatus::NotPaid,
+            PaymentServiceStatusType::Created => PaymentStatus::Pending,
             PaymentServiceStatusType::Authorized => PaymentStatus::Pending,
             PaymentServiceStatusType::Captured => PaymentStatus::Paid,
             PaymentServiceStatusType::Refunded => PaymentStatus::Refunded,
