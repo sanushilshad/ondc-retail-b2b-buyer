@@ -155,12 +155,16 @@ export KAFKA__SEARCH_TOPIC_NAME="test_ondc_search"
 
 ## ELASTICSEARCH SEARCH 
 export ELASTIC_SEARCH__URL="https://0.0.0.0:9200"
-```
+
 
 ## PAYMENT SERVICE
 export PAYMENT__TOKEN=""
 export PAYMENT__BASE_URL="http://0.0.0.0:5608"
 export PAYMENT__TIMEOUT_MILLISECONDS=600000
+
+
+```
+
 
 
 - In order to verify SQL queries at compile time, set the below config in `.env` file:
@@ -185,6 +189,12 @@ bash release.sh
 ```
 bash restart.sh
 ```
+
+- For killing server:
+```
+bash kill.sh
+```
+
 
 ## API DOCUMENTATION:
 The API Docmentation can be found at `https://{{domain}}/docs/` after running the server.
@@ -328,6 +338,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 ### MILESTONE 4:
 * [ ] Develop Cancellation Code Fetch API
 * [ ] Develop common Microservice to fetch city codes, etc.
+* [ ] Develop common Microservice for retail functionality.
 * [ ] Add test cases for milestone 2 (Only unit tests)
 
 ### MILESTONE 5:
