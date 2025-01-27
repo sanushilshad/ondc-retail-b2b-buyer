@@ -20,7 +20,7 @@ pub struct PaymentClient {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PaymentOrderCreateRequest<'a> {
-    pub id: &'a str,
+    pub source: &'a str,
     pub order_no: Uuid,
     pub amount: &'a BigDecimal,
     pub currency_type: &'a CurrencyType,
@@ -114,7 +114,7 @@ impl PaymentClient {
         webhook: &'a str,
     ) -> PaymentOrderCreateRequest<'a> {
         PaymentOrderCreateRequest {
-            id,
+            source: id,
             order_no,
             amount,
             currency_type,
