@@ -1408,6 +1408,7 @@ fn get_order_payment_from_model(payments: Vec<CommercePaymentModel>) -> Vec<Comm
             withholding_amount: payment.withholding_amount.map(|v| v.to_string()),
             settlement_details: Some(settlement_details_list),
             payment_id: payment.payment_id,
+            payment_order_id: payment.payment_order_id,
         })
     }
     payment_obj
@@ -2120,6 +2121,14 @@ pub async fn initialize_payment_on_confirm(
     let mut payment_paid_amounts = vec![];
     let mut seller_payment_detail_list = vec![];
     let mut payment_id_list = vec![];
+    let mut payment_order_id_list = vec![];
+    let payment_order_id = order
+        .payments
+        .iter()
+        .find(|a| a.payment_order_id.is_some())
+        .map(|f| f.payment_order_id.as_ref())
+        .flatten();
+
     for payment in payments {
         id_list.push(Uuid::new_v4());
         commerce_data_id_list.push(order.id);
@@ -2131,6 +2140,7 @@ pub async fn initialize_payment_on_confirm(
         settlement_window_list.push(payment.settlement_window.as_str());
         withholding_amount_list.push(BigDecimal::from_str(&payment.withholding_amount).unwrap());
         payment_id_list.push(payment.id.as_deref());
+        payment_order_id_list.push(payment_order_id.as_deref());
         if payment.r#type == ONDCPaymentType::PreFulfillment
             && payment.collected_by == ONDCPaymentCollectedBy::Bpp
         {
@@ -2194,11 +2204,11 @@ pub async fn initialize_payment_on_confirm(
         r#"
         INSERT INTO commerce_payment_data(id, commerce_data_id, collected_by, payment_type, buyer_fee_type,
              buyer_fee_amount, settlement_window, withholding_amount, settlement_basis,
-             settlement_details, transaction_id,payment_status, payment_amount, seller_payment_detail, payment_id)
+             settlement_details, transaction_id,payment_status, payment_amount, seller_payment_detail, payment_id, payment_order_id)
             SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::payment_collected_by_type[],
             $4::payment_type[], $5::ondc_np_fee_type[], $6::decimal[], $7::text[], $8::decimal[],
             $9::settlement_basis_type[],  $10::jsonb[],
-            $11::text[], $12::payment_status[], $13::decimal[], $14::jsonb[], $15::text[])
+            $11::text[], $12::payment_status[], $13::decimal[], $14::jsonb[], $15::text[],  $16::text[])
         "#,
         &id_list[..] as &[Uuid],
         &commerce_data_id_list[..] as &[Uuid],
@@ -2214,7 +2224,8 @@ pub async fn initialize_payment_on_confirm(
         &payment_statuses[..] as &[PaymentStatus],
         &payment_paid_amounts[..] as &[BigDecimal],
         &seller_payment_detail_list[..] as &[Option<Value>],
-        &payment_id_list[..] as &[Option<&str>]
+        &payment_id_list[..] as &[Option<&str>],
+        &payment_order_id_list[..] as &[Option<&String>]
     );
 
     transaction.execute(query).await.map_err(|e| {

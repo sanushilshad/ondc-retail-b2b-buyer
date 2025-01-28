@@ -392,6 +392,7 @@ pub struct CommercePayment {
     pub seller_payment_detail: Option<SellerPaymentDetail>,
     pub settlement_details: Option<Vec<PaymentSettlementDetail>>,
     pub payment_id: Option<String>,
+    pub payment_order_id: Option<String>,
 }
 
 impl CommercePayment {
