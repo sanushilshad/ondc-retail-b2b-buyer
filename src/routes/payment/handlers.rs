@@ -2,8 +2,10 @@ use super::schemas::{
     CreatePaymentOrderRequest, PaymentNotificationRequest, PaymentOrderData, WSPayment,
 };
 use super::utils::{
-    get_payment_order_id, get_payment_ws_params, update_payment_status, validate_order_for_payment,
+    get_commerce_payments_with_lock, get_payment_order_id, get_payment_ws_params,
+    update_payment_status, validate_order_for_payment,
 };
+use crate::routes::order::schemas::PaymentStatus;
 use crate::routes::order::utils::fetch_minimal_commerce_data_model;
 use crate::schemas::RequestMetaData;
 // use crate::routes::order::utils::update_order_update_field;
@@ -109,38 +111,45 @@ pub async fn payment_notification(
         .await
         .context("Failed to acquire a Postgres connection from the pool")
         .map_err(|e| GenericError::UnexpectedCustomError(e.to_string()))?;
-    update_payment_status(
-        &mut transaction,
-        body.transaction_id,
-        &meta_data.device_id,
-        body.status.payment_status(),
-        &body.payment_id,
-        &body.payment_order_id,
-    )
-    .await
-    .map_err(|e| GenericError::UnexpectedCustomError(e.to_string()))?;
+    let payment_data = get_commerce_payments_with_lock(&mut transaction, order.id)
+        .await
+        .map_err(|e| GenericError::UnexpectedCustomError(e.to_string()))?;
+    if payment_data.payment_status != Some(PaymentStatus::Paid) {
+        update_payment_status(
+            &mut transaction,
+            body.transaction_id,
+            &meta_data.device_id,
+            body.status.payment_status(),
+            &body.payment_id,
+            &body.payment_order_id,
+        )
+        .await
+        .map_err(|e| GenericError::UnexpectedCustomError(e.to_string()))?;
+        let ws_obj = WSPayment {
+            message: format!(
+                "Payment for Order {} is: {}",
+                order.urn,
+                body.status.payment_status()
+            ),
+        };
+        let ws_json = serde_json::to_value(ws_obj).unwrap();
+        websocket_srv
+            .send_msg(
+                get_payment_ws_params(&order),
+                WebSocketActionType::OrderPayment,
+                ws_json,
+                None,
+            )
+            .await
+            .map_err(|e| GenericError::UnexpectedCustomError(e.to_string()))?;
+    }
+
     transaction
         .commit()
         .await
         .context("Failed to commit SQL transaction to store an order")
         .map_err(|e| GenericError::UnexpectedCustomError(e.to_string()))?;
-    let ws_obj = WSPayment {
-        message: format!(
-            "Payment for Order {} is: {}",
-            order.urn,
-            body.status.payment_status()
-        ),
-    };
-    let ws_json = serde_json::to_value(ws_obj).unwrap();
-    websocket_srv
-        .send_msg(
-            get_payment_ws_params(&order),
-            WebSocketActionType::OrderPayment,
-            ws_json,
-            None,
-        )
-        .await
-        .map_err(|e| GenericError::UnexpectedCustomError(e.to_string()))?;
+
     Ok(web::Json(GenericResponse::success(
         "Successfully recieved notification",
         Some(()),
