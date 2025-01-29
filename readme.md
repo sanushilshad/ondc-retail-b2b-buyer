@@ -272,7 +272,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 ```
 
 
-## MILESTONES (49/64)
+## MILESTONES (50/64)
 ### MILESTONE 1 (Jan 18, 2023 - Jul 22, 2024):
 * [x] Set up basic actix web server
 * [x] Add environment config fetch
@@ -329,7 +329,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [x] Integrate ElasticSearch.
 * [x] Develop Order Meta Data Fetch API
 * [x] Develop Order Detail Fetch API.
-* [ ] Integrate BAP Payment Gateway.
+* [x] Integrate BAP Payment Gateway.
 * [ ] Develop Product Caching.
 * [ ] Develop and Integrate Observability Module.
 
