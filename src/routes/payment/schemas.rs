@@ -79,5 +79,7 @@ impl FromRequest for PaymentNotificationRequest {
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct WSPayment {
+    #[schema(value_type = String)]
+    pub transaction_id: Uuid,
     pub message: String,
 }

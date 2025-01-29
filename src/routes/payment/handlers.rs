@@ -126,6 +126,7 @@ pub async fn payment_notification(
         .await
         .map_err(|e| GenericError::UnexpectedCustomError(e.to_string()))?;
         let ws_obj = WSPayment {
+            transaction_id: body.transaction_id,
             message: format!(
                 "Payment for Order {} is: {}",
                 order.urn,
