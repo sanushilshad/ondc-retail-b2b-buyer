@@ -272,7 +272,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 ```
 
 
-## MILESTONES (50/64)
+## MILESTONES (50/62)
 ### MILESTONE 1 (Jan 18, 2023 - Jul 22, 2024):
 * [x] Set up basic actix web server
 * [x] Add environment config fetch
@@ -295,8 +295,6 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [x] Develop ONDC on search API
 * [x] Fix integration test + add unit test cases for the apis in milestone 1
 * [x] Add application release + debug + kill bash scripts + restart scripts
-
-
 
 ### MILESTONE 2: (Jul 23, 2024 - Nov 12, 2024)
 * [x] Develop select API
@@ -333,27 +331,19 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [ ] Develop Product Caching.
 * [ ] Develop and Integrate Observability Module.
 
-
-
 ### MILESTONE 4:
-* [ ] Develop Cancellation Code Fetch API
 * [ ] Develop common Microservice to fetch city codes, etc.
 * [ ] Develop common Microservice for retail functionality.
-* [ ] Add test cases for milestone 2 (Only unit tests)
+* [ ] Add basic validation for search/ select/ init/ confirm/ status/ cancel/ update APIs
+* [ ] Add basic validation ONDC for on_search/ on_select/ on_init/ on_confirm/ on_status/ on_cancel/ on_update APIs
+* [ ] Add test cases for milestone 2 (Only unit tests)(If I feel like it) 
 
 ### MILESTONE 5:
 * [ ] Develop IGM Service and integrate.
 * [ ] Integrate with notification microservice to enable WhatsApp, Email and SMS functionality
 
-### MILESTONE 6:
-* [ ] Complete validation for search/ select/ init/ confirm/ status/ cancel/ update APIs
-* [ ] Complete validation ONDC for on_search/ on_select/ on_init/ on_confirm/ on_status/ on_cancel/ on_update APIs
-
-
-### MILESTONE 7:
+### MILESTONE 6 (OPTIONAL):
 * [ ] Develop info API
 * [ ] Develop ONDC info API
-* [ ] Develop new config fetch (will be given the last priority)
 * [ ] Intergrate etcd for TSP flow (when I have nothing better to do: probably never)
-* [ ] Add limit to the number of failed authentication
 ### THE MILESTONES ARE SUSCEPTIBLE TO CHANGES ╰(*°▽°*)╯
