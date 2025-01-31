@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE commerce_payment_data SET payment_order_id=$1 WHERE id=$2\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "0c2d48d1bab263b5019b9c6a657da17bc547661cfeb76e1a5e0aa573ce05ec28"
+}

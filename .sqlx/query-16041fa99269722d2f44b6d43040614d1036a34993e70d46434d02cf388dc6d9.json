@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO commerce_data (id, external_urn, urn, record_type, record_status,\n        domain_category_code, buyer_id, seller_id, seller_name, buyer_name, source, created_on, created_by, bpp_id, bpp_uri,\n        bap_id, bap_uri, quote_ttl, updated_on, currency_code, grand_total, city_code, country_code, seller_chat_link, buyer_chat_link)\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)\n        ON CONFLICT (external_urn)\n        DO UPDATE SET\n        record_status = EXCLUDED.record_status,\n        updated_on = EXCLUDED.updated_on,\n        currency_code = EXCLUDED.currency_code\n        RETURNING id\n        ",
+  "query": "\n        INSERT INTO commerce_data (id, external_urn, urn, record_type, record_status,\n        domain_category_code, buyer_id, seller_id, seller_name, buyer_name, source, created_on, created_by, bpp_id, bpp_uri,\n        bap_id, bap_uri, quote_ttl, updated_on, updated_by, currency_code, grand_total, city_code, country_code, seller_chat_link, buyer_chat_link)\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)\n        ON CONFLICT (external_urn)\n        DO UPDATE SET\n        record_status = EXCLUDED.record_status,\n        updated_on = EXCLUDED.updated_on,\n        updated_by =  EXCLUDED.updated_by,\n        grand_total = EXCLUDED.grand_total,\n        currency_code = EXCLUDED.currency_code\n        RETURNING id\n        ",
   "describe": {
     "columns": [
       {
@@ -86,6 +86,7 @@
         "Text",
         "Text",
         "Timestamptz",
+        "Text",
         {
           "Custom": {
             "name": "currency_code_type",
@@ -364,5 +365,5 @@
       false
     ]
   },
-  "hash": "ea8dcb0a87891957a442991fe8273809661075a22a9ab2f2f614d6264bc5ff04"
+  "hash": "16041fa99269722d2f44b6d43040614d1036a34993e70d46434d02cf388dc6d9"
 }

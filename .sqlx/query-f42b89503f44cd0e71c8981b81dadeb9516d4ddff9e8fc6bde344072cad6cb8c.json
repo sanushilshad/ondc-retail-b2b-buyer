@@ -1,0 +1,92 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT \n            id,\n            collected_by as \"collected_by?: PaymentCollectedBy\",\n            payment_type as \"payment_type!: PaymentType\", \n            payment_status as \"payment_status!: PaymentStatus\",\n            payment_order_id\n        FROM commerce_payment_data \n        WHERE commerce_data_id = $1\n        AND collected_by != $2\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "collected_by?: PaymentCollectedBy",
+        "type_info": {
+          "Custom": {
+            "name": "payment_collected_by_type",
+            "kind": {
+              "Enum": [
+                "BAP",
+                "BPP",
+                "buyer"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "payment_type!: PaymentType",
+        "type_info": {
+          "Custom": {
+            "name": "payment_type",
+            "kind": {
+              "Enum": [
+                "pre_paid",
+                "cash_on_delivery",
+                "credit"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "payment_status!: PaymentStatus",
+        "type_info": {
+          "Custom": {
+            "name": "payment_status",
+            "kind": {
+              "Enum": [
+                "paid",
+                "not_paid",
+                "pending",
+                "refunded"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "payment_order_id",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        {
+          "Custom": {
+            "name": "payment_collected_by_type",
+            "kind": {
+              "Enum": [
+                "BAP",
+                "BPP",
+                "buyer"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "f42b89503f44cd0e71c8981b81dadeb9516d4ddff9e8fc6bde344072cad6cb8c"
+}

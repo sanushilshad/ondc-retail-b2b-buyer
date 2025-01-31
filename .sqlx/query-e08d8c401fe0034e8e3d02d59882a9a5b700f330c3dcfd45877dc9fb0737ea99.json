@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT \n            id, \n            collected_by as \"collected_by?: PaymentCollectedBy\",\n            payment_type as \"payment_type!: PaymentType\", \n            commerce_data_id,\n            seller_payment_detail as \"seller_payment_detail?: Json<SellerPaymentDetailModel>\",\n            buyer_fee_type  as \"buyer_fee_type?: FeeType\",\n            buyer_fee_amount,\n            settlement_window,\n            settlement_basis as \"settlement_basis?: SettlementBasis\",\n            withholding_amount,\n            settlement_details as \"settlement_details?: Json<Vec<PaymentSettlementDetailModel>>\"\n        FROM commerce_payment_data \n        WHERE commerce_data_id = $1\n        ",
+  "query": "\n        SELECT \n            id, \n            collected_by as \"collected_by?: PaymentCollectedBy\",\n            payment_type as \"payment_type!: PaymentType\", \n            commerce_data_id,\n            seller_payment_detail as \"seller_payment_detail?: Json<SellerPaymentDetailModel>\",\n            buyer_fee_type  as \"buyer_fee_type?: FeeType\",\n            buyer_fee_amount,\n            settlement_window,\n            settlement_basis as \"settlement_basis?: SettlementBasis\",\n            withholding_amount,\n            settlement_details as \"settlement_details?: Json<Vec<PaymentSettlementDetailModel>>\",\n            payment_status as \"payment_status?: PaymentStatus\",\n            payment_id,\n            payment_order_id\n        FROM commerce_payment_data \n        WHERE commerce_data_id = $1\n        ",
   "describe": {
     "columns": [
       {
@@ -100,6 +100,33 @@
         "ordinal": 10,
         "name": "settlement_details?: Json<Vec<PaymentSettlementDetailModel>>",
         "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 11,
+        "name": "payment_status?: PaymentStatus",
+        "type_info": {
+          "Custom": {
+            "name": "payment_status",
+            "kind": {
+              "Enum": [
+                "paid",
+                "not_paid",
+                "pending",
+                "refunded"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "payment_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 13,
+        "name": "payment_order_id",
+        "type_info": "Text"
       }
     ],
     "parameters": {
@@ -118,8 +145,11 @@
       true,
       true,
       true,
+      true,
+      true,
+      true,
       true
     ]
   },
-  "hash": "d854279d708cb751abb042bb9ee1c0b55e5820fc5b168b68527298f998463957"
+  "hash": "e08d8c401fe0034e8e3d02d59882a9a5b700f330c3dcfd45877dc9fb0737ea99"
 }

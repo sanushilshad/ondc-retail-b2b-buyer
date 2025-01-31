@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        UPDATE commerce_data SET record_status=$1, updated_on=$2 WHERE external_urn=$3\n        ",
+  "query": "\n        UPDATE commerce_data SET record_status=$1, updated_on=$2, updated_by=$3, refund_grand_total=$4 WHERE external_urn=$5\n        ",
   "describe": {
     "columns": [],
     "parameters": {
@@ -25,10 +25,12 @@
           }
         },
         "Timestamptz",
+        "Text",
+        "Numeric",
         "Uuid"
       ]
     },
     "nullable": []
   },
-  "hash": "7ddea0c304d1d0fe00f799555d307e70f158603f345f11c376f49b90d8362a91"
+  "hash": "cf03b4069028ff6158a660f37fec44b1b998c8015819156e7b2054015a8ac605"
 }

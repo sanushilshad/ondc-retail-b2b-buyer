@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE commerce_data SET updated_on=$1, updated_by=$2 WHERE external_urn=$3\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "82d5468e38af33b05edfb07b131687d5e21c31f43765bc31447a64bb524cbabd"
+}

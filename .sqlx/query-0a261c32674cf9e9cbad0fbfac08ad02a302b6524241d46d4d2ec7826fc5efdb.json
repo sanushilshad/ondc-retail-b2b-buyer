@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO commerce_payment_data(id, commerce_data_id, collected_by, payment_type)\n            SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::payment_collected_by_type[],  $4::payment_type[])\n        ",
+  "query": "\n        INSERT INTO commerce_payment_data(id, commerce_data_id, collected_by, payment_type, payment_status)\n            SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::payment_collected_by_type[],  $4::payment_type[],  $5::payment_status[])\n        ",
   "describe": {
     "columns": [],
     "parameters": {
@@ -44,10 +44,30 @@
               }
             }
           }
+        },
+        {
+          "Custom": {
+            "name": "payment_status[]",
+            "kind": {
+              "Array": {
+                "Custom": {
+                  "name": "payment_status",
+                  "kind": {
+                    "Enum": [
+                      "paid",
+                      "not_paid",
+                      "pending",
+                      "refunded"
+                    ]
+                  }
+                }
+              }
+            }
+          }
         }
       ]
     },
     "nullable": []
   },
-  "hash": "716619efbfadc64194287cb42b2d3a27d256b5f734297ae501c22cf15430d6fa"
+  "hash": "0a261c32674cf9e9cbad0fbfac08ad02a302b6524241d46d4d2ec7826fc5efdb"
 }

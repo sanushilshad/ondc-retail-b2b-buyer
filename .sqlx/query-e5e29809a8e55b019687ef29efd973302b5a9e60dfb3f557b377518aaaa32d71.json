@@ -1,0 +1,128 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT \n            id,\n            external_urn, \n            urn,\n            currency_code as \"currency_code:CurrencyType\",\n            grand_total,\n            record_status as \"record_status:CommerceStatusType\",\n            record_type as \"record_type:OrderType\", \n            created_on,\n            buyer_id,\n            created_by,\n            seller_id,\n            seller_name\n        FROM \n            commerce_data\n        WHERE \n            is_deleted = false\n            AND external_urn = $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "external_urn",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "urn",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "currency_code:CurrencyType",
+        "type_info": {
+          "Custom": {
+            "name": "currency_code_type",
+            "kind": {
+              "Enum": [
+                "INR",
+                "SGD",
+                "AED",
+                "GHS"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "grand_total",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 5,
+        "name": "record_status:CommerceStatusType",
+        "type_info": {
+          "Custom": {
+            "name": "commerce_status",
+            "kind": {
+              "Enum": [
+                "quote_requested",
+                "quote_accepted",
+                "quote_rejected",
+                "initialized",
+                "created",
+                "accepted",
+                "in_progess",
+                "completed",
+                "cancelled",
+                "in_progress"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "record_type:OrderType",
+        "type_info": {
+          "Custom": {
+            "name": "commerce_data_type",
+            "kind": {
+              "Enum": [
+                "sale_order",
+                "purchase_order"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "created_on",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "buyer_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 9,
+        "name": "created_by",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 10,
+        "name": "seller_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "seller_name",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "e5e29809a8e55b019687ef29efd973302b5a9e60dfb3f557b377518aaaa32d71"
+}

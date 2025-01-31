@@ -1,10 +1,12 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        UPDATE commerce_data SET record_status=$1, updated_on=$2, refund_grand_total=$3 WHERE external_urn=$4\n        ",
+  "query": "\n        UPDATE commerce_data SET billing=$1, bpp_terms=$2, record_status=$3, cancellation_terms=$4, updated_on=$5, updated_by=$6 WHERE external_urn=$7\n        ",
   "describe": {
     "columns": [],
     "parameters": {
       "Left": [
+        "Jsonb",
+        "Jsonb",
         {
           "Custom": {
             "name": "commerce_status",
@@ -24,12 +26,13 @@
             }
           }
         },
+        "Jsonb",
         "Timestamptz",
-        "Numeric",
+        "Text",
         "Uuid"
       ]
     },
     "nullable": []
   },
-  "hash": "e6299ad1be79a2c0ee769c9c80e660063a54fee446790103edaeea35c33e3617"
+  "hash": "3be9f7218eef3d0e0795272670d1fb1c170d7b59b74d80b034c5cba962ea035b"
 }

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO commerce_payment_data(id, commerce_data_id, collected_by, payment_type, buyer_fee_type,\n             buyer_fee_amount, settlement_window, withholding_amount, settlement_basis, settlement_details, seller_payment_detail)\n            SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::payment_collected_by_type[],\n            $4::payment_type[], $5::ondc_np_fee_type[], $6::decimal[], $7::text[], $8::decimal[],\n            $9::settlement_basis_type[],$10::jsonb[], $11::jsonb[])\n        ",
+  "query": "\n        INSERT INTO commerce_payment_data(id, commerce_data_id, collected_by, payment_type, buyer_fee_type,\n             buyer_fee_amount, settlement_window, withholding_amount, settlement_basis, settlement_details, seller_payment_detail, payment_status)\n            SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::payment_collected_by_type[],\n            $4::payment_type[], $5::ondc_np_fee_type[], $6::decimal[], $7::text[], $8::decimal[],\n            $9::settlement_basis_type[],$10::jsonb[], $11::jsonb[], $12::payment_status[])\n        ",
   "describe": {
     "columns": [],
     "parameters": {
@@ -86,10 +86,30 @@
           }
         },
         "JsonbArray",
-        "JsonbArray"
+        "JsonbArray",
+        {
+          "Custom": {
+            "name": "payment_status[]",
+            "kind": {
+              "Array": {
+                "Custom": {
+                  "name": "payment_status",
+                  "kind": {
+                    "Enum": [
+                      "paid",
+                      "not_paid",
+                      "pending",
+                      "refunded"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
       ]
     },
     "nullable": []
   },
-  "hash": "6f484f411edba83848bf6f2abdc3a61da52088b3a50e2b3e6052dacee668f62b"
+  "hash": "cb20aa3a060c03d42eb9320b2a54784f33fc8bbd0dacec3cf8cb43b8a4d00b15"
 }

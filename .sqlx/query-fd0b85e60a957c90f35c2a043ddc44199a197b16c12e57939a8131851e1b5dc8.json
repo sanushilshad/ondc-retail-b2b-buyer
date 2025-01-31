@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        \n        SELECT id, urn, external_urn, record_type as \"record_type:OrderType\", \n           record_status as \"record_status:CommerceStatusType\",\n           domain_category_code as \"domain_category_code:CategoryDomain\", \n           buyer_id, seller_id, buyer_name, seller_name, source as \"source:DataSource\", \n           created_on, updated_on, deleted_on, is_deleted, created_by, grand_total, \n           bpp_id, bpp_uri, bap_id, bap_uri, quote_ttl,\n           currency_code as \"currency_code?:CurrencyType\", city_code,\n           country_code as \"country_code:CountryCode\",\n           billing as \"billing?:  Json<OrderBillingModel>\",\n           cancellation_terms as \"cancellation_terms?: Json<Vec<OrderCancellationTermModel>>\",\n           bpp_terms as \"bpp_terms?: Json<CommerceBppTermsModel>\", documents as \"documents?: Json<Vec<CommerceDocumentModel>>\"\n        FROM commerce_data where external_urn= $1;",
+  "query": "\n        \n        SELECT id, urn, external_urn, record_type as \"record_type:OrderType\", \n           record_status as \"record_status:CommerceStatusType\",\n           domain_category_code as \"domain_category_code:CategoryDomain\", \n           buyer_id, seller_id, buyer_name, seller_name, source as \"source:DataSource\", \n           created_on, updated_on, updated_by, deleted_on, is_deleted, created_by, grand_total, \n           bpp_id, bpp_uri, bap_id, bap_uri, quote_ttl,\n           currency_code as \"currency_code?:CurrencyType\", city_code, buyer_chat_link,\n           country_code as \"country_code:CountryCode\",\n           billing as \"billing?:  Json<OrderBillingModel>\",\n           cancellation_terms as \"cancellation_terms?: Json<Vec<OrderCancellationTermModel>>\",\n           bpp_terms as \"bpp_terms?: Json<CommerceBppTermsModel>\", documents as \"documents?: Json<Vec<CommerceDocumentModel>>\"\n        FROM commerce_data where external_urn= $1;",
   "describe": {
     "columns": [
       {
@@ -126,51 +126,56 @@
       },
       {
         "ordinal": 13,
+        "name": "updated_by",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 14,
         "name": "deleted_on",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 14,
+        "ordinal": 15,
         "name": "is_deleted",
         "type_info": "Bool"
       },
       {
-        "ordinal": 15,
+        "ordinal": 16,
         "name": "created_by",
         "type_info": "Uuid"
       },
       {
-        "ordinal": 16,
+        "ordinal": 17,
         "name": "grand_total",
         "type_info": "Numeric"
       },
       {
-        "ordinal": 17,
+        "ordinal": 18,
         "name": "bpp_id",
         "type_info": "Text"
       },
       {
-        "ordinal": 18,
+        "ordinal": 19,
         "name": "bpp_uri",
         "type_info": "Text"
       },
       {
-        "ordinal": 19,
+        "ordinal": 20,
         "name": "bap_id",
         "type_info": "Text"
       },
       {
-        "ordinal": 20,
+        "ordinal": 21,
         "name": "bap_uri",
         "type_info": "Text"
       },
       {
-        "ordinal": 21,
+        "ordinal": 22,
         "name": "quote_ttl",
         "type_info": "Text"
       },
       {
-        "ordinal": 22,
+        "ordinal": 23,
         "name": "currency_code?:CurrencyType",
         "type_info": {
           "Custom": {
@@ -187,12 +192,17 @@
         }
       },
       {
-        "ordinal": 23,
+        "ordinal": 24,
         "name": "city_code",
         "type_info": "Text"
       },
       {
-        "ordinal": 24,
+        "ordinal": 25,
+        "name": "buyer_chat_link",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 26,
         "name": "country_code:CountryCode",
         "type_info": {
           "Custom": {
@@ -451,22 +461,22 @@
         }
       },
       {
-        "ordinal": 25,
+        "ordinal": 27,
         "name": "billing?:  Json<OrderBillingModel>",
         "type_info": "Jsonb"
       },
       {
-        "ordinal": 26,
+        "ordinal": 28,
         "name": "cancellation_terms?: Json<Vec<OrderCancellationTermModel>>",
         "type_info": "Jsonb"
       },
       {
-        "ordinal": 27,
+        "ordinal": 29,
         "name": "bpp_terms?: Json<CommerceBppTermsModel>",
         "type_info": "Jsonb"
       },
       {
-        "ordinal": 28,
+        "ordinal": 30,
         "name": "documents?: Json<Vec<CommerceDocumentModel>>",
         "type_info": "Jsonb"
       }
@@ -491,6 +501,7 @@
       false,
       true,
       true,
+      true,
       false,
       false,
       true,
@@ -499,8 +510,9 @@
       false,
       false,
       false,
-      true,
       false,
+      false,
+      true,
       false,
       true,
       true,
@@ -508,5 +520,5 @@
       true
     ]
   },
-  "hash": "6d7353a5c9f5b7acad224e73542fec407ea796b95d79aedff487d464cce5d18d"
+  "hash": "fd0b85e60a957c90f35c2a043ddc44199a197b16c12e57939a8131851e1b5dc8"
 }
