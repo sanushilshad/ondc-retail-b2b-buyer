@@ -117,18 +117,23 @@ impl KafkaClient {
                             if let Ok(message_data) =
                                 serde_json::from_slice::<KafkaSearchData>(payload)
                             {
-                                if process_on_search(
+                                match process_on_search(
                                     &pool,
                                     message_data.ondc_on_search,
                                     message_data.search_obj,
                                     &websocket_client,
                                 )
                                 .await
-                                .is_ok()
                                 {
-                                    if let Err(e) = consumer.commit_message(&msg, CommitMode::Async)
-                                    {
-                                        eprintln!("Failed to commit message: {:?}", e);
+                                    Ok(_) => {
+                                        if let Err(e) =
+                                            consumer.commit_message(&msg, CommitMode::Async)
+                                        {
+                                            eprintln!("Failed to commit message: {:?}", e);
+                                        }
+                                    }
+                                    Err(e) => {
+                                        eprintln!("Error in process_on_search: {:?}", e);
                                     }
                                 }
                             }

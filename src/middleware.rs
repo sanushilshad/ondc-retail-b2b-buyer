@@ -125,7 +125,7 @@ where
     fn call(&self, req: ServiceRequest) -> Self::Future {
         let request_id = get_header_value(&req, "x-request-id");
         let device_id = get_header_value(&req, "x-device-id");
-        let hostname = get_header_value(&req, "Host");
+        // let hostname = get_header_value(&req, "Host");
 
         if request_id.is_none() || device_id.is_none() {
             let error_message = match (request_id.is_none(), device_id.is_none()) {
@@ -137,10 +137,10 @@ where
             let json_error: GenericError = GenericError::ValidationError(error_message);
             return Box::pin(async { Ok(ServiceResponse::from_err(json_error, request)) });
         } else {
-            let meta_data = RequestMetaData {
+            let meta_data: RequestMetaData = RequestMetaData {
                 request_id: request_id.unwrap().to_owned(),
                 device_id: device_id.unwrap().to_owned(),
-                domain_uri: hostname.unwrap().to_owned(),
+                // domain_uri: hostname.unwrap().to_owned(),
             };
             req.extensions_mut().insert::<RequestMetaData>(meta_data);
         }

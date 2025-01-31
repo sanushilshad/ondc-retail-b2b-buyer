@@ -2126,8 +2126,7 @@ pub async fn initialize_payment_on_confirm(
         .payments
         .iter()
         .find(|a| a.payment_order_id.is_some())
-        .map(|f| f.payment_order_id.as_ref())
-        .flatten();
+        .and_then(|f| f.payment_order_id.as_ref());
 
     for payment in payments {
         id_list.push(Uuid::new_v4());
@@ -2140,7 +2139,7 @@ pub async fn initialize_payment_on_confirm(
         settlement_window_list.push(payment.settlement_window.as_str());
         withholding_amount_list.push(BigDecimal::from_str(&payment.withholding_amount).unwrap());
         payment_id_list.push(payment.id.as_deref());
-        payment_order_id_list.push(payment_order_id.as_deref());
+        payment_order_id_list.push(payment_order_id);
         if payment.r#type == ONDCPaymentType::PreFulfillment
             && payment.collected_by == ONDCPaymentCollectedBy::Bpp
         {

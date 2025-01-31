@@ -61,7 +61,11 @@ pub async fn order_select(
     chat_client: web::Data<ChatClient>,
     user_client: web::Data<UserClient>,
 ) -> Result<web::Json<GenericResponse<()>>, GenericError> {
-    let task1 = get_np_detail(&pool, &meta_data.domain_uri, &ONDCNetworkType::Bap);
+    let task1 = get_np_detail(
+        &pool,
+        &business_account.subscriber_id,
+        &ONDCNetworkType::Bap,
+    );
     let ondc_domain = ONDCDomain::get_ondc_domain(&body.domain_category_code);
     let task2 = get_lookup_data_from_db(&pool, &body.bpp_id, &ONDCNetworkType::Bpp, &ondc_domain);
 
@@ -110,7 +114,7 @@ pub async fn order_select(
         None => {
             return Err(GenericError::ValidationError(format!(
                 "{} is not a registered ONDC registered domain",
-                meta_data.domain_uri
+                &business_account.subscriber_id,
             )))
         }
     };
@@ -269,7 +273,11 @@ pub async fn order_init(
     allowed_permission: AllowedPermission,
 ) -> Result<web::Json<GenericResponse<()>>, GenericError> {
     let task1 = fetch_order_by_id(&pool, body.transaction_id);
-    let task2 = get_np_detail(&pool, &meta_data.domain_uri, &ONDCNetworkType::Bap);
+    let task2 = get_np_detail(
+        &pool,
+        &business_account.subscriber_id,
+        &ONDCNetworkType::Bap,
+    );
 
     let (order, bap_detail) = match tokio::try_join!(task1, task2) {
         Ok((order_res, bap_detail_res)) => (order_res, bap_detail_res),
@@ -367,7 +375,11 @@ pub async fn order_confirm(
     allowed_permission: AllowedPermission,
 ) -> Result<web::Json<GenericResponse<()>>, GenericError> {
     let task1 = fetch_order_by_id(&pool, body.transaction_id);
-    let task2 = get_np_detail(&pool, &meta_data.domain_uri, &ONDCNetworkType::Bap);
+    let task2 = get_np_detail(
+        &pool,
+        &business_account.subscriber_id,
+        &ONDCNetworkType::Bap,
+    );
 
     let (order, bap_detail) = match tokio::try_join!(task1, task2) {
         Ok((order_res, bap_detail_res)) => (order_res, bap_detail_res),
@@ -464,7 +476,11 @@ pub async fn order_status(
     meta_data: RequestMetaData,
 ) -> Result<web::Json<GenericResponse<()>>, GenericError> {
     let task1 = fetch_order_by_id(&pool, body.transaction_id);
-    let task2 = get_np_detail(&pool, &meta_data.domain_uri, &ONDCNetworkType::Bap);
+    let task2 = get_np_detail(
+        &pool,
+        &business_account.subscriber_id,
+        &ONDCNetworkType::Bap,
+    );
 
     let (order, bap_detail) = match tokio::try_join!(task1, task2) {
         Ok((order_res, bap_detail_res)) => (order_res, bap_detail_res),
@@ -551,7 +567,11 @@ pub async fn order_cancel(
     allowed_permission: AllowedPermission,
 ) -> Result<web::Json<GenericResponse<()>>, GenericError> {
     let task1 = fetch_order_by_id(&pool, body.transaction_id);
-    let task2 = get_np_detail(&pool, &meta_data.domain_uri, &ONDCNetworkType::Bap);
+    let task2 = get_np_detail(
+        &pool,
+        &business_account.subscriber_id,
+        &ONDCNetworkType::Bap,
+    );
 
     let (order, bap_detail) = match tokio::try_join!(task1, task2) {
         Ok((order_res, bap_detail_res)) => (order_res, bap_detail_res),
@@ -647,7 +667,11 @@ pub async fn order_update(
     allowed_permission: AllowedPermission,
 ) -> Result<web::Json<GenericResponse<()>>, GenericError> {
     let task1 = fetch_order_by_id(&pool, body.transaction_id());
-    let task2 = get_np_detail(&pool, &meta_data.domain_uri, &ONDCNetworkType::Bap);
+    let task2 = get_np_detail(
+        &pool,
+        &business_account.subscriber_id,
+        &ONDCNetworkType::Bap,
+    );
 
     let (order, bap_detail) = match tokio::try_join!(task1, task2) {
         Ok((order_res, bap_detail_res)) => (order_res, bap_detail_res),

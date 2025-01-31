@@ -331,7 +331,7 @@ pub enum CountryCode {
 pub struct RequestMetaData {
     pub device_id: String,
     pub request_id: String,
-    pub domain_uri: String,
+    // pub domain_uri: String,
 }
 
 impl FromRequest for RequestMetaData {

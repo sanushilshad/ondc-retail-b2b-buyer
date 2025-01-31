@@ -190,18 +190,18 @@ pub struct WSSearchItemPrice {
 
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct WSCreatorContactData<'a> {
-    pub name: &'a str,
-    pub address: &'a str,
-    pub phone: &'a str,
-    pub email: &'a str,
+pub struct WSCreatorContactData {
+    pub name: String,
+    pub address: String,
+    pub phone: String,
+    pub email: String,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct WSProductCreator<'a> {
-    pub name: &'a str,
-    pub contact: WSCreatorContactData<'a>,
+pub struct WSProductCreator {
+    pub name: String,
+    pub contact: WSCreatorContactData,
 }
 
 // #[derive(Debug, Serialize)]
@@ -247,15 +247,15 @@ pub struct WSSearchItemQuantity {
 
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct WSSearchProductProvider<'a> {
-    pub id: &'a str,
-    pub rating: Option<&'a str>,
-    pub name: &'a str,
-    pub code: &'a str,
-    pub short_desc: &'a str,
-    pub long_desc: &'a str,
-    pub videos: Vec<&'a str>,
-    pub images: Vec<&'a str>,
+pub struct WSSearchProductProvider {
+    pub id: String,
+    pub rating: Option<String>,
+    pub name: String,
+    pub code: String,
+    pub short_desc: String,
+    pub long_desc: String,
+    pub videos: Vec<String>,
+    pub images: Vec<String>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -277,9 +277,9 @@ pub struct WSProductCategory {
 
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct WSItemPayment<'a> {
+pub struct WSItemPayment {
     pub r#type: PaymentType,
-    pub collected_by: &'a ONDCNetworkType,
+    pub collected_by: ONDCNetworkType,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -299,92 +299,92 @@ pub struct WSPriceSlab {
 #[derive(Debug, Serialize, ToSchema)]
 #[skip_serializing_none]
 #[serde(rename_all = "camelCase")]
-pub struct WSSearchItem<'a> {
-    pub id: &'a str,
-    pub name: &'a str,
-    pub code: Option<&'a str>,
+pub struct WSSearchItem {
+    pub id: String,
+    pub name: String,
+    pub code: Option<String>,
     pub domain_category: CategoryDomain,
     pub price: WSSearchItemPrice,
-    pub parent_item_id: Option<&'a str>,
+    pub parent_item_id: Option<String>,
     pub recommended: bool,
-    pub payment_types: Vec<WSItemPayment<'a>>,
+    pub payment_types: Vec<WSItemPayment>,
     pub fullfillment_type: Vec<FulfillmentType>,
-    pub location_ids: Vec<&'a str>,
-    pub creator: WSProductCreator<'a>,
+    pub location_ids: Vec<String>,
+    pub creator: WSProductCreator,
     pub quantity: WSSearchItemQuantity,
     pub categories: Vec<WSProductCategory>,
     #[schema(value_type = f64)]
     pub tax_rate: BigDecimal,
     // pub country_of_origin: CountryCode,
-    pub images: Vec<&'a str>,
+    pub images: Vec<String>,
     pub price_slabs: Option<Vec<WSPriceSlab>>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct WSSearchCountry<'a> {
-    pub code: &'a CountryCode,
-    pub name: Option<&'a str>,
+pub struct WSSearchCountry {
+    pub code: CountryCode,
+    pub name: Option<String>,
 }
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct WSSearchState<'a> {
-    pub code: &'a str,
-    pub name: Option<&'a str>,
-}
-
-#[derive(Debug, Serialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct WSSearchCity<'a> {
-    pub code: &'a str,
-    pub name: &'a str,
+pub struct WSSearchState {
+    pub code: String,
+    pub name: Option<String>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct WSSearchProviderLocation<'a> {
-    pub id: &'a str,
-    pub gps: &'a str,
-    pub address: &'a str,
-    pub city: WSSearchCity<'a>,
-    pub country: WSSearchCountry<'a>,
-    pub state: WSSearchState<'a>,
-    pub area_code: &'a str,
+pub struct WSSearchCity {
+    pub code: String,
+    pub name: String,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct WSSearchProvider<'a> {
-    pub items: Vec<WSSearchItem<'a>>,
-    pub provider_detail: WSSearchProductProvider<'a>,
-    pub locations: HashMap<String, WSSearchProviderLocation<'a>>,
+pub struct WSSearchProviderLocation {
+    pub id: String,
+    pub gps: String,
+    pub address: String,
+    pub city: WSSearchCity,
+    pub country: WSSearchCountry,
+    pub state: WSSearchState,
+    pub area_code: String,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct WSSearchBPP<'a> {
-    pub name: &'a str,
-    pub code: Option<&'a str>,
-    pub subscriber_id: &'a str,
-    pub subscriber_uri: &'a str,
-    pub short_desc: &'a str,
-    pub long_desc: &'a str,
-    pub images: Vec<&'a str>,
+pub struct WSSearchProvider {
+    pub items: Vec<WSSearchItem>,
+    pub provider_detail: WSSearchProductProvider,
+    pub locations: HashMap<String, WSSearchProviderLocation>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct WSSearchData<'a> {
-    pub bpp: WSSearchBPP<'a>,
-    pub providers: Vec<WSSearchProvider<'a>>,
+pub struct WSSearchBPP {
+    pub name: String,
+    pub code: Option<String>,
+    pub subscriber_id: String,
+    pub subscriber_uri: String,
+    pub short_desc: String,
+    pub long_desc: String,
+    pub images: Vec<String>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct WSSearch<'a> {
+pub struct WSSearchData {
+    pub bpp: WSSearchBPP,
+    pub providers: Vec<WSSearchProvider>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WSSearch {
     #[schema(value_type = String)]
     pub transaction_id: Uuid,
     #[schema(value_type = String)]
     pub message_id: Uuid,
-    pub message: &'a WSSearchData<'a>,
+    pub message: WSSearchData,
 }

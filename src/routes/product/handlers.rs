@@ -1,7 +1,7 @@
 use actix_web::web;
 use utoipa::TupleUnit;
 // use anyhow::Context;
-use super::schemas::ProductSearchRequest;
+use super::schemas::{ProductSearchRequest, WSSearch};
 use super::utils::save_search_request;
 use crate::configuration::ONDCConfig;
 use crate::errors::GenericError;
@@ -14,7 +14,7 @@ use crate::schemas::{GenericResponse, ONDCNetworkType, RequestMetaData};
 use sqlx::PgPool;
 #[utoipa::path(
     post,
-    path = "/product/realtime/search",
+    path = "/product/search/realtime",
     tag = "Product",
     description="This API generates the ONDC search request based on user input.",
     summary= "Realtime Product Search Request",
@@ -38,12 +38,18 @@ pub async fn realtime_product_search(
     business_account: BusinessAccount,
     meta_data: RequestMetaData,
 ) -> Result<web::Json<GenericResponse<()>>, GenericError> {
-    let np_detail = match get_np_detail(&pool, &meta_data.domain_uri, &ONDCNetworkType::Bap).await {
+    let np_detail = match get_np_detail(
+        &pool,
+        &business_account.subscriber_id,
+        &ONDCNetworkType::Bap,
+    )
+    .await
+    {
         Ok(Some(np_detail)) => np_detail,
         Ok(None) => {
             return Err(GenericError::ValidationError(format!(
                 "{} is not a registered ONDC registered domain",
-                meta_data.domain_uri
+                &business_account.subscriber_id,
             )))
         }
         Err(e) => {
@@ -67,6 +73,60 @@ pub async fn realtime_product_search(
         ONDCActionType::Search,
     );
     futures::future::join(task1, task2).await.1?;
+    Ok(web::Json(GenericResponse::success(
+        "Successfully Send Product Search Request",
+        Some(()),
+    )))
+}
+
+#[utoipa::path(
+    post,
+    path = "/product/search/cache",
+    tag = "Product",
+    description="This API searches product in cache.",
+    summary= "Cached Product Search Request",
+    request_body(content = ProductSearchRequest, description = "Request Body"),
+    responses(
+        (status=200, description= "Realtime Product Search", body= GenericResponse<WSSearch>),
+        (status=400, description= "Invalid Request body", body= GenericResponse<TupleUnit>),
+        (status=401, description= "Invalid Token", body= GenericResponse<TupleUnit>),
+	    (status=403, description= "Insufficient Previlege", body= GenericResponse<TupleUnit>),
+	    (status=410, description= "Data not found", body= GenericResponse<TupleUnit>),
+        (status=500, description= "Internal Server Error", body= GenericResponse<TupleUnit>),
+	    (status=501, description= "Not Implemented", body= GenericResponse<TupleUnit>)
+    )
+)]
+#[tracing::instrument(name = "Cached Product Search", skip(pool), fields(transaction_id=body.transaction_id.to_string()))]
+pub async fn cached_product_search(
+    body: ProductSearchRequest,
+    pool: web::Data<PgPool>,
+    ondc_obj: web::Data<ONDCConfig>,
+    user_account: UserAccount,
+    business_account: BusinessAccount,
+    meta_data: RequestMetaData,
+) -> Result<web::Json<GenericResponse<()>>, GenericError> {
+    let _np_detail = match get_np_detail(
+        &pool,
+        &business_account.subscriber_id,
+        &ONDCNetworkType::Bap,
+    )
+    .await
+    {
+        Ok(Some(np_detail)) => np_detail,
+        Ok(None) => {
+            return Err(GenericError::ValidationError(format!(
+                "{} is not a registered ONDC registered domain",
+                &business_account.subscriber_id,
+            )))
+        }
+        Err(e) => {
+            return Err(GenericError::DatabaseError(
+                "Something went wrong while fetching NP credentials".to_string(),
+                e,
+            ));
+        }
+    };
+
     Ok(web::Json(GenericResponse::success(
         "Successfully Send Product Search Request",
         Some(()),

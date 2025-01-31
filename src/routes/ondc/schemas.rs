@@ -917,7 +917,7 @@ pub struct ONDCOnSearchAdditionalDescriptor {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ONDCImage {
-    url: String,
+    pub url: String,
 }
 
 impl ONDCImage {

@@ -6,7 +6,17 @@ use actix_web::web;
 pub fn product_route(cfg: &mut web::ServiceConfig) {
     // cfg.service(web::resource("/inventory/fetch").route(web::post().to(fetch_inventory)));
     cfg.service(
-        web::resource("/realtime/search").route(
+        web::resource("/search/realtime").route(
+            web::post()
+                .to(realtime_product_search)
+                .wrap(BusinessAccountValidation {
+                    business_type_list: vec![CustomerType::RetailB2bBuyer],
+                })
+                .wrap(RequireAuth),
+        ),
+    );
+    cfg.service(
+        web::resource("/search/cache").route(
             web::post()
                 .to(realtime_product_search)
                 .wrap(BusinessAccountValidation {

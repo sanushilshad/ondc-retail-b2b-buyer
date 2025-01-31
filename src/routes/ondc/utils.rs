@@ -541,54 +541,54 @@ fn get_ws_location_mapping(
     ondc_location: &ONDCOnSearchProviderLocation,
 ) -> WSSearchProviderLocation {
     WSSearchProviderLocation {
-        id: &ondc_location.id,
-        gps: &ondc_location.gps,
-        address: &ondc_location.address,
+        id: ondc_location.id.clone(),
+        gps: ondc_location.gps.clone(),
+        address: ondc_location.address.clone(),
         city: WSSearchCity {
-            code: &ondc_location.city.code,
-            name: ondc_location.city.name.as_str(),
+            code: ondc_location.city.code.clone(),
+            name: ondc_location.city.name.clone(),
         },
         country: WSSearchCountry {
-            code: &ondc_location.country.code,
-            name: ondc_location.country.name.as_deref(),
+            code: ondc_location.country.code.clone(),
+            name: ondc_location.country.name.clone(),
         },
         state: WSSearchState {
-            code: &ondc_location.state.code,
-            name: ondc_location.state.name.as_deref(),
+            code: ondc_location.state.code.clone(),
+            name: ondc_location.state.name.clone(),
         },
-        area_code: &ondc_location.area_code,
+        area_code: ondc_location.area_code.clone(),
     }
 }
 
 #[tracing::instrument(name = "ws search provider from ondc provider", skip())]
-pub fn ws_search_provider_from_ondc_provider<'a>(
-    id: &'a str,
-    rating: Option<&'a str>,
-    descriptor: &'a ONDCOnSearchProviderDescriptor,
-) -> WSSearchProductProvider<'a> {
-    let images: Vec<&str> = descriptor
+pub fn ws_search_provider_from_ondc_provider(
+    id: &str,
+    rating: &Option<String>,
+    descriptor: &ONDCOnSearchProviderDescriptor,
+) -> WSSearchProductProvider {
+    let images: Vec<String> = descriptor
         .images
         .iter()
-        .map(|image| image.get_value())
+        .map(|image| image.get_value().to_owned())
         .collect();
-    let videos: Vec<&str> = descriptor
+    let videos: Vec<String> = descriptor
         .additional_desc
         .iter()
         .filter_map(|desc| {
             if desc.content_type == OnSearchContentType::Mp4 {
-                Some(desc.url.as_str())
+                Some(desc.url.to_owned())
             } else {
                 None
             }
         })
         .collect();
     WSSearchProductProvider {
-        id,
-        rating,
-        name: &descriptor.name,
-        code: &descriptor.code,
-        short_desc: &descriptor.short_desc,
-        long_desc: &descriptor.long_desc,
+        id: id.to_string(),
+        rating: rating.clone(),
+        name: descriptor.name.clone(),
+        code: descriptor.code.clone(),
+        short_desc: descriptor.short_desc.clone(),
+        long_desc: descriptor.long_desc.clone(),
         images,
         videos,
     }
@@ -687,8 +687,11 @@ fn map_ws_item_categories(category_ids: &[String]) -> Vec<WSProductCategory> {
         .collect()
 }
 
-fn map_item_images(images: &[ONDCImage]) -> Vec<&str> {
-    images.iter().map(|image| image.get_value()).collect()
+fn map_item_images(images: &[ONDCImage]) -> Vec<String> {
+    images
+        .iter()
+        .map(|image| image.get_value().to_owned())
+        .collect()
 }
 
 fn get_payment_mapping(
@@ -703,8 +706,8 @@ fn get_ws_search_item_payment_objs(ondc_payment_obj: &ONDCOnSearchPayment) -> WS
         r#type: ondc_payment_obj.r#type.get_payment(),
         collected_by: ondc_payment_obj
             .collected_by
-            .as_ref()
-            .unwrap_or(&ONDCNetworkType::Bap),
+            .clone()
+            .unwrap_or(ONDCNetworkType::Bap),
     }
 }
 
@@ -721,9 +724,9 @@ pub fn get_product_from_on_search_request(
         let fullfllments = &catalog.fulfillments;
         let fulfillment_map: HashMap<&String, &ONDCFulfillmentType> =
             fullfllments.iter().map(|f| (&f.id, &f.r#type)).collect();
-        let urls: Vec<&str> = descriptor_image
+        let urls = descriptor_image
             .iter()
-            .map(|image| image.get_value())
+            .map(|image| image.url.clone())
             .collect();
         for provider_obj in &catalog.providers {
             if let Some(provider_payment_objs) = &provider_obj.payments {
@@ -762,32 +765,32 @@ pub fn get_product_from_on_search_request(
                             .map(|f| f.get_fulfillment_from_ondc())
                     })
                     .collect();
-                let images: Vec<&str> = map_item_images(&item.descriptor.images);
+                let images = map_item_images(&item.descriptor.images);
                 let tax = BigDecimal::from_str(tax_rate).unwrap_or_else(|_| BigDecimal::from(0));
                 let price_slabs = get_ws_price_slab_from_ondc_slab(&item.tags, &tax);
                 let categories: Vec<WSProductCategory> = map_ws_item_categories(&item.category_ids);
                 // let ondc_price_slab =
                 //     search_tag_item_list_from_tag(&item.tags, &ONDCTagType::PriceSlab);
                 let prod_obj = WSSearchItem {
-                    id: &item.id,
-                    name: &item.descriptor.name,
-                    code: item.descriptor.code.as_deref(),
+                    id: item.id.clone(),
+                    name: item.descriptor.name.clone(),
+                    code: item.descriptor.code.clone(),
                     domain_category: on_search_obj.context.domain.get_category_domain(),
                     price: get_price_obj_from_ondc_price_obj(&item.price, &tax)?,
-                    parent_item_id: item.parent_item_id.as_deref(),
+                    parent_item_id: item.parent_item_id.clone(),
                     recommended: item.recommended,
                     creator: WSProductCreator {
-                        name: &item.creator.descriptor.name,
+                        name: item.creator.descriptor.name.clone(),
                         contact: WSCreatorContactData {
-                            name: &item.creator.descriptor.contact.name,
-                            address: &item.creator.descriptor.contact.address.full,
-                            phone: &item.creator.descriptor.contact.phone,
-                            email: &item.creator.descriptor.contact.email,
+                            name: item.creator.descriptor.contact.name.clone(),
+                            address: item.creator.descriptor.contact.address.full.clone(),
+                            phone: item.creator.descriptor.contact.phone.clone(),
+                            email: item.creator.descriptor.contact.email.clone(),
                         },
                     },
                     fullfillment_type: fulfillment_type_list,
                     images,
-                    location_ids: item.location_ids.iter().map(|s| s.as_str()).collect(),
+                    location_ids: item.location_ids.iter().map(|s| s.to_owned()).collect(),
                     categories,
                     tax_rate: tax,
 
@@ -802,7 +805,7 @@ pub fn get_product_from_on_search_request(
                 locations: location_obj,
                 provider_detail: ws_search_provider_from_ondc_provider(
                     &provider_obj.id,
-                    provider_obj.rating.as_deref(),
+                    &provider_obj.rating,
                     &provider_obj.descriptor,
                 ),
             };
@@ -811,12 +814,12 @@ pub fn get_product_from_on_search_request(
         return Ok(Some(WSSearchData {
             providers: provider_list,
             bpp: WSSearchBPP {
-                name: &catalog.descriptor.name,
-                subscriber_id,
-                subscriber_uri,
-                code: catalog.descriptor.code.as_deref(),
-                short_desc: &catalog.descriptor.short_desc,
-                long_desc: &catalog.descriptor.long_desc,
+                name: catalog.descriptor.name.clone(),
+                subscriber_id: subscriber_id.to_owned(),
+                subscriber_uri: subscriber_uri.to_owned(),
+                code: catalog.descriptor.code.clone(),
+                short_desc: catalog.descriptor.short_desc.clone(),
+                long_desc: catalog.descriptor.long_desc.clone(),
                 images: urls,
             },
         }));
@@ -826,11 +829,11 @@ pub fn get_product_from_on_search_request(
 }
 
 #[tracing::instrument(name = "get search ws body", skip())]
-pub fn get_search_ws_body<'a>(
+pub fn get_search_ws_body(
     message_id: Uuid,
     transaction_id: Uuid,
-    search_data: &'a WSSearchData,
-) -> WSSearch<'a> {
+    search_data: WSSearchData,
+) -> WSSearch {
     WSSearch {
         message_id,
         transaction_id,
@@ -1163,11 +1166,11 @@ pub fn create_bulk_seller_product_info_objs<'a>(
     let mut country_codes = vec![];
     for provider in &body.providers {
         for item in &provider.items {
-            seller_subscriber_ids.push(body.bpp.subscriber_id);
-            provider_ids.push(provider.provider_detail.id);
-            item_ids.push(item.id);
-            item_codes.push(item.code);
-            item_names.push(item.name);
+            seller_subscriber_ids.push(&body.bpp.subscriber_id);
+            provider_ids.push(&provider.provider_detail.id);
+            item_ids.push(&item.id);
+            item_codes.push(item.code.as_deref());
+            item_names.push(&item.name);
             tax_rates.push(item.tax_rate.clone());
             mrps.push(item.price.maximum_value.clone());
             unit_price_with_taxes.push(item.price.price_with_tax.clone());
@@ -1208,7 +1211,7 @@ pub fn create_bulk_seller_product_info_objs<'a>(
 #[tracing::instrument(name = "save ondc seller product info", skip(pool, data))]
 pub async fn save_ondc_seller_product_info<'a>(
     pool: &PgPool,
-    data: &'a WSSearchData<'a>,
+    data: &WSSearchData,
     code: &CountryCode,
 ) -> Result<(), anyhow::Error> {
     let product_data = create_bulk_seller_product_info_objs(data, code);
@@ -1977,19 +1980,19 @@ pub fn create_bulk_seller_location_info_objs<'a>(
                 .map(|s| BigDecimal::from_str(s).unwrap_or_else(|_| BigDecimal::from(0).clone()))
                 .collect::<Vec<_>>();
 
-            seller_subscriber_ids.push(body.bpp.subscriber_id);
-            provider_ids.push(provider.provider_detail.id);
+            seller_subscriber_ids.push(&body.bpp.subscriber_id);
+            provider_ids.push(provider.provider_detail.id.as_str());
             location_ids.push(key.as_str());
             latitudes.push(gps_data.first().cloned().unwrap_or(BigDecimal::from(0)));
             longitudes.push(gps_data.get(1).cloned().unwrap_or(BigDecimal::from(0)));
-            addresses.push(location.address);
-            city_codes.push(location.city.code);
-            city_names.push(location.city.name);
-            state_codes.push(location.state.code);
-            state_names.push(location.state.name);
-            country_names.push(location.country.name);
-            country_codes.push(location.country.code);
-            area_codes.push(location.area_code);
+            addresses.push(location.address.as_str());
+            city_codes.push(location.city.code.as_str());
+            city_names.push(location.city.name.as_str());
+            state_codes.push(location.state.code.as_str());
+            state_names.push(location.state.name.as_deref());
+            country_names.push(location.country.name.as_deref());
+            country_codes.push(&location.country.code);
+            area_codes.push(location.area_code.as_str());
         }
     }
 
@@ -2013,7 +2016,7 @@ pub fn create_bulk_seller_location_info_objs<'a>(
 #[tracing::instrument(name = "save ondc seller location info", skip(pool, data))]
 pub async fn save_ondc_seller_location_info<'a>(
     pool: &PgPool,
-    data: &'a WSSearchData<'a>,
+    data: &'a WSSearchData,
 ) -> Result<(), anyhow::Error> {
     let seller_data = create_bulk_seller_location_info_objs(data);
     sqlx::query!(
@@ -2152,9 +2155,9 @@ pub fn create_bulk_seller_info_objs<'a>(body: &'a WSSearchData) -> BulkSellerInf
     let mut provider_names = vec![];
 
     for provider in &body.providers {
-        seller_subscriber_ids.push(body.bpp.subscriber_id);
-        provider_ids.push(provider.provider_detail.id);
-        provider_names.push(provider.provider_detail.name);
+        seller_subscriber_ids.push(&body.bpp.subscriber_id);
+        provider_ids.push(provider.provider_detail.id.as_str());
+        provider_names.push(provider.provider_detail.name.as_str());
     }
 
     return BulkSellerInfo {
@@ -2167,7 +2170,7 @@ pub fn create_bulk_seller_info_objs<'a>(body: &'a WSSearchData) -> BulkSellerInf
 #[tracing::instrument(name = "save ondc seller info", skip(pool, data))]
 pub async fn save_ondc_seller_info<'a>(
     pool: &PgPool,
-    data: &'a WSSearchData<'a>,
+    data: &'a WSSearchData,
 ) -> Result<(), anyhow::Error> {
     let seller_data = create_bulk_seller_info_objs(data);
     sqlx::query!(
@@ -2330,17 +2333,29 @@ pub async fn process_on_search(
     extracted_search_obj: SearchRequestModel,
     websocket_srv: &WebSocketClient,
 ) -> Result<(), anyhow::Error> {
-    let product_objs: Option<WSSearchData<'_>> =
+    let product_objs: Option<WSSearchData> =
         get_product_from_on_search_request(&body).map_err(|op| anyhow!("error:{}", op))?;
 
     if let Some(product_objs) = product_objs {
         if !product_objs.providers.is_empty() {
+            let _ = save_ondc_seller_info(pool, &product_objs)
+                .await
+                .map_err(|e| anyhow!(e));
+            let task1 = save_ondc_seller_product_info(
+                pool,
+                &product_objs,
+                &body.context.location.country.code,
+            );
+
+            let task2 = save_ondc_seller_location_info(pool, &product_objs);
+
+            tokio::try_join!(task1, task2)?;
             if !extracted_search_obj.update_cache {
                 let ws_params = get_websocket_params_from_search_req(extracted_search_obj);
                 let ws_body = get_search_ws_body(
                     body.context.message_id,
                     body.context.transaction_id,
-                    &product_objs,
+                    product_objs,
                 );
                 let ws_json = serde_json::to_value(ws_body).unwrap();
                 let _ = websocket_srv
@@ -2351,15 +2366,9 @@ pub async fn process_on_search(
                         Some(NotificationProcessType::Immediate),
                     )
                     .await;
+            } else {
+                todo!()
             }
-            let task1 = save_ondc_seller_product_info(
-                pool,
-                &product_objs,
-                &body.context.location.country.code,
-            );
-            let task2 = save_ondc_seller_info(pool, &product_objs);
-            let task3 = save_ondc_seller_location_info(pool, &product_objs);
-            let (_, _, _) = futures::future::join3(task1, task2, task3).await;
         }
     }
     Ok(())
