@@ -216,11 +216,9 @@ pub async fn update_payment_status(
         )
         UPDATE commerce_payment_data
         SET payment_id = $4, payment_status = $5
-        FROM updated_order, commerce_data
+        FROM updated_order
         WHERE commerce_payment_data.payment_order_id = $6
-        AND commerce_payment_data.commerce_data_id = updated_order.id
-        AND commerce_payment_data.commerce_data_id = commerce_data.id
-        AND commerce_data.external_urn = $3;
+        AND commerce_payment_data.commerce_data_id = updated_order.id;
         "#,
         Utc::now(),
         updated_by,
