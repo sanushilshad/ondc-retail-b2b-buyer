@@ -7,8 +7,10 @@ use crate::schemas::{CurrencyType, ONDCNetworkType};
 use crate::{errors::GenericError, schemas::CountryCode};
 use actix_web::{dev::Payload, web, FromRequest, HttpRequest};
 use bigdecimal::BigDecimal;
+use chrono::{DateTime, Utc};
 use futures_util::future::LocalBoxFuture;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use serde_with::skip_serializing_none;
 use utoipa::ToSchema;
 use uuid::Uuid;
@@ -247,15 +249,47 @@ pub struct WSSearchItemQuantity {
 
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+pub struct WSSearchProviderContact {
+    pub mobile_no: String,
+    pub email: Option<String>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct WSSearchProviderID {
+    pub r#type: String,
+    pub value: String,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WSSearchProviderTerms {
+    pub gst_credit_invoice: bool,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WSSearchProviderCredential {
+    pub id: String,
+    pub r#type: CredentialType,
+    pub desc: String,
+    pub url: String,
+}
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct WSSearchProductProvider {
     pub id: String,
-    pub rating: Option<String>,
+    pub rating: Option<f32>,
     pub name: String,
     pub code: String,
     pub short_desc: String,
     pub long_desc: String,
-    pub videos: Vec<String>,
+    // pub chat_link: Vec<String>,
     pub images: Vec<String>,
+    pub ttl: String,
+    pub contact: WSSearchProviderContact,
+    pub credentials: Vec<WSSearchProviderCredential>,
+    pub identification: WSSearchProviderID,
+    pub terms: WSSearchProviderTerms,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -317,6 +351,7 @@ pub struct WSSearchItem {
     pub tax_rate: BigDecimal,
     // pub country_of_origin: CountryCode,
     pub images: Vec<String>,
+    pub videos: Vec<String>,
     pub price_slabs: Option<Vec<WSPriceSlab>>,
 }
 
@@ -366,7 +401,6 @@ pub struct WSSearchBPP {
     pub name: String,
     pub code: Option<String>,
     pub subscriber_id: String,
-    pub subscriber_uri: String,
     pub short_desc: String,
     pub long_desc: String,
     pub images: Vec<String>,
@@ -387,4 +421,45 @@ pub struct WSSearch {
     #[schema(value_type = String)]
     pub message_id: Uuid,
     pub message: WSSearchData,
+}
+
+pub struct BulkProviderCache<'a> {
+    pub provider_ids: Vec<&'a str>,
+    pub network_participant_cache_ids: Vec<Uuid>,
+    pub names: Vec<&'a str>,
+    pub codes: Vec<&'a str>,
+    pub short_descs: Vec<&'a str>,
+    pub long_descs: Vec<&'a str>,
+    pub images: Vec<Value>,
+    pub ratings: Vec<Option<f32>>,
+    pub ttls: Vec<&'a str>,
+    pub credentials: Vec<Value>,
+    pub contacts: Vec<Value>,
+    pub terms: Vec<Value>,
+    pub identifications: Vec<Value>,
+    pub ids: Vec<Uuid>,
+    pub created_ons: Vec<DateTime<Utc>>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum CredentialType {
+    License,
+}
+
+pub struct BulkProviderLocationCache<'a> {
+    pub ids: Vec<Uuid>,
+    pub provider_ids: Vec<&'a Uuid>,
+    pub location_ids: Vec<&'a str>,
+    pub latitudes: Vec<BigDecimal>,
+    pub longitudes: Vec<BigDecimal>,
+    pub addresses: Vec<&'a str>,
+    pub city_codes: Vec<&'a str>,
+    pub city_names: Vec<&'a str>,
+    pub state_codes: Vec<&'a str>,
+    pub state_names: Vec<Option<&'a str>>,
+    pub country_codes: Vec<&'a CountryCode>,
+    pub country_names: Vec<Option<&'a str>>,
+    pub area_codes: Vec<&'a str>,
+    pub updated_ons: Vec<DateTime<Utc>>,
 }

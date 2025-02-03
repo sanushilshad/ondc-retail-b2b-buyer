@@ -68,7 +68,7 @@ pub mod tests {
             name: "SANU".to_owned(),
             logo: "google.com".to_owned(),
             signing_key: "google.com".to_owned().into(),
-            id: Uuid::new_v4(),
+            id: 1,
             subscriber_id: DUMMY_DOMAIN.to_string(),
             subscriber_uri: format!("{}/v1/ondc/seller", DUMMY_DOMAIN),
             long_description: "SANU".to_owned(),

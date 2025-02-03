@@ -43,7 +43,7 @@ CREATE TYPE payment_settlement_type AS ENUM (
 );
 
 CREATE TABLE IF NOT EXISTS registered_network_participant (
-  id uuid PRIMARY KEY,
+  id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,
   code TEXT NOT NULL,
   subscriber_id TEXT NOT NULL,
@@ -120,7 +120,7 @@ CREATE TYPE payment_collected_by_type AS ENUM(
 
 
 CREATE TABLE IF NOT EXISTS network_participant (
-  id uuid PRIMARY KEY,
+  id SERIAL NOT NULL PRIMARY KEY,
   subscriber_id TEXT NOT NULL,
   br_id TEXT NOT NULL,
   subscriber_url TEXT NOT NULL,
@@ -501,7 +501,7 @@ CREATE TABLE IF NOT EXISTS commerce_data_line(
 
 ALTER TABLE commerce_data_line ADD CONSTRAINT commerce_data_fk FOREIGN KEY ("commerce_data_id") REFERENCES commerce_data ("id") ON DELETE CASCADE;
 ALTER TABLE commerce_data_line ADD CONSTRAINT commerce_raw_data_uq UNIQUE (commerce_data_id, item_code);
-
+CREATE INDEX commerce_data_line_id_idx ON commerce_data_line (commerce_data_id);
 
 CREATE TYPE commerce_fulfillment_status_type AS ENUM(
   'agent_assigned',
@@ -568,7 +568,7 @@ CREATE TABLE IF NOT EXISTS commerce_fulfillment_data(
 
 ALTER TABLE commerce_fulfillment_data ADD CONSTRAINT commerce_fulfillment_fk FOREIGN KEY ("commerce_data_id") REFERENCES commerce_data ("id") ON DELETE CASCADE;
 ALTER TABLE commerce_fulfillment_data ADD CONSTRAINT commerce_fulfillment_data_uq UNIQUE (commerce_data_id, fulfillment_id);
-
+CREATE INDEX commerce_fulfillment_data_id_idx ON commerce_fulfillment_data (commerce_data_id);
 
 CREATE TABLE IF NOT EXISTS commerce_fulfillment_data_line(
   id uuid PRIMARY KEY,
@@ -614,8 +614,7 @@ CREATE TABLE IF NOT EXISTS commerce_payment_data(
   seller_payment_detail JSONB
 );
 ALTER TABLE commerce_payment_data ADD CONSTRAINT commerce_payment_fk FOREIGN KEY ("commerce_data_id") REFERENCES commerce_data ("id") ON DELETE CASCADE;
-
-
+CREATE INDEX commerce_payment_data_id_idx ON commerce_payment_data (commerce_data_id);
 
 CREATE TABLE IF NOT EXISTS  buyer_order_status_history(
   id uuid PRIMARY KEY,
@@ -626,17 +625,18 @@ CREATE TABLE IF NOT EXISTS  buyer_order_status_history(
   created_on TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS ondc_seller_info (
-    id SERIAL NOT NULL PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS ondc_provider_info (
+    id uuid PRIMARY KEY,
     seller_subscriber_id TEXT NOT NULL,
     provider_id TEXT NOT NULL,
     provider_name TEXT,
-    created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_on TIMESTAMPTZ
 );
-ALTER TABLE ondc_seller_info ADD CONSTRAINT ondc_seller_info_constraint UNIQUE (seller_subscriber_id, provider_id);
+ALTER TABLE ondc_provider_info ADD CONSTRAINT ondc_provider_info_constraint UNIQUE (seller_subscriber_id, provider_id);
 
-CREATE TABLE IF NOT EXISTS ondc_seller_location_info(
-    id SERIAL NOT NULL PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS ondc_provider_location_info(
+    id uuid PRIMARY KEY,
     seller_subscriber_id TEXT NOT NULL,
     provider_id TEXT NOT NULL,
     location_id TEXT NOT NULL,
@@ -650,13 +650,14 @@ CREATE TABLE IF NOT EXISTS ondc_seller_location_info(
     country_code country_code NOT NULL,
     country_name TEXT,
     area_code TEXT NOT NULL,
-    created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_on TIMESTAMPTZ
 );
 
-ALTER TABLE ondc_seller_location_info ADD CONSTRAINT ondc_seller_location_constraint UNIQUE (seller_subscriber_id, provider_id, location_id);
+ALTER TABLE ondc_provider_location_info ADD CONSTRAINT ondc_seller_location_constraint UNIQUE (seller_subscriber_id, provider_id, location_id);
 
-CREATE TABLE IF NOT EXISTS ondc_seller_product_info (
-    id SERIAL NOT NULL PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS ondc_provider_product_info (
+    id uuid PRIMARY KEY,
     seller_subscriber_id TEXT NOT NULL,
     currency_code currency_code_type NOT NULL,
     country_code country_code NOT NULL,
@@ -671,14 +672,15 @@ CREATE TABLE IF NOT EXISTS ondc_seller_product_info (
     unit_price_with_tax DECIMAL(20, 3) NOT NULL DEFAULT 0.0,
     unit_price_without_tax DECIMAL(20, 3) NOT NULL DEFAULT 0.0,
     price_slab JSONB,
-    created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_on TIMESTAMPTZ
 );
-ALTER TABLE ondc_seller_product_info ADD CONSTRAINT ondc_seller_product_info_constraint UNIQUE (seller_subscriber_id, country_code, provider_id, item_id);
+ALTER TABLE ondc_provider_product_info ADD CONSTRAINT ondc_provider_product_info_constraint UNIQUE (seller_subscriber_id, country_code, provider_id, item_id);
 
 
-ALTER TABLE ondc_seller_location_info ADD FOREIGN KEY (seller_subscriber_id, provider_id) REFERENCES ondc_seller_info (seller_subscriber_id, provider_id) ON DELETE CASCADE;
+ALTER TABLE ondc_provider_location_info ADD FOREIGN KEY (seller_subscriber_id, provider_id) REFERENCES ondc_provider_info (seller_subscriber_id, provider_id) ON DELETE CASCADE;
 
-ALTER TABLE ondc_seller_product_info ADD FOREIGN KEY (seller_subscriber_id, provider_id) REFERENCES ondc_seller_info (seller_subscriber_id, provider_id) ON DELETE CASCADE;
+ALTER TABLE ondc_provider_product_info ADD FOREIGN KEY (seller_subscriber_id, provider_id) REFERENCES ondc_provider_info (seller_subscriber_id, provider_id) ON DELETE CASCADE;
 
 CREATE TYPE series_type AS ENUM (
   'order'
@@ -694,3 +696,62 @@ CREATE TABLE IF NOT EXISTS series_no_generator(
 );
 
 ALTER TABLE series_no_generator ADD CONSTRAINT series_no_generator_constraint UNIQUE (subscriber_id, series_type, prefix);
+
+
+
+CREATE TABLE IF NOT EXISTS network_participant_cache(
+  id uuid PRIMARY KEY,
+  subscriber_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  short_desc TEXT NOT NULL,
+  long_desc TEXT NOT NULL,
+  images JSONB NOT NULL,
+  created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE network_participant_cache ADD CONSTRAINT network_participant_cache_constraint UNIQUE (subscriber_id);
+
+
+CREATE TABLE IF NOT EXISTS provider_cache(
+  id uuid PRIMARY KEY,
+  provider_id TEXT NOT NULL,
+  network_participant_cache_id uuid NOT NULL,
+  name TEXT NOT NULL,
+  code TEXT NOT NULL,
+  short_desc TEXT NOT NULL,
+  long_desc TEXT NOT NULL,
+  images JSONB NOT NULL,
+  rating real,
+  ttl TEXT NOT NULL,
+  credentials JSONB NOT NULL,
+  contact JSONB NOT NULL,
+  terms JSONB,
+  identification JSONB,
+  created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_on TIMESTAMPTZ
+);
+ALTER TABLE provider_cache ADD CONSTRAINT provider_cache_constraint UNIQUE (network_participant_cache_id, provider_id);
+ALTER TABLE provider_cache ADD CONSTRAINT provider_cache_fk FOREIGN KEY ("network_participant_cache_id") REFERENCES network_participant_cache("id") ON DELETE CASCADE;
+
+
+
+CREATE TABLE IF NOT EXISTS provider_location_cache(
+    id uuid PRIMARY KEY,
+    provider_cache_id uuid NOT NULL,
+    location_id TEXT NOT NULL,
+    latitude DECIMAL(9, 6) NOT NULL,
+    longitude DECIMAL(9, 6) NOT NULL,
+    address TEXT NOT NULL,
+    city_code TEXT NOT NULL,
+    city_name TEXT NOT NULL,
+    state_code TEXT NOT NULL,
+    state_name TEXT,
+    country_code country_code NOT NULL,
+    country_name TEXT,
+    area_code TEXT NOT NULL,
+    created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_on TIMESTAMPTZ
+);
+
+ALTER TABLE provider_location_cache ADD CONSTRAINT provider_location_cache_constraint UNIQUE (provider_cache_id, location_id);
+ALTER TABLE provider_location_cache ADD CONSTRAINT provider_location_cache_constraint_fk FOREIGN KEY ("provider_cache_id") REFERENCES provider_cache("id") ON DELETE CASCADE;

@@ -10,7 +10,7 @@ use crate::{
     chat_client::ChatData,
     routes::{
         order::schemas::OrderType,
-        product::schemas::{CategoryDomain, SearchRequestModel},
+        product::schemas::{CategoryDomain, CredentialType, SearchRequestModel},
     },
     schemas::{CountryCode, ONDCNetworkType},
     utils::pascal_to_snake_case,
@@ -949,7 +949,7 @@ pub struct ONDCOnSearchFullFillment {
     pub r#type: ONDCFulfillmentType,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "PascalCase")]
 pub enum ONDCCredentialType {
     License,
@@ -959,6 +959,12 @@ impl ONDCCredentialType {
     pub fn get_description(&self, value: &str) -> String {
         match self {
             ONDCCredentialType::License => format!("Import License No. {}", value),
+        }
+    }
+
+    pub fn get_credential_type(&self) -> CredentialType {
+        match self {
+            ONDCCredentialType::License => CredentialType::License,
         }
     }
 }
@@ -1000,9 +1006,9 @@ pub struct ONDCOnSearchCity {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct ONDCMedia {
-    mimetype: OnSearchContentType,
-    url: String,
+pub struct ONDCMedia {
+    pub mimetype: OnSearchContentType,
+    pub url: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -1012,7 +1018,7 @@ pub struct ONDCOnSearchItemDescriptor {
     short_desc: String,
     long_desc: String,
     pub images: Vec<ONDCImage>,
-    media: Option<Vec<ONDCMedia>>,
+    pub media: Option<Vec<ONDCMedia>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -1185,8 +1191,8 @@ pub struct ONDCContact {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct ONDCOnSearchFulfillmentContact {
-    contact: ONDCContact,
+pub struct ONDCOnSearchFulfillmentContact {
+    pub contact: ONDCContact,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -1252,11 +1258,11 @@ pub struct ONDCOnSearchProvider {
     pub descriptor: ONDCOnSearchProviderDescriptor,
     pub payments: Option<Vec<ONDCOnSearchPayment>>,
     pub rating: Option<String>,
-    ttl: String,
-    creds: Option<Vec<ONDCCredential>>,
+    pub ttl: String,
+    pub creds: Option<Vec<ONDCCredential>>,
     pub locations: Vec<ONDCOnSearchProviderLocation>,
-    tags: Vec<ONDCTag>,
-    fulfillments: Vec<ONDCOnSearchFulfillmentContact>,
+    pub tags: Vec<ONDCTag>,
+    pub fulfillments: Vec<ONDCOnSearchFulfillmentContact>,
     offers: Option<Vec<ONDCOnSearchOffer>>,
     categories: Option<Vec<ONDCOnSearchCategory>>,
     pub items: Vec<ONDCOnSearchItem>,
@@ -1698,6 +1704,7 @@ pub struct ONDCOrderParams {
 }
 
 pub struct BulkSellerProductInfo<'a> {
+    pub ids: Vec<Uuid>,
     pub seller_subscriber_ids: Vec<&'a str>,
     pub provider_ids: Vec<&'a str>,
     pub item_codes: Vec<Option<&'a str>>,
@@ -1711,6 +1718,7 @@ pub struct BulkSellerProductInfo<'a> {
     pub currency_codes: Vec<&'a CurrencyType>,
     pub country_codes: Vec<&'a CountryCode>,
     pub price_slabs: Vec<Option<Value>>,
+    pub updated_ons: Vec<DateTime<Utc>>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -2388,6 +2396,8 @@ pub struct BulkSellerLocationInfo<'a> {
     pub country_codes: Vec<&'a CountryCode>,
     pub country_names: Vec<Option<&'a str>>,
     pub area_codes: Vec<&'a str>,
+    pub updated_ons: Vec<DateTime<Utc>>,
+    pub ids: Vec<Uuid>,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -2413,6 +2423,8 @@ pub struct BulkSellerInfo<'a> {
     pub seller_subscriber_ids: Vec<&'a str>,
     pub provider_ids: Vec<&'a str>,
     pub provider_names: Vec<&'a str>,
+    pub updated_ons: Vec<DateTime<Utc>>,
+    pub ids: Vec<Uuid>,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]

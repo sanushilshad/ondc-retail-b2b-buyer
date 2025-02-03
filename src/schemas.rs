@@ -546,7 +546,7 @@ pub struct RegisteredNetworkParticipant {
     pub name: String,
     pub logo: String,
     pub signing_key: SecretString,
-    pub id: Uuid,
+    pub id: i32,
     pub subscriber_id: String,
     pub subscriber_uri: String,
     pub long_description: String,
