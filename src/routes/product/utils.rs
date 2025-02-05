@@ -482,7 +482,7 @@ pub async fn save_geo_json_servicability_cache(
         SELECT 
             unnest($1::uuid[]), 
             unnest($2::uuid[]), 
-            unnest($3::text[]), 
+            unnest($3::domain_category[]), 
             ST_SetSRID(ST_GeomFromGeoJSON(unnest($5::jsonb[])), 4326),
             unnest($4::text[]), 
             unnest($5::jsonb[]), 

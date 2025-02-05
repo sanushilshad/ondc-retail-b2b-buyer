@@ -763,11 +763,11 @@ CREATE TABLE IF NOT EXISTS servicability_geo_json_cache(
     id uuid PRIMARY KEY,
     provider_location_cache_id uuid NOT NULL,
     domain_code domain_category NOT NULL,
-    geom GEOMETRY(Geometry, 4326),
+    geom GEOMETRY(Geometry, 4326) NOT NULL,
     category_code TEXT,
     cordinates JSONB NOT NULL,
     created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-ALTER TABLE servicability_geo_json_cache ADD CONSTRAINT servicability_geo_json_cache_constraint UNIQUE (provider_location_cache_id, domain_code, category_code, geom);
+ALTER TABLE servicability_geo_json_cache ADD CONSTRAINT servicability_geo_json_cache_constraint UNIQUE NULLS NOT DISTINCT (provider_location_cache_id, domain_code, category_code, geom);
 ALTER TABLE servicability_geo_json_cache ADD CONSTRAINT servicability_geo_json_cache_fk FOREIGN KEY ("provider_location_cache_id") REFERENCES provider_location_cache("id") ON DELETE CASCADE;

@@ -734,10 +734,9 @@ fn get_ws_search_item_payment_objs(ondc_payment_obj: &ONDCOnSearchPayment) -> WS
 fn handle_geojson_servicability_in_ondc_search(
     servicability_val: &str,
     category_code: &Option<String>,
-    location_id: &str,
-    location_mapping: &mut HashMap<String, WSSearchServicability>,
-) -> Result<(), anyhow::Error> {
+) -> Result<Vec<WSServicabilityData<Value>>, anyhow::Error> {
     let mut geo_json_duplicate = vec![];
+    let mut final_data = vec![];
     match servicability_val.parse::<GeoJson>() {
         Ok(GeoJson::FeatureCollection(ref ctn)) => {
             for feature in &ctn.features {
@@ -752,18 +751,14 @@ fn handle_geojson_servicability_in_ondc_search(
                         category_code: category_code.clone(),
                         value: json_value,
                     };
-                    location_mapping
-                        .entry(location_id.to_string())
-                        .or_insert(WSSearchServicability { geo_json: vec![] })
-                        .geo_json
-                        .push(data);
+                    final_data.push(data)
                 }
             }
         }
         Ok(_) => (),
         Err(e) => return Err(anyhow!(e)),
     }
-    Ok(())
+    Ok(final_data)
 }
 
 #[tracing::instrument(name = "get product from on search request", skip())]
@@ -796,17 +791,16 @@ pub fn get_servicability_from_on_search_request(
                     Some(category_id.to_string())
                 };
 
-                if servicability_type == "13" || servicability_type == "14" {
-                    if servicability_type == "13" {
-                        handle_geojson_servicability_in_ondc_search(
-                            servicability_val,
-                            &category_code,
-                            location_id,
-                            &mut location_mapping,
-                        )?;
-                    } else {
-                        todo!()
-                    }
+                if servicability_type == "13" {
+                    let data = handle_geojson_servicability_in_ondc_search(
+                        servicability_val,
+                        &category_code,
+                    )?;
+                    location_mapping
+                        .entry(location_id.to_string())
+                        .or_insert(WSSearchServicability { geo_json: vec![] })
+                        .geo_json
+                        .extend(data);
                 } else {
                     todo!()
                 }
