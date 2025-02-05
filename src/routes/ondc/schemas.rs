@@ -2702,3 +2702,9 @@ pub struct KafkaSearchData {
     pub ondc_on_search: ONDCOnSearchRequest,
     pub search_obj: SearchRequestModel,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct ONDCServicabilityCoordinate {
+    pub lat: f64,
+    pub lng: f64,
+}

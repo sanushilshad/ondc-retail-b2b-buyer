@@ -3,9 +3,9 @@ use super::{
     ONDCCancelRequest, ONDCConfirmMessage, ONDCConfirmOrder, ONDCConfirmProvider, ONDCContext,
     ONDCContextCity, ONDCContextCountry, ONDCContextLocation, ONDCCredential, ONDCCredentialType,
     ONDCDomain, ONDCFeeType, ONDCOnSearchFulfillmentContact, ONDCOnSearchProvider, ONDCSearchStop,
-    ONDCSellePriceSlab, ONDCStatusMessage, ONDCStatusRequest, ONDCTag, ONDCUpdateItem,
-    ONDCUpdateMessage, ONDCUpdateOrder, ONDCUpdateProvider, ONDCUpdateRequest, ONDCVersion,
-    OndcUrl,
+    ONDCSellePriceSlab, ONDCServicabilityCoordinate, ONDCStatusMessage, ONDCStatusRequest, ONDCTag,
+    ONDCUpdateItem, ONDCUpdateMessage, ONDCUpdateOrder, ONDCUpdateProvider, ONDCUpdateRequest,
+    ONDCVersion, OndcUrl,
 };
 
 use crate::chat_client::ChatData;
@@ -15,7 +15,7 @@ use crate::websocket_client::{NotificationProcessType, WebSocketActionType, WebS
 use crate::{constants::ONDC_TTL, routes::product::ProductSearchError};
 use anyhow::{anyhow, Context};
 use chrono::{DateTime, Utc};
-use geojson::GeoJson;
+use geojson::{GeoJson, Geometry};
 use reqwest::Client;
 use serde::Serializer;
 use sqlx::{Executor, PgPool, Postgres, Transaction};
@@ -761,6 +761,23 @@ fn handle_geojson_servicability_in_ondc_search(
     Ok(final_data)
 }
 
+fn handle_coordinates_servicability_in_ondc_search(
+    servicability_val: &str,
+    category_code: &Option<String>,
+) -> Result<WSServicabilityData<Value>, anyhow::Error> {
+    let coordinates: Vec<ONDCServicabilityCoordinate> = serde_json::from_str(servicability_val)?;
+    let polygon_coordinates: Vec<Vec<f64>> = coordinates
+        .into_iter()
+        .map(|coord| vec![coord.lng, coord.lat])
+        .collect();
+    let geometry = Geometry::new(geojson::Value::Polygon(vec![polygon_coordinates]));
+    let json_value: Value = serde_json::to_value(geometry)?;
+    Ok(WSServicabilityData {
+        category_code: category_code.clone(),
+        value: json_value,
+    })
+}
+
 #[tracing::instrument(name = "get product from on search request", skip())]
 pub fn get_servicability_from_on_search_request(
     ondc_providers: &Vec<ONDCOnSearchProvider>,
@@ -801,8 +818,16 @@ pub fn get_servicability_from_on_search_request(
                         .or_insert(WSSearchServicability { geo_json: vec![] })
                         .geo_json
                         .extend(data);
-                } else {
-                    todo!()
+                } else if servicability_type == "14" {
+                    let data = handle_coordinates_servicability_in_ondc_search(
+                        servicability_val,
+                        &category_code,
+                    )?;
+                    location_mapping
+                        .entry(location_id.to_string())
+                        .or_insert(WSSearchServicability { geo_json: vec![] })
+                        .geo_json
+                        .push(data);
                 }
             }
         }
