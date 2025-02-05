@@ -1,6 +1,6 @@
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
+CREATE EXTENSION postgis;
 
 
 CREATE TYPE "data_source" AS ENUM (
@@ -106,6 +106,8 @@ CREATE TABLE IF NOT EXISTS search_request (
   search_type product_search_type NOT NULL,
   fulfillment_type fulfillment_type
 );
+CREATE INDEX idx_search_request_message_txn ON search_request(message_id, transaction_id);
+
 
 CREATE TYPE ondc_network_participant_type AS ENUM (
   'BAP',
@@ -145,6 +147,7 @@ CREATE TABLE IF NOT EXISTS ondc_buyer_order_req (
     request_payload JSONB NOT NULL,
     created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE INDEX idx_ondc_buyer_order_req_action_message_txn ON ondc_buyer_order_req(action_type, message_id, transaction_id);
 
 
 CREATE TYPE commerce_data_type AS ENUM (
@@ -676,10 +679,7 @@ CREATE TABLE IF NOT EXISTS ondc_provider_product_info (
     updated_on TIMESTAMPTZ
 );
 ALTER TABLE ondc_provider_product_info ADD CONSTRAINT ondc_provider_product_info_constraint UNIQUE (seller_subscriber_id, country_code, provider_id, item_id);
-
-
 ALTER TABLE ondc_provider_location_info ADD FOREIGN KEY (seller_subscriber_id, provider_id) REFERENCES ondc_provider_info (seller_subscriber_id, provider_id) ON DELETE CASCADE;
-
 ALTER TABLE ondc_provider_product_info ADD FOREIGN KEY (seller_subscriber_id, provider_id) REFERENCES ondc_provider_info (seller_subscriber_id, provider_id) ON DELETE CASCADE;
 
 CREATE TYPE series_type AS ENUM (
@@ -755,3 +755,19 @@ CREATE TABLE IF NOT EXISTS provider_location_cache(
 
 ALTER TABLE provider_location_cache ADD CONSTRAINT provider_location_cache_constraint UNIQUE (provider_cache_id, location_id);
 ALTER TABLE provider_location_cache ADD CONSTRAINT provider_location_cache_constraint_fk FOREIGN KEY ("provider_cache_id") REFERENCES provider_cache("id") ON DELETE CASCADE;
+
+
+
+
+CREATE TABLE IF NOT EXISTS servicability_geo_json_cache(
+    id uuid PRIMARY KEY,
+    provider_location_cache_id uuid NOT NULL,
+    domain_code domain_category NOT NULL,
+    geom GEOMETRY(Geometry, 4326),
+    category_code TEXT,
+    cordinates JSONB NOT NULL,
+    created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE servicability_geo_json_cache ADD CONSTRAINT servicability_geo_json_cache_constraint UNIQUE (provider_location_cache_id, domain_code, category_code, geom);
+ALTER TABLE servicability_geo_json_cache ADD CONSTRAINT servicability_geo_json_cache_fk FOREIGN KEY ("provider_location_cache_id") REFERENCES provider_location_cache("id") ON DELETE CASCADE;

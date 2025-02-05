@@ -2,16 +2,17 @@ use std::collections::HashMap;
 use std::str::FromStr;
 
 use bigdecimal::BigDecimal;
+use serde_json::Value;
 use sqlx::{PgPool, Postgres, Transaction, Executor};
 use uuid::Uuid;
 use crate::routes::product::schemas::{FulfillmentType, PaymentType, ProductSearchType};
 use crate::schemas::RequestMetaData;
 use super::models::{WSSearchProviderContactModel, WSSearchProviderCredentialModel, WSSearchProviderTermsModel};
-use super::schemas::{BulkProviderCache, BulkProviderLocationCache, ProductSearchRequest, WSSearchBPP, WSSearchProvider, WSSearchProviderLocation};
+use super::schemas::{BulkGeoServicabilityCache, BulkProviderCache, BulkProviderLocationCache, CategoryDomain, ProductSearchRequest, WSSearchBPP, WSSearchData, WSSearchProvider, WSSearchServicability};
 use chrono::{DateTime, Utc};
 use crate::user_client::{BusinessAccount, UserAccount};
 use crate::schemas::CountryCode;
-
+use anyhow::anyhow;
 #[tracing::instrument(name = "Save Product Search Request", skip(pool))]
 pub async fn save_search_request(
     pool: &PgPool,
@@ -66,32 +67,32 @@ pub fn create_bulk_provider_cache_objs<'a>(body: &'a Vec<WSSearchProvider>, netw
     let mut created_ons =vec![];
     for provider in body.iter() {
         ids.push(Uuid::new_v4());
-        provider_ids.push(provider.provider_detail.id.as_ref());
+        provider_ids.push(provider.provider.id.as_ref());
         network_participant_cache_ids.push(network_participant_cache_id);
-        names.push(provider.provider_detail.name.as_ref());
-        codes.push(provider.provider_detail.code.as_ref());
-        short_descs.push(provider.provider_detail.short_desc.as_ref());
-        long_descs.push(provider.provider_detail.long_desc.as_ref());
-        ttls.push(provider.provider_detail.ttl.as_ref());
-        ratings.push(provider.provider_detail.rating);
-        images.push(serde_json::to_value(&provider.provider_detail.images).unwrap());
+        names.push(provider.provider.name.as_ref());
+        codes.push(provider.provider.code.as_ref());
+        short_descs.push(provider.provider.short_desc.as_ref());
+        long_descs.push(provider.provider.long_desc.as_ref());
+        ttls.push(provider.provider.ttl.as_ref());
+        ratings.push(provider.provider.rating);
+        images.push(serde_json::to_value(&provider.provider.images).unwrap());
         created_ons.push(created_on);
         contacts.push(
             serde_json::to_value(&WSSearchProviderContactModel{ 
-                mobile_no: provider.provider_detail.contact.mobile_no.to_owned(),
-                email: provider.provider_detail.contact.email.to_owned(),
+                mobile_no: provider.provider.contact.mobile_no.to_owned(),
+                email: provider.provider.contact.email.to_owned(),
                 
             }
         ).unwrap());
-        identifications.push(serde_json::to_value(&provider.provider_detail.identification).unwrap());
+        identifications.push(serde_json::to_value(&provider.provider.identification).unwrap());
         terms.push(
             serde_json::to_value(
                 &WSSearchProviderTermsModel{
-                     gst_credit_invoice: provider.provider_detail.terms.gst_credit_invoice 
+                     gst_credit_invoice: provider.provider.terms.gst_credit_invoice 
                 }
             ).unwrap());
         credentials.push(serde_json::to_value(
-            provider.provider_detail.credentials
+            provider.provider.credentials
                 .iter()
                 .map(|f| WSSearchProviderCredentialModel {
                     id: f.id.clone(),
@@ -269,7 +270,7 @@ pub fn create_bulk_provider_location_cache_objs<'a>(
     let mut updated_ons = vec![];
     let mut ids = vec![];
     for provider in providers {
-        if let Some(provider_id) = provider_map.get(&provider.provider_detail.id){
+        if let Some(provider_id) = provider_map.get(&provider.provider.id){
             for (key, location) in &provider.locations {
                 let gps_data = location
                     .gps
@@ -323,7 +324,7 @@ pub async fn save_provider_location_cache<'a>(
     providers: &Vec<WSSearchProvider>,
     provider_map: &HashMap<String, Uuid>,
     updated_on: DateTime<Utc>,
-) -> Result<(), anyhow::Error> {
+) -> Result<HashMap<String, Uuid>, anyhow::Error> {
     let seller_data = create_bulk_provider_location_cache_objs(providers, provider_map, updated_on);
     let query = sqlx::query!(
         r#"
@@ -375,6 +376,8 @@ pub async fn save_provider_location_cache<'a>(
             country_name =  EXCLUDED.country_name,
             updated_on = EXCLUDED.updated_on,
             area_code = EXCLUDED.area_code
+
+        RETURNING id, provider_cache_id, location_id
         "#,
         &seller_data.provider_ids[..] as &[&Uuid],
         &seller_data.location_ids[..] as &[&str],
@@ -390,13 +393,160 @@ pub async fn save_provider_location_cache<'a>(
         &seller_data.area_codes[..] as &[&str],
         &seller_data.updated_ons[..] as &[DateTime<Utc>],
         &seller_data.updated_ons[..] as &[DateTime<Utc>],
-        &seller_data.ids[..] as &[Uuid],
+        seller_data.ids as Vec<Uuid>,
     );
-    transaction.execute(query).await.map_err(|e| {
-        tracing::error!("Failed to execute query: {:?}", e);
-        anyhow::Error::new(e)
-            .context("A database failure occurred while saving ONDC seller location cache info")
-    })?;
+    let result = query
+        .fetch_all(&mut **transaction)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to execute query: {:?}", e);
+            anyhow::Error::new(e)
+                .context("A database failure occurred while saving provider cache")
+        })?;
 
+    let mut provider_map: HashMap<String, Uuid> = HashMap::new();
+
+    for row in result {
+        let provider_cache_id: Uuid = row.provider_cache_id;
+        let location_id = row.location_id;
+        let id: Uuid = row.id;
+        provider_map.insert(format!("{}-{}",provider_cache_id, location_id), id);
+    }
+
+    Ok(provider_map)
+}
+
+fn create_bulk_geo_json_servicability<'a>(data: &'a  HashMap<String, HashMap<String, WSSearchServicability>>, domain: &'a CategoryDomain, location_map: &'a HashMap<String, Uuid>, provider_map: &'a HashMap<String, Uuid>, created_on: DateTime<Utc>) -> BulkGeoServicabilityCache<'a>{
+    let mut ids =  vec![];
+    let mut category_codes =  vec![];
+    let mut domain_codes =  vec![];
+    let mut created_ons =  vec![];
+    let mut cordinates =  vec![];
+    let mut location_cache_ids =  vec![];
+
+
+
+
+    for (provider_id, location_data) in data{
+        for (location_id, servicability_data) in location_data.iter(){
+        for geo_data in servicability_data.geo_json.iter(){
+            let location_cache_id = provider_map.get(provider_id).and_then(|f: &Uuid|location_map.get(&format!("{}-{}", f, location_id)));
+                if let Some(location_cache_id) = location_cache_id{
+                    // let geometry = geo::Geometry::from_geojson(&geo_data.value).expect("Invalid Geometry");
+                    // let a = geometry.set_srid(4326);
+                    // println!("{}", a);
+                    ids.push(Uuid::new_v4());
+                    category_codes.push(&geo_data.category_code);
+                    domain_codes.push(domain);
+                    created_ons.push(created_on);
+                    cordinates.push(&geo_data.value);
+                    location_cache_ids.push(location_cache_id);
+                }
+            }
+        }
+
+
+
+    }
+    BulkGeoServicabilityCache{
+        ids,
+        location_cache_ids,
+        cordinates,
+        category_codes,
+        created_ons,
+        domain_codes
+    }
+}
+
+pub async fn save_geo_json_servicability_cache(
+    transaction: &mut Transaction<'_, Postgres>,
+    map: &HashMap<String, HashMap<String, WSSearchServicability>>,
+    location_map: &HashMap<String, Uuid>,
+    provider_map: &HashMap<String, Uuid>,
+    created_on: DateTime<Utc>,
+    domain: &CategoryDomain
+) -> Result<(), anyhow::Error> {
+    let data = create_bulk_geo_json_servicability(map, domain, location_map, provider_map, created_on);
+    println!("{:?}", map);
+    let query = sqlx::query!(
+        r#"
+        INSERT INTO servicability_geo_json_cache (
+            id,
+            provider_location_cache_id,
+            domain_code,
+            geom,
+            category_code,
+            cordinates,
+            created_on
+        )
+        SELECT 
+            unnest($1::uuid[]), 
+            unnest($2::uuid[]), 
+            unnest($3::text[]), 
+            ST_SetSRID(ST_GeomFromGeoJSON(unnest($5::jsonb[])), 4326),
+            unnest($4::text[]), 
+            unnest($5::jsonb[]), 
+            unnest($6::timestamptz[])
+        ON CONFLICT (provider_location_cache_id, domain_code, category_code, geom) 
+        DO UPDATE SET
+            created_on = EXCLUDED.created_on;
+        "#,
+        &data.ids[..] as &[Uuid], 
+        &data.location_cache_ids[..] as &[&Uuid], 
+        &data.domain_codes[..] as &[&CategoryDomain], 
+        &data.category_codes[..] as &[&Option<String>],
+        &data.cordinates[..] as &[&Value],
+        &data.created_ons, 
+    );
+
+    transaction
+        .execute(query)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to execute query: {:?}", e);
+            anyhow::Error::new(e)
+                .context("A database failure occurred while saving ONDC seller servicability cache info")
+        })?;
+
+    Ok(())
+}
+
+
+
+pub async fn save_location_servicability_cache(transaction: &mut Transaction<'_, Postgres>, servicability_map: &HashMap<String, HashMap<String, WSSearchServicability>>, domain: &CategoryDomain,  location_map: &HashMap<String, Uuid>, provider_map:&HashMap<String, Uuid>,  created_on: DateTime<Utc>) -> Result<(), anyhow::Error> {
+    save_geo_json_servicability_cache(transaction, servicability_map, location_map, provider_map, created_on, domain).await?;
+
+    Ok(())
+} 
+
+
+
+pub async fn save_cache_to_db(transaction: &mut Transaction<'_, Postgres>, domain: &CategoryDomain, product_objs: &WSSearchData, servicability_map:  &HashMap<String, HashMap<String, WSSearchServicability>>,  created_on: DateTime<Utc>) -> Result<(),anyhow::Error>{
+    
+    let id = save_np_cache(transaction, &product_objs.bpp, created_on)
+        .await
+        .map_err(|e| anyhow!(e))?;
+
+    let provider_map = save_provider_cache(
+        transaction,
+        &product_objs.providers,
+        id,
+        created_on,
+    )
+    .await
+    .map_err(|e| anyhow!(e))?;
+
+    let location_map = save_provider_location_cache(
+        transaction,
+        &product_objs.providers,
+        &provider_map,
+        created_on,
+    )
+    .await
+    .map_err(|e| anyhow!(e))?;
+
+    save_location_servicability_cache(transaction, servicability_map, domain, &location_map, &provider_map, created_on)
+        .await
+        .map_err(|e| anyhow!(e))?;
     Ok(())
 }

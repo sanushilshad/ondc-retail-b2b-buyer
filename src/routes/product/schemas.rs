@@ -391,8 +391,19 @@ pub struct WSSearchProviderLocation {
 #[serde(rename_all = "camelCase")]
 pub struct WSSearchProvider {
     pub items: Vec<WSSearchItem>,
-    pub provider_detail: WSSearchProductProvider,
+    pub provider: WSSearchProductProvider,
     pub locations: HashMap<String, WSSearchProviderLocation>,
+}
+
+#[derive(Debug)]
+pub struct WSServicabilityData<D> {
+    pub category_code: Option<String>,
+    pub value: D,
+}
+
+#[derive(Debug)]
+pub struct WSSearchServicability {
+    pub geo_json: Vec<WSServicabilityData<Value>>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -462,4 +473,13 @@ pub struct BulkProviderLocationCache<'a> {
     pub country_names: Vec<Option<&'a str>>,
     pub area_codes: Vec<&'a str>,
     pub updated_ons: Vec<DateTime<Utc>>,
+}
+
+pub struct BulkGeoServicabilityCache<'a> {
+    pub ids: Vec<Uuid>,
+    pub location_cache_ids: Vec<&'a Uuid>,
+    pub cordinates: Vec<&'a Value>,
+    pub category_codes: Vec<&'a Option<String>>,
+    pub created_ons: Vec<DateTime<Utc>>,
+    pub domain_codes: Vec<&'a CategoryDomain>,
 }

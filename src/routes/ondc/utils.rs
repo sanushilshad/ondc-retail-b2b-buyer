@@ -2,20 +2,20 @@ use super::{
     BreakupTitleType, LookupData, LookupRequest, ONDCActionType, ONDCBreakUp, ONDCCancelMessage,
     ONDCCancelRequest, ONDCConfirmMessage, ONDCConfirmOrder, ONDCConfirmProvider, ONDCContext,
     ONDCContextCity, ONDCContextCountry, ONDCContextLocation, ONDCCredential, ONDCCredentialType,
-    ONDCDomain, ONDCFeeType, ONDCOnSearchFulfillmentContact, ONDCSearchStop, ONDCSellePriceSlab,
-    ONDCStatusMessage, ONDCStatusRequest, ONDCTag, ONDCUpdateItem, ONDCUpdateMessage,
-    ONDCUpdateOrder, ONDCUpdateProvider, ONDCUpdateRequest, ONDCVersion, OndcUrl,
+    ONDCDomain, ONDCFeeType, ONDCOnSearchFulfillmentContact, ONDCOnSearchProvider, ONDCSearchStop,
+    ONDCSellePriceSlab, ONDCStatusMessage, ONDCStatusRequest, ONDCTag, ONDCUpdateItem,
+    ONDCUpdateMessage, ONDCUpdateOrder, ONDCUpdateProvider, ONDCUpdateRequest, ONDCVersion,
+    OndcUrl,
 };
 
 use crate::chat_client::ChatData;
-use crate::routes::product::utils::{
-    save_np_cache, save_provider_cache, save_provider_location_cache,
-};
+use crate::routes::product::utils::save_cache_to_db;
 use crate::user_client::{get_vector_val_from_list, BusinessAccount, UserAccount, VectorType};
 use crate::websocket_client::{NotificationProcessType, WebSocketActionType, WebSocketClient};
 use crate::{constants::ONDC_TTL, routes::product::ProductSearchError};
 use anyhow::{anyhow, Context};
 use chrono::{DateTime, Utc};
+use geojson::GeoJson;
 use reqwest::Client;
 use serde::Serializer;
 use sqlx::{Executor, PgPool, Postgres, Transaction};
@@ -35,15 +35,15 @@ use super::schemas::{
     ONDCLocationId, ONDCOnConfirmPayment, ONDCOnSearchItemPrice, ONDCOnSearchItemQuantity,
     ONDCOnSearchItemTag, ONDCOnSearchPayment, ONDCOnSearchProviderDescriptor,
     ONDCOnSearchProviderLocation, ONDCOnSearchRequest, ONDCOrderCancellationFee,
-    ONDCOrderCancellationTerm, ONDCOrderFulfillmentEnd, ONDCOrderItemQuantity, ONDCOrderParams,
-    ONDCOrderStatus, ONDCPaymentParams, ONDCPaymentSettlementCounterparty,
-    ONDCPaymentSettlementDetail, ONDCPaymentStatus, ONDCQuantityCountInt, ONDCQuantitySelect,
-    ONDCQuote, ONDCRequestModel, ONDCSearchCategory, ONDCSearchDescriptor, ONDCSearchFulfillment,
-    ONDCSearchIntent, ONDCSearchItem, ONDCSearchLocation, ONDCSearchMessage, ONDCSearchPayment,
-    ONDCSearchRequest, ONDCSelectFulfillmentLocation, ONDCSelectMessage, ONDCSelectOrder,
-    ONDCSelectPayment, ONDCSelectProvider, ONDCSelectRequest, ONDCSelectedItem,
-    ONDCSellerLocationInfo, ONDCSellerProductInfo, ONDCState, ONDCTagItemCode, ONDCTagType,
-    ONDConfirmRequest, OnSearchContentType, TagTrait,
+    ONDCOrderCancellationTerm, ONDCOrderFulfillmentEnd, ONDCOrderItemQuantity, ONDCOrderStatus,
+    ONDCPaymentParams, ONDCPaymentSettlementCounterparty, ONDCPaymentSettlementDetail,
+    ONDCPaymentStatus, ONDCQuantityCountInt, ONDCQuantitySelect, ONDCQuote, ONDCRequestModel,
+    ONDCSearchCategory, ONDCSearchDescriptor, ONDCSearchFulfillment, ONDCSearchIntent,
+    ONDCSearchItem, ONDCSearchLocation, ONDCSearchMessage, ONDCSearchPayment, ONDCSearchRequest,
+    ONDCSelectFulfillmentLocation, ONDCSelectMessage, ONDCSelectOrder, ONDCSelectPayment,
+    ONDCSelectProvider, ONDCSelectRequest, ONDCSelectedItem, ONDCSellerLocationInfo,
+    ONDCSellerProductInfo, ONDCState, ONDCTagItemCode, ONDCTagType, ONDConfirmRequest,
+    OnSearchContentType, TagTrait,
 };
 use crate::domain::EmailObject;
 use crate::routes::ondc::schemas::{ONDCCity, ONDCPerson, ONDCSellerInfo};
@@ -67,7 +67,8 @@ use crate::routes::product::schemas::{
     WSSearch, WSSearchBPP, WSSearchCity, WSSearchCountry, WSSearchData, WSSearchItem,
     WSSearchItemPrice, WSSearchItemQty, WSSearchItemQtyMeasure, WSSearchItemQuantity,
     WSSearchProductProvider, WSSearchProvider, WSSearchProviderContact, WSSearchProviderCredential,
-    WSSearchProviderID, WSSearchProviderLocation, WSSearchProviderTerms, WSSearchState,
+    WSSearchProviderID, WSSearchProviderLocation, WSSearchProviderTerms, WSSearchServicability,
+    WSSearchState, WSServicabilityData,
 };
 use serde_json::Value;
 use sqlx::types::Json;
@@ -475,29 +476,6 @@ pub async fn get_product_search_params(
     Ok(row)
 }
 
-#[tracing::instrument(name = "Fetch ONDC Order Params", skip(pool))]
-pub async fn get_ondc_order_params(
-    pool: &PgPool,
-    transaction_id: Uuid,
-    message_id: Uuid,
-    action_type: ONDCActionType,
-) -> Result<Option<ONDCOrderParams>, anyhow::Error> {
-    let row = sqlx::query_as!(
-        ONDCOrderParams,
-        r#"SELECT message_id, transaction_id, user_id, business_id, device_id
-        FROM ondc_buyer_order_req
-        WHERE transaction_id = $1 AND message_id = $2 AND action_type = $3 AND user_id is not NULL AND business_id is not NULL ORDER BY created_on DESC
-        "#,
-        &transaction_id,
-        &message_id,
-        &action_type.to_string()
-    )
-    .fetch_optional(pool)
-    .await?;
-
-    Ok(row)
-}
-
 pub fn get_ondc_order_param_from_req(ondc_req: &ONDCRequestModel) -> WebSocketParam {
     WebSocketParam {
         device_id: None,
@@ -578,20 +556,15 @@ pub fn ws_search_provider_from_ondc_provider(
         .iter()
         .map(|image| image.get_value().to_owned())
         .collect();
-    let contact = fulfillments.get(0);
-    let gst_credit_invoice = if get_tag_value_from_list(
+    let contact = fulfillments.first();
+    let gst_credit_invoice = get_tag_value_from_list(
         tags,
         ONDCTagType::SellerTerms,
         &ONDCTagItemCode::GstCreditInvoice.to_string(),
     )
     .unwrap_or("N")
     .to_uppercase()
-        == "Y"
-    {
-        true
-    } else {
-        false
-    };
+        == "Y";
     let seller_id_code = get_tag_value_from_list(
         tags,
         ONDCTagType::SellerId,
@@ -630,16 +603,14 @@ pub fn ws_search_provider_from_ondc_provider(
             mobile_no: contact
                 .as_ref()
                 .map_or("NA".to_string(), |f| f.contact.phone.to_owned()),
-            email: contact
-                .as_ref()
-                .map_or(None, |f| f.contact.email.to_owned()),
+            email: contact.as_ref().and_then(|f| f.contact.email.to_owned()),
         },
         terms: WSSearchProviderTerms { gst_credit_invoice },
         identification: WSSearchProviderID {
             r#type: seller_id_code.to_owned(),
             value: seller_id_value.to_owned(),
         },
-        credentials: credentials,
+        credentials,
     }
 }
 
@@ -760,6 +731,94 @@ fn get_ws_search_item_payment_objs(ondc_payment_obj: &ONDCOnSearchPayment) -> WS
     }
 }
 
+fn handle_geojson_servicability_in_ondc_search(
+    servicability_val: &str,
+    category_code: &Option<String>,
+    location_id: &str,
+    location_mapping: &mut HashMap<String, WSSearchServicability>,
+) -> Result<(), anyhow::Error> {
+    let mut geo_json_duplicate = vec![];
+    match servicability_val.parse::<GeoJson>() {
+        Ok(GeoJson::FeatureCollection(ref ctn)) => {
+            for feature in &ctn.features {
+                if let Some(ref geom) = feature.geometry {
+                    if geo_json_duplicate.contains(geom) {
+                        continue;
+                    }
+                    geo_json_duplicate.push(geom.clone());
+                    let json_value: Value = serde_json::to_value(geom)?;
+
+                    let data = WSServicabilityData {
+                        category_code: category_code.clone(),
+                        value: json_value,
+                    };
+                    location_mapping
+                        .entry(location_id.to_string())
+                        .or_insert(WSSearchServicability { geo_json: vec![] })
+                        .geo_json
+                        .push(data);
+                }
+            }
+        }
+        Ok(_) => (),
+        Err(e) => return Err(anyhow!(e)),
+    }
+    Ok(())
+}
+
+#[tracing::instrument(name = "get product from on search request", skip())]
+pub fn get_servicability_from_on_search_request(
+    ondc_providers: &Vec<ONDCOnSearchProvider>,
+) -> Result<HashMap<String, HashMap<String, WSSearchServicability>>, anyhow::Error> {
+    let mut provider_mapping: HashMap<String, HashMap<String, WSSearchServicability>> =
+        HashMap::new();
+    for provider in ondc_providers.iter() {
+        let mut location_mapping: HashMap<String, WSSearchServicability> = HashMap::new();
+        for tag in provider
+            .tags
+            .iter()
+            .filter(|t| matches!(t.descriptor.code, ONDCTagType::Serviceability))
+        {
+            if let (
+                Some(location_id),
+                Some(category_id),
+                Some(servicability_type),
+                Some(servicability_val),
+            ) = (
+                tag.get_tag_value(&ONDCTagItemCode::Location.to_string()),
+                tag.get_tag_value(&ONDCTagItemCode::Category.to_string()),
+                tag.get_tag_value(&ONDCTagItemCode::Type.to_string()),
+                tag.get_tag_value(&ONDCTagItemCode::Val.to_string()),
+            ) {
+                let category_code = if category_id.ends_with("-*") {
+                    None
+                } else {
+                    Some(category_id.to_string())
+                };
+
+                if servicability_type == "13" || servicability_type == "14" {
+                    if servicability_type == "13" {
+                        handle_geojson_servicability_in_ondc_search(
+                            servicability_val,
+                            &category_code,
+                            location_id,
+                            &mut location_mapping,
+                        )?;
+                    } else {
+                        todo!()
+                    }
+                } else {
+                    todo!()
+                }
+            }
+        }
+        if !location_mapping.is_empty() {
+            provider_mapping.insert(provider.id.to_owned(), location_mapping);
+        }
+    }
+    Ok(provider_mapping)
+}
+
 #[tracing::instrument(name = "get product from on search request", skip())]
 pub fn get_product_from_on_search_request(
     on_search_obj: &ONDCOnSearchRequest,
@@ -865,7 +924,7 @@ pub fn get_product_from_on_search_request(
             let provider = WSSearchProvider {
                 items: product_list,
                 locations: location_obj,
-                provider_detail: ws_search_provider_from_ondc_provider(
+                provider: ws_search_provider_from_ondc_provider(
                     &provider_obj.id,
                     &provider_obj.rating,
                     &provider_obj.descriptor,
@@ -1235,7 +1294,7 @@ pub fn create_bulk_seller_product_info_objs<'a>(
     for provider in &body.providers {
         for item in &provider.items {
             seller_subscriber_ids.push(&body.bpp.subscriber_id);
-            provider_ids.push(&provider.provider_detail.id);
+            provider_ids.push(&provider.provider.id);
             item_ids.push(&item.id);
             item_codes.push(item.code.as_deref());
             item_names.push(&item.name);
@@ -2066,7 +2125,7 @@ pub fn create_bulk_seller_location_info_objs<'a>(
                 .collect::<Vec<_>>();
 
             seller_subscriber_ids.push(&body.bpp.subscriber_id);
-            provider_ids.push(provider.provider_detail.id.as_str());
+            provider_ids.push(provider.provider.id.as_str());
             location_ids.push(key.as_str());
             latitudes.push(gps_data.first().cloned().unwrap_or(BigDecimal::from(0)));
             longitudes.push(gps_data.get(1).cloned().unwrap_or(BigDecimal::from(0)));
@@ -2258,8 +2317,8 @@ pub fn create_bulk_seller_info_objs<'a>(
     let mut ids = vec![];
     for provider in &body.providers {
         seller_subscriber_ids.push(&body.bpp.subscriber_id);
-        provider_ids.push(provider.provider_detail.id.as_str());
-        provider_names.push(provider.provider_detail.name.as_str());
+        provider_ids.push(provider.provider.id.as_str());
+        provider_names.push(provider.provider.name.as_str());
         updated_ons.push(updated_on);
         ids.push(Uuid::new_v4());
     }
@@ -2451,7 +2510,9 @@ pub async fn process_on_search(
 ) -> Result<(), anyhow::Error> {
     let product_objs: Option<WSSearchData> =
         get_product_from_on_search_request(&body).map_err(|op| anyhow!("error:{}", op))?;
-
+    let servicability_data = get_servicability_from_on_search_request(
+        &body.message.catalog.map_or(vec![], |f| f.providers),
+    )?;
     if let Some(product_objs) = product_objs {
         if !product_objs.providers.is_empty() {
             let mut transaction = pool
@@ -2496,26 +2557,14 @@ pub async fn process_on_search(
                     )
                     .await;
             } else {
-                let id = save_np_cache(&mut transaction, &product_objs.bpp, body.context.timestamp)
-                    .await
-                    .map_err(|e| anyhow!(e))?;
-                let provider_map = save_provider_cache(
+                save_cache_to_db(
                     &mut transaction,
-                    &product_objs.providers,
-                    id,
+                    &body.context.domain.get_category_domain(),
+                    &product_objs,
+                    &servicability_data,
                     body.context.timestamp,
                 )
-                .await
-                .map_err(|e| anyhow!(e))?;
-
-                save_provider_location_cache(
-                    &mut transaction,
-                    &product_objs.providers,
-                    &provider_map,
-                    body.context.timestamp,
-                )
-                .await
-                .map_err(|e| anyhow!(e))?;
+                .await?;
             }
             transaction
                 .commit()
