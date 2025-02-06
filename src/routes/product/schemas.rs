@@ -404,6 +404,7 @@ pub struct WSServicabilityData<D> {
 #[derive(Debug)]
 pub struct WSSearchServicability {
     pub geo_json: Vec<WSServicabilityData<Value>>,
+    pub hyperlocal: Vec<WSServicabilityData<f64>>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -479,6 +480,15 @@ pub struct BulkGeoServicabilityCache<'a> {
     pub ids: Vec<Uuid>,
     pub location_cache_ids: Vec<&'a Uuid>,
     pub cordinates: Vec<&'a Value>,
+    pub category_codes: Vec<&'a Option<String>>,
+    pub created_ons: Vec<DateTime<Utc>>,
+    pub domain_codes: Vec<&'a CategoryDomain>,
+}
+
+pub struct BulkHyperlocalServicabilityCache<'a> {
+    pub ids: Vec<Uuid>,
+    pub location_cache_ids: Vec<&'a Uuid>,
+    pub radii: Vec<f64>,
     pub category_codes: Vec<&'a Option<String>>,
     pub created_ons: Vec<DateTime<Utc>>,
     pub domain_codes: Vec<&'a CategoryDomain>,

@@ -778,6 +778,17 @@ fn handle_coordinates_servicability_in_ondc_search(
     })
 }
 
+fn handle_hyperlocal_servicability_in_ondc_search(
+    servicability_val: &str,
+    category_code: &Option<String>,
+) -> Result<WSServicabilityData<f64>, anyhow::Error> {
+    let num: f64 = servicability_val.parse().unwrap_or(0.001);
+    Ok(WSServicabilityData {
+        category_code: category_code.clone(),
+        value: num * 1000.0,
+    })
+}
+
 #[tracing::instrument(name = "get product from on search request", skip())]
 pub fn get_servicability_from_on_search_request(
     ondc_providers: &Vec<ONDCOnSearchProvider>,
@@ -815,7 +826,10 @@ pub fn get_servicability_from_on_search_request(
                     )?;
                     location_mapping
                         .entry(location_id.to_string())
-                        .or_insert(WSSearchServicability { geo_json: vec![] })
+                        .or_insert(WSSearchServicability {
+                            geo_json: vec![],
+                            hyperlocal: vec![],
+                        })
                         .geo_json
                         .extend(data);
                 } else if servicability_type == "14" {
@@ -825,8 +839,24 @@ pub fn get_servicability_from_on_search_request(
                     )?;
                     location_mapping
                         .entry(location_id.to_string())
-                        .or_insert(WSSearchServicability { geo_json: vec![] })
+                        .or_insert(WSSearchServicability {
+                            geo_json: vec![],
+                            hyperlocal: vec![],
+                        })
                         .geo_json
+                        .push(data);
+                } else if servicability_type == "10" {
+                    let data = handle_hyperlocal_servicability_in_ondc_search(
+                        servicability_val,
+                        &category_code,
+                    )?;
+                    location_mapping
+                        .entry(location_id.to_string())
+                        .or_insert(WSSearchServicability {
+                            geo_json: vec![],
+                            hyperlocal: vec![],
+                        })
+                        .hyperlocal
                         .push(data);
                 }
             }
@@ -2529,11 +2559,12 @@ pub async fn process_on_search(
 ) -> Result<(), anyhow::Error> {
     let product_objs: Option<WSSearchData> =
         get_product_from_on_search_request(&body).map_err(|op| anyhow!("error:{}", op))?;
-    let servicability_data = get_servicability_from_on_search_request(
-        &body.message.catalog.map_or(vec![], |f| f.providers),
-    )?;
+
     if let Some(product_objs) = product_objs {
         if !product_objs.providers.is_empty() {
+            let servicability_data = get_servicability_from_on_search_request(
+                &body.message.catalog.map_or(vec![], |f| f.providers),
+            )?;
             let mut transaction = pool
                 .begin()
                 .await

@@ -741,6 +741,7 @@ CREATE TABLE IF NOT EXISTS provider_location_cache(
     location_id TEXT NOT NULL,
     latitude DECIMAL(9, 6) NOT NULL,
     longitude DECIMAL(9, 6) NOT NULL,
+    location GEOMETRY(POINT, 3857) NOT NULL,
     address TEXT NOT NULL,
     city_code TEXT NOT NULL,
     city_name TEXT NOT NULL,
@@ -766,8 +767,43 @@ CREATE TABLE IF NOT EXISTS servicability_geo_json_cache(
     geom GEOMETRY(Geometry, 4326) NOT NULL,
     category_code TEXT,
     cordinates JSONB NOT NULL,
-    created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 );
 
 ALTER TABLE servicability_geo_json_cache ADD CONSTRAINT servicability_geo_json_cache_constraint UNIQUE NULLS NOT DISTINCT (provider_location_cache_id, domain_code, category_code, geom);
 ALTER TABLE servicability_geo_json_cache ADD CONSTRAINT servicability_geo_json_cache_fk FOREIGN KEY ("provider_location_cache_id") REFERENCES provider_location_cache("id") ON DELETE CASCADE;
+ALTER TABLE servicability_geo_json_cache ADD CONSTRAINT enforce_srid CHECK (ST_SRID(geom) = 4326);
+CREATE INDEX servicability_geo_json_cache_geom_idx ON servicability_geo_json_cache USING GIST (geom);
+
+
+CREATE TABLE IF NOT EXISTS servicability_hyperlocal_cache (
+    id uuid PRIMARY KEY,
+    provider_location_cache_id uuid NOT NULL,
+    domain_code domain_category NOT NULL,
+    category_code TEXT,
+    radius DOUBLE PRECISION NOT NULL,
+    created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE servicability_hyperlocal_cache ADD CONSTRAINT servicability_hyperlocal_cache_constraint UNIQUE NULLS NOT DISTINCT (provider_location_cache_id, domain_code, category_code);
+ALTER TABLE servicability_hyperlocal_cache ADD CONSTRAINT servicability_hyperlocal_cache_fk FOREIGN KEY ("provider_location_cache_id") REFERENCES provider_location_cache("id") ON DELETE CASCADE;
+ALTER TABLE servicability_hyperlocal_cache ADD CONSTRAINT enforce_srid CHECK (ST_SRID(location) = 3857);
+CREATE INDEX servicability_hyperlocal_cache_location_idx ON servicability_hyperlocal_cache USING GIST (location);
+
+
+
+-- CREATE TABLE IF NOT EXISTS cache_product(
+--       id uuid PRIMARY KEY,
+--       provider_cache_id uuid NOT NULL,
+--       location_ids text[]
+--       category_code TEXT NOT NULL,
+--       domain_code TEXT NOT NULL
+--       item_code TEXT NOT NULL,
+--       item_id TEXT NOT NULL,
+--       item_name TEXT NOT NULL
+-- );
+
+-- ALTER TABLE cache_product ADD CONSTRAINT cache_product_constraint UNIQUE (id, provider_cache_id);
+-- ALTER TABLE cache_product ADD CONSTRAINT cache_product_constraint_fk FOREIGN KEY ("provider_cache_id") REFERENCES provider_cache("id") ON DELETE CASCADE;
+
+
