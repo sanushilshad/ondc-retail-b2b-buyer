@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::chat_client::ChatClient;
-use actix_web::web;
+use actix_web::{web, HttpResponse};
 use utoipa::TupleUnit;
 // use anyhow::Context;
 use crate::configuration::ONDCConfig;
@@ -40,7 +40,7 @@ use super::utils::{
     summary= "Order Select Request",
     request_body(content = OrderSelectRequest, description = "Request Body"),
     responses(
-        (status=200, description= "Order Select Response", body= GenericResponse<TupleUnit>),
+        (status=202, description= "Order Select Response", body= GenericResponse<TupleUnit>),
         (status=400, description= "Invalid Request body", body= GenericResponse<TupleUnit>),
         (status=401, description= "Invalid Token", body= GenericResponse<TupleUnit>),
 	    (status=403, description= "Insufficient Previlege", body= GenericResponse<TupleUnit>),
@@ -60,7 +60,7 @@ pub async fn order_select(
     meta_data: RequestMetaData,
     chat_client: web::Data<ChatClient>,
     user_client: web::Data<UserClient>,
-) -> Result<web::Json<GenericResponse<()>>, GenericError> {
+) -> Result<HttpResponse, GenericError> {
     let task1 = get_np_detail(
         &pool,
         &business_account.subscriber_id,
@@ -239,7 +239,7 @@ pub async fn order_select(
         };
     }
 
-    Ok(web::Json(GenericResponse::success(
+    Ok(HttpResponse::Accepted().json(GenericResponse::success(
         "Successfully send select request",
         Some(()),
     )))
@@ -253,7 +253,7 @@ pub async fn order_select(
     summary= "Order Init Request",
     request_body(content = OrderInitRequest, description = "Request Body"),
     responses(
-        (status=200, description= "Order init Response", body= GenericResponse<TupleUnit>),
+        (status=202, description= "Order init Response", body= GenericResponse<TupleUnit>),
         (status=400, description= "Invalid Request body", body= GenericResponse<TupleUnit>),
         (status=401, description= "Invalid Token", body= GenericResponse<TupleUnit>),
 	    (status=403, description= "Insufficient Previlege", body= GenericResponse<TupleUnit>),
@@ -271,7 +271,7 @@ pub async fn order_init(
     business_account: BusinessAccount,
     meta_data: RequestMetaData,
     allowed_permission: AllowedPermission,
-) -> Result<web::Json<GenericResponse<()>>, GenericError> {
+) -> Result<HttpResponse, GenericError> {
     let task1 = fetch_order_by_id(&pool, body.transaction_id);
     let task2 = get_np_detail(
         &pool,
@@ -341,7 +341,7 @@ pub async fn order_init(
 
     futures::future::join(task_3, task_4).await.1?;
 
-    Ok(web::Json(GenericResponse::success(
+    Ok(HttpResponse::Accepted().json(GenericResponse::success(
         "Successfully send init request",
         Some(()),
     )))
@@ -373,7 +373,7 @@ pub async fn order_confirm(
     business_account: BusinessAccount,
     meta_data: RequestMetaData,
     allowed_permission: AllowedPermission,
-) -> Result<web::Json<GenericResponse<()>>, GenericError> {
+) -> Result<HttpResponse, GenericError> {
     let task1 = fetch_order_by_id(&pool, body.transaction_id);
     let task2 = get_np_detail(
         &pool,
@@ -443,7 +443,7 @@ pub async fn order_confirm(
         ONDCActionType::Confirm,
     );
     futures::future::join(task_3, task_4).await.1?;
-    Ok(web::Json(GenericResponse::success(
+    Ok(HttpResponse::Accepted().json(GenericResponse::success(
         "Successfully send confirm request",
         Some(()),
     )))
@@ -457,7 +457,7 @@ pub async fn order_confirm(
     summary= "Order Status Request",
     request_body(content = OrderStatusRequest, description = "Request Body"),
     responses(
-        (status=200, description= "Order Status Response", body= GenericResponse<TupleUnit>),
+        (status=202, description= "Order Status Response", body= GenericResponse<TupleUnit>),
         (status=400, description= "Invalid Request body", body= GenericResponse<TupleUnit>),
         (status=401, description= "Invalid Token", body= GenericResponse<TupleUnit>),
 	    (status=403, description= "Insufficient Previlege", body= GenericResponse<TupleUnit>),
@@ -474,7 +474,7 @@ pub async fn order_status(
     user_account: UserAccount,
     business_account: BusinessAccount,
     meta_data: RequestMetaData,
-) -> Result<web::Json<GenericResponse<()>>, GenericError> {
+) -> Result<HttpResponse, GenericError> {
     let task1 = fetch_order_by_id(&pool, body.transaction_id);
     let task2 = get_np_detail(
         &pool,
@@ -533,7 +533,7 @@ pub async fn order_status(
     );
     futures::future::join(task_3, task_4).await.1?;
 
-    Ok(web::Json(GenericResponse::success(
+    Ok(HttpResponse::Accepted().json(GenericResponse::success(
         "Successfully send status request",
         Some(()),
     )))
@@ -547,7 +547,7 @@ pub async fn order_status(
     summary= "Order Cancel Request",
     request_body(content = OrderCancelRequest, description = "Request Body"),
     responses(
-        (status=200, description= "Order Cancel Response", body= GenericResponse<TupleUnit>),
+        (status=202, description= "Order Cancel Response", body= GenericResponse<TupleUnit>),
         (status=400, description= "Invalid Request body", body= GenericResponse<TupleUnit>),
         (status=401, description= "Invalid Token", body= GenericResponse<TupleUnit>),
 	    (status=403, description= "Insufficient Previlege", body= GenericResponse<TupleUnit>),
@@ -565,7 +565,7 @@ pub async fn order_cancel(
     business_account: BusinessAccount,
     meta_data: RequestMetaData,
     allowed_permission: AllowedPermission,
-) -> Result<web::Json<GenericResponse<()>>, GenericError> {
+) -> Result<HttpResponse, GenericError> {
     let task1 = fetch_order_by_id(&pool, body.transaction_id);
     let task2 = get_np_detail(
         &pool,
@@ -633,7 +633,7 @@ pub async fn order_cancel(
     );
     futures::future::join(task_3, task_4).await.1?;
 
-    Ok(web::Json(GenericResponse::success(
+    Ok(HttpResponse::Accepted().json(GenericResponse::success(
         "Successfully send cancel request",
         Some(()),
     )))
@@ -647,7 +647,7 @@ pub async fn order_cancel(
     summary= "Order Update Request",
     request_body(content = OrderUpdateRequest, description = "Request Body"),
     responses(
-        (status=200, description= "Order Update Response", body= GenericResponse<TupleUnit>),
+        (status=202, description= "Order Update Response", body= GenericResponse<TupleUnit>),
         (status=400, description= "Invalid Request body", body= GenericResponse<TupleUnit>),
         (status=401, description= "Invalid Token", body= GenericResponse<TupleUnit>),
 	    (status=403, description= "Insufficient Previlege", body= GenericResponse<TupleUnit>),
@@ -665,7 +665,7 @@ pub async fn order_update(
     business_account: BusinessAccount,
     meta_data: RequestMetaData,
     allowed_permission: AllowedPermission,
-) -> Result<web::Json<GenericResponse<()>>, GenericError> {
+) -> Result<HttpResponse, GenericError> {
     let task1 = fetch_order_by_id(&pool, body.transaction_id());
     let task2 = get_np_detail(
         &pool,
@@ -734,7 +734,7 @@ pub async fn order_update(
     );
     futures::future::join(task_3, task_4).await.1?;
 
-    Ok(web::Json(GenericResponse::success(
+    Ok(HttpResponse::Accepted().json(GenericResponse::success(
         "Successfully send update request",
         Some(()),
     )))

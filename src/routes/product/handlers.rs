@@ -1,4 +1,4 @@
-use actix_web::web;
+use actix_web::{web, HttpResponse};
 use utoipa::TupleUnit;
 // use anyhow::Context;
 use super::schemas::{ProductSearchRequest, WSSearch};
@@ -20,7 +20,7 @@ use sqlx::PgPool;
     summary= "Realtime Product Search Request",
     request_body(content = ProductSearchRequest, description = "Request Body"),
     responses(
-        (status=200, description= "Realtime Product Search", body= GenericResponse<TupleUnit>),
+        (status=202, description= "Realtime Product Search", body= GenericResponse<TupleUnit>),
         (status=400, description= "Invalid Request body", body= GenericResponse<TupleUnit>),
         (status=401, description= "Invalid Token", body= GenericResponse<TupleUnit>),
 	    (status=403, description= "Insufficient Previlege", body= GenericResponse<TupleUnit>),
@@ -37,7 +37,7 @@ pub async fn realtime_product_search(
     user_account: UserAccount,
     business_account: BusinessAccount,
     meta_data: RequestMetaData,
-) -> Result<web::Json<GenericResponse<()>>, GenericError> {
+) -> Result<HttpResponse, GenericError> {
     let np_detail = match get_np_detail(
         &pool,
         &business_account.subscriber_id,
@@ -73,8 +73,8 @@ pub async fn realtime_product_search(
         ONDCActionType::Search,
     );
     futures::future::join(task1, task2).await.1?;
-    Ok(web::Json(GenericResponse::success(
-        "Successfully Send Product Search Request",
+    Ok(HttpResponse::Accepted().json(GenericResponse::success(
+        "Successfully Sent Product Search Request",
         Some(()),
     )))
 }

@@ -1908,7 +1908,7 @@ pub struct ProviderLocation {
     id: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, sqlx::Type, Clone, ToSchema, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, sqlx::Type, Clone, PartialEq)]
 pub enum ONDCPaymentCollectedBy {
     #[serde(rename = "BAP")]
     Bap,
@@ -2400,14 +2400,13 @@ pub struct BulkSellerLocationInfo<'a> {
     pub ids: Vec<Uuid>,
 }
 
-#[derive(Debug, Deserialize, ToSchema)]
+#[derive(Debug, Deserialize)]
 pub struct ONDCSellerLocationInfo {
     pub location_id: String,
     pub seller_subscriber_id: String,
     pub provider_id: String,
-    #[schema(value_type = f64)]
+
     pub latitude: BigDecimal,
-    #[schema(value_type = f64)]
     pub longitude: BigDecimal,
     pub address: String,
     pub city_code: String,
@@ -2427,7 +2426,7 @@ pub struct BulkSellerInfo<'a> {
     pub ids: Vec<Uuid>,
 }
 
-#[derive(Debug, Deserialize, ToSchema)]
+#[derive(Debug, Deserialize)]
 #[allow(dead_code)]
 pub struct ONDCSellerInfo {
     pub seller_subscriber_id: String,
