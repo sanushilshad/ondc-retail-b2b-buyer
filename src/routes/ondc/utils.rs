@@ -781,11 +781,25 @@ fn handle_coordinates_servicability_in_ondc_search(
 fn handle_hyperlocal_servicability_in_ondc_search(
     servicability_val: &str,
     category_code: &Option<String>,
-) -> Result<WSServicabilityData<f64>, anyhow::Error> {
+) -> WSServicabilityData<f64> {
     let num: f64 = servicability_val.parse().unwrap_or(0.001);
-    Ok(WSServicabilityData {
+    WSServicabilityData {
         category_code: category_code.clone(),
         value: num * 1000.0,
+    }
+}
+
+fn handle_country_servicability_in_ondc_search(
+    servicability_val: &str,
+    category_code: &Option<String>,
+) -> Result<WSServicabilityData<CountryCode>, anyhow::Error> {
+    let country_code = CountryCode::from_str(servicability_val).map_err(|e| {
+        tracing::error!(e);
+        anyhow!(e)
+    })?;
+    Ok(WSServicabilityData {
+        category_code: category_code.clone(),
+        value: country_code,
     })
 }
 
@@ -829,6 +843,7 @@ pub fn get_servicability_from_on_search_request(
                         .or_insert(WSSearchServicability {
                             geo_json: vec![],
                             hyperlocal: vec![],
+                            country: vec![],
                         })
                         .geo_json
                         .extend(data);
@@ -842,6 +857,7 @@ pub fn get_servicability_from_on_search_request(
                         .or_insert(WSSearchServicability {
                             geo_json: vec![],
                             hyperlocal: vec![],
+                            country: vec![],
                         })
                         .geo_json
                         .push(data);
@@ -849,15 +865,31 @@ pub fn get_servicability_from_on_search_request(
                     let data = handle_hyperlocal_servicability_in_ondc_search(
                         servicability_val,
                         &category_code,
-                    )?;
+                    );
                     location_mapping
                         .entry(location_id.to_string())
                         .or_insert(WSSearchServicability {
                             geo_json: vec![],
                             hyperlocal: vec![],
+                            country: vec![],
                         })
                         .hyperlocal
                         .push(data);
+                } else if servicability_type == "12" {
+                    if let Ok(data) = handle_country_servicability_in_ondc_search(
+                        servicability_val,
+                        &category_code,
+                    ) {
+                        location_mapping
+                            .entry(location_id.to_string())
+                            .or_insert(WSSearchServicability {
+                                geo_json: vec![],
+                                hyperlocal: vec![],
+                                country: vec![],
+                            })
+                            .country
+                            .push(data);
+                    }
                 }
             }
         }

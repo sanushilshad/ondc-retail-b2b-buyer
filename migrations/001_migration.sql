@@ -791,6 +791,17 @@ ALTER TABLE servicability_hyperlocal_cache ADD CONSTRAINT enforce_srid CHECK (ST
 CREATE INDEX servicability_hyperlocal_cache_location_idx ON servicability_hyperlocal_cache USING GIST (location);
 
 
+CREATE TABLE IF NOT EXISTS servicability_country_cache (
+    id uuid PRIMARY KEY,
+    provider_location_cache_id uuid NOT NULL,
+    domain_code domain_category NOT NULL,
+    category_code TEXT,
+    country_code country_code NOT NULL,
+    created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE servicability_country_cache ADD CONSTRAINT servicability_country_cache_constraint UNIQUE NULLS NOT DISTINCT (provider_location_cache_id, domain_code, category_code, country_code);
+ALTER TABLE servicability_country_cache ADD CONSTRAINT servicability_country_cache_fk FOREIGN KEY ("provider_location_cache_id") REFERENCES provider_location_cache("id") ON DELETE CASCADE;
 
 -- CREATE TABLE IF NOT EXISTS cache_product(
 --       id uuid PRIMARY KEY,

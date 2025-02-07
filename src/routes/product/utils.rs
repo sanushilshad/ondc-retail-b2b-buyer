@@ -8,7 +8,7 @@ use uuid::Uuid;
 use crate::routes::product::schemas::{FulfillmentType, PaymentType, ProductSearchType};
 use crate::schemas::RequestMetaData;
 use super::models::{WSSearchProviderContactModel, WSSearchProviderCredentialModel, WSSearchProviderTermsModel};
-use super::schemas::{BulkGeoServicabilityCache, BulkHyperlocalServicabilityCache, BulkProviderCache, BulkProviderLocationCache, CategoryDomain, ProductSearchRequest, WSSearchBPP, WSSearchData, WSSearchProvider, WSSearchServicability};
+use super::schemas::{BulkCountryServicabilityCache, BulkGeoServicabilityCache, BulkHyperlocalServicabilityCache, BulkProviderCache, BulkProviderLocationCache, CategoryDomain, ProductSearchRequest, WSSearchBPP, WSSearchData, WSSearchProvider, WSSearchServicability};
 use chrono::{DateTime, Utc};
 use crate::user_client::{BusinessAccount, UserAccount};
 use crate::schemas::CountryCode;
@@ -634,12 +634,98 @@ pub async fn save_hyperlocal_servicability_cache(
 }
 
 
+fn create_bulk_country_servicability<'a>(data: &'a  HashMap<String, HashMap<String, WSSearchServicability>>, domain: &'a CategoryDomain, location_map: &'a HashMap<String, Uuid>, provider_map: &'a HashMap<String, Uuid>, created_on: DateTime<Utc>) -> BulkCountryServicabilityCache<'a>{
+    let mut ids =  vec![];
+    let mut category_codes =  vec![];
+    let mut domain_codes =  vec![];
+    let mut created_ons =  vec![];
+    let mut country_codes  =  vec![];
+    let mut location_cache_ids =  vec![];
+
+
+
+
+    for (provider_id, location_data) in data{
+        for (location_id, servicability_data) in location_data.iter(){
+        for geo_data in servicability_data.country.iter(){
+            let location_cache_id = provider_map.get(provider_id).and_then(|f: &Uuid|location_map.get(&format!("{}-{}", f, location_id)));
+                if let Some(location_cache_id) = location_cache_id{
+                    ids.push(Uuid::new_v4());
+                    category_codes.push(&geo_data.category_code);
+                    domain_codes.push(domain);
+                    created_ons.push(created_on);
+                    country_codes.push(&geo_data.value);
+                    location_cache_ids.push(location_cache_id);
+                }
+            }
+        }
+
+
+
+    }
+    BulkCountryServicabilityCache{ ids, location_cache_ids, country_codes, category_codes, created_ons, domain_codes }
+}
+
+#[tracing::instrument(name = "save_country_servicability_cache", skip(transaction))]
+pub async fn save_country_servicability_cache(
+    transaction: &mut Transaction<'_, Postgres>,
+    map: &HashMap<String, HashMap<String, WSSearchServicability>>,
+    location_map: &HashMap<String, Uuid>,
+    provider_map: &HashMap<String, Uuid>,
+    created_on: DateTime<Utc>,
+    domain: &CategoryDomain
+) -> Result<(), anyhow::Error> {
+    let data = create_bulk_country_servicability(map, domain, location_map, provider_map, created_on);
+    if !data.ids.is_empty(){
+    let query = sqlx::query!(
+        r#"
+        INSERT INTO servicability_country_cache (
+            id,
+            provider_location_cache_id,
+            domain_code,
+            category_code,
+            country_code,
+            created_on
+        )
+        SELECT 
+            unnest($1::uuid[]), 
+            unnest($2::uuid[]), 
+            unnest($3::domain_category[]), 
+            unnest($4::text[]), 
+            unnest($5::country_code[]), 
+            unnest($6::timestamptz[])
+        ON CONFLICT (provider_location_cache_id, domain_code, category_code, country_code) 
+        DO NOTHING
+        "#,
+        &data.ids[..] as &[Uuid], 
+        &data.location_cache_ids[..] as &[&Uuid], 
+        &data.domain_codes[..] as &[&CategoryDomain], 
+        &data.category_codes[..] as &[&Option<String>],
+        &data.country_codes[..] as &[&CountryCode],
+        &data.created_ons, 
+    );
+
+    transaction
+        .execute(query)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to execute query: {:?}", e);
+            anyhow::Error::new(e)
+                .context("A database failure occurred while saving ONDC seller hyperlocal servicability cache info")
+        })?;
+    }
+
+
+    Ok(())
+}
+
 
 
 
 pub async fn save_location_servicability_cache(transaction: &mut Transaction<'_, Postgres>, servicability_map: &HashMap<String, HashMap<String, WSSearchServicability>>, domain: &CategoryDomain,  location_map: &HashMap<String, Uuid>, provider_map:&HashMap<String, Uuid>,  created_on: DateTime<Utc>) -> Result<(), anyhow::Error> {
     save_geo_json_servicability_cache(transaction, servicability_map, location_map, provider_map, created_on, domain).await?;
     save_hyperlocal_servicability_cache(transaction, servicability_map, location_map, provider_map, created_on, domain).await?;
+    save_country_servicability_cache(transaction, servicability_map, location_map, provider_map, created_on, domain).await?;
 
     Ok(())
 } 
