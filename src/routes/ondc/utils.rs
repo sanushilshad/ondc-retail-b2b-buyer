@@ -2,10 +2,10 @@ use super::{
     BreakupTitleType, LookupData, LookupRequest, ONDCActionType, ONDCBreakUp, ONDCCancelMessage,
     ONDCCancelRequest, ONDCConfirmMessage, ONDCConfirmOrder, ONDCConfirmProvider, ONDCContext,
     ONDCContextCity, ONDCContextCountry, ONDCContextLocation, ONDCCredential, ONDCCredentialType,
-    ONDCDomain, ONDCFeeType, ONDCOnSearchFulfillmentContact, ONDCOnSearchProvider, ONDCSearchStop,
-    ONDCSellePriceSlab, ONDCServicabilityCoordinate, ONDCStatusMessage, ONDCStatusRequest, ONDCTag,
-    ONDCUpdateItem, ONDCUpdateMessage, ONDCUpdateOrder, ONDCUpdateProvider, ONDCUpdateRequest,
-    ONDCVersion, OndcUrl,
+    ONDCDomain, ONDCFeeType, ONDCOnSearchFulfillmentContact, ONDCSearchStop, ONDCSellePriceSlab,
+    ONDCServicabilityCoordinate, ONDCStatusMessage, ONDCStatusRequest, ONDCTag, ONDCUpdateItem,
+    ONDCUpdateMessage, ONDCUpdateOrder, ONDCUpdateProvider, ONDCUpdateRequest, ONDCVersion,
+    OndcUrl,
 };
 
 use crate::chat_client::ChatData;
@@ -803,101 +803,138 @@ fn handle_country_servicability_in_ondc_search(
     })
 }
 
+fn expand_pincodes(pincode_str: &str) -> HashSet<String> {
+    let mut pincodes = HashSet::new(); // HashSet to store unique pincodes
+
+    for part in pincode_str.split(',').map(|p| p.trim()) {
+        if let Some((start, end)) = part.split_once('-') {
+            if let (Ok(start), Ok(end)) = (start.parse::<u32>(), end.parse::<u32>()) {
+                for code in start..=end {
+                    pincodes.insert(code.to_string());
+                }
+            }
+        } else {
+            pincodes.insert(part.to_string()); // Insert single pincode
+        }
+    }
+
+    pincodes
+}
+
+fn handle_intercity_servicability_in_ondc_search(
+    servicability_val: &str,
+    category_code: &Option<String>,
+) -> Result<WSServicabilityData<HashSet<String>>, anyhow::Error> {
+    Ok(WSServicabilityData {
+        category_code: category_code.clone(),
+        value: expand_pincodes(servicability_val),
+    })
+}
+
 #[tracing::instrument(name = "get product from on search request", skip())]
 pub fn get_servicability_from_on_search_request(
-    ondc_providers: &Vec<ONDCOnSearchProvider>,
-) -> Result<HashMap<String, HashMap<String, WSSearchServicability>>, anyhow::Error> {
-    let mut provider_mapping: HashMap<String, HashMap<String, WSSearchServicability>> =
-        HashMap::new();
-    for provider in ondc_providers.iter() {
-        let mut location_mapping: HashMap<String, WSSearchServicability> = HashMap::new();
-        for tag in provider
-            .tags
-            .iter()
-            .filter(|t| matches!(t.descriptor.code, ONDCTagType::Serviceability))
-        {
-            if let (
-                Some(location_id),
-                Some(category_id),
-                Some(servicability_type),
-                Some(servicability_val),
-            ) = (
-                tag.get_tag_value(&ONDCTagItemCode::Location.to_string()),
-                tag.get_tag_value(&ONDCTagItemCode::Category.to_string()),
-                tag.get_tag_value(&ONDCTagItemCode::Type.to_string()),
-                tag.get_tag_value(&ONDCTagItemCode::Val.to_string()),
-            ) {
-                let category_code = if category_id.ends_with("-*") {
-                    None
-                } else {
-                    Some(category_id.to_string())
-                };
+    tags: &Vec<ONDCTag>,
+) -> Result<HashMap<String, WSSearchServicability>, anyhow::Error> {
+    let mut location_mapping: HashMap<String, WSSearchServicability> = HashMap::new();
+    for tag in tags
+        .iter()
+        .filter(|t| matches!(t.descriptor.code, ONDCTagType::Serviceability))
+    {
+        if let (
+            Some(location_id),
+            Some(category_id),
+            Some(servicability_type),
+            Some(servicability_val),
+        ) = (
+            tag.get_tag_value(&ONDCTagItemCode::Location.to_string()),
+            tag.get_tag_value(&ONDCTagItemCode::Category.to_string()),
+            tag.get_tag_value(&ONDCTagItemCode::Type.to_string()),
+            tag.get_tag_value(&ONDCTagItemCode::Val.to_string()),
+        ) {
+            let category_code = if category_id.ends_with("-*") {
+                None
+            } else {
+                Some(category_id.to_string())
+            };
 
-                if servicability_type == "13" {
-                    let data = handle_geojson_servicability_in_ondc_search(
-                        servicability_val,
-                        &category_code,
-                    )?;
+            if servicability_type == "13" {
+                let data =
+                    handle_geojson_servicability_in_ondc_search(servicability_val, &category_code)?;
+                location_mapping
+                    .entry(location_id.to_string())
+                    .or_insert(WSSearchServicability {
+                        geo_json: vec![],
+                        hyperlocal: vec![],
+                        country: vec![],
+                        intercity: vec![],
+                    })
+                    .geo_json
+                    .extend(data);
+            } else if servicability_type == "14" {
+                let data = handle_coordinates_servicability_in_ondc_search(
+                    servicability_val,
+                    &category_code,
+                )?;
+                location_mapping
+                    .entry(location_id.to_string())
+                    .or_insert(WSSearchServicability {
+                        geo_json: vec![],
+                        hyperlocal: vec![],
+                        country: vec![],
+                        intercity: vec![],
+                    })
+                    .geo_json
+                    .push(data);
+            } else if servicability_type == "10" {
+                let data = handle_hyperlocal_servicability_in_ondc_search(
+                    servicability_val,
+                    &category_code,
+                );
+                location_mapping
+                    .entry(location_id.to_string())
+                    .or_insert(WSSearchServicability {
+                        geo_json: vec![],
+                        hyperlocal: vec![],
+                        country: vec![],
+                        intercity: vec![],
+                    })
+                    .hyperlocal
+                    .push(data);
+            } else if servicability_type == "12" {
+                if let Ok(data) =
+                    handle_country_servicability_in_ondc_search(servicability_val, &category_code)
+                {
                     location_mapping
                         .entry(location_id.to_string())
                         .or_insert(WSSearchServicability {
                             geo_json: vec![],
                             hyperlocal: vec![],
                             country: vec![],
+                            intercity: vec![],
                         })
-                        .geo_json
-                        .extend(data);
-                } else if servicability_type == "14" {
-                    let data = handle_coordinates_servicability_in_ondc_search(
-                        servicability_val,
-                        &category_code,
-                    )?;
-                    location_mapping
-                        .entry(location_id.to_string())
-                        .or_insert(WSSearchServicability {
-                            geo_json: vec![],
-                            hyperlocal: vec![],
-                            country: vec![],
-                        })
-                        .geo_json
+                        .country
                         .push(data);
-                } else if servicability_type == "10" {
-                    let data = handle_hyperlocal_servicability_in_ondc_search(
-                        servicability_val,
-                        &category_code,
-                    );
+                }
+            } else if servicability_type == "11" {
+                if let Ok(data) =
+                    handle_intercity_servicability_in_ondc_search(servicability_val, &category_code)
+                {
                     location_mapping
                         .entry(location_id.to_string())
                         .or_insert(WSSearchServicability {
                             geo_json: vec![],
                             hyperlocal: vec![],
                             country: vec![],
+                            intercity: vec![],
                         })
-                        .hyperlocal
+                        .intercity
                         .push(data);
-                } else if servicability_type == "12" {
-                    if let Ok(data) = handle_country_servicability_in_ondc_search(
-                        servicability_val,
-                        &category_code,
-                    ) {
-                        location_mapping
-                            .entry(location_id.to_string())
-                            .or_insert(WSSearchServicability {
-                                geo_json: vec![],
-                                hyperlocal: vec![],
-                                country: vec![],
-                            })
-                            .country
-                            .push(data);
-                    }
                 }
             }
         }
-        if !location_mapping.is_empty() {
-            provider_mapping.insert(provider.id.to_owned(), location_mapping);
-        }
     }
-    Ok(provider_mapping)
+
+    Ok(location_mapping)
 }
 
 #[tracing::instrument(name = "get product from on search request", skip())]
@@ -1002,6 +1039,8 @@ pub fn get_product_from_on_search_request(
                 };
                 product_list.push(prod_obj)
             }
+            let servicability = get_servicability_from_on_search_request(&provider_obj.tags)?;
+
             let provider = WSSearchProvider {
                 items: product_list,
                 locations: location_obj,
@@ -1014,6 +1053,7 @@ pub fn get_product_from_on_search_request(
                     &provider_obj.tags,
                     &provider_obj.creds,
                 ),
+                servicability: servicability,
             };
             provider_list.push(provider)
         }
@@ -2594,9 +2634,6 @@ pub async fn process_on_search(
 
     if let Some(product_objs) = product_objs {
         if !product_objs.providers.is_empty() {
-            let servicability_data = get_servicability_from_on_search_request(
-                &body.message.catalog.map_or(vec![], |f| f.providers),
-            )?;
             let mut transaction = pool
                 .begin()
                 .await
@@ -2643,7 +2680,6 @@ pub async fn process_on_search(
                     &mut transaction,
                     &body.context.domain.get_category_domain(),
                     &product_objs,
-                    &servicability_data,
                     body.context.timestamp,
                 )
                 .await?;

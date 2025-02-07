@@ -12,6 +12,7 @@ use futures_util::future::LocalBoxFuture;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use serde_with::skip_serializing_none;
+use std::collections::HashSet;
 use utoipa::ToSchema;
 use uuid::Uuid;
 #[derive(Debug, Deserialize, Serialize, ToSchema, sqlx::Type, Clone, PartialEq)]
@@ -393,19 +394,22 @@ pub struct WSSearchProvider {
     pub items: Vec<WSSearchItem>,
     pub provider: WSSearchProductProvider,
     pub locations: HashMap<String, WSSearchProviderLocation>,
+    pub servicability: HashMap<String, WSSearchServicability>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct WSServicabilityData<D> {
     pub category_code: Option<String>,
     pub value: D,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct WSSearchServicability {
     pub geo_json: Vec<WSServicabilityData<Value>>,
     pub hyperlocal: Vec<WSServicabilityData<f64>>,
     pub country: Vec<WSServicabilityData<CountryCode>>,
+    pub intercity: Vec<WSServicabilityData<HashSet<String>>>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -499,6 +503,15 @@ pub struct BulkCountryServicabilityCache<'a> {
     pub ids: Vec<Uuid>,
     pub location_cache_ids: Vec<&'a Uuid>,
     pub country_codes: Vec<&'a CountryCode>,
+    pub category_codes: Vec<&'a Option<String>>,
+    pub created_ons: Vec<DateTime<Utc>>,
+    pub domain_codes: Vec<&'a CategoryDomain>,
+}
+
+pub struct BulkInterCityServicabilityCache<'a> {
+    pub ids: Vec<Uuid>,
+    pub location_cache_ids: Vec<&'a Uuid>,
+    pub pincodes: Vec<&'a str>,
     pub category_codes: Vec<&'a Option<String>>,
     pub created_ons: Vec<DateTime<Utc>>,
     pub domain_codes: Vec<&'a CategoryDomain>,

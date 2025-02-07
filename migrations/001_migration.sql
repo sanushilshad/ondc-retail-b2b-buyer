@@ -767,7 +767,7 @@ CREATE TABLE IF NOT EXISTS servicability_geo_json_cache(
     geom GEOMETRY(Geometry, 4326) NOT NULL,
     category_code TEXT,
     cordinates JSONB NOT NULL,
-    created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 ALTER TABLE servicability_geo_json_cache ADD CONSTRAINT servicability_geo_json_cache_constraint UNIQUE NULLS NOT DISTINCT (provider_location_cache_id, domain_code, category_code, geom);
@@ -802,6 +802,21 @@ CREATE TABLE IF NOT EXISTS servicability_country_cache (
 
 ALTER TABLE servicability_country_cache ADD CONSTRAINT servicability_country_cache_constraint UNIQUE NULLS NOT DISTINCT (provider_location_cache_id, domain_code, category_code, country_code);
 ALTER TABLE servicability_country_cache ADD CONSTRAINT servicability_country_cache_fk FOREIGN KEY ("provider_location_cache_id") REFERENCES provider_location_cache("id") ON DELETE CASCADE;
+
+
+CREATE TABLE IF NOT EXISTS servicability_intercity_cache (
+    id uuid PRIMARY KEY,
+    provider_location_cache_id uuid NOT NULL,
+    domain_code domain_category NOT NULL,
+    category_code TEXT,
+    pincode TEXT NOT NULL,
+    created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE servicability_intercity_cache ADD CONSTRAINT servicability_intercity_cache_constraint UNIQUE NULLS NOT DISTINCT (provider_location_cache_id, domain_code, category_code, pincode);
+ALTER TABLE servicability_intercity_cache ADD CONSTRAINT servicability_intercity_cache_fk FOREIGN KEY ("provider_location_cache_id") REFERENCES provider_location_cache("id") ON DELETE CASCADE;
+
+
 
 -- CREATE TABLE IF NOT EXISTS cache_product(
 --       id uuid PRIMARY KEY,
