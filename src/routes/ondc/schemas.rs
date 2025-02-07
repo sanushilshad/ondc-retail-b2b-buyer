@@ -1684,13 +1684,13 @@ pub struct WSError {
 
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct WSSelect<'a> {
+pub struct WSSelect {
     #[schema(value_type = String)]
     pub transaction_id: Uuid,
     #[schema(value_type = String)]
     pub message_id: Uuid,
     pub action_type: WebSocketActionType,
-    pub error: Option<&'a str>,
+    pub error: Option<String>,
 }
 
 #[allow(dead_code)]
@@ -2008,20 +2008,20 @@ pub struct ONDCInitRequest {
 
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct WSInitData<'a> {
-    pub payment_links: Vec<&'a str>,
+pub struct WSInitData {
+    pub payment_links: Vec<String>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct WSInit<'a> {
+pub struct WSInit {
     #[schema(value_type = String)]
     pub transaction_id: Uuid,
     #[schema(value_type = String)]
     pub message_id: Uuid,
     pub action_type: WebSocketActionType,
-    pub error: Option<&'a str>,
-    pub data: Option<WSInitData<'a>>,
+    pub error: Option<String>,
+    pub data: Option<WSInitData>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -2367,19 +2367,19 @@ impl FromRequest for ONDCOnConfirmRequest {
 
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct WSConfirmData<'a> {
-    pub payment_links: Vec<&'a str>,
+pub struct WSConfirmData {
+    pub payment_links: Vec<String>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct WSConfirm<'a> {
+pub struct WSConfirm {
     #[schema(value_type = String)]
     pub transaction_id: Uuid,
     #[schema(value_type = String)]
     pub message_id: Uuid,
-    pub error: Option<&'a str>,
-    pub data: Option<WSConfirmData<'a>>,
+    pub error: Option<String>,
+    pub data: Option<WSConfirmData>,
 }
 
 pub struct BulkSellerLocationInfo<'a> {

@@ -753,6 +753,8 @@ CREATE TABLE IF NOT EXISTS provider_location_cache(
     created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_on TIMESTAMPTZ
 );
+ALTER TABLE provider_location_cache ADD CONSTRAINT enforce_srid CHECK (ST_SRID(location) = 3857);
+CREATE INDEX provider_location_cache_idx ON provider_location_cache USING GIST (location);
 
 ALTER TABLE provider_location_cache ADD CONSTRAINT provider_location_cache_constraint UNIQUE (provider_cache_id, location_id);
 ALTER TABLE provider_location_cache ADD CONSTRAINT provider_location_cache_constraint_fk FOREIGN KEY ("provider_cache_id") REFERENCES provider_cache("id") ON DELETE CASCADE;
@@ -787,8 +789,6 @@ CREATE TABLE IF NOT EXISTS servicability_hyperlocal_cache (
 
 ALTER TABLE servicability_hyperlocal_cache ADD CONSTRAINT servicability_hyperlocal_cache_constraint UNIQUE NULLS NOT DISTINCT (provider_location_cache_id, domain_code, category_code);
 ALTER TABLE servicability_hyperlocal_cache ADD CONSTRAINT servicability_hyperlocal_cache_fk FOREIGN KEY ("provider_location_cache_id") REFERENCES provider_location_cache("id") ON DELETE CASCADE;
-ALTER TABLE servicability_hyperlocal_cache ADD CONSTRAINT enforce_srid CHECK (ST_SRID(location) = 3857);
-CREATE INDEX servicability_hyperlocal_cache_location_idx ON servicability_hyperlocal_cache USING GIST (location);
 
 
 CREATE TABLE IF NOT EXISTS servicability_country_cache (
@@ -815,6 +815,30 @@ CREATE TABLE IF NOT EXISTS servicability_intercity_cache (
 
 ALTER TABLE servicability_intercity_cache ADD CONSTRAINT servicability_intercity_cache_constraint UNIQUE NULLS NOT DISTINCT (provider_location_cache_id, domain_code, category_code, pincode);
 ALTER TABLE servicability_intercity_cache ADD CONSTRAINT servicability_intercity_cache_fk FOREIGN KEY ("provider_location_cache_id") REFERENCES provider_location_cache("id") ON DELETE CASCADE;
+
+
+CREATE TABLE IF NOT EXISTS provider_offer_cache (
+    id uuid PRIMARY KEY,
+    provider_cache_id uuid NOT NULL,
+    offer_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    offer_code TEXT NOT NULL,
+    short_desc TEXT NOT NULL,
+    long_desc TEXT NOT NULL,
+    images JSONB NOT NULL,
+    domain_code domain_category NOT NULL,
+    location_ids JSONB NOT NULL,
+    category_ids JSONB NOT NULL,
+    item_ids JSONB NOT NULL,
+    start_time TIMESTAMPTZ NOT NULL,
+    end_time TIMESTAMPTZ NOT NULL,
+    created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+
+ALTER TABLE provider_offer_cache ADD CONSTRAINT provider_offer_cache_constraint UNIQUE NULLS NOT DISTINCT (provider_cache_id, offer_id);
+ALTER TABLE provider_offer_cache ADD CONSTRAINT provider_offer_cache_fk FOREIGN KEY ("provider_cache_id") REFERENCES provider_cache("id") ON DELETE CASCADE;
+
 
 
 
