@@ -84,7 +84,7 @@ pub async fn on_select(
     let ws_obj = WSSelect {
         transaction_id: body.context.transaction_id,
         message_id: body.context.message_id,
-        action_type: WebSocketActionType::OrderSelect,
+        // action_type: WebSocketActionType::OrderSelect,
         error: body
             .error
             .as_ref()
@@ -292,7 +292,7 @@ pub async fn on_init(
     let ws_obj = WSInit {
         transaction_id: body.context.transaction_id,
         message_id: body.context.message_id,
-        action_type: WebSocketActionType::OrderInit,
+        // action_type: WebSocketActionType::OrderInit,
         error: body
             .error
             .as_ref()

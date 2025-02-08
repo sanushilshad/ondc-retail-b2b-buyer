@@ -4,9 +4,9 @@ pub mod tests {
 
     use crate::configuration::get_configuration;
     use crate::constants::DUMMY_DOMAIN;
+    use crate::database::get_connection_pool;
     use crate::routes::order::schemas::{PaymentSettlementPhase, PaymentSettlementType};
     use crate::schemas::{FeeType, KycStatus, RegisteredNetworkParticipant, Status};
-    use crate::startup::get_connection_pool;
     use crate::user_client::{BusinessAccount, MaskingType, UserAccount, UserVector, VectorType};
     use crate::utils::validate_business_account_active;
     use bigdecimal::BigDecimal;

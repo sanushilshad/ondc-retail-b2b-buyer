@@ -2,7 +2,8 @@ use once_cell::sync::Lazy;
 // use ondc_b2b_buyer::constants::TEST_DB;
 use ondc_retail_b2b_buyer::{
     configuration::get_configuration,
-    startup::{get_connection_pool, Application},
+    database::get_connection_pool,
+    startup::Application,
     telemetry::{get_subscriber, init_subscriber},
 };
 use sqlx::PgPool;

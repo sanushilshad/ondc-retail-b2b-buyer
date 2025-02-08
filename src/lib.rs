@@ -2,6 +2,7 @@ pub mod chat_client;
 pub mod commands;
 pub mod configuration;
 pub mod constants;
+pub mod database;
 pub mod domain;
 pub mod elastic_search_client;
 pub mod email_client;

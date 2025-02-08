@@ -449,7 +449,7 @@ pub async fn save_provider_location_cache<'a>(
     Ok(provider_map)
 }
 
-fn create_bulk_geo_json_servicability<'a>(providers: &'a Vec<WSSearchProvider>, domain: &'a CategoryDomain, location_map: &'a HashMap<String, Uuid>, provider_map: &'a HashMap<String, Uuid>, created_on: DateTime<Utc>) -> BulkGeoServicabilityCache<'a>{
+fn create_bulk_geo_json_servicability<'a>(providers: &'a [WSSearchProvider], domain: &'a CategoryDomain, location_map: &'a HashMap<String, Uuid>, provider_map: &'a HashMap<String, Uuid>, created_on: DateTime<Utc>) -> BulkGeoServicabilityCache<'a>{
     let mut ids =  vec![];
     let mut category_codes =  vec![];
     let mut domain_codes =  vec![];
@@ -545,7 +545,7 @@ pub async fn save_geo_json_servicability_cache(
 }
 
 
-fn create_bulk_hyperlocal_servicability<'a>(providers: &'a Vec<WSSearchProvider>, domain: &'a CategoryDomain, location_map: &'a HashMap<String, Uuid>, provider_map: &'a HashMap<String, Uuid>, created_on: DateTime<Utc>) -> BulkHyperlocalServicabilityCache<'a>{
+fn create_bulk_hyperlocal_servicability<'a>(providers: &'a [WSSearchProvider], domain: &'a CategoryDomain, location_map: &'a HashMap<String, Uuid>, provider_map: &'a HashMap<String, Uuid>, created_on: DateTime<Utc>) -> BulkHyperlocalServicabilityCache<'a>{
     let mut ids =  vec![];
     let mut category_codes =  vec![];
     let mut domain_codes =  vec![];

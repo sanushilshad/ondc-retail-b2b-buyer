@@ -1689,7 +1689,7 @@ pub struct WSSelect {
     pub transaction_id: Uuid,
     #[schema(value_type = String)]
     pub message_id: Uuid,
-    pub action_type: WebSocketActionType,
+    // pub action_type: WebSocketActionType,
     pub error: Option<String>,
 }
 
@@ -2019,7 +2019,7 @@ pub struct WSInit {
     pub transaction_id: Uuid,
     #[schema(value_type = String)]
     pub message_id: Uuid,
-    pub action_type: WebSocketActionType,
+    // pub action_type: WebSocketActionType,
     pub error: Option<String>,
     pub data: Option<WSInitData>,
 }

@@ -1053,7 +1053,7 @@ pub fn get_product_from_on_search_request(
                     &provider_obj.tags,
                     &provider_obj.creds,
                 ),
-                servicability: servicability,
+                servicability,
             };
             provider_list.push(provider)
         }
