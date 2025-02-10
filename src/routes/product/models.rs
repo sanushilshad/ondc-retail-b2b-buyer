@@ -22,3 +22,10 @@ pub struct WSSearchProviderCredentialModel {
     pub desc: String,
     pub url: String,
 }
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ProductVariantAttributeModel {
+    pub attribute_code: String,
+    pub sequence: String,
+}

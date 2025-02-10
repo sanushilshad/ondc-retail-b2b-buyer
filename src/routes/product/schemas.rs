@@ -237,6 +237,8 @@ pub struct WSSearchItemQtyMeasure {
 #[serde(rename_all = "camelCase")]
 pub struct UnitizedProductQty {
     pub unit: ONDCItemUOM,
+    #[schema(value_type = f64)]
+    pub value: BigDecimal,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -277,7 +279,7 @@ pub struct WSSearchProviderCredential {
 }
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct WSSearchProductProvider {
+pub struct WSSearchProductProviderDescription {
     pub id: String,
     pub rating: Option<f32>,
     pub name: String,
@@ -310,9 +312,9 @@ pub struct WSProductCategory {
     pub name: String,
 }
 
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Debug, Serialize, ToSchema, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct WSItemPayment {
+pub struct WSPaymentTypes {
     pub r#type: PaymentType,
     pub collected_by: ONDCNetworkType,
 }
@@ -342,9 +344,10 @@ pub struct WSSearchItem {
     pub price: WSSearchItemPrice,
     pub parent_item_id: Option<String>,
     pub recommended: bool,
-    pub payment_types: Vec<WSItemPayment>,
+
     pub fullfillment_type: Vec<FulfillmentType>,
     pub location_ids: Vec<String>,
+    pub payment_ids: Vec<String>,
     pub creator: WSProductCreator,
     pub quantity: WSSearchItemQuantity,
     pub categories: Vec<WSProductCategory>,
@@ -390,11 +393,26 @@ pub struct WSSearchProviderLocation {
 
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+pub struct WSSearchVariantAttribute {
+    pub attribute_code: String,
+    pub sequence: String,
+}
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WSSearchVariant {
+    pub name: String,
+    pub attributes: Vec<WSSearchVariantAttribute>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct WSSearchProvider {
     pub items: Vec<WSSearchItem>,
-    pub provider: WSSearchProductProvider,
+    pub description: WSSearchProductProviderDescription,
     pub locations: HashMap<String, WSSearchProviderLocation>,
     pub servicability: HashMap<String, WSSearchServicability>,
+    pub payments: HashMap<String, WSPaymentTypes>,
+    pub variants: Option<HashMap<String, WSSearchVariant>>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -515,4 +533,13 @@ pub struct BulkInterCityServicabilityCache<'a> {
     pub category_codes: Vec<&'a Option<String>>,
     pub created_ons: Vec<DateTime<Utc>>,
     pub domain_codes: Vec<&'a CategoryDomain>,
+}
+
+pub struct BulkItemVariantCache<'a> {
+    pub provider_ids: Vec<&'a Uuid>,
+    pub ids: Vec<Uuid>,
+    pub variant_ids: Vec<&'a str>,
+    pub variant_names: Vec<&'a str>,
+    pub created_ons: Vec<DateTime<Utc>>,
+    pub attributes: Vec<Value>,
 }

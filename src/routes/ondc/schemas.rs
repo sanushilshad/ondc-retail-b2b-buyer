@@ -1241,15 +1241,15 @@ struct ONDCOnSearchOffer {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct ONDCOnSearchCategoryDescriptor {
-    name: Option<String>,
+pub struct ONDCOnSearchCategoryDescriptor {
+    pub name: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct ONDCOnSearchCategory {
-    id: String,
-    descriptor: ONDCOnSearchCategoryDescriptor,
-    tags: Vec<ONDCTag>,
+pub struct ONDCOnSearchCategory {
+    pub id: String,
+    pub descriptor: ONDCOnSearchCategoryDescriptor,
+    pub tags: Vec<ONDCTag>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -1264,7 +1264,7 @@ pub struct ONDCOnSearchProvider {
     pub tags: Vec<ONDCTag>,
     pub fulfillments: Vec<ONDCOnSearchFulfillmentContact>,
     offers: Option<Vec<ONDCOnSearchOffer>>,
-    categories: Option<Vec<ONDCOnSearchCategory>>,
+    pub categories: Option<Vec<ONDCOnSearchCategory>>,
     pub items: Vec<ONDCOnSearchItem>,
 }
 

@@ -12,13 +12,6 @@ CREATE TYPE "data_source" AS ENUM (
 
 
 
-CREATE TABLE IF NOT EXISTS communication (
-  id uuid PRIMARY KEY,
-  message TEXT NOT NULL,
-  created_on TIMESTAMPTZ NOT NULL,
-  created_by TEXT NOT NULL,
-  media_list TEXT[]
-);
 
 
 
@@ -619,14 +612,23 @@ CREATE TABLE IF NOT EXISTS commerce_payment_data(
 ALTER TABLE commerce_payment_data ADD CONSTRAINT commerce_payment_fk FOREIGN KEY ("commerce_data_id") REFERENCES commerce_data ("id") ON DELETE CASCADE;
 CREATE INDEX commerce_payment_data_id_idx ON commerce_payment_data (commerce_data_id);
 
-CREATE TABLE IF NOT EXISTS  buyer_order_status_history(
-  id uuid PRIMARY KEY,
-  order_id TEXT NOT NULL,
-  seller_id TEXT NOT NULL,
-  fulfillment_id TEXT,
-  status TEXT NOT NULL,
-  created_on TEXT NOT NULL
-);
+
+-- CREATE TABLE IF NOT EXISTS communication (
+--   id uuid PRIMARY KEY,
+--   message TEXT NOT NULL,
+--   created_on TIMESTAMPTZ NOT NULL,
+--   created_by TEXT NOT NULL,
+--   media_list TEXT[]
+-- );
+
+-- CREATE TABLE IF NOT EXISTS  buyer_order_status_history(
+--   id uuid PRIMARY KEY,
+--   order_id TEXT NOT NULL,
+--   seller_id TEXT NOT NULL,
+--   fulfillment_id TEXT,
+--   status TEXT NOT NULL,
+--   created_on TEXT NOT NULL
+-- );
 
 CREATE TABLE IF NOT EXISTS ondc_provider_info (
     id uuid PRIMARY KEY,
@@ -832,7 +834,8 @@ CREATE TABLE IF NOT EXISTS provider_offer_cache (
     item_ids JSONB NOT NULL,
     start_time TIMESTAMPTZ NOT NULL,
     end_time TIMESTAMPTZ NOT NULL,
-    created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_on TIMESTAMPTZ
 );
 
 
@@ -840,7 +843,16 @@ ALTER TABLE provider_offer_cache ADD CONSTRAINT provider_offer_cache_constraint 
 ALTER TABLE provider_offer_cache ADD CONSTRAINT provider_offer_cache_fk FOREIGN KEY ("provider_cache_id") REFERENCES provider_cache("id") ON DELETE CASCADE;
 
 
-
+CREATE TABLE IF NOT EXISTS cache_item_variant(
+    id uuid PRIMARY KEY,
+    provider_cache_id uuid NOT NULL,
+    variant_id TEXT NOT NULL,
+    variant_name TEXT NOT NULL,
+    attributes JSONB NOT NULL,
+    created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_on TIMESTAMPTZ
+);
+ALTER TABLE cache_item_variant ADD CONSTRAINT cache_item_variant_constraint UNIQUE NULLS NOT DISTINCT (provider_cache_id, variant_id);
 
 -- CREATE TABLE IF NOT EXISTS cache_product(
 --       id uuid PRIMARY KEY,
