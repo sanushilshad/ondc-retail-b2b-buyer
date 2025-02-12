@@ -472,6 +472,7 @@ pub struct BulkProviderCache<'a> {
     pub contacts: Vec<Value>,
     pub terms: Vec<Value>,
     pub identifications: Vec<Value>,
+    pub payment_options: Vec<Value>,
     pub ids: Vec<Uuid>,
     pub created_ons: Vec<DateTime<Utc>>,
 }
@@ -542,4 +543,23 @@ pub struct BulkItemVariantCache<'a> {
     pub variant_names: Vec<&'a str>,
     pub created_ons: Vec<DateTime<Utc>>,
     pub attributes: Vec<Value>,
+}
+
+pub struct BulkItemCache<'a> {
+    pub provider_ids: Vec<&'a Uuid>,
+    pub ids: Vec<Uuid>,
+    pub country_codes: Vec<&'a CountryCode>,
+    pub domain_codes: Vec<&'a CategoryDomain>,
+    pub category_codes: Vec<&'a str>,
+    pub item_ids: Vec<&'a str>,
+    pub item_codes: Vec<&'a str>,
+    pub item_names: Vec<&'a str>,
+    pub created_ons: Vec<DateTime<Utc>>,
+}
+
+pub struct BulkItemLocationCache<'a> {
+    pub item_cache_ids: Vec<&'a Uuid>,
+    pub location_cache_ids: Vec<&'a Uuid>,
+    pub ids: Vec<Uuid>,
+    pub created_ons: Vec<DateTime<Utc>>,
 }

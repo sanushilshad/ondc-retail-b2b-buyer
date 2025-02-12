@@ -728,7 +728,8 @@ CREATE TABLE IF NOT EXISTS provider_cache(
   credentials JSONB NOT NULL,
   contact JSONB NOT NULL,
   terms JSONB,
-  identification JSONB,
+  identifications JSONB,
+  payment_options JSONB NOT NULL,
   created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_on TIMESTAMPTZ
 );
@@ -843,7 +844,7 @@ ALTER TABLE provider_offer_cache ADD CONSTRAINT provider_offer_cache_constraint 
 ALTER TABLE provider_offer_cache ADD CONSTRAINT provider_offer_cache_fk FOREIGN KEY ("provider_cache_id") REFERENCES provider_cache("id") ON DELETE CASCADE;
 
 
-CREATE TABLE IF NOT EXISTS cache_item_variant(
+CREATE TABLE IF NOT EXISTS item_variant_cache(
     id uuid PRIMARY KEY,
     provider_cache_id uuid NOT NULL,
     variant_id TEXT NOT NULL,
@@ -852,20 +853,37 @@ CREATE TABLE IF NOT EXISTS cache_item_variant(
     created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_on TIMESTAMPTZ
 );
-ALTER TABLE cache_item_variant ADD CONSTRAINT cache_item_variant_constraint UNIQUE NULLS NOT DISTINCT (provider_cache_id, variant_id);
-
--- CREATE TABLE IF NOT EXISTS cache_product(
---       id uuid PRIMARY KEY,
---       provider_cache_id uuid NOT NULL,
---       location_ids text[]
---       category_code TEXT NOT NULL,
---       domain_code TEXT NOT NULL
---       item_code TEXT NOT NULL,
---       item_id TEXT NOT NULL,
---       item_name TEXT NOT NULL
--- );
-
--- ALTER TABLE cache_product ADD CONSTRAINT cache_product_constraint UNIQUE (id, provider_cache_id);
--- ALTER TABLE cache_product ADD CONSTRAINT cache_product_constraint_fk FOREIGN KEY ("provider_cache_id") REFERENCES provider_cache("id") ON DELETE CASCADE;
+ALTER TABLE item_variant_cache ADD CONSTRAINT item_variant_cache_constraint UNIQUE NULLS NOT DISTINCT (provider_cache_id, variant_id);
+ALTER TABLE item_variant_cache ADD CONSTRAINT item_variant_cache_cache_fk FOREIGN KEY ("provider_cache_id") REFERENCES provider_cache("id") ON DELETE CASCADE;
 
 
+
+
+CREATE TABLE IF NOT EXISTS item_cache(
+      id uuid PRIMARY KEY,
+      country_code country_code NOT NULL,
+      provider_cache_id uuid NOT NULL,
+      category_code TEXT NOT NULL,
+      domain_code domain_category NOT NULL,
+      item_code TEXT NOT NULL,
+      item_id TEXT NOT NULL,
+      item_name TEXT NOT NULL,
+      created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_on TIMESTAMPTZ
+);
+
+ALTER TABLE item_cache ADD CONSTRAINT item_cache_constraint UNIQUE (provider_cache_id, country_code, domain_code, item_id);
+ALTER TABLE item_cache ADD CONSTRAINT item_cache_constraint_fk FOREIGN KEY ("provider_cache_id") REFERENCES provider_cache("id") ON DELETE CASCADE;
+
+
+
+CREATE TABLE IF NOT EXISTS item_location_cache_relationship(
+      id uuid PRIMARY KEY,
+      item_cache_id uuid NOT NULL,
+      location_cache_id uuid NOT NULL,
+      created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE item_location_cache_relationship ADD CONSTRAINT product_location_cache_relationship_constraint UNIQUE (item_cache_id, location_cache_id);
+ALTER TABLE item_location_cache_relationship ADD CONSTRAINT product_fk FOREIGN KEY ("item_cache_id") REFERENCES item_cache("id") ON DELETE CASCADE;
+ALTER TABLE item_location_cache_relationship ADD CONSTRAINT location_fk FOREIGN KEY ("location_cache_id") REFERENCES provider_location_cache("id") ON DELETE CASCADE;

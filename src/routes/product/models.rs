@@ -1,6 +1,8 @@
 use serde::Serialize;
 
-use super::schemas::CredentialType;
+use crate::schemas::ONDCNetworkType;
+
+use super::schemas::{CredentialType, PaymentType};
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct WSSearchProviderContactModel {
@@ -16,7 +18,7 @@ pub struct WSSearchProviderTermsModel {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub struct WSSearchProviderCredentialModel {
+pub struct SearchProviderCredentialModel {
     pub id: String,
     pub r#type: CredentialType,
     pub desc: String,
@@ -28,4 +30,12 @@ pub struct WSSearchProviderCredentialModel {
 pub struct ProductVariantAttributeModel {
     pub attribute_code: String,
     pub sequence: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ProviderPaymentOptionModel {
+    pub id: String,
+    pub r#type: PaymentType,
+    pub collected_by: ONDCNetworkType,
 }

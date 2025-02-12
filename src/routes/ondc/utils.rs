@@ -1088,10 +1088,7 @@ pub fn get_product_from_on_search_request(
                 ),
                 servicability,
                 payments: payment_mapping.clone(),
-                variants: provider_obj
-                    .categories
-                    .as_ref()
-                    .map(|a| get_variant_mapping(a)),
+                variants: provider_obj.categories.as_ref().map(get_variant_mapping),
             };
             provider_list.push(provider)
         }
@@ -2716,6 +2713,7 @@ pub async fn process_on_search(
             } else {
                 save_cache_to_db(
                     &mut transaction,
+                    &body.context.location.country.code,
                     &body.context.domain.get_category_domain(),
                     &final_objs,
                     body.context.timestamp,

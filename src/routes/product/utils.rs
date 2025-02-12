@@ -7,12 +7,11 @@ use sqlx::{PgPool, Postgres, Transaction, Executor};
 use uuid::Uuid;
 use crate::routes::product::schemas::{FulfillmentType, PaymentType, ProductSearchType};
 use crate::schemas::RequestMetaData;
-use super::models::{ProductVariantAttributeModel, WSSearchProviderContactModel, WSSearchProviderCredentialModel, WSSearchProviderTermsModel};
-use super::schemas::{BulkCountryServicabilityCache, BulkGeoServicabilityCache, BulkHyperlocalServicabilityCache, BulkInterCityServicabilityCache, BulkItemVariantCache, BulkProviderCache, BulkProviderLocationCache, CategoryDomain, ProductSearchRequest, WSSearchBPP, WSSearchData, WSSearchProvider};
+use super::models::{ProductVariantAttributeModel, ProviderPaymentOptionModel, SearchProviderCredentialModel, WSSearchProviderContactModel, WSSearchProviderTermsModel};
+use super::schemas::{BulkCountryServicabilityCache, BulkGeoServicabilityCache, BulkHyperlocalServicabilityCache, BulkInterCityServicabilityCache, BulkItemCache, BulkItemLocationCache, BulkItemVariantCache, BulkProviderCache, BulkProviderLocationCache, CategoryDomain, ProductSearchRequest, WSSearchBPP, WSSearchData, WSSearchProvider};
 use chrono::{DateTime, Utc};
 use crate::user_client::{BusinessAccount, UserAccount};
 use crate::schemas::CountryCode;
-use anyhow::anyhow;
 #[tracing::instrument(name = "Save Product Search Request", skip(pool))]
 pub async fn save_search_request(
     pool: &PgPool,
@@ -65,6 +64,7 @@ fn create_bulk_provider_cache_objs<'a>(body: &'a Vec<WSSearchProvider>, network_
     let mut credentials= vec![];
     let mut ids = vec![];
     let mut created_ons =vec![];
+    let mut payment_options = vec![];
     for provider in body.iter() {
         ids.push(Uuid::new_v4());
         provider_ids.push(provider.description.id.as_ref());
@@ -94,15 +94,24 @@ fn create_bulk_provider_cache_objs<'a>(body: &'a Vec<WSSearchProvider>, network_
         credentials.push(serde_json::to_value(
             provider.description.credentials
                 .iter()
-                .map(|f| WSSearchProviderCredentialModel {
+                .map(|f| SearchProviderCredentialModel {
                     id: f.id.clone(),
                     r#type: f.r#type.clone(),
                     desc: f.desc.clone(),
                     url: f.url.clone(),
                 })
                 .collect::<Vec<_>>()
-        ).unwrap())
-        
+        ).unwrap());
+        payment_options.push(
+            serde_json::to_value(
+                provider.payments.iter().map(|(id, payment_obj)|
+                ProviderPaymentOptionModel{
+                    r#type: payment_obj.r#type.to_owned(),
+                    collected_by: payment_obj.collected_by.to_owned(),
+                    id: id.to_owned() 
+                }
+            ).collect::<Vec<_>>()
+        ).unwrap());
     }
 
     return BulkProviderCache {
@@ -120,7 +129,8 @@ fn create_bulk_provider_cache_objs<'a>(body: &'a Vec<WSSearchProvider>, network_
          terms, 
          identifications,
          ids,
-         created_ons
+         created_ons,
+         payment_options
     };
 }
 
@@ -137,7 +147,7 @@ async fn save_provider_cache(
     let query = sqlx::query!(
         r#"
         INSERT INTO provider_cache  (provider_id, network_participant_cache_id, name, code, short_desc, long_desc, images, rating,
-        ttl, credentials, contact, terms, identification, created_on, updated_on, id)
+        ttl, credentials, contact, terms, identifications, created_on, updated_on, id, payment_options)
         SELECT *
         FROM UNNEST(
             $1::text[], 
@@ -155,7 +165,8 @@ async fn save_provider_cache(
             $13::jsonb[],
             $14::timestamptz[],
             $15::timestamptz[],
-            $16::uuid[]
+            $16::uuid[],
+            $17::jsonb[]
         )
         ON CONFLICT (network_participant_cache_id, provider_id) 
         DO UPDATE SET 
@@ -176,16 +187,17 @@ async fn save_provider_cache(
         &data.codes[..] as &[&str],
         &data.short_descs[..] as &[&str],
         &data.long_descs[..] as &[&str],
-        &data.images[..],
+        &data.images,
         &data.ratings[..] as &[Option<f32>],
         &data.ttls[..] as &[&str],
-        &data.credentials[..],
-        &data.contacts[..],
-        &data.terms[..],
-        &data.identifications[..],
+        &data.credentials,
+        &data.contacts,
+        &data.terms,
+        &data.identifications,
         &data.created_ons[..] as &[DateTime<Utc>],
         &data.created_ons[..] as &[DateTime<Utc>],
         &data.ids,
+        &data.payment_options,
     );
 
     let result = query
@@ -463,6 +475,8 @@ fn create_bulk_geo_json_servicability<'a>(providers: &'a [WSSearchProvider], dom
     for provider in providers.iter(){
         for (location_id, servicability_data) in provider.servicability.iter(){
         for geo_data in servicability_data.geo_json.iter(){
+
+            
             let location_cache_id = provider_map.get(&provider.description.id).and_then(|f: &Uuid|location_map.get(&format!("{}-{}", f, location_id)));
                 if let Some(location_cache_id) = location_cache_id{
                     ids.push(Uuid::new_v4());
@@ -497,7 +511,7 @@ async fn save_geo_json_servicability_cache(
     created_on: DateTime<Utc>,
     domain: &CategoryDomain
 ) -> Result<(), anyhow::Error> {
-    let data = create_bulk_geo_json_servicability(providers, domain, provider_map, provider_map, created_on);
+    let data = create_bulk_geo_json_servicability(providers, domain, location_map, provider_map, created_on);
     if !data.ids.is_empty(){
         let query = sqlx::query!(
             r#"
@@ -522,7 +536,7 @@ async fn save_geo_json_servicability_cache(
             DO UPDATE SET
                 created_on = EXCLUDED.created_on;
             "#,
-            &data.ids[..] as &[Uuid], 
+            &data.ids, 
             &data.location_cache_ids[..] as &[&Uuid], 
             &data.domain_codes[..] as &[&CategoryDomain], 
             &data.category_codes[..] as &[&Option<String>],
@@ -608,11 +622,11 @@ async fn save_hyperlocal_servicability_cache(
         ON CONFLICT (provider_location_cache_id, domain_code, category_code) 
         DO NOTHING
         "#,
-        &data.ids[..] as &[Uuid], 
+        &data.ids,
         &data.location_cache_ids[..] as &[&Uuid], 
         &data.domain_codes[..] as &[&CategoryDomain], 
         &data.category_codes[..] as &[&Option<String>],
-        &data.radii[..] as &[f64],
+        &data.radii,
         &data.created_ons, 
     );
 
@@ -694,7 +708,7 @@ fn create_bulk_country_servicability<'a>(providers: &'a Vec<WSSearchProvider>, d
         ON CONFLICT (provider_location_cache_id, domain_code, category_code, country_code) 
         DO NOTHING
         "#,
-        &data.ids[..] as &[Uuid], 
+        &data.ids,
         &data.location_cache_ids[..] as &[&Uuid], 
         &data.domain_codes[..] as &[&CategoryDomain], 
         &data.category_codes[..] as &[&Option<String>],
@@ -781,7 +795,7 @@ async fn save_intercity_servicability_cache(
         ON CONFLICT (provider_location_cache_id, domain_code, category_code, pincode) 
         DO NOTHING
         "#,
-        &data.ids[..] as &[Uuid], 
+        &data.ids,
         &data.location_cache_ids[..] as &[&Uuid], 
         &data.domain_codes[..] as &[&CategoryDomain], 
         &data.category_codes[..] as &[&Option<String>],
@@ -860,7 +874,7 @@ async fn save_variant_cache(
     if !data.ids.is_empty() {
         let query = sqlx::query!(
             r#"
-            INSERT INTO cache_item_variant (
+            INSERT INTO item_variant_cache (
                 id,
                 provider_cache_id,
                 variant_id,
@@ -882,7 +896,7 @@ async fn save_variant_cache(
             updated_on = EXCLUDED.updated_on,
             attributes  = EXCLUDED.attributes
             "#,
-            &data.ids[..] as &[Uuid], 
+            &data.ids,
             &data.provider_ids[..] as &[&Uuid], 
             &data.variant_ids[..] as &[&str], 
             &data.variant_names[..] as &[&str],
@@ -897,19 +911,209 @@ async fn save_variant_cache(
             .map_err(|e| {
                 tracing::error!("Failed to execute query: {:?}", e);
                 anyhow::Error::new(e)
-                    .context("A database failure occurred while saving ONDC seller hyperlocal servicability cache info")
+                    .context("A database failure occurred while saving ONDC seller variant  cache info")
             })?;
     }
 
     Ok(())
 }
 
+fn create_bulk_items<'a>(providers: &'a Vec<WSSearchProvider>, country_code: &'a CountryCode, provider_map: &'a HashMap<String, Uuid>, created_on: DateTime<Utc>) -> BulkItemCache<'a>{
+    let mut provider_ids = vec![];
+    let mut ids = vec![];
+    let mut item_names = vec![];
+    let mut created_ons = vec![];
+    let mut country_codes = vec![];
+    let mut domain_codes = vec![];
+    let mut category_codes= vec![];
+    let mut item_ids = vec![];
+    let mut item_codes = vec![];
+    for provider  in providers{
+        if let Some(provider_id) = provider_map.get(&provider.description.id){
 
-pub async fn save_cache_to_db(transaction: &mut Transaction<'_, Postgres>, domain: &CategoryDomain, product_objs: &WSSearchData,  created_on: DateTime<Utc>) -> Result<(),anyhow::Error>{
+                for item in &provider.items{
+                    ids.push(Uuid::new_v4());
+                    created_ons.push(created_on);
+                    provider_ids.push(provider_id);
+                    country_codes.push(country_code);
+                    domain_codes.push(&item.domain_category);
+                    category_codes.push(item.categories.first().map_or("NA", |f|&f.code));
+                    item_ids.push(item.id.as_str());
+                    item_codes.push(item.id.as_str());
+                    item_names.push(item.name.as_str());
+                };
+         
+        }
+
+    };
+    BulkItemCache{
+        provider_ids,
+        ids,
+        country_codes,
+        domain_codes,
+        category_codes,
+        item_ids,
+        item_codes,
+        created_ons,
+        item_names
+    }
+}
+
+
+
+fn create_bulk_item_location_mapping<'a>(
+    providers: &'a Vec<WSSearchProvider>,
+    provider_map: &'a HashMap<String, Uuid>,
+    location_map: &'a HashMap<String, Uuid>,
+    item_map: &'a HashMap<String, Uuid>,
+    created_on: DateTime<Utc>,
+) -> BulkItemLocationCache<'a> {
+    let mut item_cache_ids = Vec::new();
+    let mut ids = Vec::new();
+    let mut location_cache_ids = Vec::new();
+    let mut created_ons = Vec::new();
+
+    for provider in providers {
+        if let Some(provider_id) = provider_map.get(&provider.description.id) {
+            for item in provider.items.iter() {
+                let item_map_key = format!("{}_{}", &provider_id, &item.id);
+                if let Some(item_id) = item_map.get(&item_map_key) {
+                    for location_id in item.location_ids.iter() {
+                        let location_key = format!("{}-{}", provider_id, location_id);
+                        if let Some(location_fk) = location_map.get(&location_key) {
+                            ids.push(Uuid::new_v4());
+                            created_ons.push(created_on);
+                            item_cache_ids.push(item_id);        
+                            location_cache_ids.push(location_fk);
+                        } else {
+                            tracing::warn!("Missing location mapping for key: {}", location_key);
+                        }
+                    }
+                } else {
+                    tracing::warn!("Missing item mapping for key: {}", item_map_key);
+                }
+            }
+        }
+    }
+    BulkItemLocationCache {
+        ids,
+        item_cache_ids,
+        location_cache_ids,
+        created_ons,
+    }
+}
+
+async fn save_item_location_relationship_cache(transaction: &mut Transaction<'_, Postgres>, providers:  &Vec<WSSearchProvider>,  provider_map: &HashMap<String, Uuid>, location_map: &HashMap<String, Uuid>,item_map: &HashMap<String, Uuid>, created_on: DateTime<Utc>) -> Result<(), anyhow::Error>{
+    let data = create_bulk_item_location_mapping(providers, provider_map, location_map, item_map, created_on);
+    if !data.ids.is_empty() {
+        let query = sqlx::query!(
+            r#"
+            INSERT INTO item_location_cache_relationship (
+                id,
+                item_cache_id,
+                location_cache_id,
+                created_on
+            )
+            SELECT 
+                unnest($1::uuid[]), 
+                unnest($2::uuid[]), 
+                unnest($3::uuid[]), 
+                unnest($4::timestamptz[])
+            ON CONFLICT (item_cache_id, location_cache_id) 
+            DO NOTHING
+            "#,
+            &data.ids,
+            &data.item_cache_ids[..] as &[&Uuid], 
+            &data.location_cache_ids as &[&Uuid],
+            &data.created_ons
+        );
+
+        transaction
+            .execute(query)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to execute query: {:?}", e);
+                anyhow::Error::new(e)
+                    .context("A database failure occurred while saving ONDC item-location mapping  cache info")
+            })?;
+    }
+    Ok(())
+}
+
+async fn save_item_cache(transaction: &mut Transaction<'_, Postgres>, country_code: &CountryCode, providers:  &Vec<WSSearchProvider>,  provider_map: &HashMap<String, Uuid>, created_on: DateTime<Utc>) -> Result<HashMap<String, Uuid>, anyhow::Error>{
+    let data = create_bulk_items(providers,country_code, provider_map, created_on);
+    let mut map: HashMap<String, Uuid> = HashMap::new();
+    if !data.ids.is_empty() {
+        let query = sqlx::query!(
+            r#"
+            INSERT INTO item_cache (
+                id,
+                provider_cache_id,
+                country_code,
+                domain_code,
+                category_code,
+                item_code,
+                item_id,
+                item_name,
+                created_on,
+                updated_on
+            )
+            SELECT 
+                unnest($1::uuid[]), 
+                unnest($2::uuid[]), 
+                unnest($3::country_code[]), 
+                unnest($4::domain_category[]), 
+                unnest($5::text[]), 
+                unnest($6::text[]), 
+                unnest($7::text[]), 
+                unnest($8::text[]), 
+                unnest($9::timestamptz[]),
+                unnest($10::timestamptz[])
+            ON CONFLICT (provider_cache_id, country_code, domain_code, item_id) 
+            DO UPDATE SET 
+            updated_on = EXCLUDED.updated_on,
+            category_code  = EXCLUDED.category_code,
+            item_code  = EXCLUDED.item_code
+            RETURNING id, provider_cache_id, item_id
+            "#,
+            &data.ids,
+            &data.provider_ids[..] as &[&Uuid], 
+            &data.country_codes[..] as &[&CountryCode], 
+            &data.domain_codes[..] as &[&CategoryDomain],
+            &data.category_codes[..] as &[&str],
+            &data.item_codes[..] as &[&str], 
+            &data.item_ids[..] as &[&str], 
+            &data.item_names[..] as &[&str], 
+            &data.created_ons,
+            &data.created_ons
+        );
+
+
+
+        let result = query
+            .fetch_all(&mut **transaction)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to execute query: {:?}", e);
+                anyhow::Error::new(e)
+                    .context("A database failure occurred while saving item cache")
+            })?;
+        for row in result {
+            let key = format!("{}_{}", row.provider_cache_id, row.item_id);
+            map.insert(key, row.id);
+        };
+    }
+
+
+
+
+    Ok(map)
+}
+
+pub async fn save_cache_to_db(transaction: &mut Transaction<'_, Postgres>,country_code: &CountryCode, domain: &CategoryDomain, product_objs: &WSSearchData,  created_on: DateTime<Utc>) -> Result<(),anyhow::Error>{
     
     let id = save_np_cache(transaction, &product_objs.bpp, created_on)
-        .await
-        .map_err(|e| anyhow!(e))?;
+        .await?;
 
     let provider_map = save_provider_cache(
         transaction,
@@ -917,8 +1121,7 @@ pub async fn save_cache_to_db(transaction: &mut Transaction<'_, Postgres>, domai
         id,
         created_on,
     )
-    .await
-    .map_err(|e| anyhow!(e))?;
+    .await?;
 
     let location_map = save_provider_location_cache(
         transaction,
@@ -926,15 +1129,14 @@ pub async fn save_cache_to_db(transaction: &mut Transaction<'_, Postgres>, domai
         &provider_map,
         created_on,
     )
-    .await
-    .map_err(|e| anyhow!(e))?;
+    .await?;
 
     save_location_servicability_cache(transaction, &product_objs.providers, domain, &location_map, &provider_map, created_on)
-        .await
-        .map_err(|e| anyhow!(e))?;
+        .await?;
 
-    save_variant_cache(transaction, &product_objs.providers, &provider_map, created_on).await
-        .map_err(|e| anyhow!(e))?;
+    save_variant_cache(transaction, &product_objs.providers, &provider_map, created_on).await?;
+    let item_map = save_item_cache(transaction, country_code, &product_objs.providers, &provider_map, created_on).await?;
+    save_item_location_relationship_cache(transaction, &product_objs.providers, &provider_map, &location_map, &item_map, created_on).await?;
 
     Ok(())
 
