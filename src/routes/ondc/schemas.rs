@@ -1096,8 +1096,8 @@ struct ONDCOnSearchItemAddOns {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct ONDCItemReplacementTerm {
-    replace_within: String,
+pub struct ONDCItemReplacementTerm {
+    pub replace_within: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -1111,23 +1111,23 @@ pub struct ONDCFulfillmentState {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct ONDCItemReturnTime {
-    duration: String,
+pub struct ONDCItemReturnTime {
+    pub duration: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct ONDCItemReturnLocation {
-    address: String,
-    gps: String,
+pub struct ONDCItemReturnLocation {
+    pub address: String,
+    pub gps: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct ONDCReturnTerm {
-    fulfillment_state: ONDCFulfillmentState,
-    return_eligible: bool,
-    return_time: ONDCItemReturnTime,
-    return_location: ONDCItemReturnLocation,
-    fulfillment_managed_by: String,
+pub struct ONDCReturnTerm {
+    pub fulfillment_state: ONDCFulfillmentState,
+    pub return_eligible: bool,
+    pub return_time: ONDCItemReturnTime,
+    pub return_location: ONDCItemReturnLocation,
+    pub fulfillment_managed_by: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -1138,23 +1138,23 @@ pub struct ONDCAmount {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
-enum ONDCItemCancellationFee {
+pub enum ONDCItemCancellationFee {
     Percentage { percentage: String },
     Amount { amount: ONDCAmount },
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct ONDCItemCancellationTerm {
-    fulfillment_state: ONDCFulfillmentState,
-    reason_required: bool,
-    cancellation_fee: ONDCItemCancellationFee,
+pub struct ONDCItemCancellationTerm {
+    pub fulfillment_state: ONDCFulfillmentState,
+    pub reason_required: bool,
+    pub cancellation_fee: ONDCItemCancellationFee,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ONDCOnSearchItem {
     pub id: String,
     pub parent_item_id: Option<String>,
-    matched: bool,
+    pub matched: bool,
     pub recommended: bool,
     pub descriptor: ONDCOnSearchItemDescriptor,
     pub creator: ONDCOnSearchItemCreator,
@@ -1165,10 +1165,10 @@ pub struct ONDCOnSearchItem {
     pub price: ONDCOnSearchItemPrice,
     pub quantity: ONDCOnSearchItemQuantity,
     add_ons: Option<Vec<ONDCOnSearchItemAddOns>>,
-    time: Option<ONDCTime>,
-    replacement_terms: Vec<ONDCItemReplacementTerm>,
-    return_terms: Vec<ONDCReturnTerm>,
-    cancellation_terms: Vec<ONDCItemCancellationTerm>,
+    pub time: Option<ONDCTime>,
+    pub replacement_terms: Vec<ONDCItemReplacementTerm>,
+    pub return_terms: Vec<ONDCReturnTerm>,
+    pub cancellation_terms: Vec<ONDCItemCancellationTerm>,
     pub tags: Vec<ONDCOnSearchItemTag>,
 }
 
@@ -1225,9 +1225,9 @@ pub struct ONDCRange {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct ONDCTime {
+pub struct ONDCTime {
     label: String,
-    range: ONDCRange,
+    pub range: ONDCRange,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

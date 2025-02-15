@@ -3,7 +3,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION postgis;
 
 
-CREATE TYPE "data_source" AS ENUM (
+CREATE TYPE "data_source_type" AS ENUM (
   'place_order',
   'ondc',
   'rapidor'
@@ -17,7 +17,7 @@ CREATE TYPE "data_source" AS ENUM (
 
 CREATE TYPE network_participant_type AS ENUM (
   'buyer',
-  'seller',
+  'seller'
 );
 
 
@@ -34,6 +34,12 @@ CREATE TYPE payment_settlement_phase AS ENUM (
 CREATE TYPE payment_settlement_type AS ENUM (
   'neft'
 );
+
+CREATE TYPE ondc_network_participant_type AS ENUM (
+  'BAP',
+  'BPP'
+);
+
 
 CREATE TABLE IF NOT EXISTS registered_network_participant (
   id SERIAL PRIMARY KEY,
@@ -102,10 +108,6 @@ CREATE TABLE IF NOT EXISTS search_request (
 CREATE INDEX idx_search_request_message_txn ON search_request(message_id, transaction_id);
 
 
-CREATE TYPE ondc_network_participant_type AS ENUM (
-  'BAP',
-  'BPP'
-);
 
 CREATE TYPE payment_collected_by_type AS ENUM(
     'BAP',
@@ -170,7 +172,7 @@ CREATE TYPE commerce_status AS ENUM(
   'completed',
   'cancelled'
 );
-CREATE TYPE country_code AS ENUM (
+CREATE TYPE country_code_type AS ENUM (
     'AFG',
     'ALA',
     'ALB',
@@ -419,7 +421,7 @@ CREATE TYPE country_code AS ENUM (
     'ZWE'
 );
 
-CREATE TYPE domain_category AS ENUM (
+CREATE TYPE domain_category_type AS ENUM (
     'RET10', 
     'RET12',
     'RET13',
@@ -438,12 +440,12 @@ CREATE TABLE IF NOT EXISTS commerce_data(
   external_urn uuid NOT NULL,
   record_type commerce_data_type NOT NULL,
   record_status commerce_status NOT NULL,
-  domain_category_code domain_category NOT NULL,
+  domain_category_code domain_category_type NOT NULL,
   buyer_id uuid NOT NULL,
   seller_id TEXT NOT NULL,
   buyer_name TEXT NOT NULL,
   seller_name TEXT,
-  source data_source NOT NULL,
+  source data_source_type NOT NULL,
   created_on timestamptz NOT NULL,
   updated_on timestamptz,
   deleted_on timestamptz,
@@ -463,7 +465,7 @@ CREATE TABLE IF NOT EXISTS commerce_data(
   quote_ttl TEXT NOT NULL,
   currency_code currency_code_type NOT NULL,
   city_code TEXT NOT NULL,
-  country_code country_code NOT NULL,
+  country_code country_code_type NOT NULL,
   billing JSONB,
   bpp_terms JSONB,
   cancellation_terms JSONB
@@ -613,23 +615,6 @@ ALTER TABLE commerce_payment_data ADD CONSTRAINT commerce_payment_fk FOREIGN KEY
 CREATE INDEX commerce_payment_data_id_idx ON commerce_payment_data (commerce_data_id);
 
 
--- CREATE TABLE IF NOT EXISTS communication (
---   id uuid PRIMARY KEY,
---   message TEXT NOT NULL,
---   created_on TIMESTAMPTZ NOT NULL,
---   created_by TEXT NOT NULL,
---   media_list TEXT[]
--- );
-
--- CREATE TABLE IF NOT EXISTS  buyer_order_status_history(
---   id uuid PRIMARY KEY,
---   order_id TEXT NOT NULL,
---   seller_id TEXT NOT NULL,
---   fulfillment_id TEXT,
---   status TEXT NOT NULL,
---   created_on TEXT NOT NULL
--- );
-
 CREATE TABLE IF NOT EXISTS ondc_provider_info (
     id uuid PRIMARY KEY,
     seller_subscriber_id TEXT NOT NULL,
@@ -652,7 +637,7 @@ CREATE TABLE IF NOT EXISTS ondc_provider_location_info(
     city_name TEXT NOT NULL,
     state_code TEXT NOT NULL,
     state_name TEXT,
-    country_code country_code NOT NULL,
+    country_code country_code_type NOT NULL,
     country_name TEXT,
     area_code TEXT NOT NULL,
     created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -665,7 +650,7 @@ CREATE TABLE IF NOT EXISTS ondc_provider_product_info (
     id uuid PRIMARY KEY,
     seller_subscriber_id TEXT NOT NULL,
     currency_code currency_code_type NOT NULL,
-    country_code country_code NOT NULL,
+    country_code country_code_type NOT NULL,
     provider_id TEXT NOT NULL,
     provider_name TEXT,
     item_id TEXT NOT NULL,
@@ -729,7 +714,6 @@ CREATE TABLE IF NOT EXISTS provider_cache(
   contact JSONB NOT NULL,
   terms JSONB,
   identifications JSONB,
-  payment_options JSONB NOT NULL,
   created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_on TIMESTAMPTZ
 );
@@ -750,7 +734,7 @@ CREATE TABLE IF NOT EXISTS provider_location_cache(
     city_name TEXT NOT NULL,
     state_code TEXT NOT NULL,
     state_name TEXT,
-    country_code country_code NOT NULL,
+    country_code country_code_type NOT NULL,
     country_name TEXT,
     area_code TEXT NOT NULL,
     created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -768,7 +752,7 @@ ALTER TABLE provider_location_cache ADD CONSTRAINT provider_location_cache_const
 CREATE TABLE IF NOT EXISTS servicability_geo_json_cache(
     id uuid PRIMARY KEY,
     provider_location_cache_id uuid NOT NULL,
-    domain_code domain_category NOT NULL,
+    domain_code domain_category_type NOT NULL,
     geom GEOMETRY(Geometry, 4326) NOT NULL,
     category_code TEXT,
     cordinates JSONB NOT NULL,
@@ -784,7 +768,7 @@ CREATE INDEX servicability_geo_json_cache_geom_idx ON servicability_geo_json_cac
 CREATE TABLE IF NOT EXISTS servicability_hyperlocal_cache (
     id uuid PRIMARY KEY,
     provider_location_cache_id uuid NOT NULL,
-    domain_code domain_category NOT NULL,
+    domain_code domain_category_type NOT NULL,
     category_code TEXT,
     radius DOUBLE PRECISION NOT NULL,
     created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -797,9 +781,9 @@ ALTER TABLE servicability_hyperlocal_cache ADD CONSTRAINT servicability_hyperloc
 CREATE TABLE IF NOT EXISTS servicability_country_cache (
     id uuid PRIMARY KEY,
     provider_location_cache_id uuid NOT NULL,
-    domain_code domain_category NOT NULL,
+    domain_code domain_category_type NOT NULL,
     category_code TEXT,
-    country_code country_code NOT NULL,
+    country_code country_code_type NOT NULL,
     created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -810,7 +794,7 @@ ALTER TABLE servicability_country_cache ADD CONSTRAINT servicability_country_cac
 CREATE TABLE IF NOT EXISTS servicability_intercity_cache (
     id uuid PRIMARY KEY,
     provider_location_cache_id uuid NOT NULL,
-    domain_code domain_category NOT NULL,
+    domain_code domain_category_type NOT NULL,
     category_code TEXT,
     pincode TEXT NOT NULL,
     created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -829,7 +813,7 @@ CREATE TABLE IF NOT EXISTS provider_offer_cache (
     short_desc TEXT NOT NULL,
     long_desc TEXT NOT NULL,
     images JSONB NOT NULL,
-    domain_code domain_category NOT NULL,
+    domain_code domain_category_type NOT NULL,
     location_ids JSONB NOT NULL,
     category_ids JSONB NOT NULL,
     item_ids JSONB NOT NULL,
@@ -859,20 +843,46 @@ ALTER TABLE item_variant_cache ADD CONSTRAINT item_variant_cache_cache_fk FOREIG
 
 
 
-CREATE TABLE IF NOT EXISTS item_cache(
+CREATE TABLE IF NOT EXISTS item_cache (
       id uuid PRIMARY KEY,
-      country_code country_code NOT NULL,
+      country_code country_code_type NOT NULL,
       provider_cache_id uuid NOT NULL,
       category_code TEXT NOT NULL,
-      domain_code domain_category NOT NULL,
+      domain_code domain_category_type NOT NULL,
       item_code TEXT NOT NULL,
       item_id TEXT NOT NULL,
       item_name TEXT NOT NULL,
+      currency currency_code_type NOT NULL,
+      price_with_tax DECIMAL(20, 3) NOT NULL,
+      price_without_tax DECIMAL(20, 3) NOT NULL,
+      offered_price DECIMAL(20, 3),
+      maximum_price DECIMAL(20, 3) NOT NULL,
+      tax_rate DECIMAL(20, 3) NOT NULL,
+      variant_cache_id uuid,
+      recommended BOOLEAN NOT NULL,
+      payment_ids JSONB NOT NULL,
+      attributes JSONB,
+      images JSONB NOT NULL,
+      videos JSONB,
+      price_slabs JSONB,
+      fulfillment_options JSONB NOT NULL,
+      payment_options JSONB NOT NULL,
+      categories JSONB,
+      qty JSONB NOT NULL,
+      creator JSONB NOT NULL,
+      matched BOOLEAN NOT NULL,
+      time_to_ship TEXT NOT NULL,
+      country_of_origin TEXT,
+      validity JSONB,
+      replacement_terms JSONB NOT NULL,
+      return_terms JSONB NOT NULL,
+      cancellation_terms JSONB NOT NULL,
       created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_on TIMESTAMPTZ
 );
 
 ALTER TABLE item_cache ADD CONSTRAINT item_cache_constraint UNIQUE (provider_cache_id, country_code, domain_code, item_id);
+ALTER TABLE item_cache ADD CONSTRAINT item_cache_variant_fk FOREIGN KEY ("variant_cache_id") REFERENCES item_variant_cache("id") ON DELETE CASCADE;
 ALTER TABLE item_cache ADD CONSTRAINT item_cache_constraint_fk FOREIGN KEY ("provider_cache_id") REFERENCES provider_cache("id") ON DELETE CASCADE;
 
 
@@ -887,3 +897,22 @@ CREATE TABLE IF NOT EXISTS item_location_cache_relationship(
 ALTER TABLE item_location_cache_relationship ADD CONSTRAINT product_location_cache_relationship_constraint UNIQUE (item_cache_id, location_cache_id);
 ALTER TABLE item_location_cache_relationship ADD CONSTRAINT product_fk FOREIGN KEY ("item_cache_id") REFERENCES item_cache("id") ON DELETE CASCADE;
 ALTER TABLE item_location_cache_relationship ADD CONSTRAINT location_fk FOREIGN KEY ("location_cache_id") REFERENCES provider_location_cache("id") ON DELETE CASCADE;
+
+
+
+-- CREATE TABLE IF NOT EXISTS communication (
+--   id uuid PRIMARY KEY,
+--   message TEXT NOT NULL,
+--   created_on TIMESTAMPTZ NOT NULL,
+--   created_by TEXT NOT NULL,
+--   media_list TEXT[]
+-- );
+
+-- CREATE TABLE IF NOT EXISTS  buyer_order_status_history(
+--   id uuid PRIMARY KEY,
+--   order_id TEXT NOT NULL,
+--   seller_id TEXT NOT NULL,
+--   fulfillment_id TEXT,
+--   status TEXT NOT NULL,
+--   created_on TEXT NOT NULL
+-- );

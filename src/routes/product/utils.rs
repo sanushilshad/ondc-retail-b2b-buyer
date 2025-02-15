@@ -2,12 +2,12 @@ use std::collections::HashMap;
 use std::str::FromStr;
 
 use bigdecimal::BigDecimal;
-use serde_json::Value;
+use serde_json::{json, Value};
 use sqlx::{PgPool, Postgres, Transaction, Executor};
 use uuid::Uuid;
 use crate::routes::product::schemas::{FulfillmentType, PaymentType, ProductSearchType};
-use crate::schemas::RequestMetaData;
-use super::models::{ProductVariantAttributeModel, ProviderPaymentOptionModel, SearchProviderCredentialModel, WSSearchProviderContactModel, WSSearchProviderTermsModel};
+use crate::schemas::{CurrencyType, RequestMetaData};
+use super::models::{ProductVariantAttributeModel, SearchProviderCredentialModel, WSItemReplacementTermModel, WSItemReturnTermModel, WSPriceSlabModel, WSProductCategoryModel, WSSearchItemAttributeModel, WSSearchProviderContactModel, WSSearchProviderTermsModel};
 use super::schemas::{BulkCountryServicabilityCache, BulkGeoServicabilityCache, BulkHyperlocalServicabilityCache, BulkInterCityServicabilityCache, BulkItemCache, BulkItemLocationCache, BulkItemVariantCache, BulkProviderCache, BulkProviderLocationCache, CategoryDomain, ProductSearchRequest, WSSearchBPP, WSSearchData, WSSearchProvider};
 use chrono::{DateTime, Utc};
 use crate::user_client::{BusinessAccount, UserAccount};
@@ -64,7 +64,6 @@ fn create_bulk_provider_cache_objs<'a>(body: &'a Vec<WSSearchProvider>, network_
     let mut credentials= vec![];
     let mut ids = vec![];
     let mut created_ons =vec![];
-    let mut payment_options = vec![];
     for provider in body.iter() {
         ids.push(Uuid::new_v4());
         provider_ids.push(provider.description.id.as_ref());
@@ -84,7 +83,7 @@ fn create_bulk_provider_cache_objs<'a>(body: &'a Vec<WSSearchProvider>, network_
                 
             }
         ).unwrap());
-        identifications.push(serde_json::to_value(&provider.description.identification).unwrap());
+        identifications.push(serde_json::to_value(&provider.description.identifications).unwrap());
         terms.push(
             serde_json::to_value(
                 &WSSearchProviderTermsModel{
@@ -102,16 +101,16 @@ fn create_bulk_provider_cache_objs<'a>(body: &'a Vec<WSSearchProvider>, network_
                 })
                 .collect::<Vec<_>>()
         ).unwrap());
-        payment_options.push(
-            serde_json::to_value(
-                provider.payments.iter().map(|(id, payment_obj)|
-                ProviderPaymentOptionModel{
-                    r#type: payment_obj.r#type.to_owned(),
-                    collected_by: payment_obj.collected_by.to_owned(),
-                    id: id.to_owned() 
-                }
-            ).collect::<Vec<_>>()
-        ).unwrap());
+        // payment_options.push(
+        //     serde_json::to_value(
+        //         provider.payments.iter().map(|(id, payment_obj)|
+        //         ProviderPaymentOptionModel{
+        //             r#type: payment_obj.r#type.to_owned(),
+        //             collected_by: payment_obj.collected_by.to_owned(),
+        //             id: id.to_owned() 
+        //         }
+        //     ).collect::<Vec<_>>()
+        // ).unwrap());
     }
 
     return BulkProviderCache {
@@ -130,7 +129,7 @@ fn create_bulk_provider_cache_objs<'a>(body: &'a Vec<WSSearchProvider>, network_
          identifications,
          ids,
          created_ons,
-         payment_options
+         
     };
 }
 
@@ -147,7 +146,7 @@ async fn save_provider_cache(
     let query = sqlx::query!(
         r#"
         INSERT INTO provider_cache  (provider_id, network_participant_cache_id, name, code, short_desc, long_desc, images, rating,
-        ttl, credentials, contact, terms, identifications, created_on, updated_on, id, payment_options)
+        ttl, credentials, contact, terms, identifications, created_on, updated_on, id)
         SELECT *
         FROM UNNEST(
             $1::text[], 
@@ -165,8 +164,7 @@ async fn save_provider_cache(
             $13::jsonb[],
             $14::timestamptz[],
             $15::timestamptz[],
-            $16::uuid[],
-            $17::jsonb[]
+            $16::uuid[]
         )
         ON CONFLICT (network_participant_cache_id, provider_id) 
         DO UPDATE SET 
@@ -197,7 +195,6 @@ async fn save_provider_cache(
         &data.created_ons[..] as &[DateTime<Utc>],
         &data.created_ons[..] as &[DateTime<Utc>],
         &data.ids,
-        &data.payment_options,
     );
 
     let result = query
@@ -385,7 +382,7 @@ async fn save_provider_location_cache<'a>(
             $7::text[],
             $8::text[],
             $9::text[],
-            $10::country_code[],
+            $10::country_code_type[],
             $11::text[],
             $12::text[],
             $13::timestamptz[],
@@ -527,7 +524,7 @@ async fn save_geo_json_servicability_cache(
             SELECT 
                 unnest($1::uuid[]), 
                 unnest($2::uuid[]), 
-                unnest($3::domain_category[]), 
+                unnest($3::domain_category_type[]), 
                 ST_SetSRID(ST_GeomFromGeoJSON(unnest($5::jsonb[])), 4326),
                 unnest($4::text[]), 
                 unnest($5::jsonb[]), 
@@ -615,7 +612,7 @@ async fn save_hyperlocal_servicability_cache(
         SELECT 
             unnest($1::uuid[]), 
             unnest($2::uuid[]), 
-            unnest($3::domain_category[]), 
+            unnest($3::domain_category_type[]), 
             unnest($4::text[]), 
             unnest($5::double precision[]), 
             unnest($6::timestamptz[])
@@ -701,9 +698,9 @@ fn create_bulk_country_servicability<'a>(providers: &'a Vec<WSSearchProvider>, d
         SELECT 
             unnest($1::uuid[]), 
             unnest($2::uuid[]), 
-            unnest($3::domain_category[]), 
+            unnest($3::domain_category_type[]), 
             unnest($4::text[]), 
-            unnest($5::country_code[]), 
+            unnest($5::country_code_type[]), 
             unnest($6::timestamptz[])
         ON CONFLICT (provider_location_cache_id, domain_code, category_code, country_code) 
         DO NOTHING
@@ -788,7 +785,7 @@ async fn save_intercity_servicability_cache(
         SELECT 
             unnest($1::uuid[]), 
             unnest($2::uuid[]), 
-            unnest($3::domain_category[]), 
+            unnest($3::domain_category_type[]), 
             unnest($4::text[]), 
             unnest($5::text[]), 
             unnest($6::timestamptz[])
@@ -868,9 +865,9 @@ async fn save_variant_cache(
     providers: &Vec<WSSearchProvider>, 
     provider_map: &HashMap<String, Uuid>, 
     created_on: DateTime<Utc>
-) -> Result<(), anyhow::Error> {
+) -> Result<HashMap<String, Uuid>, anyhow::Error> {
     let data = create_bulk_variant(providers, provider_map, created_on);
-    
+    let mut variant_map: HashMap<String, Uuid> = HashMap::new();
     if !data.ids.is_empty() {
         let query = sqlx::query!(
             r#"
@@ -895,6 +892,7 @@ async fn save_variant_cache(
             DO UPDATE SET 
             updated_on = EXCLUDED.updated_on,
             attributes  = EXCLUDED.attributes
+            RETURNING id, provider_cache_id, variant_id
             "#,
             &data.ids,
             &data.provider_ids[..] as &[&Uuid], 
@@ -905,20 +903,27 @@ async fn save_variant_cache(
             &data.created_ons[..] as &[DateTime<Utc>]
         );
 
-        transaction
-            .execute(query)
+        let result = query
+            .fetch_all(&mut **transaction)
             .await
             .map_err(|e| {
                 tracing::error!("Failed to execute query: {:?}", e);
+
                 anyhow::Error::new(e)
-                    .context("A database failure occurred while saving ONDC seller variant  cache info")
+                    .context("A database failure occurred while saving variant cache")
             })?;
+
+        for row in result {
+
+            let key = format!("{}_{}", row.provider_cache_id,  row.variant_id);
+            variant_map.insert(key, row.id);
+        };
     }
 
-    Ok(())
+    Ok(variant_map)
 }
 
-fn create_bulk_items<'a>(providers: &'a Vec<WSSearchProvider>, country_code: &'a CountryCode, provider_map: &'a HashMap<String, Uuid>, created_on: DateTime<Utc>) -> BulkItemCache<'a>{
+fn create_bulk_items<'a>(providers: &'a Vec<WSSearchProvider>, country_code: &'a CountryCode, provider_map: &'a HashMap<String, Uuid>, variant_map: &'a HashMap<String, Uuid>, created_on: DateTime<Utc>) -> BulkItemCache<'a>{
     let mut provider_ids = vec![];
     let mut ids = vec![];
     let mut item_names = vec![];
@@ -928,20 +933,87 @@ fn create_bulk_items<'a>(providers: &'a Vec<WSSearchProvider>, country_code: &'a
     let mut category_codes= vec![];
     let mut item_ids = vec![];
     let mut item_codes = vec![];
+    let mut currencies= vec![];
+    let mut recommends= vec![];
+    let mut matched= vec![];
+    let mut country_of_origins= vec![];
+    let mut tax_rates= vec![];
+    let mut price_with_taxes= vec![];
+    let mut price_without_taxes= vec![];
+    let mut offered_prices= vec![];
+    let mut maximum_prices= vec![];
+    let mut variant_ids= vec![];
+    let mut time_to_ships= vec![];
+    let mut images= vec![];
+    let mut videos= vec![];
+    let mut payment_options = vec![];
+    let mut attributes= vec![];
+    let mut price_slabs= vec![];
+    let mut fulfillment_options= vec![];
+    let mut return_terms= vec![];
+    let mut replacement_terms= vec![];
+    let mut cancellation_terms= vec![];
+    let mut creators= vec![];
+    let mut categories= vec![];
+    let mut validities= vec![];
+    let mut qtys= vec![];
+
     for provider  in providers{
         if let Some(provider_id) = provider_map.get(&provider.description.id){
 
-                for item in &provider.items{
-                    ids.push(Uuid::new_v4());
-                    created_ons.push(created_on);
-                    provider_ids.push(provider_id);
-                    country_codes.push(country_code);
-                    domain_codes.push(&item.domain_category);
-                    category_codes.push(item.categories.first().map_or("NA", |f|&f.code));
-                    item_ids.push(item.id.as_str());
-                    item_codes.push(item.id.as_str());
-                    item_names.push(item.name.as_str());
+            for item in &provider.items{
+                let attribute_models: Vec<WSSearchItemAttributeModel> = item.attributes.iter().map(|a|a.get_model()).collect();
+
+                ids.push(Uuid::new_v4());
+                created_ons.push(created_on);
+                provider_ids.push(provider_id);
+                country_codes.push(country_code);
+                domain_codes.push(&item.domain_category);
+                category_codes.push(item.categories.first().map_or("NA", |f|&f.code));
+                item_ids.push(item.id.as_str());
+                item_codes.push(item.id.as_str());
+                item_names.push(item.name.as_str());
+                currencies.push(&item.price.currency);
+                matched.push(item.matched);
+                recommends.push(item.recommended);
+                country_of_origins.push(item.country_of_origin.as_deref());
+                tax_rates.push(&item.tax_rate);
+                price_with_taxes.push(&item.price.price_with_tax);
+                price_without_taxes.push(&item.price.price_without_tax);
+                offered_prices.push(&item.price.offered_value);
+                maximum_prices.push(&item.price.maximum_price);
+                if let Some(parent_item_id) = &item.parent_item_id {
+                    let key = format!("{}_{}", provider_id, parent_item_id);
+                    variant_ids.push(variant_map.get(&key).copied());
+                } else {
+                    variant_ids.push(None);
+                }
+
+                
+                time_to_ships.push(item.time_to_ship.as_ref());
+                payment_options.push(json!(item.payment_options));
+                fulfillment_options.push(json!(item.fullfillment_options));
+                images.push(json!(item.images));
+                videos.push(json!(item.videos));
+                attributes.push(json!(attribute_models));
+                if let Some(price_slab) = &item.price_slabs{
+                    let slab_models: Vec<WSPriceSlabModel> = price_slab.iter().map(|a|a.get_model()).collect();
+                    price_slabs.push(Some(json!(slab_models)));
+                }
+                else{
+                    price_slabs.push(None);
                 };
+                let return_term_model: Vec<WSItemReturnTermModel> = item.return_terms.iter().map(|a|a.get_model()).collect();
+                return_terms.push(json!(return_term_model));
+                let replacement_term: Vec<WSItemReplacementTermModel> = item.replacement_terms.iter().map(|a|a.get_model()).collect();
+                replacement_terms.push(json!(replacement_term));
+                cancellation_terms.push(json!(item.cancellation_terms.get_model()));
+                creators.push(json!(item.creator.get_model()));
+                let category: Vec<WSProductCategoryModel> = item.categories.iter().map(|f|f.get_model()).collect();
+                categories.push(json!(category));
+                validities.push(json!(item.validity.as_ref().map(|f|f.get_model())));
+                qtys.push(json!(item.quantity.get_model()));
+            };
          
         }
 
@@ -955,7 +1027,31 @@ fn create_bulk_items<'a>(providers: &'a Vec<WSSearchProvider>, country_code: &'a
         item_ids,
         item_codes,
         created_ons,
-        item_names
+        item_names,
+        currencies,
+        price_with_taxes,
+        price_without_taxes,
+        offered_prices,
+        maximum_prices,
+        tax_rates,
+        variant_ids,
+        recommends,
+        matched,
+        attributes,
+        images,
+        videos,
+        price_slabs,
+        fulfillment_options,
+        categories,
+        creators,
+        time_to_ships,
+        country_of_origins,
+        validities,
+        replacement_terms,
+        return_terms,
+        cancellation_terms,
+        qtys,
+        payment_options
     }
 }
 
@@ -1040,53 +1136,152 @@ async fn save_item_location_relationship_cache(transaction: &mut Transaction<'_,
     Ok(())
 }
 
-async fn save_item_cache(transaction: &mut Transaction<'_, Postgres>, country_code: &CountryCode, providers:  &Vec<WSSearchProvider>,  provider_map: &HashMap<String, Uuid>, created_on: DateTime<Utc>) -> Result<HashMap<String, Uuid>, anyhow::Error>{
-    let data = create_bulk_items(providers,country_code, provider_map, created_on);
+async fn save_item_cache(transaction: &mut Transaction<'_, Postgres>, country_code: &CountryCode, providers:  &Vec<WSSearchProvider>,  provider_map: &HashMap<String, Uuid>, variant_map: &HashMap<String, Uuid>, created_on: DateTime<Utc>) -> Result<HashMap<String, Uuid>, anyhow::Error>{
+    let data = create_bulk_items(providers,country_code, provider_map,variant_map, created_on);
     let mut map: HashMap<String, Uuid> = HashMap::new();
     if !data.ids.is_empty() {
         let query = sqlx::query!(
             r#"
-            INSERT INTO item_cache (
+                INSERT INTO item_cache (
                 id,
-                provider_cache_id,
                 country_code,
-                domain_code,
+                provider_cache_id,
                 category_code,
+                domain_code,
                 item_code,
                 item_id,
                 item_name,
+                currency,
+                price_with_tax,
+                price_without_tax,
+                offered_price,
+                maximum_price,
+                tax_rate,
+                variant_cache_id,
+                recommended,
+                attributes,
+                images,
+                videos,
+                price_slabs,
+                fulfillment_options,
+                categories,
+                qty,
+                creator,
+                matched,
+                time_to_ship,
+                country_of_origin,
+                validity,
+                replacement_terms,
+                return_terms,
+                cancellation_terms,
+                payment_options,
                 created_on,
                 updated_on
-            )
-            SELECT 
-                unnest($1::uuid[]), 
-                unnest($2::uuid[]), 
-                unnest($3::country_code[]), 
-                unnest($4::domain_category[]), 
-                unnest($5::text[]), 
-                unnest($6::text[]), 
-                unnest($7::text[]), 
-                unnest($8::text[]), 
-                unnest($9::timestamptz[]),
-                unnest($10::timestamptz[])
-            ON CONFLICT (provider_cache_id, country_code, domain_code, item_id) 
-            DO UPDATE SET 
-            updated_on = EXCLUDED.updated_on,
-            category_code  = EXCLUDED.category_code,
-            item_code  = EXCLUDED.item_code
-            RETURNING id, provider_cache_id, item_id
+                )
+                SELECT 
+                unnest($1::uuid[]),                      
+                unnest($2::country_code_type[]),          
+                unnest($3::uuid[]),                       
+                unnest($4::text[]),                       
+                unnest($5::domain_category_type[]),           
+                unnest($6::text[]),                       
+                unnest($7::text[]),                        
+                unnest($8::text[]),                       
+                unnest($9::currency_code_type[]),         
+                unnest($10::decimal[]),                   
+                unnest($11::decimal[]),                   
+                unnest($12::decimal[]),                    
+                unnest($13::decimal[]),                  
+                unnest($14::decimal[]),                    
+                unnest($15::uuid[]),                     
+                unnest($16::bool[]),                                           
+                unnest($17::jsonb[]),                      
+                unnest($18::jsonb[]),                      
+                unnest($19::jsonb[]),                     
+                unnest($20::jsonb[]),                      
+                unnest($21::jsonb[]),                       
+                unnest($22::jsonb[]),                     
+                unnest($23::jsonb[]),                    
+                unnest($24::jsonb[]),                      
+                unnest($25::bool[]),                     
+                unnest($26::text[]),                      
+                unnest($27::country_code_type[]),          
+                unnest($28::jsonb[]),                     
+                unnest($29::jsonb[]),                    
+                unnest($30::jsonb[]),                      
+                unnest($31::jsonb[]),             
+                unnest($32::jsonb[]),                   
+                unnest($33::timestamptz[]),                 
+                unnest($34::timestamptz[])                
+                ON CONFLICT (provider_cache_id, country_code, domain_code, item_id)
+                DO UPDATE SET 
+                updated_on = EXCLUDED.updated_on,
+                category_code = EXCLUDED.category_code,
+                item_code = EXCLUDED.item_code,
+                item_name = EXCLUDED.item_name,
+                currency = EXCLUDED.currency,
+                price_with_tax = EXCLUDED.price_with_tax,
+                price_without_tax = EXCLUDED.price_without_tax,
+                offered_price = EXCLUDED.offered_price,
+                maximum_price = EXCLUDED.maximum_price,
+                tax_rate = EXCLUDED.tax_rate,
+                variant_cache_id = EXCLUDED.variant_cache_id,
+                recommended = EXCLUDED.recommended,
+                attributes = EXCLUDED.attributes,
+                images = EXCLUDED.images,
+                videos = EXCLUDED.videos,
+                price_slabs = EXCLUDED.price_slabs,
+                fulfillment_options = EXCLUDED.fulfillment_options,
+                payment_options = EXCLUDED.payment_options,
+                categories = EXCLUDED.categories,
+                qty = EXCLUDED.qty,
+                creator = EXCLUDED.creator,
+                matched = EXCLUDED.matched,
+                time_to_ship = EXCLUDED.time_to_ship,
+                country_of_origin = EXCLUDED.country_of_origin,
+                validity = EXCLUDED.validity,
+                replacement_terms = EXCLUDED.replacement_terms,
+                return_terms = EXCLUDED.return_terms,
+                cancellation_terms = EXCLUDED.cancellation_terms
+                RETURNING id, provider_cache_id, item_id;
+
             "#,
             &data.ids,
-            &data.provider_ids[..] as &[&Uuid], 
             &data.country_codes[..] as &[&CountryCode], 
-            &data.domain_codes[..] as &[&CategoryDomain],
+            &data.provider_ids[..] as &[&Uuid], 
             &data.category_codes[..] as &[&str],
+            &data.domain_codes[..] as &[&CategoryDomain],
             &data.item_codes[..] as &[&str], 
             &data.item_ids[..] as &[&str], 
             &data.item_names[..] as &[&str], 
+            &data.currencies[..] as &[&CurrencyType],
+            &data.price_with_taxes[..] as &[&BigDecimal],
+            &data.price_without_taxes[..] as &[&BigDecimal],
+            &data.offered_prices[..] as &[&Option<BigDecimal>],
+            &data.maximum_prices[..] as &[&BigDecimal],
+            &data.tax_rates[..] as &[&BigDecimal],
+            &data.variant_ids[..] as &[Option<Uuid>], 
+            &data.recommends,
+            &data.attributes,
+            &data.images,
+            &data.videos,
+            &data.price_slabs [..] as &[Option<Value>],
+            &data.fulfillment_options,
+            &data.categories,
+            &data.qtys,
+            &data.creators,
+            &data.matched,
+            &data.time_to_ships[..] as &[&str], 
+            &data.country_of_origins[..] as &[Option<&str>], 
+            &data.validities,
+            &data.replacement_terms,
+            &data.return_terms,
+            &data.cancellation_terms,
+            &data.payment_options,
             &data.created_ons,
             &data.created_ons
         );
+
 
 
 
@@ -1103,10 +1298,6 @@ async fn save_item_cache(transaction: &mut Transaction<'_, Postgres>, country_co
             map.insert(key, row.id);
         };
     }
-
-
-
-
     Ok(map)
 }
 
@@ -1134,8 +1325,8 @@ pub async fn save_cache_to_db(transaction: &mut Transaction<'_, Postgres>,countr
     save_location_servicability_cache(transaction, &product_objs.providers, domain, &location_map, &provider_map, created_on)
         .await?;
 
-    save_variant_cache(transaction, &product_objs.providers, &provider_map, created_on).await?;
-    let item_map = save_item_cache(transaction, country_code, &product_objs.providers, &provider_map, created_on).await?;
+    let variant_map = save_variant_cache(transaction, &product_objs.providers, &provider_map, created_on).await?;
+    let item_map = save_item_cache(transaction, country_code, &product_objs.providers, &provider_map, &variant_map, created_on).await?;
     save_item_location_relationship_cache(transaction, &product_objs.providers, &provider_map, &location_map, &item_map, created_on).await?;
 
     Ok(())

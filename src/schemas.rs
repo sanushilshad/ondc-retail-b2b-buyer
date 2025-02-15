@@ -70,7 +70,7 @@ pub enum CommunicationType {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, ToSchema, sqlx::Type, PartialEq)]
-#[sqlx(rename_all = "UPPERCASE", type_name = "country_code")]
+#[sqlx(rename_all = "UPPERCASE", type_name = "country_code_type")]
 #[serde(rename_all = "UPPERCASE")]
 pub enum CountryCode {
     AFG,
@@ -769,7 +769,7 @@ impl Display for CurrencyType {
 }
 
 #[derive(Serialize, Deserialize, Debug, sqlx::Type, PartialEq, ToSchema)]
-#[sqlx(type_name = "data_source", rename_all = "snake_case")]
+#[sqlx(type_name = "data_source_type", rename_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
 pub enum DataSource {
     PlaceOrder,

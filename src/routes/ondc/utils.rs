@@ -2,10 +2,11 @@ use super::{
     BreakupTitleType, LookupData, LookupRequest, ONDCActionType, ONDCBreakUp, ONDCCancelMessage,
     ONDCCancelRequest, ONDCConfirmMessage, ONDCConfirmOrder, ONDCConfirmProvider, ONDCContext,
     ONDCContextCity, ONDCContextCountry, ONDCContextLocation, ONDCCredential, ONDCCredentialType,
-    ONDCDomain, ONDCFeeType, ONDCOnSearchCategory, ONDCOnSearchFulfillmentContact, ONDCSearchStop,
-    ONDCSellePriceSlab, ONDCServicabilityCoordinate, ONDCStatusMessage, ONDCStatusRequest, ONDCTag,
-    ONDCUpdateItem, ONDCUpdateMessage, ONDCUpdateOrder, ONDCUpdateProvider, ONDCUpdateRequest,
-    ONDCVersion, OndcUrl,
+    ONDCDomain, ONDCFeeType, ONDCItemCancellationFee, ONDCOnSearchCategory,
+    ONDCOnSearchFulfillmentContact, ONDCOnSearchItem, ONDCSearchStop, ONDCSellePriceSlab,
+    ONDCServicabilityCoordinate, ONDCStatusMessage, ONDCStatusRequest, ONDCTag, ONDCUpdateItem,
+    ONDCUpdateMessage, ONDCUpdateOrder, ONDCUpdateProvider, ONDCUpdateRequest, ONDCVersion,
+    OndcUrl,
 };
 
 use crate::chat_client::ChatData;
@@ -61,17 +62,19 @@ use crate::routes::order::schemas::{
     TradeType, UpdateOrderPaymentRequest,
 };
 use crate::routes::product::schemas::{
-    CategoryDomain, FulfillmentType, PaymentType, ProductFulFillmentLocations,
-    ProductSearchRequest, ProductSearchType, SearchRequestModel, UnitizedProductQty,
-    WSCreatorContactData, WSPaymentTypes, WSPriceSlab, WSProductCategory, WSProductCreator,
-    WSSearch, WSSearchBPP, WSSearchCity, WSSearchCountry, WSSearchData, WSSearchItem,
-    WSSearchItemPrice, WSSearchItemQty, WSSearchItemQtyMeasure, WSSearchItemQuantity,
+    CategoryDomain, CredentialType, FulfillmentType, PaymentType, ProductFulFillmentLocations,
+    ProductSearchRequest, ProductSearchType, SearchRequestModel, WSCreatorContactData,
+    WSItemCancellation, WSItemCancellationFee, WSItemCancellationTerm, WSItemReplacementTerm,
+    WSItemReturnLocation, WSItemReturnTerm, WSItemReturnTime, WSItemValidity, WSPaymentTypes,
+    WSPriceSlab, WSProductCategory, WSProductCreator, WSSearch, WSSearchBPP, WSSearchCity,
+    WSSearchCountry, WSSearchData, WSSearchItem, WSSearchItemAttribute, WSSearchItemPrice,
+    WSSearchItemQty, WSSearchItemQtyMeasure, WSSearchItemQuantity,
     WSSearchProductProviderDescription, WSSearchProvider, WSSearchProviderContact,
     WSSearchProviderCredential, WSSearchProviderID, WSSearchProviderLocation,
     WSSearchProviderTerms, WSSearchServicability, WSSearchState, WSSearchVariant,
     WSSearchVariantAttribute, WSServicabilityData,
 };
-use serde_json::Value;
+use serde_json::{json, Value};
 use sqlx::types::Json;
 
 use crate::schemas::{
@@ -514,7 +517,7 @@ pub fn get_price_obj_from_ondc_price_obj(
             .offered_value
             .as_ref()
             .map(|v| BigDecimal::from_str(v).unwrap_or_else(|_| BigDecimal::from(0))),
-        maximum_value: BigDecimal::from_str(&price.maximum_value).unwrap(),
+        maximum_price: BigDecimal::from_str(&price.maximum_value).unwrap(),
     });
 }
 
@@ -578,6 +581,9 @@ pub fn ws_search_provider_from_ondc_provider(
         &ONDCTagItemCode::SellerIdNo.to_string(),
     )
     .unwrap_or("NA");
+    // let fssai_numbers = ;
+    // .collect();
+
     let rating: Option<f32> = rating.as_ref().and_then(|f| f.parse().ok());
     let mut credentials = vec![];
     if let Some(ondc_credentials) = ondc_credentials {
@@ -586,8 +592,28 @@ pub fn ws_search_provider_from_ondc_provider(
                 id: cred.id.to_owned(),
                 r#type: cred.r#type.get_credential_type(),
                 desc: cred.desc.to_owned(),
-                url: cred.url.to_owned(),
+                url: Some(cred.url.to_owned()),
             })
+        }
+    }
+    if let Some(fssai_num) = tags
+        .iter()
+        .find(|tag| tag.descriptor.code == ONDCTagType::FssaiLicenseNo)
+    {
+        for data in fssai_num.list.iter() {
+            if data.value.len() > 0 {
+                let desc = format!(
+                    "{} {}",
+                    "FSSAI_LICENSE_NO",
+                    data.descriptor.code.to_string().to_uppercase()
+                );
+                credentials.push(WSSearchProviderCredential {
+                    id: data.value.to_owned(),
+                    r#type: CredentialType::FssaiLicenseNo,
+                    desc,
+                    url: None,
+                })
+            }
         }
     }
 
@@ -607,10 +633,10 @@ pub fn ws_search_provider_from_ondc_provider(
             email: contact.as_ref().and_then(|f| f.contact.email.to_owned()),
         },
         terms: WSSearchProviderTerms { gst_credit_invoice },
-        identification: WSSearchProviderID {
+        identifications: vec![WSSearchProviderID {
             r#type: seller_id_code.to_owned(),
             value: seller_id_value.to_owned(),
-        },
+        }],
         credentials,
     }
 }
@@ -620,7 +646,7 @@ fn get_ws_quantity_from_ondc_quantity(
     ondc_quantity: &ONDCOnSearchItemQuantity,
 ) -> WSSearchItemQuantity {
     WSSearchItemQuantity {
-        unitized: UnitizedProductQty {
+        unitized: WSSearchItemQtyMeasure {
             unit: ondc_quantity.unitized.measure.unit.clone(),
             value: BigDecimal::from_str(&ondc_quantity.unitized.measure.value)
                 .unwrap_or_else(|_| BigDecimal::from(0)),
@@ -700,6 +726,24 @@ fn get_ws_price_slab_from_ondc_slab(
     }
 }
 
+fn get_ws_attributes_from_ondc(ondc_tags: &[ONDCOnSearchItemTag]) -> Vec<WSSearchItemAttribute> {
+    let mut data: Vec<WSSearchItemAttribute> = vec![];
+    let attribute_tag = ondc_tags
+        .iter()
+        .find(|t| matches!(t.descriptor.code, ONDCTagType::Attribute));
+    if let Some(attribute_tag) = attribute_tag {
+        for attribute in attribute_tag.list.iter() {
+            data.push(WSSearchItemAttribute {
+                label: "".to_owned(),
+                key: attribute.descriptor.code.to_owned(),
+                value: attribute.value.to_owned(),
+            })
+        }
+    }
+
+    data
+}
+
 fn map_ws_item_categories(category_ids: &[String]) -> Vec<WSProductCategory> {
     category_ids
         .iter()
@@ -710,10 +754,15 @@ fn map_ws_item_categories(category_ids: &[String]) -> Vec<WSProductCategory> {
         .collect()
 }
 
-fn map_item_images(images: &[ONDCImage]) -> Vec<String> {
+fn map_item_images(images: &[ONDCImage], tags: &[ONDCOnSearchItemTag]) -> Vec<String> {
     images
         .iter()
         .map(|image| image.get_value().to_owned())
+        .chain(
+            get_search_tag_item_value(tags, &ONDCTagType::Image, &ONDCTagItemCode::Url.to_string())
+                .into_iter()
+                .map(|s| s.to_owned()),
+        )
         .collect()
 }
 
@@ -978,6 +1027,46 @@ fn get_variant_mapping(variants: &Vec<ONDCOnSearchCategory>) -> HashMap<String, 
     }
     map
 }
+fn get_cancelletion_terms(item: &ONDCOnSearchItem) -> WSItemCancellation {
+    let mut terms = vec![];
+    let is_cancellable = get_search_tag_item_value(
+        &item.tags,
+        &ONDCTagType::G2,
+        &ONDCTagItemCode::Cancellable.to_string(),
+    )
+    .unwrap_or("false")
+        == "true";
+
+    for term in item.cancellation_terms.iter() {
+        let fee = match &term.cancellation_fee {
+            ONDCItemCancellationFee::Percentage { percentage } => {
+                let percentage_value = percentage.parse::<f64>().unwrap_or(0.0);
+                WSItemCancellationFee::Percent {
+                    percentage: percentage_value,
+                }
+            }
+            ONDCItemCancellationFee::Amount { amount } => {
+                let amount_value = amount.value.parse::<f64>().unwrap_or(0.0);
+                WSItemCancellationFee::Amount {
+                    amount: amount_value,
+                }
+            }
+        };
+        terms.push(WSItemCancellationTerm {
+            fulfillment_state: term
+                .fulfillment_state
+                .descriptor
+                .code
+                .get_fulfillment_state(),
+            reason_required: term.reason_required,
+            fee,
+        })
+    }
+    WSItemCancellation {
+        is_cancellable,
+        terms,
+    }
+}
 
 #[tracing::instrument(name = "get product from on search request", skip())]
 pub fn get_product_from_on_search_request(
@@ -1011,11 +1100,24 @@ pub fn get_product_from_on_search_request(
             for item in &provider_obj.items {
                 let tax_rate = get_search_tag_item_value(
                     &item.tags,
-                    &ONDCTagType::G2,
-                    &ONDCTagItemCode::TaxRate.to_string(),
+                    &ONDCTagType::Origin,
+                    &ONDCTagItemCode::Country.to_string(),
                 )
                 .unwrap_or("0.00");
-                let payment_ids = item.payment_ids.clone();
+                let tax = BigDecimal::from_str(tax_rate).unwrap_or_else(|_| BigDecimal::from(0));
+                let country_of_origin = get_search_tag_item_value(
+                    &item.tags,
+                    &ONDCTagType::Origin,
+                    &ONDCTagItemCode::Country.to_string(),
+                )
+                .map(|e| e.to_owned());
+                let time_to_ship = get_search_tag_item_value(
+                    &item.tags,
+                    &ONDCTagType::G2,
+                    &ONDCTagItemCode::TimeToShip.to_string(),
+                )
+                .unwrap_or("NA");
+
                 let fulfillment_type_list: Vec<FulfillmentType> = item
                     .fulfillment_ids
                     .iter()
@@ -1025,8 +1127,8 @@ pub fn get_product_from_on_search_request(
                             .map(|f| f.get_fulfillment_from_ondc())
                     })
                     .collect();
-                let images = map_item_images(&item.descriptor.images);
-                let tax = BigDecimal::from_str(tax_rate).unwrap_or_else(|_| BigDecimal::from(0));
+                let images = map_item_images(&item.descriptor.images, &item.tags);
+
                 let price_slabs = get_ws_price_slab_from_ondc_slab(&item.tags, &tax);
                 let categories: Vec<WSProductCategory> = map_ws_item_categories(&item.category_ids);
                 let videos: Vec<String> = item.descriptor.media.as_ref().map_or(vec![], |media| {
@@ -1041,6 +1143,44 @@ pub fn get_product_from_on_search_request(
                         })
                         .collect()
                 });
+                let validity = item.time.as_ref().map(|e| WSItemValidity {
+                    start: e.range.start,
+                    end: e.range.end,
+                });
+                let replacement_terms = item
+                    .replacement_terms
+                    .iter()
+                    .map(|a| WSItemReplacementTerm {
+                        replace_within: a.replace_within.to_owned(),
+                    })
+                    .collect();
+                let return_terms = item
+                    .return_terms
+                    .iter()
+                    .map(|f| WSItemReturnTerm {
+                        fulfillment_state: f
+                            .fulfillment_state
+                            .descriptor
+                            .code
+                            .get_fulfillment_state(),
+                        return_eligible: f.return_eligible,
+                        return_time: WSItemReturnTime {
+                            duration: f.return_time.duration.to_owned(),
+                        },
+                        return_location: WSItemReturnLocation {
+                            address: f.return_location.address.to_owned(),
+                            gps: f.return_location.gps.to_owned(),
+                        },
+                        fulfillment_managed_by: f.fulfillment_managed_by.to_owned(),
+                    })
+                    .collect();
+                let cancellation_terms = get_cancelletion_terms(item);
+                let attributes = get_ws_attributes_from_ondc(&item.tags);
+                let payment_options = item
+                    .payment_ids
+                    .iter()
+                    .filter_map(|a| payment_mapping.get(a).map(|a| a.r#type.clone()))
+                    .collect();
                 let prod_obj = WSSearchItem {
                     id: item.id.clone(),
                     name: item.descriptor.name.clone(),
@@ -1058,17 +1198,23 @@ pub fn get_product_from_on_search_request(
                             email: item.creator.descriptor.contact.email.clone(),
                         },
                     },
-                    fullfillment_type: fulfillment_type_list,
+                    fullfillment_options: fulfillment_type_list,
                     images,
                     videos,
                     location_ids: item.location_ids.to_owned(),
-                    payment_ids,
+                    payment_options,
                     categories,
                     tax_rate: tax,
-
                     quantity: get_ws_quantity_from_ondc_quantity(&item.quantity),
-                    // payment_types: payment_obj, // payment_types: todo!(),
                     price_slabs,
+                    attributes,
+                    matched: item.matched,
+                    country_of_origin,
+                    time_to_ship: time_to_ship.to_owned(),
+                    validity,
+                    replacement_terms,
+                    return_terms,
+                    cancellation_terms,
                 };
                 product_list.push(prod_obj)
             }
@@ -1087,7 +1233,7 @@ pub fn get_product_from_on_search_request(
                     &provider_obj.creds,
                 ),
                 servicability,
-                payments: payment_mapping.clone(),
+                // payments: payment_mapping.clone(),
                 variants: provider_obj.categories.as_ref().map(get_variant_mapping),
             };
             provider_list.push(provider)
@@ -1455,7 +1601,7 @@ pub fn create_bulk_seller_product_info_objs<'a>(
             item_codes.push(item.code.as_deref());
             item_names.push(&item.name);
             tax_rates.push(item.tax_rate.clone());
-            mrps.push(item.price.maximum_value.clone());
+            mrps.push(item.price.maximum_price.clone());
             unit_price_with_taxes.push(item.price.price_with_tax.clone());
             unit_price_without_taxes.push(item.price.price_without_tax.clone());
             country_codes.push(code);
@@ -1537,7 +1683,7 @@ pub async fn save_ondc_seller_product_info<'a>(
             $10::decimal[],
             $11::currency_code_type[],
             $12::jsonb[],
-            $13::country_code[],
+            $13::country_code_type[],
             $14::timestamptz[],
             $15::timestamptz[],
             $16::uuid[]
@@ -2356,7 +2502,7 @@ pub async fn save_ondc_seller_location_info<'a>(
             $8::text[],
             $9::text[],
             $10::text[],
-            $11::country_code[],
+            $11::country_code_type[],
             $12::text[],
             $13::text[],
             $14::timestamptz[],
