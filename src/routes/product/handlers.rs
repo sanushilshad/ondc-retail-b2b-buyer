@@ -1,7 +1,8 @@
+use actix_http::StatusCode;
 use actix_web::{web, HttpResponse};
 use utoipa::TupleUnit;
 // use anyhow::Context;
-use super::schemas::{ProductSearchRequest, WSSearch};
+use super::schemas::{MinimalItemData, ProductList, ProductSearchRequest, WSSearch};
 use super::utils::save_search_request;
 use crate::configuration::ONDCConfig;
 use crate::errors::GenericError;
@@ -75,13 +76,14 @@ pub async fn realtime_product_search(
     futures::future::join(task1, task2).await.1?;
     Ok(HttpResponse::Accepted().json(GenericResponse::success(
         "Successfully Sent Product Search Request",
+        StatusCode::ACCEPTED,
         Some(()),
     )))
 }
 
 #[utoipa::path(
     post,
-    path = "/product/search/cache",
+    path = "/product/search/cache/read",
     tag = "Product",
     description="This API searches product in cache.",
     summary= "Cached Product Search Request",
@@ -97,7 +99,7 @@ pub async fn realtime_product_search(
     )
 )]
 #[tracing::instrument(name = "Cached Product Search", skip(pool), fields(transaction_id=body.transaction_id.to_string()))]
-pub async fn cached_product_search(
+pub async fn cached_product_read(
     body: ProductSearchRequest,
     pool: web::Data<PgPool>,
     ondc_obj: web::Data<ONDCConfig>,
@@ -128,7 +130,42 @@ pub async fn cached_product_search(
     };
 
     Ok(web::Json(GenericResponse::success(
-        "Successfully Send Product Search Request",
+        "Successfully Fetched Product Detail",
+        StatusCode::OK,
         Some(()),
+    )))
+}
+
+#[utoipa::path(
+    post,
+    path = "/product/search/cache/list",
+    tag = "Product",
+    description="This API is used for listing products with minimal data.",
+    summary= "Product Minimal Data list API",
+    request_body(content = ProductList, description = "Request Body"),
+    responses(
+        (status=200, description= "Realtime Product Search", body= GenericResponse<Vec<MinimalItemData>>),
+        (status=400, description= "Invalid Request body", body= GenericResponse<TupleUnit>),
+        (status=401, description= "Invalid Token", body= GenericResponse<TupleUnit>),
+        (status=500, description= "Internal Server Error", body= GenericResponse<TupleUnit>),
+	    (status=501, description= "Not Implemented", body= GenericResponse<TupleUnit>)
+    )
+)]
+#[tracing::instrument(name = "Cache Product List API", skip(_pool), fields())]
+#[allow(unreachable_code)]
+pub async fn cached_product_list(
+    body: ProductList,
+    _pool: web::Data<PgPool>,
+    user_account: UserAccount,
+    business_account: BusinessAccount,
+) -> Result<web::Json<GenericResponse<Vec<MinimalItemData>>>, GenericError> {
+    let _data = MinimalItemData {
+        bpp: todo!(),
+        providers: todo!(),
+    };
+    Ok(web::Json(GenericResponse::success(
+        "Successfully Fetched Product list",
+        StatusCode::OK,
+        Some(vec![_data]),
     )))
 }

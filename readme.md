@@ -155,7 +155,9 @@ export KAFKA__SEARCH_TOPIC_NAME="test_ondc_search"
 
 ## ELASTICSEARCH SEARCH 
 export ELASTIC_SEARCH__URL="https://0.0.0.0:9200"
-
+export ELASTIC_SEARCH__ENV="test_preprod"
+export ELASTIC_SEARCH__USERNAME="elastic"
+export ELASTIC_SEARCH__PASSWORD="134"
 
 ## PAYMENT SERVICE
 export PAYMENT__TOKEN=""

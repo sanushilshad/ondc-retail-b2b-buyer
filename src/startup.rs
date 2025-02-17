@@ -68,7 +68,7 @@ async fn run(
     let application_obj = web::Data::new(configuration.application);
     let secret_obj = web::Data::new(configuration.secret);
     let _ = kafka_client
-        .kafka_client_search_consumer(ws_client.clone(), db_pool.clone())
+        .kafka_client_search_consumer(ws_client.clone(), db_pool.clone(), es_client.clone())
         .await;
     let kafka_client = web::Data::new(kafka_client);
     let server = HttpServer::new(move || {

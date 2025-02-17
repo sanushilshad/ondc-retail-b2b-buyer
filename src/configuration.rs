@@ -350,10 +350,13 @@ impl KafkaConfig {
 #[derive(Debug, Deserialize, Clone)]
 pub struct ElasticSearchConfig {
     pub url: String,
+    pub env: String,
+    pub username: String,
+    pub password: SecretString,
 }
 
 impl ElasticSearchConfig {
     pub fn client(self) -> ElasticSearchClient {
-        ElasticSearchClient::new(self.url)
+        ElasticSearchClient::new(self.url, self.username, self.password, self.env)
     }
 }

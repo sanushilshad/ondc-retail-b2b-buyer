@@ -1,4 +1,4 @@
-use super::handlers::realtime_product_search;
+use super::handlers::{cached_product_list, cached_product_read, realtime_product_search};
 use crate::middleware::{BusinessAccountValidation, RequireAuth};
 use crate::user_client::CustomerType;
 use actix_web::web;
@@ -16,15 +16,23 @@ pub fn product_route(cfg: &mut web::ServiceConfig) {
         ),
     );
     cfg.service(
-        web::resource("/search/cache").route(
+        web::resource("/search/cache/read").route(
             web::post()
-                .to(realtime_product_search)
+                .to(cached_product_read)
                 .wrap(BusinessAccountValidation {
                     business_type_list: vec![CustomerType::RetailB2bBuyer],
                 })
                 .wrap(RequireAuth),
         ),
     );
-
-    // cfg.route("/customer/database", web::post().to(get_customer_dbs_api))
+    cfg.service(
+        web::resource("/search/cache/list").route(
+            web::post()
+                .to(cached_product_list)
+                .wrap(BusinessAccountValidation {
+                    business_type_list: vec![CustomerType::RetailB2bBuyer],
+                })
+                .wrap(RequireAuth),
+        ),
+    );
 }

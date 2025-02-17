@@ -85,7 +85,7 @@ pub enum ProductSearchType {
 
 #[derive(Deserialize, Debug, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct ProductFulFillmentLocations {
+pub struct ProductFulFillmentLocation {
     pub latitude: f64,
     pub longitude: f64,
     pub area_code: String,
@@ -104,7 +104,7 @@ pub struct ProductSearchRequest {
     pub payment_type: Option<PaymentType>,
     pub fulfillment_type: Option<FulfillmentType>,
     pub search_type: ProductSearchType,
-    pub fulfillment_locations: Option<Vec<ProductFulFillmentLocations>>,
+    pub fulfillment_locations: Option<Vec<ProductFulFillmentLocation>>,
     pub city_code: String,
     pub update_cache: bool,
 }
@@ -800,4 +800,86 @@ pub struct BulkItemLocationCache<'a> {
     pub location_cache_ids: Vec<&'a Uuid>,
     pub ids: Vec<Uuid>,
     pub created_ons: Vec<DateTime<Utc>>,
+}
+
+#[derive(Deserialize, Debug, ToSchema)]
+#[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
+pub struct ProductList {
+    pub query: String,
+    pub domain_category_code: CategoryDomain,
+    pub country_code: CountryCode,
+    pub payment_type: Option<PaymentType>,
+    pub fulfillment_type: Option<FulfillmentType>,
+    pub search_type: ProductSearchType,
+    pub fulfillment_locations: ProductFulFillmentLocation,
+    pub city_code: String,
+    pub offset: i16,
+    pub limit: i16,
+}
+
+impl FromRequest for ProductList {
+    type Error = GenericError;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
+
+    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+        let fut = web::Json::<Self>::from_request(req, payload);
+
+        Box::pin(async move {
+            match fut.await {
+                Ok(json) => Ok(json.into_inner()),
+                Err(e) => Err(GenericError::ValidationError(e.to_string())),
+            }
+        })
+    }
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct MinimalItem {
+    pub id: String,
+    pub name: String,
+    pub code: Option<String>,
+    pub domain_category: CategoryDomain,
+    pub price: WSSearchItemPrice,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ItemMinimalProvider {
+    pub items: Vec<MinimalItem>,
+    pub description: ItemProviderMinimalDescription,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ItemProviderMinimalDescription {
+    pub id: String,
+    pub rating: Option<f32>,
+    pub name: String,
+    pub images: Vec<String>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ItemMinimalBPP {
+    pub name: String,
+    pub code: Option<String>,
+    pub subscriber_id: String,
+    pub images: Vec<String>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct MinimalItemData {
+    pub bpp: ItemMinimalBPP,
+    pub providers: Vec<ItemMinimalProvider>,
+}
+
+pub struct ServicabilityIds {
+    pub hyperlocal: Vec<Uuid>,
+}
+
+pub struct DBItemCacheData {
+    pub servicability: ServicabilityIds,
 }

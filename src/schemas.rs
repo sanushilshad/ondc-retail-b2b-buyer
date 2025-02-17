@@ -28,11 +28,11 @@ pub struct GenericResponse<D> {
 }
 
 impl<D> GenericResponse<D> {
-    pub fn success(message: &str, data: Option<D>) -> Self {
+    pub fn success(message: &str, code: StatusCode, data: Option<D>) -> Self {
         Self {
             status: true,
             customer_message: String::from(message),
-            code: StatusCode::OK.as_str().to_owned(),
+            code: code.as_str().to_owned(),
             data,
         }
     }

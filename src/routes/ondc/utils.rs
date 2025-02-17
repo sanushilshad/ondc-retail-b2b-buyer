@@ -10,7 +10,8 @@ use super::{
 };
 
 use crate::chat_client::ChatData;
-use crate::routes::product::utils::save_cache_to_db;
+use crate::elastic_search_client::ElasticSearchClient;
+use crate::routes::product::utils::{save_cache_to_db, save_cache_to_elastic_search};
 use crate::user_client::{get_vector_val_from_list, BusinessAccount, UserAccount, VectorType};
 use crate::websocket_client::{NotificationProcessType, WebSocketActionType, WebSocketClient};
 use crate::{constants::ONDC_TTL, routes::product::ProductSearchError};
@@ -62,7 +63,7 @@ use crate::routes::order::schemas::{
     TradeType, UpdateOrderPaymentRequest,
 };
 use crate::routes::product::schemas::{
-    CategoryDomain, CredentialType, FulfillmentType, PaymentType, ProductFulFillmentLocations,
+    CategoryDomain, CredentialType, FulfillmentType, PaymentType, ProductFulFillmentLocation,
     ProductSearchRequest, ProductSearchType, SearchRequestModel, WSCreatorContactData,
     WSItemCancellation, WSItemCancellationFee, WSItemCancellationTerm, WSItemReplacementTerm,
     WSItemReturnLocation, WSItemReturnTerm, WSItemReturnTime, WSItemValidity, WSPaymentTypes,
@@ -74,7 +75,7 @@ use crate::routes::product::schemas::{
     WSSearchProviderTerms, WSSearchServicability, WSSearchState, WSSearchVariant,
     WSSearchVariantAttribute, WSServicabilityData,
 };
-use serde_json::{json, Value};
+use serde_json::Value;
 use sqlx::types::Json;
 
 use crate::schemas::{
@@ -288,7 +289,7 @@ fn get_search_tags(
 
 #[tracing::instrument(name = "get search fulfillment stops", skip())]
 pub fn get_search_fulfillment_stops(
-    fulfillment_locations: Option<&Vec<ProductFulFillmentLocations>>,
+    fulfillment_locations: Option<&Vec<ProductFulFillmentLocation>>,
 ) -> Option<Vec<ONDCSearchStop>> {
     let mut ondc_fulfillment_stops = Vec::new();
     match fulfillment_locations {
@@ -343,7 +344,7 @@ pub fn get_ondc_search_payment_obj(payment_obj: &Option<PaymentType>) -> Option<
 #[tracing::instrument(name = "get search fulfillment obj", skip())]
 pub fn get_search_fulfillment_obj(
     fulfillment_type: &Option<FulfillmentType>,
-    locations: Option<&Vec<ProductFulFillmentLocations>>,
+    locations: Option<&Vec<ProductFulFillmentLocation>>,
 ) -> Option<ONDCSearchFulfillment> {
     if let Some(fulfillment_type) = fulfillment_type {
         return Some(ONDCSearchFulfillment {
@@ -727,6 +728,7 @@ fn get_ws_price_slab_from_ondc_slab(
 }
 
 fn get_ws_attributes_from_ondc(ondc_tags: &[ONDCOnSearchItemTag]) -> Vec<WSSearchItemAttribute> {
+    println!("{:?}", ondc_tags);
     let mut data: Vec<WSSearchItemAttribute> = vec![];
     let attribute_tag = ondc_tags
         .iter()
@@ -2809,6 +2811,7 @@ pub async fn process_on_search(
     body: ONDCOnSearchRequest,
     extracted_search_obj: SearchRequestModel,
     websocket_srv: &WebSocketClient,
+    elastic_search_client: &ElasticSearchClient,
 ) -> Result<(), anyhow::Error> {
     let final_objs: Option<WSSearchData> =
         get_product_from_on_search_request(&body).map_err(|op| anyhow!("error:{}", op))?;
@@ -2857,7 +2860,7 @@ pub async fn process_on_search(
                     )
                     .await;
             } else {
-                save_cache_to_db(
+                let data = save_cache_to_db(
                     &mut transaction,
                     &body.context.location.country.code,
                     &body.context.domain.get_category_domain(),
@@ -2865,6 +2868,8 @@ pub async fn process_on_search(
                     body.context.timestamp,
                 )
                 .await?;
+
+                save_cache_to_elastic_search(&mut transaction, elastic_search_client, data).await?;
             }
             transaction
                 .commit()

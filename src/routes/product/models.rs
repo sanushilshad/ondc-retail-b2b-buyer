@@ -2,13 +2,14 @@ use bigdecimal::BigDecimal;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
+use uuid::Uuid;
 
 use crate::{
     routes::{ondc::ONDCItemUOM, order::schemas::FulfillmentStatusType},
     schemas::ONDCNetworkType,
 };
 
-use super::schemas::{CredentialType, PaymentType};
+use super::schemas::{CategoryDomain, CredentialType, PaymentType};
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct WSSearchProviderContactModel {
@@ -166,4 +167,17 @@ pub struct WSSearchItemQuantityModel {
     pub available: WSSearchItemQtyModel,
     pub maximum: WSSearchItemQtyModel,
     pub minimum: Option<WSSearchItemQtyModel>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ESHyperlocalServicabilityModel {
+    pub id: Uuid,
+    pub location_cache_id: Uuid,
+    pub domain_code: CategoryDomain,
+    pub category_code: Option<String>,
+    pub radius: f64,
+    pub created_on: DateTime<Utc>,
+    pub provider_cache_id: Uuid,
+    pub network_participant_cache_id: Uuid,
 }

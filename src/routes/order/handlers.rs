@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use crate::chat_client::ChatClient;
+use actix_http::StatusCode;
 use actix_web::{web, HttpResponse};
 use utoipa::TupleUnit;
 // use anyhow::Context;
@@ -241,6 +242,7 @@ pub async fn order_select(
 
     Ok(HttpResponse::Accepted().json(GenericResponse::success(
         "Successfully send select request",
+        StatusCode::ACCEPTED,
         Some(()),
     )))
 }
@@ -343,6 +345,7 @@ pub async fn order_init(
 
     Ok(HttpResponse::Accepted().json(GenericResponse::success(
         "Successfully send init request",
+        StatusCode::ACCEPTED,
         Some(()),
     )))
 }
@@ -445,6 +448,7 @@ pub async fn order_confirm(
     futures::future::join(task_3, task_4).await.1?;
     Ok(HttpResponse::Accepted().json(GenericResponse::success(
         "Successfully send confirm request",
+        StatusCode::ACCEPTED,
         Some(()),
     )))
 }
@@ -535,6 +539,7 @@ pub async fn order_status(
 
     Ok(HttpResponse::Accepted().json(GenericResponse::success(
         "Successfully send status request",
+        StatusCode::ACCEPTED,
         Some(()),
     )))
 }
@@ -635,6 +640,7 @@ pub async fn order_cancel(
 
     Ok(HttpResponse::Accepted().json(GenericResponse::success(
         "Successfully send cancel request",
+        StatusCode::ACCEPTED,
         Some(()),
     )))
 }
@@ -736,6 +742,7 @@ pub async fn order_update(
 
     Ok(HttpResponse::Accepted().json(GenericResponse::success(
         "Successfully send update request",
+        StatusCode::ACCEPTED,
         Some(()),
     )))
 }
@@ -795,6 +802,7 @@ pub async fn order_fetch(
 
     Ok(web::Json(GenericResponse::success(
         "Successfully fetched order details",
+        StatusCode::OK,
         Some(order),
     )))
 }
@@ -839,6 +847,7 @@ pub async fn order_list(
     })?;
     Ok(web::Json(GenericResponse::success(
         "Successfully fetched orders",
+        StatusCode::OK,
         Some(data),
     )))
 }

@@ -17,6 +17,7 @@ use crate::{
     schemas::GenericResponse,
     user_client::{AllowedPermission, BusinessAccount, PermissionType, UserAccount},
 };
+use actix_http::StatusCode;
 use actix_web::web;
 
 use anyhow::Context;
@@ -75,6 +76,7 @@ pub async fn payment_order_creation(
     .await?;
     Ok(web::Json(GenericResponse::success(
         "Successfully created orders",
+        StatusCode::OK,
         Some(order_data),
     )))
 }
@@ -153,6 +155,7 @@ pub async fn payment_notification(
 
     Ok(web::Json(GenericResponse::success(
         "Successfully recieved notification",
+        StatusCode::OK,
         Some(()),
     )))
 }
