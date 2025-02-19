@@ -625,7 +625,8 @@ async fn save_hyperlocal_servicability_cache(
             unnest($5::double precision[]), 
             unnest($6::timestamptz[])
         ON CONFLICT (provider_location_cache_id, domain_code, category_code) 
-        DO NOTHING
+        DO UPDATE SET
+        radius = EXCLUDED.radius
         RETURNING id
         "#,
         &data.ids,
@@ -1392,10 +1393,6 @@ async fn get_hyperlocal_cache_data_from_db(
                 lat: record.latitude.to_f64().unwrap(),
                 lon: record.longitude.to_f64().unwrap(),
             },
-            // location: ESLocationModel {
-            //     lat: record.latitude.to_f64().unwrap(),
-            //     lon: record.longitude.to_f64().unwrap(),
-            // },
         })
         .collect();
 
