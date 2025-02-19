@@ -1,21 +1,22 @@
 use std::collections::HashMap;
 use std::str::FromStr;
 
-use bigdecimal::BigDecimal;
+use bigdecimal::{BigDecimal, ToPrimitive};
 use elasticsearch::http::request::JsonBody;
 use serde_json::{json, Value};
 use sqlx::{PgPool, Postgres, Transaction, Executor};
 use uuid::Uuid;
 use validator::ValidateLength;
-use crate::elastic_search_client::ElasticSearchClient;
+use crate::elastic_search_client::{ElasticSearchClient, ElasticSearchIndex};
 use crate::routes::product::models::ESHyperlocalServicabilityModel;
 use crate::routes::product::schemas::{FulfillmentType, PaymentType, ProductSearchType};
 use crate::schemas::{CurrencyType, RequestMetaData};
-use super::models::{ProductVariantAttributeModel, SearchProviderCredentialModel, WSItemReplacementTermModel, WSItemReturnTermModel, WSPriceSlabModel, WSProductCategoryModel, WSSearchItemAttributeModel, WSSearchProviderContactModel, WSSearchProviderTermsModel};
+use super::models::{ESLocationModel, ProductVariantAttributeModel, SearchProviderCredentialModel, WSItemReplacementTermModel, WSItemReturnTermModel, WSPriceSlabModel, WSProductCategoryModel, WSSearchItemAttributeModel, WSSearchProviderContactModel, WSSearchProviderTermsModel};
 use super::schemas::{BulkCountryServicabilityCache, BulkGeoServicabilityCache, BulkHyperlocalServicabilityCache, BulkInterCityServicabilityCache, BulkItemCache, BulkItemLocationCache, BulkItemVariantCache, BulkProviderCache, BulkProviderLocationCache, CategoryDomain, DBItemCacheData, ProductSearchRequest, ServicabilityIds, WSSearchBPP, WSSearchData, WSSearchProvider};
 use chrono::{DateTime, Utc};
 use crate::user_client::{BusinessAccount, UserAccount};
 use crate::schemas::CountryCode;
+
 #[tracing::instrument(name = "Save Product Search Request", skip(pool))]
 pub async fn save_search_request(
     pool: &PgPool,
@@ -1344,9 +1345,12 @@ pub async fn save_cache_to_db(transaction: &mut Transaction<'_, Postgres>, count
 
 }
 
-async fn get_hyperlocal_cache_data_from_db(transaction: &mut Transaction<'_, Postgres>, id_list: Vec<Uuid>)-> Result<Vec<ESHyperlocalServicabilityModel>, anyhow::Error> {
-    let query = sqlx::query_as!(ESHyperlocalServicabilityModel,
-       r#"
+async fn get_hyperlocal_cache_data_from_db(
+    transaction: &mut Transaction<'_, Postgres>,
+    id_list: Vec<Uuid>,
+) -> Result<Vec<ESHyperlocalServicabilityModel>, anyhow::Error> {
+    let query = sqlx::query!(
+        r#"
         SELECT 
             shc.id as id,
             shc.provider_location_cache_id as location_cache_id,
@@ -1355,7 +1359,9 @@ async fn get_hyperlocal_cache_data_from_db(transaction: &mut Transaction<'_, Pos
             shc.radius as radius,
             shc.created_on as created_on,
             pc.id AS provider_cache_id,
-            pc.network_participant_cache_id as network_participant_cache_id
+            pc.network_participant_cache_id as network_participant_cache_id,
+            plc.latitude as latitude,
+            plc.longitude as longitude
         FROM servicability_hyperlocal_cache AS shc
         JOIN provider_location_cache AS plc
         ON shc.provider_location_cache_id = plc.id
@@ -1363,31 +1369,54 @@ async fn get_hyperlocal_cache_data_from_db(transaction: &mut Transaction<'_, Pos
         ON plc.provider_cache_id = pc.id
         WHERE shc.id = ANY($1)
         "#,
-
         &id_list[..]
     );
+
     let data = query.fetch_all(&mut **transaction).await.map_err(|e| {
         tracing::error!("Failed to execute query: {:?}", e);
-        anyhow::Error::new(e)
-            .context("A database failure occurred while fetching hyperlocal")
+        anyhow::Error::new(e).context("A database failure occurred while fetching hyperlocal")
     })?;
-    Ok(data)
+
+    let result = data
+        .into_iter()
+        .map(|record| ESHyperlocalServicabilityModel {
+            id: record.id,
+            location_cache_id: record.location_cache_id,
+            domain_code: record.domain_code,
+            category_code: record.category_code,
+            radius: record.radius,
+            created_on: record.created_on,
+            provider_cache_id: record.provider_cache_id,
+            network_participant_cache_id: record.network_participant_cache_id,
+            location: ESLocationModel {
+                lat: record.latitude.to_f64().unwrap(),
+                lon: record.longitude.to_f64().unwrap(),
+            },
+            // location: ESLocationModel {
+            //     lat: record.latitude.to_f64().unwrap(),
+            //     lon: record.longitude.to_f64().unwrap(),
+            // },
+        })
+        .collect();
+
+    Ok(result)
 }
 
 async fn save_hyperlocal_servicability_cache_to_elastic_search(transaction: &mut Transaction<'_, Postgres> ,es_client: &ElasticSearchClient, id_list: Vec<Uuid>)-> Result<(), anyhow::Error>{
-    let data = get_hyperlocal_cache_data_from_db(transaction, id_list).await?;
-    if data.len() > 0 {
+    if id_list.len() > 0 {
+        let data = get_hyperlocal_cache_data_from_db(transaction, id_list).await?;
         let json_values: Vec<JsonBody<_>> = data
         .into_iter()
         .flat_map(|record| {
             let id = record.id.to_string(); 
+            tracing::info!("{:?}", json!(record));
             vec![
-                json!({"index": { "_index": es_client.get_index("hyperlocal_servicability"), "_id": id }}).into(),
+                json!({"index": { "_index": es_client.get_index(&ElasticSearchIndex::ItemServicabilityHyperLocal.to_string()), "_id": id }}).into(),
                 json!(record).into(),
             ]
         })
         .collect();
-        es_client.send(&es_client.get_index("hyperlocal_servicability"), json_values).await?;
+        es_client.send(&es_client.get_index(&ElasticSearchIndex::ItemServicabilityHyperLocal.to_string()), json_values).await?;
     }
 
     Ok(())

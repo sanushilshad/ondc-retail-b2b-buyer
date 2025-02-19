@@ -169,6 +169,13 @@ pub struct WSSearchItemQuantityModel {
     pub minimum: Option<WSSearchItemQtyModel>,
 }
 
+#[derive(Deserialize, Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ESLocationModel {
+    pub lat: f64,
+    pub lon: f64,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct ESHyperlocalServicabilityModel {
@@ -177,6 +184,7 @@ pub struct ESHyperlocalServicabilityModel {
     pub domain_code: CategoryDomain,
     pub category_code: Option<String>,
     pub radius: f64,
+    pub location: ESLocationModel,
     pub created_on: DateTime<Utc>,
     pub provider_cache_id: Uuid,
     pub network_participant_cache_id: Uuid,

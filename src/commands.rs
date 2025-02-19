@@ -1,5 +1,5 @@
 use crate::utils::generate_user_token;
-use crate::{kafka_client, migration};
+use crate::{elastic_search_client, kafka_client, migration};
 #[tracing::instrument(name = "Run custom command")]
 pub async fn run_custom_commands(args: Vec<String>) -> Result<(), anyhow::Error> {
     if args.len() < 2 {
@@ -22,6 +22,9 @@ pub async fn run_custom_commands(args: Vec<String>) -> Result<(), anyhow::Error>
         "generate_kafka_topic" => {
             // let arg = args.get(2).unwrap_or(&TopicType::Search.to_string());
             kafka_client::create_kafka_topic_command().await;
+        }
+        "generate_elastic_search_indices" => {
+            elastic_search_client::generate_indices().await;
         }
         _ => {
             eprintln!("Unknown command: {}. Please use a valid command.", command);
