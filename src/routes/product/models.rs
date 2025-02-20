@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use crate::{
     routes::{ondc::ONDCItemUOM, order::schemas::FulfillmentStatusType},
-    schemas::ONDCNetworkType,
+    schemas::{CountryCode, ONDCNetworkType},
 };
 
 use super::schemas::{CategoryDomain, CredentialType, PaymentType};
@@ -185,6 +185,32 @@ pub struct ESHyperlocalServicabilityModel {
     pub category_code: Option<String>,
     pub radius: f64,
     pub location: ESLocationModel,
+    pub created_on: DateTime<Utc>,
+    pub provider_cache_id: Uuid,
+    pub network_participant_cache_id: Uuid,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ESCountryServicabilityModel {
+    pub id: Uuid,
+    pub location_cache_id: Uuid,
+    pub domain_code: CategoryDomain,
+    pub category_code: Option<String>,
+    pub country_code: CountryCode,
+    pub created_on: DateTime<Utc>,
+    pub provider_cache_id: Uuid,
+    pub network_participant_cache_id: Uuid,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ESInterCityServicabilityModel {
+    pub id: Uuid,
+    pub location_cache_id: Uuid,
+    pub domain_code: CategoryDomain,
+    pub category_code: Option<String>,
+    pub pincode: String,
     pub created_on: DateTime<Utc>,
     pub provider_cache_id: Uuid,
     pub network_participant_cache_id: Uuid,

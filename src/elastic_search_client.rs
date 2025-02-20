@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::configuration::get_configuration;
 use anyhow::anyhow;
 use elasticsearch::auth::Credentials;
 use elasticsearch::cert::CertificateValidation;
@@ -10,9 +11,6 @@ use elasticsearch::indices::IndicesCreateParts;
 use elasticsearch::indices::IndicesExistsParts;
 use elasticsearch::BulkParts;
 use elasticsearch::Elasticsearch;
-use elasticsearch::IndexParts;
-
-use crate::configuration::get_configuration;
 use lazy_static::lazy_static;
 // use once_cell::sync::Lazy;
 use reqwest::Url;
@@ -26,6 +24,8 @@ use serde_json::Value;
 #[derive(Debug, Deserialize, Serialize, Hash, PartialEq, Eq)]
 pub enum ElasticSearchIndex {
     ItemServicabilityHyperLocal,
+    ItemServicabilityCountry,
+    ItemServicabilityInterCity,
 }
 
 impl ToString for ElasticSearchIndex {
@@ -33,6 +33,12 @@ impl ToString for ElasticSearchIndex {
         match self {
             ElasticSearchIndex::ItemServicabilityHyperLocal => {
                 "item_servicability_hyper_local".to_string()
+            }
+            ElasticSearchIndex::ItemServicabilityCountry => {
+                "item_servicability_country".to_string()
+            }
+            ElasticSearchIndex::ItemServicabilityInterCity => {
+                "item_servicability_inter_city".to_string()
             }
         }
     }
@@ -96,6 +102,138 @@ lazy_static! {
                         "radius": { "type": "float" },
                     },
                 },
+            }),
+        );
+        map.insert(
+            ElasticSearchIndex::ItemServicabilityCountry,
+            json!({
+              "mappings": {
+                "properties": {
+                  "country_code": {
+                    "type": "text",
+                    "fields": {
+                      "keyword": {
+                        "type": "keyword",
+                        "ignore_above": 256
+                      }
+                    }
+                  },
+                  "created_on": {
+                    "type": "date"
+                  },
+                  "domain_code": {
+                    "type": "text",
+                    "fields": {
+                      "keyword": {
+                        "type": "keyword",
+                        "ignore_above": 256
+                      }
+                    }
+                  },
+                  "id": {
+                    "type": "text",
+                    "fields": {
+                      "keyword": {
+                        "type": "keyword",
+                        "ignore_above": 256
+                      }
+                    }
+                  },
+                  "location_cache_id": {
+                    "type": "text",
+                    "fields": {
+                      "keyword": {
+                        "type": "keyword",
+                        "ignore_above": 256
+                      }
+                    }
+                  },
+                  "network_participant_cache_id": {
+                    "type": "text",
+                    "fields": {
+                      "keyword": {
+                        "type": "keyword",
+                        "ignore_above": 256
+                      }
+                    }
+                  },
+                  "provider_cache_id": {
+                    "type": "text",
+                    "fields": {
+                      "keyword": {
+                        "type": "keyword",
+                        "ignore_above": 256
+                      }
+                    }
+                  }
+                }
+              }
+            }),
+        );
+        map.insert(
+            ElasticSearchIndex::ItemServicabilityInterCity,
+            json!({
+              "mappings": {
+                "properties": {
+                  "created_on": {
+                    "type": "date"
+                  },
+                  "domain_code": {
+                    "type": "text",
+                    "fields": {
+                      "keyword": {
+                        "type": "keyword",
+                        "ignore_above": 256
+                      }
+                    }
+                  },
+                  "id": {
+                    "type": "text",
+                    "fields": {
+                      "keyword": {
+                        "type": "keyword",
+                        "ignore_above": 256
+                      }
+                    }
+                  },
+                  "location_cache_id": {
+                    "type": "text",
+                    "fields": {
+                      "keyword": {
+                        "type": "keyword",
+                        "ignore_above": 256
+                      }
+                    }
+                  },
+                  "network_participant_cache_id": {
+                    "type": "text",
+                    "fields": {
+                      "keyword": {
+                        "type": "keyword",
+                        "ignore_above": 256
+                      }
+                    }
+                  },
+                  "pincode": {
+                    "type": "text",
+                    "fields": {
+                      "keyword": {
+                        "type": "keyword",
+                        "ignore_above": 256
+                      }
+                    }
+                  },
+                  "provider_cache_id": {
+                    "type": "text",
+                    "fields": {
+                      "keyword": {
+                        "type": "keyword",
+                        "ignore_above": 256
+                      }
+                    }
+                  }
+                }
+              }
             }),
         );
         map

@@ -878,6 +878,8 @@ pub struct MinimalItemData {
 
 pub struct ServicabilityIds {
     pub hyperlocal: Vec<Uuid>,
+    pub country: Vec<Uuid>,
+    pub inter_city: Vec<Uuid>,
 }
 
 pub struct DBItemCacheData {

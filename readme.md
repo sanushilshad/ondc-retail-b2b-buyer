@@ -70,6 +70,17 @@ OR
   ./target/release/ondc-retail-b2b-buyer generate_service_token
 ```
 
+### COMMAND FOR ELASTIC SEARCH INDICES:
+
+cargo run --bin ondc-retail-b2b-buyer -- generate_elastic_search_indices
+```
+OR 
+
+```
+  ./target/release/ondc-retail-b2b-buyer generate_elastic_search_indices
+```
+
+
 ## SQLX OFFLINE MODE:
 
 ```
