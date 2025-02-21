@@ -755,7 +755,7 @@ CREATE TABLE IF NOT EXISTS servicability_geo_json_cache(
     domain_code domain_category_type NOT NULL,
     geom GEOMETRY(Geometry, 4326) NOT NULL,
     category_code TEXT,
-    cordinates JSONB NOT NULL,
+    coordinates JSONB NOT NULL,
     created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

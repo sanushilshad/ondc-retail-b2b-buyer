@@ -717,7 +717,7 @@ pub struct BulkProviderLocationCache<'a> {
 pub struct BulkGeoServicabilityCache<'a> {
     pub ids: Vec<Uuid>,
     pub location_cache_ids: Vec<&'a Uuid>,
-    pub cordinates: Vec<&'a Value>,
+    pub coordinates: Vec<&'a Value>,
     pub category_codes: Vec<&'a Option<String>>,
     pub created_ons: Vec<DateTime<Utc>>,
     pub domain_codes: Vec<&'a CategoryDomain>,
@@ -880,8 +880,10 @@ pub struct ServicabilityIds {
     pub hyperlocal: Vec<Uuid>,
     pub country: Vec<Uuid>,
     pub inter_city: Vec<Uuid>,
+    pub geo_json: Vec<Uuid>,
 }
 
 pub struct DBItemCacheData {
-    pub servicability: ServicabilityIds,
+    pub servicability_ids: ServicabilityIds,
+    pub network_participant_ids: Vec<Uuid>,
 }

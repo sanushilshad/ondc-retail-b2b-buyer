@@ -26,19 +26,27 @@ pub enum ElasticSearchIndex {
     ItemServicabilityHyperLocal,
     ItemServicabilityCountry,
     ItemServicabilityInterCity,
+    ItemServicabilityGeoJson,
+    NetworkParticipant,
 }
 
 impl ToString for ElasticSearchIndex {
     fn to_string(&self) -> String {
         match self {
             ElasticSearchIndex::ItemServicabilityHyperLocal => {
-                "item_servicability_hyper_local".to_string()
+                "b2b_retail_item_servicability_hyper_local".to_string()
             }
             ElasticSearchIndex::ItemServicabilityCountry => {
-                "item_servicability_country".to_string()
+                "b2b_retail_item_servicability_country".to_string()
             }
             ElasticSearchIndex::ItemServicabilityInterCity => {
-                "item_servicability_inter_city".to_string()
+                "b2b_retail_item_servicability_inter_city".to_string()
+            }
+            ElasticSearchIndex::ItemServicabilityGeoJson => {
+                "b2b_retail_item_servicability_geo_json".to_string()
+            }
+            ElasticSearchIndex::NetworkParticipant => {
+                "b2b_retail_seller_network_participant".to_string()
             }
         }
     }
@@ -50,121 +58,64 @@ lazy_static! {
         map.insert(
             ElasticSearchIndex::ItemServicabilityHyperLocal,
             json!({
-                "mappings": {
-                    "properties": {
-                        "created_on": { "type": "date" },
-                        "domain_code": {
-                            "type": "text",
-                            "fields": {
-                                "keyword": {
-                                    "type": "keyword",
-                                    "ignore_above": 256,
-                                },
-                            },
-                        },
-                        "id": {
-                            "type": "text",
-                            "fields": {
-                                "keyword": {
-                                    "type": "keyword",
-                                    "ignore_above": 256,
-                                },
-                            },
-                        },
-                        "location": { "type": "geo_point" },
-                        "location_cache_id": {
-                            "type": "text",
-                            "fields": {
-                                "keyword": {
-                                    "type": "keyword",
-                                    "ignore_above": 256,
-                                },
-                            },
-                        },
-                        "network_participant_cache_id": {
-                            "type": "text",
-                            "fields": {
-                                "keyword": {
-                                    "type": "keyword",
-                                    "ignore_above": 256,
-                                },
-                            },
-                        },
-                        "provider_cache_id": {
-                            "type": "text",
-                            "fields": {
-                                "keyword": {
-                                    "type": "keyword",
-                                    "ignore_above": 256,
-                                },
-                            },
-                        },
-                        "radius": { "type": "float" },
-                    },
-                },
-            }),
+              "mappings": {
+                "dynamic": false,
+                "properties": {
+                  "created_on": {
+                    "type": "date"
+                  },
+                  "domain_code": {
+                     "type": "keyword"
+                  },
+                  "id": {
+                     "type": "keyword"
+                  },
+                  "location": {
+                     "type": "geo_point"
+                  },
+                  "location_cache_id": {
+                     "type": "keyword"
+                  },
+                  "network_participant_cache_id": {
+                     "type": "keyword"
+                  },
+                  "provider_cache_id": {
+                     "type": "keyword"
+                  },
+                  "radius": {
+                     "type": "float"
+                  }
+                }
+              }
+            }
+            ),
         );
         map.insert(
             ElasticSearchIndex::ItemServicabilityCountry,
             json!({
               "mappings": {
+                "dynamic": false,
                 "properties": {
                   "country_code": {
-                    "type": "text",
-                    "fields": {
-                      "keyword": {
-                        "type": "keyword",
-                        "ignore_above": 256
-                      }
-                    }
+                    "type": "keyword"
                   },
                   "created_on": {
                     "type": "date"
                   },
                   "domain_code": {
-                    "type": "text",
-                    "fields": {
-                      "keyword": {
-                        "type": "keyword",
-                        "ignore_above": 256
-                      }
-                    }
+                    "type": "keyword"
                   },
                   "id": {
-                    "type": "text",
-                    "fields": {
-                      "keyword": {
-                        "type": "keyword",
-                        "ignore_above": 256
-                      }
-                    }
+                    "type": "keyword"
                   },
                   "location_cache_id": {
-                    "type": "text",
-                    "fields": {
-                      "keyword": {
-                        "type": "keyword",
-                        "ignore_above": 256
-                      }
-                    }
+                    "type": "keyword"
                   },
                   "network_participant_cache_id": {
-                    "type": "text",
-                    "fields": {
-                      "keyword": {
-                        "type": "keyword",
-                        "ignore_above": 256
-                      }
-                    }
+                    "type": "keyword"
                   },
                   "provider_cache_id": {
-                    "type": "text",
-                    "fields": {
-                      "keyword": {
-                        "type": "keyword",
-                        "ignore_above": 256
-                      }
-                    }
+                    "type": "keyword"
                   }
                 }
               }
@@ -174,64 +125,92 @@ lazy_static! {
             ElasticSearchIndex::ItemServicabilityInterCity,
             json!({
               "mappings": {
+                "dynamic": false,
                 "properties": {
                   "created_on": {
                     "type": "date"
                   },
                   "domain_code": {
-                    "type": "text",
-                    "fields": {
-                      "keyword": {
-                        "type": "keyword",
-                        "ignore_above": 256
-                      }
-                    }
+                    "type": "keyword"
                   },
                   "id": {
-                    "type": "text",
-                    "fields": {
-                      "keyword": {
-                        "type": "keyword",
-                        "ignore_above": 256
-                      }
-                    }
+                    "type": "keyword"
                   },
                   "location_cache_id": {
-                    "type": "text",
-                    "fields": {
-                      "keyword": {
-                        "type": "keyword",
-                        "ignore_above": 256
-                      }
-                    }
+                    "type": "keyword"
                   },
                   "network_participant_cache_id": {
-                    "type": "text",
-                    "fields": {
-                      "keyword": {
-                        "type": "keyword",
-                        "ignore_above": 256
-                      }
-                    }
+                    "type": "keyword"
                   },
                   "pincode": {
-                    "type": "text",
-                    "fields": {
-                      "keyword": {
-                        "type": "keyword",
-                        "ignore_above": 256
-                      }
-                    }
+                    "type": "keyword"
                   },
                   "provider_cache_id": {
+                    "type": "keyword"
+                  }
+                }
+              }
+            }),
+        );
+        map.insert(
+            ElasticSearchIndex::ItemServicabilityGeoJson,
+            json!({
+              "mappings": {
+                "dynamic": false,
+                "properties": {
+                  "created_on": {
+                    "type": "date"
+                  },
+                  "domain_code": {
+                    "type": "keyword"
+                  },
+                  "id": {
+                    "type": "keyword"
+                  },
+                  "location_cache_id": {
+                    "type": "keyword"
+                  },
+                  "network_participant_cache_id": {
+                    "type": "keyword"
+                  },
+                  "coordinates": {
+                    "type": "geo_shape"
+                  },
+                  "provider_cache_id": {
+                    "type": "keyword"
+                  }
+                }
+              }
+            }),
+        );
+        map.insert(
+            ElasticSearchIndex::NetworkParticipant,
+            json!({
+              "mappings": {
+                "dynamic": false,
+                "properties": {
+                  "id": { "type": "keyword" },
+                  "subscriber_id": { "type": "keyword" },
+                  "name": {
                     "type": "text",
                     "fields": {
-                      "keyword": {
-                        "type": "keyword",
-                        "ignore_above": 256
-                      }
+                      "keyword": { "type": "keyword" }
                     }
-                  }
+                  },
+                  "short_desc": {
+                    "type": "text",
+                    "fields": {
+                      "keyword": { "type": "keyword" }
+                    }
+                  },
+                  "long_desc": {
+                    "type": "text",
+                    "fields": {
+                      "keyword": { "type": "keyword" }
+                    }
+                  },
+                  "images": { "type": "text" },
+                  "created_on": { "type": "date" }
                 }
               }
             }),

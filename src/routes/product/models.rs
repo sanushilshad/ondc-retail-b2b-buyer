@@ -1,13 +1,13 @@
-use bigdecimal::BigDecimal;
-use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
-use serde_with::skip_serializing_none;
-use uuid::Uuid;
-
 use crate::{
     routes::{ondc::ONDCItemUOM, order::schemas::FulfillmentStatusType},
     schemas::{CountryCode, ONDCNetworkType},
 };
+use bigdecimal::BigDecimal;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use serde_with::skip_serializing_none;
+use uuid::Uuid;
 
 use super::schemas::{CategoryDomain, CredentialType, PaymentType};
 #[derive(Debug, Serialize)]
@@ -214,4 +214,29 @@ pub struct ESInterCityServicabilityModel {
     pub created_on: DateTime<Utc>,
     pub provider_cache_id: Uuid,
     pub network_participant_cache_id: Uuid,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ESGeoJsonServicabilityModel {
+    pub id: Uuid,
+    pub location_cache_id: Uuid,
+    pub domain_code: CategoryDomain,
+    pub category_code: Option<String>,
+    pub coordinates: Value,
+    pub created_on: DateTime<Utc>,
+    pub provider_cache_id: Uuid,
+    pub network_participant_cache_id: Uuid,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ESNetworkParticipantModel {
+    pub id: Uuid,
+    pub subscriber_id: String,
+    pub name: String,
+    pub short_desc: String,
+    pub long_desc: String,
+    pub images: Value,
+    pub created_on: DateTime<Utc>,
 }
