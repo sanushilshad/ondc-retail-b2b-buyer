@@ -29,6 +29,7 @@ pub enum ElasticSearchIndex {
     ProviderServicabilityGeoJson,
     NetworkParticipant,
     ProviderLocation,
+    Provider,
 }
 
 impl ToString for ElasticSearchIndex {
@@ -53,6 +54,7 @@ impl ToString for ElasticSearchIndex {
             ElasticSearchIndex::ProviderLocation => {
                 "b2b_retail_seller_provider_location".to_string()
             }
+            ElasticSearchIndex::Provider => "b2b_retail_seller_provider".to_string(),
         }
     }
 }
@@ -245,6 +247,34 @@ lazy_static! {
               }
             }),
         );
+
+        map.insert(
+            ElasticSearchIndex::Provider,
+            json!({
+                "mappings": {
+                    "dynamic": false,
+                    "properties": {
+                        "id": { "type": "keyword" },
+                        "provider_id": { "type": "keyword" },
+                        "network_participant_cache_id": { "type": "keyword" },
+                        "name": { "type": "text" },
+                        "code": { "type": "text" },
+                        "short_desc": { "type": "text" },
+                        "long_desc": { "type": "text" },
+                        "images": { "type": "text" },
+                        "rating": { "type": "float" },
+                        "ttl": { "type": "text" },
+                        "credentials": { "type": "object" },
+                        "contact": { "type": "object" },
+                        "terms": { "type": "object" },
+                        "identifications": { "type": "object" },
+                        "created_on": { "type": "date"},
+                        "updated_on": { "type": "date"}
+                    }
+                }
+            }),
+        );
+
         map
     };
 }

@@ -886,5 +886,6 @@ pub struct ServicabilityIds {
 pub struct DBItemCacheData {
     pub servicability_ids: ServicabilityIds,
     pub location_ids: Vec<Uuid>,
+    pub provider_ids: Vec<Uuid>,
     pub network_participant_ids: Vec<Uuid>,
 }
