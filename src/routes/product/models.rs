@@ -240,3 +240,23 @@ pub struct ESNetworkParticipantModel {
     pub images: Value,
     pub created_on: DateTime<Utc>,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ESProviderLocationModel {
+    pub id: Uuid,
+    pub provider_cache_id: Uuid,
+    pub location_id: String,
+    pub latitude: BigDecimal,
+    pub longitude: BigDecimal,
+    pub address: String,
+    pub city_code: String,
+    pub city_name: String,
+    pub state_code: String,
+    pub state_name: Option<String>,
+    pub country_code: CountryCode,
+    pub country_name: Option<String>,
+    pub area_code: String,
+    pub created_on: DateTime<Utc>,
+    pub updated_on: Option<DateTime<Utc>>,
+}

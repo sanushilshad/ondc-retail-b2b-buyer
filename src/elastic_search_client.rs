@@ -23,30 +23,35 @@ use serde_json::Value;
 
 #[derive(Debug, Deserialize, Serialize, Hash, PartialEq, Eq)]
 pub enum ElasticSearchIndex {
-    ItemServicabilityHyperLocal,
-    ItemServicabilityCountry,
-    ItemServicabilityInterCity,
-    ItemServicabilityGeoJson,
+    ProviderServicabilityHyperLocal,
+    ProviderServicabilityCountry,
+    ProviderServicabilityInterCity,
+    ProviderServicabilityGeoJson,
     NetworkParticipant,
+    ProviderLocation,
 }
 
 impl ToString for ElasticSearchIndex {
     fn to_string(&self) -> String {
         match self {
-            ElasticSearchIndex::ItemServicabilityHyperLocal => {
-                "b2b_retail_item_servicability_hyper_local".to_string()
+            ElasticSearchIndex::ProviderServicabilityHyperLocal => {
+                "b2b_retail_provider_servicability_hyper_local".to_string()
             }
-            ElasticSearchIndex::ItemServicabilityCountry => {
-                "b2b_retail_item_servicability_country".to_string()
+            ElasticSearchIndex::ProviderServicabilityCountry => {
+                "b2b_retail_provider_servicability_country".to_string()
             }
-            ElasticSearchIndex::ItemServicabilityInterCity => {
-                "b2b_retail_item_servicability_inter_city".to_string()
+            ElasticSearchIndex::ProviderServicabilityInterCity => {
+                "b2b_retail_provider_servicability_inter_city".to_string()
             }
-            ElasticSearchIndex::ItemServicabilityGeoJson => {
-                "b2b_retail_item_servicability_geo_json".to_string()
+            ElasticSearchIndex::ProviderServicabilityGeoJson => {
+                "b2b_retail_provider_servicability_geo_json".to_string()
             }
             ElasticSearchIndex::NetworkParticipant => {
                 "b2b_retail_seller_network_participant".to_string()
+            }
+
+            ElasticSearchIndex::ProviderLocation => {
+                "b2b_retail_seller_provider_location".to_string()
             }
         }
     }
@@ -56,7 +61,7 @@ lazy_static! {
     static ref INDICES: HashMap<ElasticSearchIndex, serde_json::Value> = {
         let mut map = HashMap::new();
         map.insert(
-            ElasticSearchIndex::ItemServicabilityHyperLocal,
+            ElasticSearchIndex::ProviderServicabilityHyperLocal,
             json!({
               "mappings": {
                 "dynamic": false,
@@ -91,7 +96,7 @@ lazy_static! {
             ),
         );
         map.insert(
-            ElasticSearchIndex::ItemServicabilityCountry,
+            ElasticSearchIndex::ProviderServicabilityCountry,
             json!({
               "mappings": {
                 "dynamic": false,
@@ -122,7 +127,7 @@ lazy_static! {
             }),
         );
         map.insert(
-            ElasticSearchIndex::ItemServicabilityInterCity,
+            ElasticSearchIndex::ProviderServicabilityInterCity,
             json!({
               "mappings": {
                 "dynamic": false,
@@ -153,7 +158,7 @@ lazy_static! {
             }),
         );
         map.insert(
-            ElasticSearchIndex::ItemServicabilityGeoJson,
+            ElasticSearchIndex::ProviderServicabilityGeoJson,
             json!({
               "mappings": {
                 "dynamic": false,
@@ -211,6 +216,31 @@ lazy_static! {
                   },
                   "images": { "type": "text" },
                   "created_on": { "type": "date" }
+                }
+              }
+            }),
+        );
+        map.insert(
+            ElasticSearchIndex::ProviderLocation,
+            json!({
+              "mappings": {
+                "dynamic": false,
+                "properties": {
+                  "id": { "type": "keyword" },
+                  "provider_cache_id": { "type": "keyword" },
+                  "location_id": { "type": "keyword" },
+                  "latitude": { "type": "float" },
+                  "longitude": { "type": "float" },
+                  "address": { "type": "keyword" },
+                  "city_code": { "type": "keyword" },
+                  "city_name": { "type": "keyword" },
+                  "state_code": { "type": "keyword" },
+                  "state_name": { "type": "keyword" },
+                  "country_code": { "type": "keyword" },
+                  "country_name": { "type": "keyword" },
+                  "area_code": { "type": "keyword" },
+                  "created_on": { "type": "date" },
+                  "updated_on": { "type": "date" }
                 }
               }
             }),
