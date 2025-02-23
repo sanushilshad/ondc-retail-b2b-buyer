@@ -547,6 +547,8 @@ impl WSItemCancellation {
 pub struct WSSearchItem {
     pub id: String,
     pub name: String,
+    pub long_desc: String,
+    pub short_desc: String,
     pub code: Option<String>,
     pub domain_category: CategoryDomain,
     pub price: WSSearchItemPrice,
@@ -764,7 +766,9 @@ pub struct BulkItemCache<'a> {
     pub ids: Vec<Uuid>,
     pub country_codes: Vec<&'a CountryCode>,
     pub domain_codes: Vec<&'a CategoryDomain>,
-    pub category_codes: Vec<&'a str>,
+    // pub category_codes: Vec<&'a str>,
+    pub short_descs: Vec<&'a str>,
+    pub long_descs: Vec<&'a str>,
     pub item_ids: Vec<&'a str>,
     pub item_codes: Vec<&'a str>,
     pub item_names: Vec<&'a str>,
@@ -889,4 +893,5 @@ pub struct DBItemCacheData {
     pub provider_ids: Vec<Uuid>,
     pub network_participant_ids: Vec<Uuid>,
     pub variant_ids: Vec<Uuid>,
+    pub item_ids: Vec<Uuid>,
 }

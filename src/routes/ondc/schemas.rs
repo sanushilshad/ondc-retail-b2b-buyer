@@ -1015,8 +1015,8 @@ pub struct ONDCMedia {
 pub struct ONDCOnSearchItemDescriptor {
     pub name: String,
     pub code: Option<String>,
-    short_desc: String,
-    long_desc: String,
+    pub short_desc: String,
+    pub long_desc: String,
     pub images: Vec<ONDCImage>,
     pub media: Option<Vec<ONDCMedia>>,
 }

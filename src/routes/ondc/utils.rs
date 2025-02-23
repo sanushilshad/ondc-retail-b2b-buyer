@@ -1186,6 +1186,8 @@ pub fn get_product_from_on_search_request(
                 let prod_obj = WSSearchItem {
                     id: item.id.clone(),
                     name: item.descriptor.name.clone(),
+                    long_desc: item.descriptor.long_desc.clone(),
+                    short_desc: item.descriptor.short_desc.clone(),
                     code: item.descriptor.code.clone(),
                     domain_category: on_search_obj.context.domain.get_category_domain(),
                     price: get_price_obj_from_ondc_price_obj(&item.price, &tax)?,

@@ -409,6 +409,7 @@ impl CommercePayment {
 #[derive(Deserialize, Debug, ToSchema, sqlx::Type, Serialize, Clone)]
 #[sqlx(type_name = "commerce_fulfillment_status_type")]
 #[sqlx(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
 pub enum FulfillmentStatusType {
     AgentAssigned,
     Packed,

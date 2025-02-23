@@ -10,7 +10,7 @@ use crate::elastic_search_client::{ElasticSearchClient, ElasticSearchIndex};
 use crate::routes::product::models::{ESHyperlocalServicabilityModel, ESProviderLocationModel, ESProviderModel};
 use crate::routes::product::schemas::{FulfillmentType, PaymentType, ProductSearchType};
 use crate::schemas::{CurrencyType, RequestMetaData};
-use super::models::{ESCountryServicabilityModel, ESGeoJsonServicabilityModel, ESInterCityServicabilityModel, ESLocationModel, ESNetworkParticipantModel, ESProviderItemVariantModel, ProductVariantAttributeModel, SearchProviderCredentialModel, WSItemReplacementTermModel, WSItemReturnTermModel, WSPriceSlabModel, WSProductCategoryModel, WSSearchItemAttributeModel, WSSearchProviderContactModel, WSSearchProviderTermsModel};
+use super::models::{ESCountryServicabilityModel, ESGeoJsonServicabilityModel, ESInterCityServicabilityModel, ESLocationModel, ESNetworkParticipantModel, ESProviderItemModel, ESProviderItemVariantModel, ProductVariantAttributeModel, SearchProviderCredentialModel, WSItemReplacementTermModel, WSItemReturnTermModel, WSPriceSlabModel, WSProductCategoryModel, WSSearchItemAttributeModel, WSSearchProviderContactModel, WSSearchProviderTermsModel};
 use super::schemas::{BulkCountryServicabilityCache, BulkGeoServicabilityCache, BulkHyperlocalServicabilityCache, BulkInterCityServicabilityCache, BulkItemCache, BulkItemLocationCache, BulkItemVariantCache, BulkProviderCache, BulkProviderLocationCache, CategoryDomain, DBItemCacheData, ProductSearchRequest, ServicabilityIds, WSSearchBPP, WSSearchData, WSSearchProvider};
 use chrono::{DateTime, Utc};
 use crate::user_client::{BusinessAccount, UserAccount};
@@ -961,7 +961,8 @@ fn create_bulk_items<'a>(providers: &'a Vec<WSSearchProvider>, country_code: &'a
     let mut created_ons = vec![];
     let mut country_codes = vec![];
     let mut domain_codes = vec![];
-    let mut category_codes= vec![];
+    let mut short_descs= vec![];
+        let mut long_descs= vec![];
     let mut item_ids = vec![];
     let mut item_codes = vec![];
     let mut currencies= vec![];
@@ -1000,10 +1001,12 @@ fn create_bulk_items<'a>(providers: &'a Vec<WSSearchProvider>, country_code: &'a
                 provider_ids.push(provider_id);
                 country_codes.push(country_code);
                 domain_codes.push(&item.domain_category);
-                category_codes.push(item.categories.first().map_or("NA", |f|&f.code));
+                // category_codes.push(item.categories.first().map_or("NA", |f|&f.code));
                 item_ids.push(item.id.as_str());
                 item_codes.push(item.id.as_str());
                 item_names.push(item.name.as_str());
+                short_descs.push(item.short_desc.as_str());
+                long_descs.push(item.long_desc.as_str());
                 currencies.push(&item.price.currency);
                 matched.push(item.matched);
                 recommends.push(item.recommended);
@@ -1038,6 +1041,7 @@ fn create_bulk_items<'a>(providers: &'a Vec<WSSearchProvider>, country_code: &'a
                 return_terms.push(json!(return_term_model));
                 let replacement_term: Vec<WSItemReplacementTermModel> = item.replacement_terms.iter().map(|a|a.get_model()).collect();
                 replacement_terms.push(json!(replacement_term));
+                
                 cancellation_terms.push(json!(item.cancellation_terms.get_model()));
                 creators.push(json!(item.creator.get_model()));
                 let category: Vec<WSProductCategoryModel> = item.categories.iter().map(|f|f.get_model()).collect();
@@ -1054,7 +1058,9 @@ fn create_bulk_items<'a>(providers: &'a Vec<WSSearchProvider>, country_code: &'a
         ids,
         country_codes,
         domain_codes,
-        category_codes,
+        // category_codes,
+        short_descs,
+        long_descs,
         item_ids,
         item_codes,
         created_ons,
@@ -1168,7 +1174,7 @@ async fn save_item_location_relationship_cache(transaction: &mut Transaction<'_,
 }
 
 async fn save_item_cache(transaction: &mut Transaction<'_, Postgres>, country_code: &CountryCode, providers:  &Vec<WSSearchProvider>,  provider_map: &HashMap<String, Uuid>, variant_map: &HashMap<String, Uuid>, created_on: DateTime<Utc>) -> Result<HashMap<String, Uuid>, anyhow::Error>{
-    let data = create_bulk_items(providers,country_code, provider_map,variant_map, created_on);
+    let data: BulkItemCache<'_> = create_bulk_items(providers,country_code, provider_map,variant_map, created_on);
     let mut map: HashMap<String, Uuid> = HashMap::new();
     if !data.ids.is_empty() {
         let query = sqlx::query!(
@@ -1177,7 +1183,6 @@ async fn save_item_cache(transaction: &mut Transaction<'_, Postgres>, country_co
                 id,
                 country_code,
                 provider_cache_id,
-                category_code,
                 domain_code,
                 item_code,
                 item_id,
@@ -1207,47 +1212,49 @@ async fn save_item_cache(transaction: &mut Transaction<'_, Postgres>, country_co
                 cancellation_terms,
                 payment_options,
                 created_on,
-                updated_on
+                updated_on,
+                long_desc,
+                short_desc
                 )
                 SELECT 
                 unnest($1::uuid[]),                      
                 unnest($2::country_code_type[]),          
-                unnest($3::uuid[]),                       
-                unnest($4::text[]),                       
-                unnest($5::domain_category_type[]),           
-                unnest($6::text[]),                       
-                unnest($7::text[]),                        
-                unnest($8::text[]),                       
-                unnest($9::currency_code_type[]),         
+                unnest($3::uuid[]),                                            
+                unnest($4::domain_category_type[]),           
+                unnest($5::text[]),                       
+                unnest($6::text[]),                        
+                unnest($7::text[]),                       
+                unnest($8::currency_code_type[]),         
+                unnest($9::decimal[]),                   
                 unnest($10::decimal[]),                   
-                unnest($11::decimal[]),                   
-                unnest($12::decimal[]),                    
-                unnest($13::decimal[]),                  
-                unnest($14::decimal[]),                    
-                unnest($15::uuid[]),                     
-                unnest($16::bool[]),                                           
+                unnest($11::decimal[]),                    
+                unnest($12::decimal[]),                  
+                unnest($13::decimal[]),                    
+                unnest($14::uuid[]),                     
+                unnest($15::bool[]),                                           
+                unnest($16::jsonb[]),                      
                 unnest($17::jsonb[]),                      
-                unnest($18::jsonb[]),                      
-                unnest($19::jsonb[]),                     
-                unnest($20::jsonb[]),                      
-                unnest($21::jsonb[]),                       
-                unnest($22::jsonb[]),                     
-                unnest($23::jsonb[]),                    
-                unnest($24::jsonb[]),                      
-                unnest($25::bool[]),                     
-                unnest($26::text[]),                      
-                unnest($27::country_code_type[]),          
-                unnest($28::jsonb[]),                     
-                unnest($29::jsonb[]),                    
-                unnest($30::jsonb[]),                      
-                unnest($31::jsonb[]),             
-                unnest($32::jsonb[]),                   
-                unnest($33::timestamptz[]),                 
-                unnest($34::timestamptz[])                
+                unnest($18::jsonb[]),                     
+                unnest($19::jsonb[]),                      
+                unnest($20::jsonb[]),                       
+                unnest($21::jsonb[]),                     
+                unnest($22::jsonb[]),                    
+                unnest($23::jsonb[]),                      
+                unnest($24::bool[]),                     
+                unnest($25::text[]),                      
+                unnest($26::country_code_type[]),          
+                unnest($27::jsonb[]),                     
+                unnest($28::jsonb[]),                    
+                unnest($29::jsonb[]),                      
+                unnest($30::jsonb[]),             
+                unnest($31::jsonb[]),                   
+                unnest($32::timestamptz[]),                 
+                unnest($33::timestamptz[]),
+                unnest($34::text[]),
+                unnest($35::text[])                    
                 ON CONFLICT (provider_cache_id, country_code, domain_code, item_id)
                 DO UPDATE SET 
                 updated_on = EXCLUDED.updated_on,
-                category_code = EXCLUDED.category_code,
                 item_code = EXCLUDED.item_code,
                 item_name = EXCLUDED.item_name,
                 currency = EXCLUDED.currency,
@@ -1273,14 +1280,15 @@ async fn save_item_cache(transaction: &mut Transaction<'_, Postgres>, country_co
                 validity = EXCLUDED.validity,
                 replacement_terms = EXCLUDED.replacement_terms,
                 return_terms = EXCLUDED.return_terms,
-                cancellation_terms = EXCLUDED.cancellation_terms
+                cancellation_terms = EXCLUDED.cancellation_terms,
+                long_desc = EXCLUDED.long_desc,
+                short_desc  = EXCLUDED.short_desc
                 RETURNING id, provider_cache_id, item_id;
 
             "#,
             &data.ids,
             &data.country_codes[..] as &[&CountryCode], 
             &data.provider_ids[..] as &[&Uuid], 
-            &data.category_codes[..] as &[&str],
             &data.domain_codes[..] as &[&CategoryDomain],
             &data.item_codes[..] as &[&str], 
             &data.item_ids[..] as &[&str], 
@@ -1310,7 +1318,10 @@ async fn save_item_cache(transaction: &mut Transaction<'_, Postgres>, country_co
             &data.cancellation_terms,
             &data.payment_options,
             &data.created_ons,
-            &data.created_ons
+            &data.created_ons,
+            &data.long_descs as &[&str], 
+            &data.short_descs as &[&str], 
+
         );
 
 
@@ -1360,9 +1371,10 @@ pub async fn save_cache_to_db(transaction: &mut Transaction<'_, Postgres>, count
     let variant_map = save_variant_cache(transaction, &product_objs.providers, &provider_map, created_on).await?;
     let variant_ids = variant_map.values().map(|&id| id).collect();
     let item_map = save_item_cache(transaction, country_code, &product_objs.providers, &provider_map, &variant_map, created_on).await?;
+    let item_ids = item_map.values().map(|&id| id).collect();
     save_item_location_relationship_cache(transaction, &product_objs.providers, &provider_map, &location_map, &item_map, created_on).await?;
 
-    Ok(DBItemCacheData{ servicability_ids: sericability_data, network_participant_ids: vec![id], location_ids, provider_ids, variant_ids})
+    Ok(DBItemCacheData{ servicability_ids: sericability_data, network_participant_ids: vec![id], location_ids, provider_ids, variant_ids, item_ids})
 
 }
 
@@ -1814,7 +1826,107 @@ async fn save_provider_item_variant_to_elastic_search(transaction: &mut Transact
             ]
         })
         .collect();
-        es_client.send(&es_client.get_index(&ElasticSearchIndex::ProviderItemVariant.to_string()), json_values).Cawait?;
+        es_client.send(&es_client.get_index(&ElasticSearchIndex::ProviderItemVariant.to_string()), json_values).await?;
+    }
+    Ok(())
+}
+
+
+
+
+
+
+
+// async fn get_provider_item_cache_data_from_db(
+//     transaction: &mut Transaction<'_, Postgres>,
+//     id_list: Vec<Uuid>,
+// ) -> Result<Vec<ESProviderItemModel>, anyhow::Error> {
+//     let item_data = get_provider_item_cache_data_from_db(transaction, id_list).await?;
+//     let location_item_mapping = get_provider_item_location_mapping_cache_data_from_db(transaction, id_list).await?;
+//     Ok(data)
+// }
+
+
+
+async fn get_provider_item_cache_data_from_db(
+    transaction: &mut Transaction<'_, Postgres>,
+    id_list: Vec<Uuid>,
+) -> Result<Vec<ESProviderItemModel>, anyhow::Error> {
+    let query = sqlx::query_as!(
+        ESProviderItemModel,
+        r#"
+        SELECT 
+            ic.provider_cache_id as provider_cache_id,
+            ic.id as id,
+            ic.country_code  as "country_code:CountryCode",
+            ic.domain_code as "domain_code:CategoryDomain",
+            ic.item_id,
+            ic.item_code,
+            ic.long_desc,
+            ic.short_desc,
+            ic.item_name,
+            ic.currency  as "currency:CurrencyType",
+            ic.price_with_tax,
+            ic.price_without_tax,
+            ic.offered_price,
+            ic.maximum_price,
+            ic.tax_rate,
+            ic.variant_cache_id,
+            ic.recommended,
+            ic.matched,
+            ic.attributes,
+            ic.images,
+            ic.videos,
+            ic.price_slabs,
+            ic.fulfillment_options,
+            ic.payment_options,
+            ic.categories,
+            ic.qty,
+            ic.creator,
+            ic.time_to_ship,
+            ic.country_of_origin,
+            ic.validity,
+            ic.replacement_terms,
+            ic.return_terms,
+            ic.cancellation_terms,
+            ic.created_on,
+            COALESCE(array_agg(DISTINCT ilcr.location_cache_id) FILTER (WHERE ilcr.location_cache_id IS NOT NULL), '{}') 
+            AS location_ids
+        FROM item_cache ic
+        LEFT JOIN item_location_cache_relationship ilcr 
+            ON ic.id = ilcr.item_cache_id
+        WHERE ic.id = ANY($1)
+        GROUP BY ic.id
+        "#,
+        &id_list
+    );
+
+    let data = query.fetch_all(&mut **transaction).await.map_err(|e| {
+        tracing::error!("Failed to execute query: {:?}", e);
+        anyhow::Error::new(e).context("A database failure occurred while fetching provider item data")
+    })?;
+
+    Ok(data) 
+}
+
+
+
+
+async fn save_provider_item_to_elastic_search(transaction: &mut Transaction<'_, Postgres>, es_client: &ElasticSearchClient, id_list: Vec<Uuid>)-> Result<(), anyhow::Error>{
+    if !id_list.is_empty() {
+        let data = get_provider_item_cache_data_from_db(transaction, id_list).await?;
+        let json_values: Vec<JsonBody<_>> = data
+        .into_iter()
+        .flat_map(|record| {
+            let id = record.id.to_string(); 
+            tracing::info!("{:?}", json!(record));
+            vec![
+                json!({"index": { "_index": es_client.get_index(&ElasticSearchIndex::ProviderItem.to_string()), "_id": id }}).into(),
+                json!(record).into(),
+            ]
+        })
+        .collect();
+        es_client.send(&es_client.get_index(&ElasticSearchIndex::ProviderItem.to_string()), json_values).await?;
     }
     Ok(())
 }
@@ -1826,6 +1938,7 @@ async fn save_provider_item_variant_to_elastic_search(transaction: &mut Transact
     save_provider_to_elastic_search(transaction, es_client, data.provider_ids).await?;
     save_location_to_elastic_search(transaction, es_client, data.location_ids).await?;
     save_provider_servicability_to_elastic_search(transaction, es_client, data.servicability_ids).await?;
+    save_provider_item_to_elastic_search(transaction, es_client, data.item_ids).await?;
     save_provider_item_variant_to_elastic_search(transaction, es_client, data.variant_ids).await?;
     Ok(())
 }

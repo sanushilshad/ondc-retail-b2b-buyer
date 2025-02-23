@@ -847,6 +847,8 @@ CREATE TABLE IF NOT EXISTS item_cache (
       id uuid PRIMARY KEY,
       country_code country_code_type NOT NULL,
       provider_cache_id uuid NOT NULL,
+      long_desc TEXT NOT NULL,
+      short_desc TEXT NOT NULL,
       category_code TEXT NOT NULL,
       domain_code domain_category_type NOT NULL,
       item_code TEXT NOT NULL,

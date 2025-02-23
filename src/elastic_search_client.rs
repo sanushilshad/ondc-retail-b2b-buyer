@@ -31,6 +31,7 @@ pub enum ElasticSearchIndex {
     ProviderLocation,
     Provider,
     ProviderItemVariant,
+    ProviderItem,
 }
 
 impl ToString for ElasticSearchIndex {
@@ -59,6 +60,7 @@ impl ToString for ElasticSearchIndex {
             ElasticSearchIndex::Provider => "b2b_retail_seller_provider".to_string(),
 
             ElasticSearchIndex::ProviderItemVariant => "b2b_retail_seller_item_variant".to_string(),
+            ElasticSearchIndex::ProviderItem => "b2b_retail_seller_item".to_string(),
         }
     }
 }
@@ -296,6 +298,180 @@ lazy_static! {
                 }
               }
             ),
+        );
+
+        map.insert(
+            ElasticSearchIndex::ProviderItem,
+            json!(
+              {
+              "mappings": {
+                "dynamic": false,
+                "properties": {
+                  "cancellation_terms": {
+                    "type": "object"
+                  },
+                  "categories": {
+                    "type": "nested",
+                    "properties": {
+                      "code": {
+                        "type": "text",
+                        "fields": {
+                          "keyword": {
+                            "type": "keyword"
+                          }
+                        }
+                      },
+                      "name": {
+                        "type": "text",
+                        "fields": {
+                          "keyword": {
+                            "type": "keyword"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "country_code": {
+                    "type": "text",
+                    "fields": {
+                      "keyword": {
+                        "type": "keyword"
+                      }
+                    }
+                  },
+                  "country_of_origin": {
+                    "type": "text"
+                  },
+                  "created_on": {
+                    "type": "date"
+                  },
+                  "creator": {
+                    "type": "object"
+                  },
+                  "currency": {
+                    "type": "text",
+                    "fields": {
+                      "keyword": {
+                        "type": "keyword"
+                      }
+                    }
+                  },
+                  "domain_code": {
+                    "type": "text",
+                    "fields": {
+                      "keyword": {
+                        "type": "keyword"
+                      }
+                    }
+                  },
+                  "fulfillment_options": {
+                    "type": "keyword"
+                  },
+                  "id": {
+                    "type": "text",
+                    "fields": {
+                      "keyword": {
+                        "type": "keyword"
+                      }
+                    }
+                  },
+                  "images": {
+                    "type": "keyword"
+                  },
+                  "item_code": {
+                    "type": "text",
+                    "fields": {
+                      "keyword": {
+                        "type": "keyword"
+                      }
+                    }
+                  },
+                  "item_id": {
+                    "type": "text",
+                    "fields": {
+                      "keyword": {
+                        "type": "keyword"
+                      }
+                    }
+                  },
+                  "item_name": {
+                    "type": "text",
+                    "fields": {
+                      "keyword": {
+                        "type": "keyword"
+                      }
+                    }
+                  },
+                  "location_ids": {
+                    "type": "keyword"
+                  },
+                  "long_desc": {
+                    "type": "text"
+                  },
+                  "matched": {
+                    "type": "boolean"
+                  },
+                  "maximum_price": {
+                    "type": "float"
+                  },
+                  "payment_options": {
+                    "type": "keyword"
+                  },
+                  "price_slabs": {
+                    "type": "nested",
+                    "properties": {
+                      "max": {
+                        "type": "float"
+                      },
+                      "min": {
+                        "type": "float"
+                      },
+                      "price_with_tax": {
+                        "type": "float"
+                      },
+                      "price_without_tax": {
+                        "type": "float"
+                      }
+                    }
+                  },
+                  "price_with_tax": {
+                    "type": "float"
+                  },
+                  "price_without_tax": {
+                    "type": "float"
+                  },
+                  "provider_cache_id": {
+                    "type": "text",
+                    "fields": {
+                      "keyword": {
+                        "type": "keyword"
+                      }
+                    }
+                  },
+                  "qty": {
+                    "type": "object"
+                  },
+                  "recommended": {
+                    "type": "boolean"
+                  },
+                  "replacement_terms": {
+                    "type": "object"
+                  },
+                  "return_terms": {
+                    "type": "object"
+                  },
+                  "short_desc": {
+                    "type": "text"
+                  },
+                  "tax_rate": {
+                    "type": "text"
+                  },
+                  "time_to_ship": {
+                    "type": "text"
+                  }
+                }
+              }
+            }),
         );
 
         map

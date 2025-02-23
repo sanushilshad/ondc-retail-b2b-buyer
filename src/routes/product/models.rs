@@ -1,6 +1,6 @@
 use crate::{
     routes::{ondc::ONDCItemUOM, order::schemas::FulfillmentStatusType},
-    schemas::{CountryCode, ONDCNetworkType},
+    schemas::{CountryCode, CurrencyType, ONDCNetworkType},
 };
 use bigdecimal::BigDecimal;
 use chrono::{DateTime, Utc};
@@ -290,7 +290,46 @@ pub struct ESProviderItemVariantModel {
     pub variant_id: String,
     pub variant_name: String,
     pub attributes: Value,
-
     pub created_on: DateTime<Utc>,
     pub updated_on: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ESProviderItemModel {
+    pub provider_cache_id: Uuid,
+    pub id: Uuid,
+    pub country_code: CountryCode,
+    pub domain_code: CategoryDomain,
+    pub long_desc: String,
+    pub short_desc: String,
+    pub item_id: String,
+    pub item_code: String,
+    pub item_name: String,
+    pub currency: CurrencyType,
+    pub price_with_tax: BigDecimal,
+    pub price_without_tax: BigDecimal,
+    pub offered_price: Option<BigDecimal>,
+    pub maximum_price: BigDecimal,
+    pub tax_rate: BigDecimal,
+    pub variant_cache_id: Option<Uuid>,
+    pub recommended: bool,
+    pub matched: bool,
+    pub attributes: Value,
+    pub images: Value,
+    pub videos: Value,
+    pub price_slabs: Option<Value>,
+    pub fulfillment_options: Value,
+    pub payment_options: Value,
+    pub categories: Value,
+    pub qty: Value,
+    pub creator: Value,
+    pub time_to_ship: String,
+    pub country_of_origin: Option<String>,
+    pub validity: Value,
+    pub replacement_terms: Value,
+    pub return_terms: Value,
+    pub cancellation_terms: Value,
+    pub created_on: DateTime<Utc>,
+    pub location_ids: Option<Vec<Uuid>>,
 }
