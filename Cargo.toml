@@ -10,7 +10,7 @@ edition = "2021"
 actix = "0.13.5"
 actix-web = "4.9"
 actix-http =  "3.9"
-anyhow = "1.0.95"
+anyhow = "1.0.96"
 argon2 = { version = "0.5", default-features = false, features = ["std"] }
 async-trait = "0.1.86"
 bigdecimal = { version = "0.4.7", default-features = false, features = ["serde"] }

@@ -10,7 +10,7 @@ use crate::elastic_search_client::{ElasticSearchClient, ElasticSearchIndex};
 use crate::routes::product::models::{ESHyperlocalServicabilityModel, ESProviderLocationModel, ESProviderModel};
 use crate::routes::product::schemas::{FulfillmentType, PaymentType, ProductSearchType};
 use crate::schemas::{CurrencyType, RequestMetaData};
-use super::models::{ESCountryServicabilityModel, ESGeoJsonServicabilityModel, ESInterCityServicabilityModel, ESLocationModel, ESNetworkParticipantModel, ProductVariantAttributeModel, SearchProviderCredentialModel, WSItemReplacementTermModel, WSItemReturnTermModel, WSPriceSlabModel, WSProductCategoryModel, WSSearchItemAttributeModel, WSSearchProviderContactModel, WSSearchProviderTermsModel};
+use super::models::{ESCountryServicabilityModel, ESGeoJsonServicabilityModel, ESInterCityServicabilityModel, ESLocationModel, ESNetworkParticipantModel, ESProviderItemVariantModel, ProductVariantAttributeModel, SearchProviderCredentialModel, WSItemReplacementTermModel, WSItemReturnTermModel, WSPriceSlabModel, WSProductCategoryModel, WSSearchItemAttributeModel, WSSearchProviderContactModel, WSSearchProviderTermsModel};
 use super::schemas::{BulkCountryServicabilityCache, BulkGeoServicabilityCache, BulkHyperlocalServicabilityCache, BulkInterCityServicabilityCache, BulkItemCache, BulkItemLocationCache, BulkItemVariantCache, BulkProviderCache, BulkProviderLocationCache, CategoryDomain, DBItemCacheData, ProductSearchRequest, ServicabilityIds, WSSearchBPP, WSSearchData, WSSearchProvider};
 use chrono::{DateTime, Utc};
 use crate::user_client::{BusinessAccount, UserAccount};
@@ -1358,10 +1358,11 @@ pub async fn save_cache_to_db(transaction: &mut Transaction<'_, Postgres>, count
         .await?;
 
     let variant_map = save_variant_cache(transaction, &product_objs.providers, &provider_map, created_on).await?;
+    let variant_ids = variant_map.values().map(|&id| id).collect();
     let item_map = save_item_cache(transaction, country_code, &product_objs.providers, &provider_map, &variant_map, created_on).await?;
     save_item_location_relationship_cache(transaction, &product_objs.providers, &provider_map, &location_map, &item_map, created_on).await?;
 
-    Ok(DBItemCacheData{ servicability_ids: sericability_data, network_participant_ids: vec![id], location_ids, provider_ids})
+    Ok(DBItemCacheData{ servicability_ids: sericability_data, network_participant_ids: vec![id], location_ids, provider_ids, variant_ids})
 
 }
 
@@ -1769,11 +1770,62 @@ async fn save_provider_to_elastic_search(transaction: &mut Transaction<'_, Postg
     Ok(())
 }
 
+async fn get_provider_item_variant_cache_data_from_db(
+    transaction: &mut Transaction<'_, Postgres>,
+    id_list: Vec<Uuid>,
+) -> Result<Vec<ESProviderItemVariantModel>, anyhow::Error> {
+    let query = sqlx::query_as!(
+        ESProviderItemVariantModel,
+        r#"
+        SELECT 
+        id,
+        provider_cache_id, variant_id,
+        variant_name, attributes, 
+        created_on, updated_on
+        FROM item_variant_cache
+        WHERE id = ANY($1)
+        "#,
+        &id_list[..]
+    );
+
+    let data = query.fetch_all(&mut **transaction).await.map_err(|e| {
+        tracing::error!("Failed to execute query: {:?}", e);
+        anyhow::Error::new(e).context("A database failure occurred while fetching provider item variant location data")
+    })?;
+
+
+    Ok(data)
+}
+
+
+
+
+async fn save_provider_item_variant_to_elastic_search(transaction: &mut Transaction<'_, Postgres>, es_client: &ElasticSearchClient, id_list: Vec<Uuid>)-> Result<(), anyhow::Error>{
+    if !id_list.is_empty() {
+        let data = get_provider_item_variant_cache_data_from_db(transaction, id_list).await?;
+        let json_values: Vec<JsonBody<_>> = data
+        .into_iter()
+        .flat_map(|record| {
+            let id = record.id.to_string(); 
+            tracing::info!("{:?}", json!(record));
+            vec![
+                json!({"index": { "_index": es_client.get_index(&ElasticSearchIndex::ProviderItemVariant.to_string()), "_id": id }}).into(),
+                json!(record).into(),
+            ]
+        })
+        .collect();
+        es_client.send(&es_client.get_index(&ElasticSearchIndex::ProviderItemVariant.to_string()), json_values).Cawait?;
+    }
+    Ok(())
+}
+
+
 
  pub async fn save_cache_to_elastic_search(transaction: &mut Transaction<'_, Postgres>, es_client: &ElasticSearchClient, data: DBItemCacheData)-> Result<(), anyhow::Error>{
     save_network_participant_to_elastic_search(transaction, es_client, data.network_participant_ids).await?;
     save_provider_to_elastic_search(transaction, es_client, data.provider_ids).await?;
     save_location_to_elastic_search(transaction, es_client, data.location_ids).await?;
     save_provider_servicability_to_elastic_search(transaction, es_client, data.servicability_ids).await?;
+    save_provider_item_variant_to_elastic_search(transaction, es_client, data.variant_ids).await?;
     Ok(())
 }

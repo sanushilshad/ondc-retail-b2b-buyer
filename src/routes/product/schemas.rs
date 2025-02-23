@@ -888,4 +888,5 @@ pub struct DBItemCacheData {
     pub location_ids: Vec<Uuid>,
     pub provider_ids: Vec<Uuid>,
     pub network_participant_ids: Vec<Uuid>,
+    pub variant_ids: Vec<Uuid>,
 }

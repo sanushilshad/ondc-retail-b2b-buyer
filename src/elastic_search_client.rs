@@ -30,6 +30,7 @@ pub enum ElasticSearchIndex {
     NetworkParticipant,
     ProviderLocation,
     Provider,
+    ProviderItemVariant,
 }
 
 impl ToString for ElasticSearchIndex {
@@ -54,7 +55,10 @@ impl ToString for ElasticSearchIndex {
             ElasticSearchIndex::ProviderLocation => {
                 "b2b_retail_seller_provider_location".to_string()
             }
+
             ElasticSearchIndex::Provider => "b2b_retail_seller_provider".to_string(),
+
+            ElasticSearchIndex::ProviderItemVariant => "b2b_retail_seller_item_variant".to_string(),
         }
     }
 }
@@ -273,6 +277,25 @@ lazy_static! {
                     }
                 }
             }),
+        );
+        map.insert(
+            ElasticSearchIndex::ProviderItemVariant,
+            json!(
+              {
+                "mappings": {
+                  "dynamic": false,
+                  "properties": {
+                    "id": { "type": "keyword" },
+                    "provider_cache_id": { "type": "keyword" },
+                    "variant_id": { "type": "keyword" },
+                    "variant_name": { "type": "keyword" },
+                    "attributes": { "type": "object" },
+                    "created_on": { "type": "date" },
+                    "updated_on": { "type": "date" }
+                  }
+                }
+              }
+            ),
         );
 
         map

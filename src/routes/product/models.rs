@@ -272,12 +272,25 @@ pub struct ESProviderModel {
     pub short_desc: String,
     pub long_desc: String,
     pub images: Value,
-    pub rating: Option<f32>, 
+    pub rating: Option<f32>,
     pub ttl: String,
     pub credentials: Value,
     pub contact: Value,
     pub terms: Value,
     pub identifications: Value,
+    pub created_on: DateTime<Utc>,
+    pub updated_on: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ESProviderItemVariantModel {
+    pub id: Uuid,
+    pub provider_cache_id: Uuid,
+    pub variant_id: String,
+    pub variant_name: String,
+    pub attributes: Value,
+
     pub created_on: DateTime<Utc>,
     pub updated_on: Option<DateTime<Utc>>,
 }
