@@ -2861,6 +2861,10 @@ pub async fn process_on_search(
                         Some(NotificationProcessType::Immediate),
                     )
                     .await;
+                transaction
+                    .commit()
+                    .await
+                    .context("Failed to commit SQL transaction to store save products")?;
             } else {
                 let data = save_cache_to_db(
                     &mut transaction,
@@ -2870,13 +2874,12 @@ pub async fn process_on_search(
                     body.context.timestamp,
                 )
                 .await?;
-
-                save_cache_to_elastic_search(&mut transaction, elastic_search_client, data).await?;
+                transaction
+                    .commit()
+                    .await
+                    .context("Failed to commit SQL transaction to store save products")?;
+                save_cache_to_elastic_search(&pool, elastic_search_client, data).await?;
             }
-            transaction
-                .commit()
-                .await
-                .context("Failed to commit SQL transaction to store save products")?;
         }
     }
     Ok(())

@@ -5,6 +5,7 @@ use bigdecimal::{BigDecimal, ToPrimitive};
 use elasticsearch::http::request::JsonBody;
 use serde_json::{json, Value};
 use sqlx::{PgPool, Postgres, Transaction, Executor};
+use tokio::try_join;
 use uuid::Uuid;
 use crate::elastic_search_client::{ElasticSearchClient, ElasticSearchIndex};
 use crate::routes::product::models::{ESHyperlocalServicabilityModel, ESProviderLocationModel, ESProviderModel};
@@ -1379,7 +1380,7 @@ pub async fn save_cache_to_db(transaction: &mut Transaction<'_, Postgres>, count
 }
 
 async fn get_hyperlocal_cache_data_from_db(
-    transaction: &mut Transaction<'_, Postgres>,
+    pool: &PgPool,
     id_list: Vec<Uuid>,
 ) -> Result<Vec<ESHyperlocalServicabilityModel>, anyhow::Error> {
     let query = sqlx::query!(
@@ -1405,7 +1406,7 @@ async fn get_hyperlocal_cache_data_from_db(
         &id_list[..]
     );
 
-    let data = query.fetch_all(&mut **transaction).await.map_err(|e| {
+    let data = query.fetch_all(pool).await.map_err(|e| {
         tracing::error!("Failed to execute query: {:?}", e);
         anyhow::Error::new(e).context("A database failure occurred while fetching hyperlocal")
     })?;
@@ -1431,14 +1432,13 @@ async fn get_hyperlocal_cache_data_from_db(
     Ok(result)
 }
 
-async fn save_provider_hyperlocal_servicability_cache_to_elastic_search(transaction: &mut Transaction<'_, Postgres> ,es_client: &ElasticSearchClient, id_list: Vec<Uuid>)-> Result<(), anyhow::Error>{
+async fn save_provider_hyperlocal_servicability_cache_to_elastic_search(pool: &PgPool, es_client: &ElasticSearchClient, id_list: Vec<Uuid>)-> Result<(), anyhow::Error>{
     if !id_list.is_empty() {
-        let data = get_hyperlocal_cache_data_from_db(transaction, id_list).await?;
+        let data = get_hyperlocal_cache_data_from_db(pool, id_list).await?;
         let json_values: Vec<JsonBody<_>> = data
         .into_iter()
         .flat_map(|record| {
             let id = record.id.to_string(); 
-            tracing::info!("{:?}", json!(record));
             vec![
                 json!({"index": { "_index": es_client.get_index(&ElasticSearchIndex::ProviderServicabilityHyperLocal.to_string()), "_id": id }}).into(),
                 json!(record).into(),
@@ -1454,7 +1454,7 @@ async fn save_provider_hyperlocal_servicability_cache_to_elastic_search(transact
 
 
 async fn get_country_cache_data_from_db(
-    transaction: &mut Transaction<'_, Postgres>,
+    pool: &PgPool,
     id_list: Vec<Uuid>,
 ) -> Result<Vec<ESCountryServicabilityModel>, anyhow::Error> {
     let query = sqlx::query_as!(
@@ -1479,7 +1479,7 @@ async fn get_country_cache_data_from_db(
         &id_list[..]
     );
 
-    let data = query.fetch_all(&mut **transaction).await.map_err(|e| {
+    let data = query.fetch_all(pool).await.map_err(|e| {
         tracing::error!("Failed to execute query: {:?}", e);
         anyhow::Error::new(e).context("A database failure occurred while fetching country servicability data")
     })?;
@@ -1488,14 +1488,13 @@ async fn get_country_cache_data_from_db(
     Ok(data)
 }
 
-async fn save_provider_country_servicability_cache_to_elastic_search(transaction: &mut Transaction<'_, Postgres> ,es_client: &ElasticSearchClient, id_list: Vec<Uuid>)-> Result<(), anyhow::Error>{
+async fn save_provider_country_servicability_cache_to_elastic_search(pool: &PgPool, es_client: &ElasticSearchClient, id_list: Vec<Uuid>)-> Result<(), anyhow::Error>{
     if !id_list.is_empty() {
-        let data = get_country_cache_data_from_db(transaction, id_list).await?;
+        let data = get_country_cache_data_from_db(pool, id_list).await?;
         let json_values: Vec<JsonBody<_>> = data
         .into_iter()
         .flat_map(|record| {
             let id = record.id.to_string(); 
-            tracing::info!("{:?}", json!(record));
             vec![
                 json!({"index": { "_index": es_client.get_index(&ElasticSearchIndex::ProviderServicabilityCountry.to_string()), "_id": id }}).into(),
                 json!(record).into(),
@@ -1510,7 +1509,7 @@ async fn save_provider_country_servicability_cache_to_elastic_search(transaction
 
 
 async fn get_intercity_cache_data_from_db(
-    transaction: &mut Transaction<'_, Postgres>,
+    pool: &PgPool,
     id_list: Vec<Uuid>,
 ) -> Result<Vec<ESInterCityServicabilityModel>, anyhow::Error> {
     let query = sqlx::query_as!(
@@ -1535,7 +1534,7 @@ async fn get_intercity_cache_data_from_db(
         &id_list[..]
     );
 
-    let data = query.fetch_all(&mut **transaction).await.map_err(|e| {
+    let data = query.fetch_all(pool).await.map_err(|e| {
         tracing::error!("Failed to execute query: {:?}", e);
         anyhow::Error::new(e).context("A database failure occurred while fetching intecity servicability data")
     })?;
@@ -1544,14 +1543,13 @@ async fn get_intercity_cache_data_from_db(
     Ok(data)
 }
 
-async fn save_provider_intercity_servicability_cache_to_elastic_search(transaction: &mut Transaction<'_, Postgres> ,es_client: &ElasticSearchClient, id_list: Vec<Uuid>)-> Result<(), anyhow::Error>{
+async fn save_provider_intercity_servicability_cache_to_elastic_search(pool: &PgPool, es_client: &ElasticSearchClient, id_list: Vec<Uuid>)-> Result<(), anyhow::Error>{
     if !id_list.is_empty() {
-        let data = get_intercity_cache_data_from_db(transaction, id_list).await?;
+        let data = get_intercity_cache_data_from_db(pool, id_list).await?;
         let json_values: Vec<JsonBody<_>> = data
         .into_iter()
         .flat_map(|record| {
             let id = record.id.to_string(); 
-            tracing::info!("{:?}", json!(record));
             vec![
                 json!({"index": { "_index": es_client.get_index(&ElasticSearchIndex::ProviderServicabilityInterCity.to_string()), "_id": id }}).into(),
                 json!(record).into(),
@@ -1566,7 +1564,7 @@ async fn save_provider_intercity_servicability_cache_to_elastic_search(transacti
 
 
 async fn get_geo_json_cache_data_from_db(
-    transaction: &mut Transaction<'_, Postgres>,
+    pool: &PgPool,
     id_list: Vec<Uuid>,
 ) -> Result<Vec<ESGeoJsonServicabilityModel>, anyhow::Error> {
     let query = sqlx::query_as!(
@@ -1591,7 +1589,7 @@ async fn get_geo_json_cache_data_from_db(
         &id_list[..]
     );
 
-    let data = query.fetch_all(&mut **transaction).await.map_err(|e| {
+    let data = query.fetch_all(pool).await.map_err(|e| {
         tracing::error!("Failed to execute query: {:?}", e);
         anyhow::Error::new(e).context("A database failure occurred while fetching geo_json servicability data")
     })?;
@@ -1601,14 +1599,13 @@ async fn get_geo_json_cache_data_from_db(
 }
 
 
-async fn save_provider_geo_json_servicability_cache_to_elastic_search(transaction: &mut Transaction<'_, Postgres> ,es_client: &ElasticSearchClient, id_list: Vec<Uuid>)-> Result<(), anyhow::Error>{
+async fn save_provider_geo_json_servicability_cache_to_elastic_search(pool: &PgPool, es_client: &ElasticSearchClient, id_list: Vec<Uuid>)-> Result<(), anyhow::Error>{
     if !id_list.is_empty() {
-        let data = get_geo_json_cache_data_from_db(transaction, id_list).await?;
+        let data = get_geo_json_cache_data_from_db(pool, id_list).await?;
         let json_values: Vec<JsonBody<_>> = data
         .into_iter()
         .flat_map(|record| {
             let id = record.id.to_string(); 
-            tracing::info!("{:?}", json!(record));
             vec![
                 json!({"index": { "_index": es_client.get_index(&ElasticSearchIndex::ProviderServicabilityGeoJson.to_string()), "_id": id }}).into(),
                 json!(record).into(),
@@ -1622,17 +1619,17 @@ async fn save_provider_geo_json_servicability_cache_to_elastic_search(transactio
 }
 
 
-async fn save_provider_servicability_to_elastic_search(transaction: &mut Transaction<'_, Postgres>, es_client: &ElasticSearchClient, data: ServicabilityIds)-> Result<(), anyhow::Error>{
-    save_provider_hyperlocal_servicability_cache_to_elastic_search(transaction, es_client, data.hyperlocal).await?;
-    save_provider_country_servicability_cache_to_elastic_search(transaction, es_client, data.country).await?;
-    save_provider_intercity_servicability_cache_to_elastic_search(transaction, es_client, data.inter_city).await?;
-    save_provider_geo_json_servicability_cache_to_elastic_search(transaction, es_client, data.geo_json).await?;
+async fn save_provider_servicability_to_elastic_search(pool: &PgPool, es_client: &ElasticSearchClient, data: ServicabilityIds)-> Result<(), anyhow::Error>{
+    save_provider_hyperlocal_servicability_cache_to_elastic_search(pool, es_client, data.hyperlocal).await?;
+    save_provider_country_servicability_cache_to_elastic_search(pool, es_client, data.country).await?;
+    save_provider_intercity_servicability_cache_to_elastic_search(pool, es_client, data.inter_city).await?;
+    save_provider_geo_json_servicability_cache_to_elastic_search(pool, es_client, data.geo_json).await?;
     Ok(())
 }
 
 
 async fn get_network_participant_cache_data_from_db(
-    transaction: &mut Transaction<'_, Postgres>,
+    pool: &PgPool,
     id_list: Vec<Uuid>,
 ) -> Result<Vec<ESNetworkParticipantModel>, anyhow::Error> {
     let query = sqlx::query_as!(
@@ -1644,7 +1641,7 @@ async fn get_network_participant_cache_data_from_db(
         &id_list[..]
     );
 
-    let data = query.fetch_all(&mut **transaction).await.map_err(|e| {
+    let data = query.fetch_all(pool).await.map_err(|e| {
         tracing::error!("Failed to execute query: {:?}", e);
         anyhow::Error::new(e).context("A database failure occurred while fetching network participant data")
     })?;
@@ -1654,14 +1651,13 @@ async fn get_network_participant_cache_data_from_db(
 }
 
 
-async fn save_network_participant_to_elastic_search(transaction: &mut Transaction<'_, Postgres>, es_client: &ElasticSearchClient, id_list: Vec<Uuid>)-> Result<(), anyhow::Error>{
+async fn save_network_participant_to_elastic_search(pool: &PgPool, es_client: &ElasticSearchClient, id_list: Vec<Uuid>)-> Result<(), anyhow::Error>{
     if !id_list.is_empty() {
-        let data = get_network_participant_cache_data_from_db(transaction, id_list).await?;
+        let data = get_network_participant_cache_data_from_db(pool, id_list).await?;
         let json_values: Vec<JsonBody<_>> = data
         .into_iter()
         .flat_map(|record| {
             let id = record.id.to_string(); 
-            tracing::info!("{:?}", json!(record));
             vec![
                 json!({"index": { "_index": es_client.get_index(&ElasticSearchIndex::NetworkParticipant.to_string()), "_id": id }}).into(),
                 json!(record).into(),
@@ -1675,7 +1671,7 @@ async fn save_network_participant_to_elastic_search(transaction: &mut Transactio
 
 
 async fn get_provider_location_cache_data_from_db(
-    transaction: &mut Transaction<'_, Postgres>,
+    pool: &PgPool,
     id_list: Vec<Uuid>,
 ) -> Result<Vec<ESProviderLocationModel>, anyhow::Error> {
     let query = sqlx::query_as!(
@@ -1703,7 +1699,7 @@ async fn get_provider_location_cache_data_from_db(
         &id_list[..]
     );
 
-    let data = query.fetch_all(&mut **transaction).await.map_err(|e| {
+    let data = query.fetch_all(pool).await.map_err(|e| {
         tracing::error!("Failed to execute query: {:?}", e);
         anyhow::Error::new(e).context("A database failure occurred while fetching provider location data")
     })?;
@@ -1714,14 +1710,13 @@ async fn get_provider_location_cache_data_from_db(
 
 
 
-async fn save_location_to_elastic_search(transaction: &mut Transaction<'_, Postgres>, es_client: &ElasticSearchClient, id_list: Vec<Uuid>)-> Result<(), anyhow::Error>{
+async fn save_location_to_elastic_search(pool: &PgPool, es_client: &ElasticSearchClient, id_list: Vec<Uuid>)-> Result<(), anyhow::Error>{
     if !id_list.is_empty() {
-        let data = get_provider_location_cache_data_from_db(transaction, id_list).await?;
+        let data = get_provider_location_cache_data_from_db(pool, id_list).await?;
         let json_values: Vec<JsonBody<_>> = data
         .into_iter()
         .flat_map(|record| {
             let id = record.id.to_string(); 
-            tracing::info!("{:?}", json!(record));
             vec![
                 json!({"index": { "_index": es_client.get_index(&ElasticSearchIndex::ProviderLocation.to_string()), "_id": id }}).into(),
                 json!(record).into(),
@@ -1736,7 +1731,7 @@ async fn save_location_to_elastic_search(transaction: &mut Transaction<'_, Postg
 
 
 async fn get_provider_cache_data_from_db(
-    transaction: &mut Transaction<'_, Postgres>,
+    pool: &PgPool,
     id_list: Vec<Uuid>,
 ) -> Result<Vec<ESProviderModel>, anyhow::Error> {
     let query = sqlx::query_as!(
@@ -1753,7 +1748,7 @@ async fn get_provider_cache_data_from_db(
         &id_list[..]
     );
 
-    let data = query.fetch_all(&mut **transaction).await.map_err(|e| {
+    let data = query.fetch_all(pool).await.map_err(|e| {
         tracing::error!("Failed to execute query: {:?}", e);
         anyhow::Error::new(e).context("A database failure occurred while fetching provider location data")
     })?;
@@ -1763,14 +1758,13 @@ async fn get_provider_cache_data_from_db(
 }
 
 
-async fn save_provider_to_elastic_search(transaction: &mut Transaction<'_, Postgres>, es_client: &ElasticSearchClient, id_list: Vec<Uuid>)-> Result<(), anyhow::Error>{
+async fn save_provider_to_elastic_search(pool: &PgPool, es_client: &ElasticSearchClient, id_list: Vec<Uuid>)-> Result<(), anyhow::Error>{
     if !id_list.is_empty() {
-        let data = get_provider_cache_data_from_db(transaction, id_list).await?;
+        let data = get_provider_cache_data_from_db(pool, id_list).await?;
         let json_values: Vec<JsonBody<_>> = data
         .into_iter()
         .flat_map(|record| {
             let id = record.id.to_string(); 
-            tracing::info!("{:?}", json!(record));
             vec![
                 json!({"index": { "_index": es_client.get_index(&ElasticSearchIndex::Provider.to_string()), "_id": id }}).into(),
                 json!(record).into(),
@@ -1783,7 +1777,7 @@ async fn save_provider_to_elastic_search(transaction: &mut Transaction<'_, Postg
 }
 
 async fn get_provider_item_variant_cache_data_from_db(
-    transaction: &mut Transaction<'_, Postgres>,
+    pool: &PgPool,
     id_list: Vec<Uuid>,
 ) -> Result<Vec<ESProviderItemVariantModel>, anyhow::Error> {
     let query = sqlx::query_as!(
@@ -1800,7 +1794,7 @@ async fn get_provider_item_variant_cache_data_from_db(
         &id_list[..]
     );
 
-    let data = query.fetch_all(&mut **transaction).await.map_err(|e| {
+    let data = query.fetch_all(pool).await.map_err(|e| {
         tracing::error!("Failed to execute query: {:?}", e);
         anyhow::Error::new(e).context("A database failure occurred while fetching provider item variant location data")
     })?;
@@ -1812,14 +1806,13 @@ async fn get_provider_item_variant_cache_data_from_db(
 
 
 
-async fn save_provider_item_variant_to_elastic_search(transaction: &mut Transaction<'_, Postgres>, es_client: &ElasticSearchClient, id_list: Vec<Uuid>)-> Result<(), anyhow::Error>{
+async fn save_provider_item_variant_to_elastic_search(pool: &PgPool, es_client: &ElasticSearchClient, id_list: Vec<Uuid>)-> Result<(), anyhow::Error>{
     if !id_list.is_empty() {
-        let data = get_provider_item_variant_cache_data_from_db(transaction, id_list).await?;
+        let data = get_provider_item_variant_cache_data_from_db(pool, id_list).await?;
         let json_values: Vec<JsonBody<_>> = data
         .into_iter()
         .flat_map(|record| {
             let id = record.id.to_string(); 
-            tracing::info!("{:?}", json!(record));
             vec![
                 json!({"index": { "_index": es_client.get_index(&ElasticSearchIndex::ProviderItemVariant.to_string()), "_id": id }}).into(),
                 json!(record).into(),
@@ -1849,7 +1842,7 @@ async fn save_provider_item_variant_to_elastic_search(transaction: &mut Transact
 
 
 async fn get_provider_item_cache_data_from_db(
-    transaction: &mut Transaction<'_, Postgres>,
+    pool: &PgPool,
     id_list: Vec<Uuid>,
 ) -> Result<Vec<ESProviderItemModel>, anyhow::Error> {
     let query = sqlx::query_as!(
@@ -1901,7 +1894,7 @@ async fn get_provider_item_cache_data_from_db(
         &id_list
     );
 
-    let data = query.fetch_all(&mut **transaction).await.map_err(|e| {
+    let data = query.fetch_all(pool).await.map_err(|e| {
         tracing::error!("Failed to execute query: {:?}", e);
         anyhow::Error::new(e).context("A database failure occurred while fetching provider item data")
     })?;
@@ -1912,14 +1905,13 @@ async fn get_provider_item_cache_data_from_db(
 
 
 
-async fn save_provider_item_to_elastic_search(transaction: &mut Transaction<'_, Postgres>, es_client: &ElasticSearchClient, id_list: Vec<Uuid>)-> Result<(), anyhow::Error>{
+async fn save_provider_item_to_elastic_search(pool: &PgPool, es_client: &ElasticSearchClient, id_list: Vec<Uuid>)-> Result<(), anyhow::Error>{
     if !id_list.is_empty() {
-        let data = get_provider_item_cache_data_from_db(transaction, id_list).await?;
+        let data = get_provider_item_cache_data_from_db(pool, id_list).await?;
         let json_values: Vec<JsonBody<_>> = data
         .into_iter()
         .flat_map(|record| {
             let id = record.id.to_string(); 
-            tracing::info!("{:?}", json!(record));
             vec![
                 json!({"index": { "_index": es_client.get_index(&ElasticSearchIndex::ProviderItem.to_string()), "_id": id }}).into(),
                 json!(record).into(),
@@ -1933,12 +1925,15 @@ async fn save_provider_item_to_elastic_search(transaction: &mut Transaction<'_, 
 
 
 
- pub async fn save_cache_to_elastic_search(transaction: &mut Transaction<'_, Postgres>, es_client: &ElasticSearchClient, data: DBItemCacheData)-> Result<(), anyhow::Error>{
-    save_network_participant_to_elastic_search(transaction, es_client, data.network_participant_ids).await?;
-    save_provider_to_elastic_search(transaction, es_client, data.provider_ids).await?;
-    save_location_to_elastic_search(transaction, es_client, data.location_ids).await?;
-    save_provider_servicability_to_elastic_search(transaction, es_client, data.servicability_ids).await?;
-    save_provider_item_to_elastic_search(transaction, es_client, data.item_ids).await?;
-    save_provider_item_variant_to_elastic_search(transaction, es_client, data.variant_ids).await?;
+ pub async fn save_cache_to_elastic_search(pool: &PgPool, es_client: &ElasticSearchClient, data: DBItemCacheData)-> Result<(), anyhow::Error>{
+    try_join!(
+        save_network_participant_to_elastic_search(pool, es_client, data.network_participant_ids),
+        save_provider_to_elastic_search(pool, es_client, data.provider_ids),
+        save_location_to_elastic_search(pool, es_client, data.location_ids),
+        save_provider_servicability_to_elastic_search(pool, es_client, data.servicability_ids),
+        save_provider_item_to_elastic_search(pool, es_client, data.item_ids),
+        save_provider_item_variant_to_elastic_search(pool, es_client, data.variant_ids),
+    )?;
+
     Ok(())
 }
