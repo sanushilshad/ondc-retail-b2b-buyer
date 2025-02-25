@@ -2,9 +2,13 @@ use actix_http::StatusCode;
 use actix_web::{web, HttpResponse};
 use utoipa::TupleUnit;
 // use anyhow::Context;
-use super::schemas::{MinimalItemData, ProductList, ProductSearchRequest, WSSearch};
-use super::utils::save_search_request;
+use super::schemas::{
+    MinimalItemData, NetworkParticipantListReq, ProductList, ProductSearchRequest, WSSearch,
+    WSSearchBPP,
+};
+use super::utils::{get_network_participant_from_es, save_search_request};
 use crate::configuration::ONDCConfig;
+use crate::elastic_search_client::ElasticSearchClient;
 use crate::errors::GenericError;
 use crate::routes::ondc::utils::{get_ondc_search_payload, send_ondc_payload};
 use crate::routes::ondc::ONDCActionType;
@@ -167,5 +171,42 @@ pub async fn cached_product_list(
         "Successfully Fetched Product list",
         StatusCode::OK,
         Some(vec![_data]),
+    )))
+}
+
+#[utoipa::path(
+    post,
+    path = "/product/network_participant/",
+    tag = "Product",
+    description="This API is used for listing all Network participants.",
+    summary= "Network Participant list API",
+    request_body(content = NetworkParticipantListReq, description = "Request Body"),
+    responses(
+        (status=200, description= "Realtime Product Search", body= GenericResponse<Vec<WSSearchBPP>>),
+        (status=400, description= "Invalid Request body", body= GenericResponse<TupleUnit>),
+        (status=401, description= "Invalid Token", body= GenericResponse<TupleUnit>),
+        (status=500, description= "Internal Server Error", body= GenericResponse<TupleUnit>),
+	    (status=501, description= "Not Implemented", body= GenericResponse<TupleUnit>)
+    )
+)]
+#[tracing::instrument(name = "Cache Network Participant List API", skip(), fields())]
+#[allow(unreachable_code)]
+pub async fn cached_network_participant_list(
+    body: NetworkParticipantListReq,
+    user_account: UserAccount,
+    es_client: web::Data<ElasticSearchClient>,
+    business_account: BusinessAccount,
+) -> Result<web::Json<GenericResponse<Vec<WSSearchBPP>>>, GenericError> {
+    let data = get_network_participant_from_es(&es_client, body)
+        .await
+        .map_err(GenericError::UnexpectedError)?;
+    let final_data = data.map_or_else(Vec::new, |models| {
+        models.into_iter().map(|a| a.get_ws_bpp()).collect()
+    });
+
+    Ok(web::Json(GenericResponse::success(
+        "Successfully Fetched network participants.",
+        StatusCode::OK,
+        Some(final_data),
     )))
 }

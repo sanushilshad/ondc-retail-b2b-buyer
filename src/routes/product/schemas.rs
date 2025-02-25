@@ -895,3 +895,30 @@ pub struct DBItemCacheData {
     pub variant_ids: Vec<Uuid>,
     pub item_ids: Vec<Uuid>,
 }
+
+#[derive(Deserialize, Debug, ToSchema)]
+#[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
+pub struct NetworkParticipantListReq {
+    pub query: String,
+    pub domain_category_code: Option<CategoryDomain>,
+    pub country_code: Option<CountryCode>,
+    pub fulfillment_location: Option<ProductFulFillmentLocation>,
+    pub category_code: Option<String>,
+}
+
+impl FromRequest for NetworkParticipantListReq {
+    type Error = GenericError;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
+
+    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+        let fut = web::Json::<Self>::from_request(req, payload);
+
+        Box::pin(async move {
+            match fut.await {
+                Ok(json) => Ok(json.into_inner()),
+                Err(e) => Err(GenericError::ValidationError(e.to_string())),
+            }
+        })
+    }
+}

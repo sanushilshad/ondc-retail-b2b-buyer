@@ -9,7 +9,7 @@ use serde_json::Value;
 use serde_with::skip_serializing_none;
 use uuid::Uuid;
 
-use super::schemas::{CategoryDomain, CredentialType, PaymentType};
+use super::schemas::{CategoryDomain, CredentialType, PaymentType, WSSearchBPP};
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct WSSearchProviderContactModel {
@@ -237,8 +237,20 @@ pub struct ESNetworkParticipantModel {
     pub name: String,
     pub short_desc: String,
     pub long_desc: String,
-    pub images: Value,
+    pub images: sqlx::types::Json<Vec<String>>,
     pub created_on: DateTime<Utc>,
+}
+impl ESNetworkParticipantModel {
+    pub fn get_ws_bpp(self) -> WSSearchBPP {
+        WSSearchBPP {
+            name: self.name,
+            code: None,
+            subscriber_id: self.subscriber_id,
+            short_desc: self.short_desc,
+            long_desc: self.long_desc,
+            images: self.images.to_vec(),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]

@@ -1,22 +1,24 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 
 use bigdecimal::{BigDecimal, ToPrimitive};
 use elasticsearch::http::request::JsonBody;
+use futures::future::{join_all};
 use serde_json::{json, Value};
-use sqlx::{PgPool, Postgres, Transaction, Executor};
+use sqlx::{PgPool, Postgres, Transaction, Executor, types::Json};
 use tokio::try_join;
+
 use uuid::Uuid;
 use crate::elastic_search_client::{ElasticSearchClient, ElasticSearchIndex};
 use crate::routes::product::models::{ESHyperlocalServicabilityModel, ESProviderLocationModel, ESProviderModel};
 use crate::routes::product::schemas::{FulfillmentType, PaymentType, ProductSearchType};
 use crate::schemas::{CurrencyType, RequestMetaData};
 use super::models::{ESCountryServicabilityModel, ESGeoJsonServicabilityModel, ESInterCityServicabilityModel, ESLocationModel, ESNetworkParticipantModel, ESProviderItemModel, ESProviderItemVariantModel, ProductVariantAttributeModel, SearchProviderCredentialModel, WSItemReplacementTermModel, WSItemReturnTermModel, WSPriceSlabModel, WSProductCategoryModel, WSSearchItemAttributeModel, WSSearchProviderContactModel, WSSearchProviderTermsModel};
-use super::schemas::{BulkCountryServicabilityCache, BulkGeoServicabilityCache, BulkHyperlocalServicabilityCache, BulkInterCityServicabilityCache, BulkItemCache, BulkItemLocationCache, BulkItemVariantCache, BulkProviderCache, BulkProviderLocationCache, CategoryDomain, DBItemCacheData, ProductSearchRequest, ServicabilityIds, WSSearchBPP, WSSearchData, WSSearchProvider};
+use super::schemas::{BulkCountryServicabilityCache, BulkGeoServicabilityCache, BulkHyperlocalServicabilityCache, BulkInterCityServicabilityCache, BulkItemCache, BulkItemLocationCache, BulkItemVariantCache, BulkProviderCache, BulkProviderLocationCache, CategoryDomain, DBItemCacheData, NetworkParticipantListReq, ProductFulFillmentLocation, ProductSearchRequest, ServicabilityIds, WSSearchBPP, WSSearchData, WSSearchProvider};
 use chrono::{DateTime, Utc};
 use crate::user_client::{BusinessAccount, UserAccount};
 use crate::schemas::CountryCode;
-
+use anyhow::anyhow;
 #[tracing::instrument(name = "Save Product Search Request", skip(pool))]
 pub async fn save_search_request(
     pool: &PgPool,
@@ -207,7 +209,6 @@ async fn save_provider_cache(
         .await
         .map_err(|e| {
             tracing::error!("Failed to execute query: {:?}", e);
-            println!("sanu{:?}",  &data.credentials);
             anyhow::Error::new(e)
                 .context("A database failure occurred while saving provider cache")
         })?;
@@ -1364,15 +1365,15 @@ pub async fn save_cache_to_db(transaction: &mut Transaction<'_, Postgres>, count
         created_on,
     )
     .await?;
-    let location_ids = location_map.values().map(|&id| id).collect();
-    let provider_ids = provider_map.values().map(|&id| id).collect();
+    let location_ids = location_map.values().copied().collect();
+    let provider_ids = provider_map.values().copied().collect();
     let sericability_data = save_provider_location_servicability_cache(transaction, &product_objs.providers, domain, &location_map, &provider_map, created_on)
         .await?;
 
     let variant_map = save_variant_cache(transaction, &product_objs.providers, &provider_map, created_on).await?;
-    let variant_ids = variant_map.values().map(|&id| id).collect();
+    let variant_ids = variant_map.values().copied().collect();
     let item_map = save_item_cache(transaction, country_code, &product_objs.providers, &provider_map, &variant_map, created_on).await?;
-    let item_ids = item_map.values().map(|&id| id).collect();
+    let item_ids = item_map.values().copied().collect();
     save_item_location_relationship_cache(transaction, &product_objs.providers, &provider_map, &location_map, &item_map, created_on).await?;
 
     Ok(DBItemCacheData{ servicability_ids: sericability_data, network_participant_ids: vec![id], location_ids, provider_ids, variant_ids, item_ids})
@@ -1445,7 +1446,7 @@ async fn save_provider_hyperlocal_servicability_cache_to_elastic_search(pool: &P
             ]
         })
         .collect();
-        es_client.send(&es_client.get_index(&ElasticSearchIndex::ProviderServicabilityHyperLocal.to_string()), json_values).await?;
+        es_client.add(ElasticSearchIndex::ProviderServicabilityHyperLocal, json_values).await?;
     }
 
     Ok(())
@@ -1501,7 +1502,7 @@ async fn save_provider_country_servicability_cache_to_elastic_search(pool: &PgPo
             ]
         })
         .collect();
-        es_client.send(&es_client.get_index(&ElasticSearchIndex::ProviderServicabilityCountry.to_string()), json_values).await?;
+        es_client.add(ElasticSearchIndex::ProviderServicabilityCountry, json_values).await?;
     }
 
     Ok(())
@@ -1556,7 +1557,7 @@ async fn save_provider_intercity_servicability_cache_to_elastic_search(pool: &Pg
             ]
         })
         .collect();
-        es_client.send(&es_client.get_index(&ElasticSearchIndex::ProviderServicabilityInterCity.to_string()), json_values).await?;
+        es_client.add(ElasticSearchIndex::ProviderServicabilityInterCity, json_values).await?;
     }
 
     Ok(())
@@ -1612,7 +1613,7 @@ async fn save_provider_geo_json_servicability_cache_to_elastic_search(pool: &PgP
             ]
         })
         .collect();
-        es_client.send(&es_client.get_index(&ElasticSearchIndex::ProviderServicabilityGeoJson.to_string()), json_values).await?;
+        es_client.add(ElasticSearchIndex::ProviderServicabilityGeoJson, json_values).await?;
     }
 
     Ok(())
@@ -1635,7 +1636,7 @@ async fn get_network_participant_cache_data_from_db(
     let query = sqlx::query_as!(
         ESNetworkParticipantModel,
         r#"
-        SELECT id, subscriber_id, name, short_desc, long_desc, images, created_on FROM network_participant_cache
+        SELECT id, subscriber_id, name, short_desc, long_desc, images as "images: Json<Vec<String>>", created_on FROM network_participant_cache
         WHERE id = ANY($1)
         "#,
         &id_list[..]
@@ -1664,7 +1665,7 @@ async fn save_network_participant_to_elastic_search(pool: &PgPool, es_client: &E
             ]
         })
         .collect();
-        es_client.send(&es_client.get_index(&ElasticSearchIndex::NetworkParticipant.to_string()), json_values).await?;
+        es_client.add(ElasticSearchIndex::NetworkParticipant, json_values).await?;
     }
     Ok(())
 }
@@ -1723,7 +1724,7 @@ async fn save_location_to_elastic_search(pool: &PgPool, es_client: &ElasticSearc
             ]
         })
         .collect();
-        es_client.send(&es_client.get_index(&ElasticSearchIndex::ProviderLocation.to_string()), json_values).await?;
+        es_client.add(ElasticSearchIndex::ProviderLocation, json_values).await?;
     }
     Ok(())
 }
@@ -1771,7 +1772,7 @@ async fn save_provider_to_elastic_search(pool: &PgPool, es_client: &ElasticSearc
             ]
         })
         .collect();
-        es_client.send(&es_client.get_index(&ElasticSearchIndex::Provider.to_string()), json_values).await?;
+        es_client.add(ElasticSearchIndex::Provider, json_values).await?;
     }
     Ok(())
 }
@@ -1819,7 +1820,7 @@ async fn save_provider_item_variant_to_elastic_search(pool: &PgPool, es_client: 
             ]
         })
         .collect();
-        es_client.send(&es_client.get_index(&ElasticSearchIndex::ProviderItemVariant.to_string()), json_values).await?;
+        es_client.add(ElasticSearchIndex::ProviderItemVariant, json_values).await?;
     }
     Ok(())
 }
@@ -1918,7 +1919,7 @@ async fn save_provider_item_to_elastic_search(pool: &PgPool, es_client: &Elastic
             ]
         })
         .collect();
-        es_client.send(&es_client.get_index(&ElasticSearchIndex::ProviderItem.to_string()), json_values).await?;
+        es_client.add(ElasticSearchIndex::ProviderItem, json_values).await?;
     }
     Ok(())
 }
@@ -1936,4 +1937,170 @@ async fn save_provider_item_to_elastic_search(pool: &PgPool, es_client: &Elastic
     )?;
 
     Ok(())
+}
+
+
+async fn get_servicable_network_participant_ids(es_client: &ElasticSearchClient, domain_category_code: &Option<CategoryDomain>, country_code: &Option<CountryCode>,category_code: &Option<String>, fulfillment_location: &Option<ProductFulFillmentLocation>)-> Result<Vec<Uuid>, anyhow::Error>{
+    let mut tasks =vec![];
+    let mut base_query = json!({
+        "size": 0, 
+        "aggs": {
+            "distinct_subscriber_ids": {
+                "terms": {
+                    "field": "network_participant_cache_id"
+                }
+            }
+        },
+        "query": {
+            "bool": {
+                "must": [
+                    { "term": { "domain_code": domain_category_code } }
+                    ]
+                }
+            }
+        });
+    if let Some(category_code) = category_code {
+        if let Some(must_clause) = base_query["query"]["bool"]["must"].as_array_mut() {
+            must_clause.push(json!({ "term": { "category_code": category_code } }));
+        }
+    }
+    if let Some(fulfillment_location) = fulfillment_location{
+        let mut intecity_query = base_query.clone();
+        if let Some(must_clause) = intecity_query["query"]["bool"]["must"].as_array_mut() {
+            must_clause.push(json!({ "term": { "pincode": fulfillment_location.area_code } }));
+            tasks.push(es_client
+        .fetch(intecity_query, ElasticSearchIndex::ProviderServicabilityInterCity))
+        }
+        let mut geo_json_query = base_query.clone();
+        if let Some(must_clause) = geo_json_query["query"]["bool"]["must"].as_array_mut() {
+            must_clause.push(json!({
+                "geo_shape": {
+                    "coordinates": {
+                        "shape": {
+                            "type": "Point",
+                            "coordinates": [fulfillment_location.longitude, fulfillment_location.latitude]
+                        },
+                        // "relation": "intersect"
+                    }
+                }
+            }));
+        }
+        tasks.push(es_client.fetch(
+            geo_json_query.clone(),
+            ElasticSearchIndex::ProviderServicabilityGeoJson
+        ));
+
+
+        let mut hyperlocal_query = base_query.clone();
+            if let Some(must_clause) = hyperlocal_query["query"]["bool"]["must"].as_array_mut() {
+                must_clause.push(json!({
+                    "script": {
+                        "script": {
+                            "source": "doc['location'].arcDistance(params.lat, params.lon) <= doc['radius'].value",
+                            "params": {
+                                "lat": fulfillment_location.latitude,
+                                "lon": fulfillment_location.longitude
+                            }
+                        }
+                    }
+                }));
+            }
+            tasks.push(es_client.fetch(hyperlocal_query, ElasticSearchIndex::ProviderServicabilityHyperLocal));
+
+            
+
+    }
+
+    if let Some(cc) = country_code {
+        let mut country_query = base_query.clone();
+        if let Some(must_clause) = country_query["query"]["bool"]["must"].as_array_mut() {
+            must_clause.push(json!({ "term": { "country_code": cc } }));
+                        tasks.push(es_client
+        .fetch(country_query, ElasticSearchIndex::ProviderServicabilityCountry))
+        }
+    }
+    
+     let responses= join_all(tasks).await.into_iter().collect::<Result<Vec<_>, _>>()?;
+
+    // Function to extract unique IDs
+    fn extract_unique_ids(response: &serde_json::Value) -> HashSet<Uuid> {
+        let mut unique_ids = HashSet::new();
+        if let Some(buckets) = response["aggregations"]["distinct_subscriber_ids"]["buckets"].as_array() {
+            for bucket in buckets {
+                if let Some(key) = bucket["key"].as_str() {
+                    if let Ok(uuid) = Uuid::parse_str(key) {
+                        unique_ids.insert(uuid);
+                    }
+                }
+            }
+        }
+        unique_ids
+    }
+
+
+    let unique_ids: HashSet<Uuid> = responses.iter().flat_map(extract_unique_ids).collect();
+
+    Ok(unique_ids.into_iter().collect())
+
+}
+
+
+pub async fn get_network_participant_from_es(es_client: &ElasticSearchClient, body: NetworkParticipantListReq) ->Result<Option<Vec<ESNetworkParticipantModel>>, anyhow::Error>{
+        let mut base_query = json!({
+        "query": {
+            "bool": {
+                "must": []
+            }
+        }
+    });
+    if !body.query.trim().is_empty() {
+        let multi_match_query = json!({
+            "multi_match": {
+                "query": body.query,
+                "fields": ["name", "short_desc", "long_desc"]
+            }
+        });
+
+        base_query["query"]["bool"]["must"]
+            .as_array_mut()
+            .unwrap()
+            .push(multi_match_query);
+    }
+    if body.domain_category_code.is_some() || body.country_code.is_some() || body.category_code.is_some() || body.fulfillment_location.is_some(){
+        let network_participant_ids = get_servicable_network_participant_ids(es_client, &body.domain_category_code, &body.country_code,&body.category_code, &body.fulfillment_location).await?;
+        let terms_filter = json!({
+            "terms": {
+                "id": network_participant_ids
+            }
+        });
+
+            base_query["query"]["bool"]
+                .as_object_mut()
+                .unwrap()
+                .entry("filter")
+                .or_insert_with(|| json!([]))
+                .as_array_mut()
+                .unwrap()
+                .push(terms_filter);
+            print!("apple{:?}",base_query);
+        // let query_obj = base_query["query
+    }
+
+    
+    let data = es_client
+        .fetch(base_query, ElasticSearchIndex::NetworkParticipant)
+        .await
+        .map_err(|e| {
+            anyhow!(e)
+        })?;
+    if let Some(hits) = data["hits"]["hits"].as_array() {
+        let results: Vec<ESNetworkParticipantModel> = hits
+            .iter()
+            .filter_map(|hit| serde_json::from_value(hit["_source"].clone()).ok())
+            .collect();
+
+         Ok(Some(results))
+    } else {
+         Ok(None)
+    }
 }

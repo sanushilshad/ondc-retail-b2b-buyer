@@ -602,7 +602,7 @@ pub fn ws_search_provider_from_ondc_provider(
         .find(|tag| tag.descriptor.code == ONDCTagType::FssaiLicenseNo)
     {
         for data in fssai_num.list.iter() {
-            if data.value.len() > 0 {
+            if !data.value.is_empty() {
                 let desc = format!(
                     "{} {}",
                     "FSSAI_LICENSE_NO",
@@ -2878,7 +2878,7 @@ pub async fn process_on_search(
                     .commit()
                     .await
                     .context("Failed to commit SQL transaction to store save products")?;
-                save_cache_to_elastic_search(&pool, elastic_search_client, data).await?;
+                save_cache_to_elastic_search(pool, elastic_search_client, data).await?;
             }
         }
     }

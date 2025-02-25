@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt;
 
 use crate::configuration::get_configuration;
 use anyhow::anyhow;
@@ -11,6 +12,7 @@ use elasticsearch::indices::IndicesCreateParts;
 use elasticsearch::indices::IndicesExistsParts;
 use elasticsearch::BulkParts;
 use elasticsearch::Elasticsearch;
+use elasticsearch::SearchParts;
 use lazy_static::lazy_static;
 // use once_cell::sync::Lazy;
 use reqwest::Url;
@@ -34,34 +36,28 @@ pub enum ElasticSearchIndex {
     ProviderItem,
 }
 
-impl ToString for ElasticSearchIndex {
-    fn to_string(&self) -> String {
-        match self {
+impl fmt::Display for ElasticSearchIndex {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
+        let index_name = match self {
             ElasticSearchIndex::ProviderServicabilityHyperLocal => {
-                "b2b_retail_provider_servicability_hyper_local".to_string()
+                "b2b_retail_provider_servicability_hyper_local"
             }
             ElasticSearchIndex::ProviderServicabilityCountry => {
-                "b2b_retail_provider_servicability_country".to_string()
+                "b2b_retail_provider_servicability_country"
             }
             ElasticSearchIndex::ProviderServicabilityInterCity => {
-                "b2b_retail_provider_servicability_inter_city".to_string()
+                "b2b_retail_provider_servicability_inter_city"
             }
             ElasticSearchIndex::ProviderServicabilityGeoJson => {
-                "b2b_retail_provider_servicability_geo_json".to_string()
+                "b2b_retail_provider_servicability_geo_json"
             }
-            ElasticSearchIndex::NetworkParticipant => {
-                "b2b_retail_seller_network_participant".to_string()
-            }
-
-            ElasticSearchIndex::ProviderLocation => {
-                "b2b_retail_seller_provider_location".to_string()
-            }
-
-            ElasticSearchIndex::Provider => "b2b_retail_seller_provider".to_string(),
-
-            ElasticSearchIndex::ProviderItemVariant => "b2b_retail_seller_item_variant".to_string(),
-            ElasticSearchIndex::ProviderItem => "b2b_retail_seller_item".to_string(),
-        }
+            ElasticSearchIndex::NetworkParticipant => "b2b_retail_seller_network_participant",
+            ElasticSearchIndex::ProviderLocation => "b2b_retail_seller_provider_location",
+            ElasticSearchIndex::Provider => "b2b_retail_seller_provider",
+            ElasticSearchIndex::ProviderItemVariant => "b2b_retail_seller_item_variant",
+            ElasticSearchIndex::ProviderItem => "b2b_retail_seller_item",
+        };
+        write!(f, "{}", index_name)
     }
 }
 
@@ -507,10 +503,14 @@ impl ElasticSearchClient {
     pub fn get_index(&self, index: &str) -> String {
         format!("{}_{}", self.env, index)
     }
-    pub async fn send(&self, index: &str, data: Vec<JsonBody<Value>>) -> Result<(), anyhow::Error> {
+    pub async fn add(
+        &self,
+        index: ElasticSearchIndex,
+        data: Vec<JsonBody<Value>>,
+    ) -> Result<(), anyhow::Error> {
         let response = self
             .client
-            .bulk(BulkParts::Index(&index))
+            .bulk(BulkParts::Index(&self.get_index(&index.to_string())))
             .body(data)
             .send()
             .await?;
@@ -523,6 +523,26 @@ impl ElasticSearchClient {
         }
 
         Ok(())
+    }
+    pub async fn fetch(
+        &self,
+        query: Value,
+        index: ElasticSearchIndex,
+    ) -> Result<Value, anyhow::Error> {
+        let response = self
+            .client
+            .search(SearchParts::Index(&[&self.get_index(&index.to_string())]))
+            .body(query)
+            .send()
+            .await?;
+        let status_code = response.status_code();
+        let response_body = response.json::<serde_json::Value>().await?;
+        if status_code != 200 {
+            tracing::info!("{:?}", response_body);
+            return Err(anyhow!(response_body));
+        }
+
+        Ok(response_body)
     }
 
     async fn generate_indices(&self) -> Result<(), anyhow::Error> {
