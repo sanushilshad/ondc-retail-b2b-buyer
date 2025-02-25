@@ -306,7 +306,7 @@ pub struct WSSearchProviderContact {
     pub email: Option<String>,
 }
 
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Debug, Serialize, ToSchema, Deserialize)]
 pub struct WSSearchProviderID {
     pub r#type: String,
     pub value: String,
@@ -328,7 +328,7 @@ pub struct WSSearchProviderCredential {
 }
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct WSSearchProductProviderDescription {
+pub struct WSSearchProviderDescription {
     pub id: String,
     pub rating: Option<f32>,
     pub name: String,
@@ -624,7 +624,7 @@ pub struct WSSearchVariant {
 #[serde(rename_all = "camelCase")]
 pub struct WSSearchProvider {
     pub items: Vec<WSSearchItem>,
-    pub description: WSSearchProductProviderDescription,
+    pub description: WSSearchProviderDescription,
     pub locations: HashMap<String, WSSearchProviderLocation>,
     pub servicability: HashMap<String, WSSearchServicability>,
     // pub payments: HashMap<String, WSPaymentTypes>,
@@ -905,6 +905,8 @@ pub struct NetworkParticipantListReq {
     pub country_code: Option<CountryCode>,
     pub fulfillment_location: Option<ProductFulFillmentLocation>,
     pub category_code: Option<String>,
+    pub limit: i32,
+    pub offset: Option<Vec<String>>,
 }
 
 impl FromRequest for NetworkParticipantListReq {
@@ -921,4 +923,45 @@ impl FromRequest for NetworkParticipantListReq {
             }
         })
     }
+}
+
+#[derive(Deserialize, Debug, ToSchema)]
+#[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
+pub struct ProviderFetchReq {
+    pub query: String,
+    pub domain_category_code: Option<CategoryDomain>,
+    pub country_code: Option<CountryCode>,
+    pub fulfillment_location: Option<ProductFulFillmentLocation>,
+    pub category_code: Option<String>,
+    pub limit: i32,
+    pub offset: Option<Vec<String>>,
+}
+
+impl FromRequest for ProviderFetchReq {
+    type Error = GenericError;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
+
+    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+        let fut = web::Json::<Self>::from_request(req, payload);
+
+        Box::pin(async move {
+            match fut.await {
+                Ok(json) => Ok(json.into_inner()),
+                Err(e) => Err(GenericError::ValidationError(e.to_string())),
+            }
+        })
+    }
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct NetworkParticipantListResponse {
+    pub network_participants: Vec<WSSearchBPP>,
+    pub search_after: Vec<String>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ProviderListResponse {
+    pub providers: Vec<WSSearchProviderDescription>,
+    pub search_after: Vec<String>,
 }

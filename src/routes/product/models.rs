@@ -9,27 +9,59 @@ use serde_json::Value;
 use serde_with::skip_serializing_none;
 use uuid::Uuid;
 
-use super::schemas::{CategoryDomain, CredentialType, PaymentType, WSSearchBPP};
-#[derive(Debug, Serialize)]
+use super::schemas::{
+    CategoryDomain, CredentialType, PaymentType, WSSearchBPP, WSSearchProviderContact,
+    WSSearchProviderCredential, WSSearchProviderDescription, WSSearchProviderID,
+    WSSearchProviderTerms,
+};
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct WSSearchProviderContactModel {
     pub mobile_no: String,
     pub email: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+impl WSSearchProviderContactModel {
+    pub fn get_schema(self) -> WSSearchProviderContact {
+        WSSearchProviderContact {
+            mobile_no: self.mobile_no,
+            email: self.email,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct WSSearchProviderTermsModel {
     pub gst_credit_invoice: bool,
 }
 
-#[derive(Debug, Serialize)]
+impl WSSearchProviderTermsModel {
+    pub fn get_schema(self) -> WSSearchProviderTerms {
+        WSSearchProviderTerms {
+            gst_credit_invoice: self.gst_credit_invoice,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct SearchProviderCredentialModel {
     pub id: String,
     pub r#type: CredentialType,
     pub desc: String,
     pub url: Option<String>,
+}
+
+impl SearchProviderCredentialModel {
+    pub fn get_schema(self) -> WSSearchProviderCredential {
+        WSSearchProviderCredential {
+            id: self.id,
+            r#type: self.r#type,
+            desc: self.desc,
+            url: self.url,
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -283,7 +315,7 @@ pub struct ESProviderModel {
     pub code: String,
     pub short_desc: String,
     pub long_desc: String,
-    pub images: Value,
+    pub images: sqlx::types::Json<Vec<String>>,
     pub rating: Option<f32>,
     pub ttl: String,
     pub credentials: Value,
@@ -292,6 +324,35 @@ pub struct ESProviderModel {
     pub identifications: Value,
     pub created_on: DateTime<Utc>,
     pub updated_on: Option<DateTime<Utc>>,
+}
+
+impl ESProviderModel {
+    pub fn get_ws_provider(self) -> WSSearchProviderDescription {
+        let contact_models =
+            serde_json::from_value::<WSSearchProviderContactModel>(self.contact).unwrap();
+        let credential_models =
+            serde_json::from_value::<Vec<SearchProviderCredentialModel>>(self.credentials).unwrap();
+        let identifications =
+            serde_json::from_value::<Vec<WSSearchProviderID>>(self.identifications).unwrap();
+        let terms = serde_json::from_value::<WSSearchProviderTermsModel>(self.terms).unwrap();
+        WSSearchProviderDescription {
+            id: self.provider_id,
+            rating: self.rating,
+            name: self.name,
+            code: self.code,
+            short_desc: self.short_desc,
+            long_desc: self.long_desc,
+            images: self.images.to_vec(),
+            ttl: self.ttl,
+            contact: contact_models.get_schema(),
+            credentials: credential_models
+                .into_iter()
+                .map(|e| e.get_schema())
+                .collect(),
+            identifications,
+            terms: terms.get_schema(),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]

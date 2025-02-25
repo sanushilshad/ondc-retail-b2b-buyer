@@ -69,11 +69,10 @@ use crate::routes::product::schemas::{
     WSItemReturnLocation, WSItemReturnTerm, WSItemReturnTime, WSItemValidity, WSPaymentTypes,
     WSPriceSlab, WSProductCategory, WSProductCreator, WSSearch, WSSearchBPP, WSSearchCity,
     WSSearchCountry, WSSearchData, WSSearchItem, WSSearchItemAttribute, WSSearchItemPrice,
-    WSSearchItemQty, WSSearchItemQtyMeasure, WSSearchItemQuantity,
-    WSSearchProductProviderDescription, WSSearchProvider, WSSearchProviderContact,
-    WSSearchProviderCredential, WSSearchProviderID, WSSearchProviderLocation,
-    WSSearchProviderTerms, WSSearchServicability, WSSearchState, WSSearchVariant,
-    WSSearchVariantAttribute, WSServicabilityData,
+    WSSearchItemQty, WSSearchItemQtyMeasure, WSSearchItemQuantity, WSSearchProvider,
+    WSSearchProviderContact, WSSearchProviderCredential, WSSearchProviderDescription,
+    WSSearchProviderID, WSSearchProviderLocation, WSSearchProviderTerms, WSSearchServicability,
+    WSSearchState, WSSearchVariant, WSSearchVariantAttribute, WSServicabilityData,
 };
 use serde_json::Value;
 use sqlx::types::Json;
@@ -444,10 +443,7 @@ pub async fn send_ondc_payload(
                 Ok(response_obj)
             }
         }
-        Err(err) => {
-            println!("{}", err);
-            Err(anyhow::Error::from(err))
-        }
+        Err(err) => Err(anyhow::Error::from(err)),
     }
 }
 
@@ -555,7 +551,7 @@ pub fn ws_search_provider_from_ondc_provider(
     fulfillments: &Vec<ONDCOnSearchFulfillmentContact>,
     tags: &Vec<ONDCTag>,
     ondc_credentials: &Option<Vec<ONDCCredential>>,
-) -> WSSearchProductProviderDescription {
+) -> WSSearchProviderDescription {
     let images: Vec<String> = descriptor
         .images
         .iter()
@@ -618,7 +614,7 @@ pub fn ws_search_provider_from_ondc_provider(
         }
     }
 
-    WSSearchProductProviderDescription {
+    WSSearchProviderDescription {
         id: id.to_string(),
         rating,
         name: descriptor.name.clone(),
@@ -728,7 +724,6 @@ fn get_ws_price_slab_from_ondc_slab(
 }
 
 fn get_ws_attributes_from_ondc(ondc_tags: &[ONDCOnSearchItemTag]) -> Vec<WSSearchItemAttribute> {
-    println!("{:?}", ondc_tags);
     let mut data: Vec<WSSearchItemAttribute> = vec![];
     let attribute_tag = ondc_tags
         .iter()

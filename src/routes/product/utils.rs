@@ -3,7 +3,7 @@ use std::str::FromStr;
 
 use bigdecimal::{BigDecimal, ToPrimitive};
 use elasticsearch::http::request::JsonBody;
-use futures::future::{join_all};
+use futures::future::join_all;
 use serde_json::{json, Value};
 use sqlx::{PgPool, Postgres, Transaction, Executor, types::Json};
 use tokio::try_join;
@@ -11,10 +11,10 @@ use tokio::try_join;
 use uuid::Uuid;
 use crate::elastic_search_client::{ElasticSearchClient, ElasticSearchIndex};
 use crate::routes::product::models::{ESHyperlocalServicabilityModel, ESProviderLocationModel, ESProviderModel};
-use crate::routes::product::schemas::{FulfillmentType, PaymentType, ProductSearchType};
+use crate::routes::product::schemas::{FulfillmentType, PaymentType, ProductSearchType, ProviderListResponse};
 use crate::schemas::{CurrencyType, RequestMetaData};
 use super::models::{ESCountryServicabilityModel, ESGeoJsonServicabilityModel, ESInterCityServicabilityModel, ESLocationModel, ESNetworkParticipantModel, ESProviderItemModel, ESProviderItemVariantModel, ProductVariantAttributeModel, SearchProviderCredentialModel, WSItemReplacementTermModel, WSItemReturnTermModel, WSPriceSlabModel, WSProductCategoryModel, WSSearchItemAttributeModel, WSSearchProviderContactModel, WSSearchProviderTermsModel};
-use super::schemas::{BulkCountryServicabilityCache, BulkGeoServicabilityCache, BulkHyperlocalServicabilityCache, BulkInterCityServicabilityCache, BulkItemCache, BulkItemLocationCache, BulkItemVariantCache, BulkProviderCache, BulkProviderLocationCache, CategoryDomain, DBItemCacheData, NetworkParticipantListReq, ProductFulFillmentLocation, ProductSearchRequest, ServicabilityIds, WSSearchBPP, WSSearchData, WSSearchProvider};
+use super::schemas::{BulkCountryServicabilityCache, BulkGeoServicabilityCache, BulkHyperlocalServicabilityCache, BulkInterCityServicabilityCache, BulkItemCache, BulkItemLocationCache, BulkItemVariantCache, BulkProviderCache, BulkProviderLocationCache, CategoryDomain, DBItemCacheData, NetworkParticipantListReq, NetworkParticipantListResponse, ProductFulFillmentLocation, ProductSearchRequest, ProviderFetchReq, ServicabilityIds, WSSearchBPP, WSSearchData, WSSearchProvider};
 use chrono::{DateTime, Utc};
 use crate::user_client::{BusinessAccount, UserAccount};
 use crate::schemas::CountryCode;
@@ -209,6 +209,7 @@ async fn save_provider_cache(
         .await
         .map_err(|e| {
             tracing::error!("Failed to execute query: {:?}", e);
+
             anyhow::Error::new(e)
                 .context("A database failure occurred while saving provider cache")
         })?;
@@ -1740,7 +1741,7 @@ async fn get_provider_cache_data_from_db(
         r#"
         SELECT 
             id, provider_id, network_participant_cache_id, name, code, 
-            short_desc, long_desc, images, rating, ttl, 
+            short_desc, long_desc, images as "images: Json<Vec<String>>", rating, ttl, 
             credentials, contact, terms, identifications, 
             created_on, updated_on
         FROM provider_cache
@@ -1940,14 +1941,14 @@ async fn save_provider_item_to_elastic_search(pool: &PgPool, es_client: &Elastic
 }
 
 
-async fn get_servicable_network_participant_ids(es_client: &ElasticSearchClient, domain_category_code: &Option<CategoryDomain>, country_code: &Option<CountryCode>,category_code: &Option<String>, fulfillment_location: &Option<ProductFulFillmentLocation>)-> Result<Vec<Uuid>, anyhow::Error>{
+async fn get_servicable_uq_ids(es_client: &ElasticSearchClient, distinct_key: &str, domain_category_code: &Option<CategoryDomain>, country_code: &Option<CountryCode>,category_code: &Option<String>, fulfillment_location: &Option<ProductFulFillmentLocation>)-> Result<Vec<Uuid>, anyhow::Error>{
     let mut tasks =vec![];
     let mut base_query = json!({
         "size": 0, 
         "aggs": {
-            "distinct_subscriber_ids": {
+            "distinct_values": {
                 "terms": {
-                    "field": "network_participant_cache_id"
+                    "field": distinct_key
                 }
             }
         },
@@ -2025,7 +2026,7 @@ async fn get_servicable_network_participant_ids(es_client: &ElasticSearchClient,
     // Function to extract unique IDs
     fn extract_unique_ids(response: &serde_json::Value) -> HashSet<Uuid> {
         let mut unique_ids = HashSet::new();
-        if let Some(buckets) = response["aggregations"]["distinct_subscriber_ids"]["buckets"].as_array() {
+        if let Some(buckets) = response["aggregations"]["distinct_values"]["buckets"].as_array() {
             for bucket in buckets {
                 if let Some(key) = bucket["key"].as_str() {
                     if let Ok(uuid) = Uuid::parse_str(key) {
@@ -2045,13 +2046,90 @@ async fn get_servicable_network_participant_ids(es_client: &ElasticSearchClient,
 }
 
 
-pub async fn get_network_participant_from_es(es_client: &ElasticSearchClient, body: NetworkParticipantListReq) ->Result<Option<Vec<ESNetworkParticipantModel>>, anyhow::Error>{
+pub async fn get_network_participant_from_es(es_client: &ElasticSearchClient, body: NetworkParticipantListReq) ->Result<Option<NetworkParticipantListResponse>, anyhow::Error>{
         let mut base_query = json!({
+        "size": body.limit,
         "query": {
             "bool": {
                 "must": []
             }
-        }
+        },
+        "sort": [{"id": "asc"}]
+    });
+    if !body.query.trim().is_empty() {
+        let multi_match_query = json!({
+            "multi_match": {
+                "query": body.query,
+                "fields": ["name", "code", "short_desc", "long_desc"]
+            }
+        });
+
+        base_query["query"]["bool"]["must"]
+            .as_array_mut()
+            .unwrap()
+            .push(multi_match_query);
+    }
+    if body.domain_category_code.is_some() || body.country_code.is_some() || body.category_code.is_some() || body.fulfillment_location.is_some(){
+        let network_participant_ids = get_servicable_uq_ids(es_client, "network_participant_cache_id", &body.domain_category_code, &body.country_code,&body.category_code, &body.fulfillment_location).await?;
+        let terms_filter = json!({
+            "terms": {
+                "id": network_participant_ids
+            }
+        });
+
+            base_query["query"]["bool"]
+                .as_object_mut()
+                .unwrap()
+                .entry("filter")
+                .or_insert_with(|| json!([]))
+                .as_array_mut()
+                .unwrap()
+                .push(terms_filter);
+
+        // let query_obj = base_query["query
+    }
+    if let Some(search_after) = &body.offset {
+        base_query["search_after"] = json!(search_after);
+    }
+
+    
+    let data = es_client
+        .fetch(base_query, ElasticSearchIndex::NetworkParticipant)
+        .await
+        .map_err(|e| {
+            anyhow!(e)
+        })?;
+    // print!("{:?}", data);
+    if let Some(hits) = data["hits"]["hits"].as_array() {
+        print!("{:?}", hits);
+        let results: Vec<ESNetworkParticipantModel> = hits
+            .iter()
+            .filter_map(|hit| serde_json::from_value(hit["_source"].clone()).ok())
+            .collect();
+        let network_participants = results.into_iter().map(|a| a.get_ws_bpp()).collect();
+        let search_after: Vec<String> = hits.last().map_or(Vec::new(), |hit| {
+            hit["sort"].as_array()
+                .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+                .unwrap_or_default()
+        });
+         Ok(Some(NetworkParticipantListResponse{network_participants, search_after}))
+    } else {
+         Ok(None)
+    }
+}
+
+
+
+
+pub async fn get_provider_from_es(es_client: &ElasticSearchClient, body: ProviderFetchReq) ->Result<Option<ProviderListResponse>, anyhow::Error>{
+        let mut base_query = json!({
+        "size": body.limit,
+        "query": {
+            "bool": {
+                "must": []
+            }
+        },
+        "sort": [{"id": "asc"}]
     });
     if !body.query.trim().is_empty() {
         let multi_match_query = json!({
@@ -2067,7 +2145,7 @@ pub async fn get_network_participant_from_es(es_client: &ElasticSearchClient, bo
             .push(multi_match_query);
     }
     if body.domain_category_code.is_some() || body.country_code.is_some() || body.category_code.is_some() || body.fulfillment_location.is_some(){
-        let network_participant_ids = get_servicable_network_participant_ids(es_client, &body.domain_category_code, &body.country_code,&body.category_code, &body.fulfillment_location).await?;
+        let network_participant_ids = get_servicable_uq_ids(es_client,"provider_cache_id", &body.domain_category_code, &body.country_code,&body.category_code, &body.fulfillment_location).await?;
         let terms_filter = json!({
             "terms": {
                 "id": network_participant_ids
@@ -2082,25 +2160,34 @@ pub async fn get_network_participant_from_es(es_client: &ElasticSearchClient, bo
                 .as_array_mut()
                 .unwrap()
                 .push(terms_filter);
-            print!("apple{:?}",base_query);
-        // let query_obj = base_query["query
     }
-
+    if let Some(search_after) = &body.offset {
+        base_query["search_after"] = json!(search_after);
+    }
     
     let data = es_client
-        .fetch(base_query, ElasticSearchIndex::NetworkParticipant)
+        .fetch(base_query, ElasticSearchIndex::Provider)
         .await
         .map_err(|e| {
             anyhow!(e)
         })?;
     if let Some(hits) = data["hits"]["hits"].as_array() {
-        let results: Vec<ESNetworkParticipantModel> = hits
+        println!("{:?}", hits);
+        let results: Vec<ESProviderModel> = hits
             .iter()
             .filter_map(|hit| serde_json::from_value(hit["_source"].clone()).ok())
             .collect();
-
-         Ok(Some(results))
+        let providers = results.into_iter().map(|a| a.get_ws_provider()).collect();
+        let search_after: Vec<String> = hits.last().map_or(Vec::new(), |hit| {
+            hit["sort"].as_array()
+                .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+                .unwrap_or_default()
+        });
+        Ok(Some(ProviderListResponse{providers, search_after}))
+        //  Ok(Some(results))
     } else {
          Ok(None)
     }
 }
+
+

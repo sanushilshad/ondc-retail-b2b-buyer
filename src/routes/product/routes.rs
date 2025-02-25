@@ -1,6 +1,6 @@
 use super::handlers::{
     cached_network_participant_list, cached_product_list, cached_product_read,
-    realtime_product_search,
+    cached_provider_list, realtime_product_search,
 };
 use crate::middleware::{BusinessAccountValidation, RequireAuth};
 use crate::user_client::CustomerType;
@@ -39,9 +39,19 @@ pub fn product_route(cfg: &mut web::ServiceConfig) {
         ),
     );
     cfg.service(
-        web::resource("/network_participant/").route(
+        web::resource("/network_participant/fetch").route(
             web::post()
                 .to(cached_network_participant_list)
+                .wrap(BusinessAccountValidation {
+                    business_type_list: vec![CustomerType::RetailB2bBuyer],
+                })
+                .wrap(RequireAuth),
+        ),
+    );
+    cfg.service(
+        web::resource("/provider/fetch").route(
+            web::post()
+                .to(cached_provider_list)
                 .wrap(BusinessAccountValidation {
                     business_type_list: vec![CustomerType::RetailB2bBuyer],
                 })

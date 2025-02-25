@@ -3,10 +3,11 @@ use actix_web::{web, HttpResponse};
 use utoipa::TupleUnit;
 // use anyhow::Context;
 use super::schemas::{
-    MinimalItemData, NetworkParticipantListReq, ProductList, ProductSearchRequest, WSSearch,
-    WSSearchBPP,
+    MinimalItemData, NetworkParticipantListReq, NetworkParticipantListResponse, ProductList,
+    ProductSearchRequest, ProviderFetchReq, ProviderListResponse, WSSearch, WSSearchBPP,
+    WSSearchProviderDescription,
 };
-use super::utils::{get_network_participant_from_es, save_search_request};
+use super::utils::{get_network_participant_from_es, get_provider_from_es, save_search_request};
 use crate::configuration::ONDCConfig;
 use crate::elastic_search_client::ElasticSearchClient;
 use crate::errors::GenericError;
@@ -176,13 +177,13 @@ pub async fn cached_product_list(
 
 #[utoipa::path(
     post,
-    path = "/product/network_participant/",
+    path = "/product/network_participant/fetch",
     tag = "Product",
     description="This API is used for listing all Network participants.",
     summary= "Network Participant list API",
     request_body(content = NetworkParticipantListReq, description = "Request Body"),
     responses(
-        (status=200, description= "Realtime Product Search", body= GenericResponse<Vec<WSSearchBPP>>),
+        (status=200, description= "Realtime Product Search", body= GenericResponse<NetworkParticipantListResponse>),
         (status=400, description= "Invalid Request body", body= GenericResponse<TupleUnit>),
         (status=401, description= "Invalid Token", body= GenericResponse<TupleUnit>),
         (status=500, description= "Internal Server Error", body= GenericResponse<TupleUnit>),
@@ -196,17 +197,48 @@ pub async fn cached_network_participant_list(
     user_account: UserAccount,
     es_client: web::Data<ElasticSearchClient>,
     business_account: BusinessAccount,
-) -> Result<web::Json<GenericResponse<Vec<WSSearchBPP>>>, GenericError> {
+) -> Result<web::Json<GenericResponse<NetworkParticipantListResponse>>, GenericError> {
     let data = get_network_participant_from_es(&es_client, body)
         .await
         .map_err(GenericError::UnexpectedError)?;
-    let final_data = data.map_or_else(Vec::new, |models| {
-        models.into_iter().map(|a| a.get_ws_bpp()).collect()
-    });
 
     Ok(web::Json(GenericResponse::success(
         "Successfully Fetched network participants.",
         StatusCode::OK,
-        Some(final_data),
+        data,
+    )))
+}
+
+#[utoipa::path(
+    post,
+    path = "/product/provider/fetch",
+    tag = "Product",
+    description="This API is used for listing all providers.",
+    summary= "Provider list API",
+    request_body(content = ProviderFetchReq, description = "Request Body"),
+    responses(
+        (status=200, description= "Realtime Product Search", body= GenericResponse<ProviderListResponse>),
+        (status=400, description= "Invalid Request body", body= GenericResponse<TupleUnit>),
+        (status=401, description= "Invalid Token", body= GenericResponse<TupleUnit>),
+        (status=500, description= "Internal Server Error", body= GenericResponse<TupleUnit>),
+	    (status=501, description= "Not Implemented", body= GenericResponse<TupleUnit>)
+    )
+)]
+#[tracing::instrument(name = "Cache Provider List API", skip(), fields())]
+#[allow(unreachable_code)]
+pub async fn cached_provider_list(
+    body: ProviderFetchReq,
+    user_account: UserAccount,
+    es_client: web::Data<ElasticSearchClient>,
+    business_account: BusinessAccount,
+) -> Result<web::Json<GenericResponse<ProviderListResponse>>, GenericError> {
+    let data = get_provider_from_es(&es_client, body)
+        .await
+        .map_err(GenericError::UnexpectedError)?;
+
+    Ok(web::Json(GenericResponse::success(
+        "Successfully Fetched providers.",
+        StatusCode::OK,
+        data,
     )))
 }
