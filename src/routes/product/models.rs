@@ -10,9 +10,9 @@ use serde_with::skip_serializing_none;
 use uuid::Uuid;
 
 use super::schemas::{
-    CategoryDomain, CredentialType, PaymentType, WSSearchBPP, WSSearchProviderContact,
-    WSSearchProviderCredential, WSSearchProviderDescription, WSSearchProviderID,
-    WSSearchProviderTerms,
+    AutoCompleteItem, CategoryDomain, CredentialType, PaymentType, WSSearchBPP,
+    WSSearchProviderContact, WSSearchProviderCredential, WSSearchProviderDescription,
+    WSSearchProviderID, WSSearchProviderTerms,
 };
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -371,6 +371,7 @@ pub struct ESProviderItemVariantModel {
 #[serde(rename_all = "snake_case")]
 pub struct ESProviderItemModel {
     pub provider_cache_id: Uuid,
+    pub network_participant_cache_id: Uuid,
     pub id: Uuid,
     pub country_code: CountryCode,
     pub domain_code: CategoryDomain,
@@ -405,4 +406,25 @@ pub struct ESProviderItemModel {
     pub cancellation_terms: Value,
     pub created_on: DateTime<Utc>,
     pub location_ids: Option<Vec<Uuid>>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ESAutoCompleteProviderItemModel {
+    pub provider_cache_id: Uuid,
+    pub network_participant_cache_id: Uuid,
+    pub id: Uuid,
+    pub item_id: String,
+    pub item_code: Option<String>,
+    pub item_name: String,
+}
+impl ESAutoCompleteProviderItemModel {
+    pub fn into_schema(self) -> AutoCompleteItem {
+        AutoCompleteItem {
+            id: self.id,
+            item_name: self.item_name,
+            item_id: self.item_id,
+            item_code: self.item_code,
+        }
+    }
 }

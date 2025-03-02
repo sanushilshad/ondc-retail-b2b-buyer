@@ -51,11 +51,11 @@ impl fmt::Display for ElasticSearchIndex {
             ElasticSearchIndex::ProviderServicabilityGeoJson => {
                 "b2b_retail_provider_servicability_geo_json"
             }
-            ElasticSearchIndex::NetworkParticipant => "b2b_retail_seller_network_participant",
-            ElasticSearchIndex::ProviderLocation => "b2b_retail_seller_provider_location",
-            ElasticSearchIndex::Provider => "b2b_retail_seller_provider",
-            ElasticSearchIndex::ProviderItemVariant => "b2b_retail_seller_item_variant",
-            ElasticSearchIndex::ProviderItem => "b2b_retail_seller_item",
+            ElasticSearchIndex::NetworkParticipant => "b2b_retail_network_participant",
+            ElasticSearchIndex::ProviderLocation => "b2b_retail_provider_location",
+            ElasticSearchIndex::Provider => "b2b_retail_provider",
+            ElasticSearchIndex::ProviderItemVariant => "b2b_retail_provider_item_variant",
+            ElasticSearchIndex::ProviderItem => "b2b_retail_provider_item",
         };
         write!(f, "{}", index_name)
     }
@@ -364,12 +364,7 @@ lazy_static! {
                     "type": "keyword"
                   },
                   "id": {
-                    "type": "text",
-                    "fields": {
-                      "keyword": {
-                        "type": "keyword"
-                      }
-                    }
+                    "type": "keyword"
                   },
                   "images": {
                     "type": "keyword"
@@ -437,6 +432,14 @@ lazy_static! {
                     "type": "float"
                   },
                   "provider_cache_id": {
+                    "type": "text",
+                    "fields": {
+                      "keyword": {
+                        "type": "keyword"
+                      }
+                    }
+                  },
+                  "network_participant_cache_id": {
                     "type": "text",
                     "fields": {
                       "keyword": {

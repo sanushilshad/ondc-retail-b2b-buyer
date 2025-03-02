@@ -10,11 +10,11 @@ use tokio::try_join;
 
 use uuid::Uuid;
 use crate::elastic_search_client::{ElasticSearchClient, ElasticSearchIndex};
-use crate::routes::product::models::{ESHyperlocalServicabilityModel, ESProviderLocationModel, ESProviderModel};
-use crate::routes::product::schemas::{FulfillmentType, PaymentType, ProductSearchType, ProviderListResponse};
+use crate::routes::product::models::{ESAutoCompleteProviderItemModel, ESHyperlocalServicabilityModel, ESProviderLocationModel, ESProviderModel};
+use crate::routes::product::schemas::{AutoCompleteItem, FulfillmentType, PaymentType, ProductSearchType, ProviderListResponse};
 use crate::schemas::{CurrencyType, RequestMetaData};
 use super::models::{ESCountryServicabilityModel, ESGeoJsonServicabilityModel, ESInterCityServicabilityModel, ESLocationModel, ESNetworkParticipantModel, ESProviderItemModel, ESProviderItemVariantModel, ProductVariantAttributeModel, SearchProviderCredentialModel, WSItemReplacementTermModel, WSItemReturnTermModel, WSPriceSlabModel, WSProductCategoryModel, WSSearchItemAttributeModel, WSSearchProviderContactModel, WSSearchProviderTermsModel};
-use super::schemas::{BulkCountryServicabilityCache, BulkGeoServicabilityCache, BulkHyperlocalServicabilityCache, BulkInterCityServicabilityCache, BulkItemCache, BulkItemLocationCache, BulkItemVariantCache, BulkProviderCache, BulkProviderLocationCache, CategoryDomain, DBItemCacheData, NetworkParticipantListReq, NetworkParticipantListResponse, ProductFulFillmentLocation, ProductSearchRequest, ProviderFetchReq, ServicabilityIds, WSSearchBPP, WSSearchData, WSSearchProvider};
+use super::schemas::{AutoCompleteItemResponseData, BulkCountryServicabilityCache, BulkGeoServicabilityCache, BulkHyperlocalServicabilityCache, BulkInterCityServicabilityCache, BulkItemCache, BulkItemLocationCache, BulkItemVariantCache, BulkProviderCache, BulkProviderLocationCache, CategoryDomain, DBItemCacheData, NetworkParticipantListReq, NetworkParticipantListResponse, AutoCompleteItemRequest, ProductCacheSearchRequest, ProductFulFillmentLocation, ProductSearchRequest, ProviderFetchReq, ServicabilityIds, WSSearchBPP, WSSearchData, WSSearchProvider};
 use chrono::{DateTime, Utc};
 use crate::user_client::{BusinessAccount, UserAccount};
 use crate::schemas::CountryCode;
@@ -1851,16 +1851,16 @@ async fn get_provider_item_cache_data_from_db(
         ESProviderItemModel,
         r#"
         SELECT 
-            ic.provider_cache_id as provider_cache_id,
-            ic.id as id,
-            ic.country_code  as "country_code:CountryCode",
-            ic.domain_code as "domain_code:CategoryDomain",
+            ic.provider_cache_id AS provider_cache_id,
+            ic.id AS id,
+            ic.country_code AS "country_code:CountryCode",
+            ic.domain_code AS "domain_code:CategoryDomain",
             ic.item_id,
             ic.item_code,
             ic.long_desc,
             ic.short_desc,
             ic.item_name,
-            ic.currency  as "currency:CurrencyType",
+            ic.currency AS "currency:CurrencyType",
             ic.price_with_tax,
             ic.price_without_tax,
             ic.offered_price,
@@ -1885,13 +1885,16 @@ async fn get_provider_item_cache_data_from_db(
             ic.return_terms,
             ic.cancellation_terms,
             ic.created_on,
-            COALESCE(array_agg(DISTINCT ilcr.location_cache_id) FILTER (WHERE ilcr.location_cache_id IS NOT NULL), '{}') 
-            AS location_ids
+            pc.network_participant_cache_id,  -- Added network_participant_cache_id
+            COALESCE(array_agg(DISTINCT ilcr.location_cache_id) 
+                FILTER (WHERE ilcr.location_cache_id IS NOT NULL), '{}') AS location_ids
         FROM item_cache ic
         LEFT JOIN item_location_cache_relationship ilcr 
             ON ic.id = ilcr.item_cache_id
+        LEFT JOIN provider_cache pc 
+            ON ic.provider_cache_id = pc.id
         WHERE ic.id = ANY($1)
-        GROUP BY ic.id
+        GROUP BY ic.id, pc.network_participant_cache_id  -- Updated GROUP BY
         "#,
         &id_list
     );
@@ -1941,7 +1944,7 @@ async fn save_provider_item_to_elastic_search(pool: &PgPool, es_client: &Elastic
 }
 
 
-async fn get_servicable_uq_ids(es_client: &ElasticSearchClient, distinct_key: &str, domain_category_code: &Option<CategoryDomain>, country_code: &Option<CountryCode>,category_code: &Option<String>, fulfillment_location: &Option<ProductFulFillmentLocation>)-> Result<Vec<Uuid>, anyhow::Error>{
+async fn get_servicable_uq_ids(es_client: &ElasticSearchClient, distinct_key: &str, domain_category_code: Option<&CategoryDomain>, country_code: Option<&CountryCode>,category_code: Option<&String>, fulfillment_location: Option<&ProductFulFillmentLocation>)-> Result<Vec<Uuid>, anyhow::Error>{
     let mut tasks =vec![];
     let mut base_query = json!({
         "size": 0, 
@@ -2070,7 +2073,10 @@ pub async fn get_network_participant_from_es(es_client: &ElasticSearchClient, bo
             .push(multi_match_query);
     }
     if body.domain_category_code.is_some() || body.country_code.is_some() || body.category_code.is_some() || body.fulfillment_location.is_some(){
-        let network_participant_ids = get_servicable_uq_ids(es_client, "network_participant_cache_id", &body.domain_category_code, &body.country_code,&body.category_code, &body.fulfillment_location).await?;
+        let network_participant_ids = get_servicable_uq_ids(es_client, "network_participant_cache_id", body.domain_category_code.as_ref(), body.country_code.as_ref(), body.category_code.as_ref(), body.fulfillment_location.as_ref()).await?;
+        if network_participant_ids.is_empty(){
+            return  Ok(None)
+        }
         let terms_filter = json!({
             "terms": {
                 "id": network_participant_ids
@@ -2112,10 +2118,10 @@ pub async fn get_network_participant_from_es(es_client: &ElasticSearchClient, bo
                 .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
                 .unwrap_or_default()
         });
-         Ok(Some(NetworkParticipantListResponse{network_participants, search_after}))
-    } else {
-         Ok(None)
-    }
+         return Ok(Some(NetworkParticipantListResponse{network_participants, search_after}))
+    } 
+    Err(anyhow!("Something found while fetching data from elastic search"))
+    
 }
 
 
@@ -2145,21 +2151,24 @@ pub async fn get_provider_from_es(es_client: &ElasticSearchClient, body: Provide
             .push(multi_match_query);
     }
     if body.domain_category_code.is_some() || body.country_code.is_some() || body.category_code.is_some() || body.fulfillment_location.is_some(){
-        let network_participant_ids = get_servicable_uq_ids(es_client,"provider_cache_id", &body.domain_category_code, &body.country_code,&body.category_code, &body.fulfillment_location).await?;
+        let provider_ids = get_servicable_uq_ids(es_client,"provider_cache_id", body.domain_category_code.as_ref(), body.country_code.as_ref(),body.category_code.as_ref(), body.fulfillment_location.as_ref()).await?;
+        if provider_ids.is_empty(){
+            return  Ok(None)
+        }
         let terms_filter = json!({
             "terms": {
-                "id": network_participant_ids
+                "id": provider_ids
             }
         });
 
-            base_query["query"]["bool"]
-                .as_object_mut()
-                .unwrap()
-                .entry("filter")
-                .or_insert_with(|| json!([]))
-                .as_array_mut()
-                .unwrap()
-                .push(terms_filter);
+        base_query["query"]["bool"]
+            .as_object_mut()
+            .unwrap()
+            .entry("filter")
+            .or_insert_with(|| json!([]))
+            .as_array_mut()
+            .unwrap()
+            .push(terms_filter);
     }
     if let Some(search_after) = &body.offset {
         base_query["search_after"] = json!(search_after);
@@ -2183,11 +2192,176 @@ pub async fn get_provider_from_es(es_client: &ElasticSearchClient, body: Provide
                 .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
                 .unwrap_or_default()
         });
-        Ok(Some(ProviderListResponse{providers, search_after}))
+        return Ok(Some(ProviderListResponse{providers, search_after}))
         //  Ok(Some(results))
-    } else {
-         Ok(None)
     }
+    return Err(anyhow!("Something found while fetching data from elastic search"))
+
 }
 
 
+// fetch minial bpp_data
+// fetch minial provider_data
+// fetch minimal item_data
+pub async fn get_item_from_es(es_client: &ElasticSearchClient, body: &ProductCacheSearchRequest, location_cache_ids: Vec<Uuid>) ->Result<Option<()>, anyhow::Error>{
+     let mut base_query: Value = json!({
+        "size": body.limit,
+        "query": {
+            "bool": {
+                "must": []
+            }
+        },
+        "sort": [{"id": "asc"}]
+    });   
+    if !body.query.trim().is_empty() {
+        let multi_match_query = json!({
+            "multi_match": {
+                "query":&body.query,
+                "fields": ["item_id", "item_code", "item_name", "short_desc", "long_desc"]
+            }
+        });
+
+        base_query["query"]["bool"]["must"]
+            .as_array_mut()
+            .unwrap()
+            .push(multi_match_query);
+    }
+
+    if let Some(search_after) = &body.offset {
+        base_query["search_after"] = json!(search_after);
+    }
+
+    if location_cache_ids.is_empty(){
+        return Ok(None)
+    }
+    let terms_filter = json!({
+        "terms": {
+            "location_cache_id": location_cache_ids
+        }
+    });
+    base_query["query"]["bool"]
+        .as_object_mut()
+        .unwrap()
+        .entry("filter")
+        .or_insert_with(|| json!([]))
+        .as_array_mut()
+        .unwrap()
+        .push(terms_filter);
+
+    let data = es_client
+        .fetch(base_query, ElasticSearchIndex::ProviderItem)
+        .await
+        .map_err(|e| {
+            anyhow!(e)
+        })?;
+    if let Some(_hits) = data["hits"]["hits"].as_array() {
+        // println!("{:?}", hits);
+        // let results: Vec<ESProviderItemModel> = hits
+        //     .iter()
+        //     .filter_map(|hit| serde_json::from_value(hit["_source"].clone()).ok())
+        //     .collect();
+        // let providers = results.into_iter().map(|a| a.get_ws_provider()).collect();
+        // let search_after: Vec<String> = hits.last().map_or(Vec::new(), |hit| {
+        //     hit["sort"].as_array()
+        //         .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+        //         .unwrap_or_default()
+        // });
+        // Ok(Some(ProviderListResponse{providers, search_after}))
+        //  Ok(Some(results))
+        return Ok(None)
+    } 
+     return Ok(None)
+
+    
+}
+
+pub async fn get_full_item_data_from_es(es_client: &ElasticSearchClient, body: ProductCacheSearchRequest) ->Result<Option<()>, anyhow::Error>{
+    let domain_category_code = Some(&body.domain_category_code);
+    let country_code = Some(&body.country_code);
+    let category_code = Some(&body.category_code);
+    let fulfillment_location = Some(&body.fulfillment_location);
+    let location_cache_ids = get_servicable_uq_ids(
+        es_client,
+        "location_cache_id",
+        domain_category_code,
+        country_code,
+        category_code,
+        fulfillment_location,
+    ).await?;
+    let _ = get_item_from_es(es_client, &body, location_cache_ids).await?;
+
+
+
+    Ok(None)
+
+}
+
+
+
+
+pub async fn get_minimal_item_from_es(es_client: &ElasticSearchClient, body: &AutoCompleteItemRequest) ->Result<AutoCompleteItemResponseData, anyhow::Error>{
+     let mut base_query: Value = json!({
+        "size": body.limit,
+        "_source": ["provider_cache_id", "network_participant_cache_id","id", "item_id", "item_code", "item_name"],
+        "query": {
+            "bool": {
+                "must": []
+            }
+        },
+        "sort": [{"id": "asc"}]
+    });   
+    if !body.query.trim().is_empty() {
+        let multi_match_query = json!({
+            "multi_match": {
+                "query":&body.query,
+                "fields": ["item_id", "item_code", "item_name", "short_desc", "long_desc"]
+            }
+        });
+
+        base_query["query"]["bool"]["must"]
+            .as_array_mut()
+            .unwrap()
+            .push(multi_match_query);
+    }
+
+    if let Some(search_after) = &body.offset {
+        base_query["search_after"] = json!(search_after);
+    }
+
+
+    let data = es_client
+        .fetch(base_query, ElasticSearchIndex::ProviderItem)
+        .await
+        .map_err(|e| {
+            anyhow!(e)
+        })?;
+    if let Some(hits) = data["hits"]["hits"].as_array() {
+        let results: Vec<ESAutoCompleteProviderItemModel> = hits
+            .iter()
+            .filter_map(|hit| serde_json::from_value(hit["_source"].clone()).ok())
+            .collect();
+        let items: Vec<AutoCompleteItem> = results
+            .into_iter()
+            .map(|a| a.into_schema())  
+            .collect();
+        let search_after: Vec<String> = hits.last().map_or(Vec::new(), |hit| {
+            hit["sort"].as_array()
+                .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+                .unwrap_or_default()
+        });
+        return Ok(AutoCompleteItemResponseData{items, search_after});
+    } 
+    Err(anyhow!("Something found while fetching data from elastic search"))
+    
+}
+
+
+
+
+
+
+
+pub async fn get_auto_complete_product_data(es_client: &ElasticSearchClient, body: &AutoCompleteItemRequest) -> Result<AutoCompleteItemResponseData, anyhow::Error>{
+    let data = get_minimal_item_from_es(&es_client, &body).await;
+    data
+}

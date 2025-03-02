@@ -809,20 +809,14 @@ pub struct BulkItemLocationCache<'a> {
 #[derive(Deserialize, Debug, ToSchema)]
 #[serde(rename_all = "camelCase")]
 #[allow(dead_code)]
-pub struct ProductList {
+pub struct AutoCompleteItemRequest {
     pub query: String,
-    pub domain_category_code: CategoryDomain,
-    pub country_code: CountryCode,
-    pub payment_type: Option<PaymentType>,
-    pub fulfillment_type: Option<FulfillmentType>,
-    pub search_type: ProductSearchType,
-    pub fulfillment_locations: ProductFulFillmentLocation,
-    pub city_code: String,
-    pub offset: i16,
+    pub domain_category_code: Option<CategoryDomain>,
+    pub offset: Option<Vec<String>>,
     pub limit: i16,
 }
 
-impl FromRequest for ProductList {
+impl FromRequest for AutoCompleteItemRequest {
     type Error = GenericError;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
@@ -840,44 +834,43 @@ impl FromRequest for ProductList {
 
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct MinimalItem {
-    pub id: String,
-    pub name: String,
-    pub code: Option<String>,
-    pub domain_category: CategoryDomain,
-    pub price: WSSearchItemPrice,
+pub struct AutoCompleteItem {
+    #[schema(value_type = String)]
+    pub id: Uuid,
+    pub item_name: String,
+    pub item_id: String,
+    pub item_code: Option<String>,
 }
 
-#[derive(Debug, Serialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct ItemMinimalProvider {
-    pub items: Vec<MinimalItem>,
-    pub description: ItemProviderMinimalDescription,
-}
+// #[derive(Debug, Serialize, ToSchema)]
+// #[serde(rename_all = "camelCase")]
+// pub struct ItemMinimalProvider {
+//     pub items: Vec<MinimalItem>,
+//     pub description: ItemProviderMinimalDescription,
+// }
+
+// #[derive(Debug, Serialize, ToSchema)]
+// #[serde(rename_all = "camelCase")]
+// pub struct ItemProviderMinimalDescription {
+//     pub id: String,
+//     pub rating: Option<f32>,
+//     pub name: String,
+//     pub images: Vec<String>,
+// }
+
+// #[derive(Debug, Serialize, ToSchema)]
+// #[serde(rename_all = "camelCase")]
+// pub struct ItemMinimalBPP {
+//     pub name: String,
+//     pub code: Option<String>,
+//     pub subscriber_id: String,
+//     pub images: Vec<String>,
+// }
 
 #[derive(Debug, Serialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct ItemProviderMinimalDescription {
-    pub id: String,
-    pub rating: Option<f32>,
-    pub name: String,
-    pub images: Vec<String>,
-}
-
-#[derive(Debug, Serialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct ItemMinimalBPP {
-    pub name: String,
-    pub code: Option<String>,
-    pub subscriber_id: String,
-    pub images: Vec<String>,
-}
-
-#[derive(Debug, Serialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct MinimalItemData {
-    pub bpp: ItemMinimalBPP,
-    pub providers: Vec<ItemMinimalProvider>,
+pub struct AutoCompleteItemResponseData {
+    pub items: Vec<AutoCompleteItem>,
+    pub search_after: Vec<String>,
 }
 
 pub struct ServicabilityIds {
@@ -964,4 +957,59 @@ pub struct NetworkParticipantListResponse {
 pub struct ProviderListResponse {
     pub providers: Vec<WSSearchProviderDescription>,
     pub search_after: Vec<String>,
+}
+
+#[derive(Deserialize, Debug, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CachedProductSearchRequest {
+    pub product_id: String,
+}
+
+impl FromRequest for CachedProductSearchRequest {
+    type Error = GenericError;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
+
+    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+        let fut = web::Json::<Self>::from_request(req, payload);
+
+        Box::pin(async move {
+            match fut.await {
+                Ok(json) => Ok(json.into_inner()),
+                Err(e) => Err(GenericError::ValidationError(e.to_string())),
+            }
+        })
+    }
+}
+
+#[derive(Deserialize, Debug, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ProductCacheSearchRequest {
+    pub query: String,
+
+    pub domain_category_code: CategoryDomain,
+    pub category_code: String,
+    pub country_code: CountryCode,
+    pub payment_type: Option<PaymentType>,
+    pub fulfillment_type: Option<FulfillmentType>,
+    pub search_type: ProductSearchType,
+    pub fulfillment_location: ProductFulFillmentLocation,
+    pub city_code: String,
+    pub limit: i32,
+    pub offset: Option<Vec<String>>,
+}
+
+impl FromRequest for ProductCacheSearchRequest {
+    type Error = GenericError;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
+
+    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+        let fut = web::Json::<Self>::from_request(req, payload);
+
+        Box::pin(async move {
+            match fut.await {
+                Ok(json) => Ok(json.into_inner()),
+                Err(e) => Err(GenericError::ValidationError(e.to_string())),
+            }
+        })
+    }
 }
