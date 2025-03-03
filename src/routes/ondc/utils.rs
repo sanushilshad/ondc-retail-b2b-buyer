@@ -510,7 +510,7 @@ pub fn get_price_obj_from_ondc_price_obj(
         currency: price.currency.to_owned(),
         price_with_tax: BigDecimal::from_str(&price.value).unwrap_or(BigDecimal::from(0)),
         price_without_tax: price.get_price_without_tax(tax),
-        offered_value: price
+        offered_price: price
             .offered_value
             .as_ref()
             .map(|v| BigDecimal::from_str(v).unwrap_or_else(|_| BigDecimal::from(0))),
@@ -1016,6 +1016,7 @@ fn get_variant_mapping(variants: &Vec<ONDCOnSearchCategory>) -> HashMap<String, 
             map.insert(
                 variant.id.clone(),
                 WSSearchVariant {
+                    id: variant.id.clone(),
                     name: variant.descriptor.name.clone(),
                     attributes,
                 },
@@ -1197,7 +1198,7 @@ pub fn get_product_from_on_search_request(
                             email: item.creator.descriptor.contact.email.clone(),
                         },
                     },
-                    fullfillment_options: fulfillment_type_list,
+                    fulfillment_options: fulfillment_type_list,
                     images,
                     videos,
                     location_ids: item.location_ids.to_owned(),

@@ -1,5 +1,5 @@
 use super::handlers::{
-    cached_network_participant_list, cached_product_read, cached_provider_list,
+    cached_network_participant_list, cached_product_req, cached_provider_list,
     product_autocomplete, realtime_product_search,
 };
 use crate::middleware::{BusinessAccountValidation, RequireAuth};
@@ -21,7 +21,7 @@ pub fn product_route(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::resource("/search/cache").route(
             web::post()
-                .to(cached_product_read)
+                .to(cached_product_req)
                 .wrap(BusinessAccountValidation {
                     business_type_list: vec![CustomerType::RetailB2bBuyer],
                 })

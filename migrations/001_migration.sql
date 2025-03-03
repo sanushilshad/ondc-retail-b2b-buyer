@@ -828,7 +828,7 @@ ALTER TABLE provider_offer_cache ADD CONSTRAINT provider_offer_cache_constraint 
 ALTER TABLE provider_offer_cache ADD CONSTRAINT provider_offer_cache_fk FOREIGN KEY ("provider_cache_id") REFERENCES provider_cache("id") ON DELETE CASCADE;
 
 
-CREATE TABLE IF NOT EXISTS item_variant_cache(
+CREATE TABLE IF NOT EXISTS provider_item_variant_cache(
     id uuid PRIMARY KEY,
     provider_cache_id uuid NOT NULL,
     variant_id TEXT NOT NULL,
@@ -843,7 +843,7 @@ ALTER TABLE item_variant_cache ADD CONSTRAINT item_variant_cache_cache_fk FOREIG
 
 
 
-CREATE TABLE IF NOT EXISTS item_cache (
+CREATE TABLE IF NOT EXISTS provider_item_cache (
       id uuid PRIMARY KEY,
       country_code country_code_type NOT NULL,
       provider_cache_id uuid NOT NULL,

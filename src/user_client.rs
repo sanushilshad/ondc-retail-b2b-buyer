@@ -208,7 +208,6 @@ pub enum MerchantType {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
-
 pub struct Proof {
     pub key: VectorType,
     pub kyc_id: String,

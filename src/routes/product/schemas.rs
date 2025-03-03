@@ -52,7 +52,6 @@ impl PaymentType {
 #[derive(Debug, Deserialize, Serialize, ToSchema, sqlx::Type, PartialEq)]
 #[serde(rename_all = "snake_case")]
 #[sqlx(type_name = "fulfillment_type", rename_all = "snake_case")]
-
 pub enum FulfillmentType {
     Delivery,
     SelfPickup,
@@ -195,7 +194,7 @@ pub struct WSSearchItemPrice {
     #[schema(value_type = f64)]
     pub price_without_tax: BigDecimal,
     #[schema(value_type =Option<f64>)]
-    pub offered_value: Option<BigDecimal>,
+    pub offered_price: Option<BigDecimal>,
     #[schema(value_type = f64)]
     pub maximum_price: BigDecimal,
 }
@@ -376,7 +375,7 @@ pub struct WSPaymentTypes {
     pub collected_by: ONDCNetworkType,
 }
 
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 #[skip_serializing_none]
 #[serde(rename_all = "camelCase")]
 pub struct WSPriceSlab {
@@ -554,7 +553,7 @@ pub struct WSSearchItem {
     pub price: WSSearchItemPrice,
     pub parent_item_id: Option<String>,
     pub recommended: bool,
-    pub fullfillment_options: Vec<FulfillmentType>,
+    pub fulfillment_options: Vec<FulfillmentType>,
     pub location_ids: Vec<String>,
     pub payment_options: Vec<PaymentType>,
     pub creator: WSProductCreator,
@@ -607,7 +606,7 @@ pub struct WSSearchProviderLocation {
     pub area_code: String,
 }
 
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Debug, Serialize, ToSchema, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WSSearchVariantAttribute {
     pub attribute_code: String,
@@ -616,6 +615,7 @@ pub struct WSSearchVariantAttribute {
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct WSSearchVariant {
+    pub id: String,
     pub name: String,
     pub attributes: Vec<WSSearchVariantAttribute>,
 }
@@ -770,7 +770,7 @@ pub struct BulkItemCache<'a> {
     pub short_descs: Vec<&'a str>,
     pub long_descs: Vec<&'a str>,
     pub item_ids: Vec<&'a str>,
-    pub item_codes: Vec<&'a str>,
+    pub item_codes: Vec<Option<&'a str>>,
     pub item_names: Vec<&'a str>,
     pub currencies: Vec<&'a CurrencyType>,
     pub price_with_taxes: Vec<&'a BigDecimal>,
@@ -808,7 +808,6 @@ pub struct BulkItemLocationCache<'a> {
 
 #[derive(Deserialize, Debug, ToSchema)]
 #[serde(rename_all = "camelCase")]
-#[allow(dead_code)]
 pub struct AutoCompleteItemRequest {
     pub query: String,
     pub domain_category_code: Option<CategoryDomain>,
@@ -891,7 +890,6 @@ pub struct DBItemCacheData {
 
 #[derive(Deserialize, Debug, ToSchema)]
 #[serde(rename_all = "camelCase")]
-#[allow(dead_code)]
 pub struct NetworkParticipantListReq {
     pub query: String,
     pub domain_category_code: Option<CategoryDomain>,
@@ -920,7 +918,6 @@ impl FromRequest for NetworkParticipantListReq {
 
 #[derive(Deserialize, Debug, ToSchema)]
 #[serde(rename_all = "camelCase")]
-#[allow(dead_code)]
 pub struct ProviderFetchReq {
     pub query: String,
     pub domain_category_code: Option<CategoryDomain>,
@@ -959,10 +956,19 @@ pub struct ProviderListResponse {
     pub search_after: Vec<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Deserialize, Debug, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CachedProductSearchRequest {
-    pub product_id: String,
+    pub query: String,
+    pub domain_category_code: CategoryDomain,
+    pub country_code: CountryCode,
+    pub payment_type: Option<PaymentType>,
+    pub fulfillment_type: Option<FulfillmentType>,
+    pub search_type: ProductSearchType,
+    pub fulfillment_location: ProductFulFillmentLocation,
+    pub city_code: String,
+    pub update_cache: bool,
 }
 
 impl FromRequest for CachedProductSearchRequest {
@@ -987,11 +993,10 @@ pub struct ProductCacheSearchRequest {
     pub query: String,
 
     pub domain_category_code: CategoryDomain,
-    pub category_code: String,
+    pub category_code: Option<String>,
     pub country_code: CountryCode,
     pub payment_type: Option<PaymentType>,
     pub fulfillment_type: Option<FulfillmentType>,
-    pub search_type: ProductSearchType,
     pub fulfillment_location: ProductFulFillmentLocation,
     pub city_code: String,
     pub limit: i32,
@@ -1012,4 +1017,10 @@ impl FromRequest for ProductCacheSearchRequest {
             }
         })
     }
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ItemCacheResponseData {
+    pub network_participants: Vec<WSSearchData>,
+    pub search_after: Vec<String>,
 }

@@ -4,6 +4,7 @@ use std::str::FromStr;
 use bigdecimal::{BigDecimal, ToPrimitive};
 use elasticsearch::http::request::JsonBody;
 use futures::future::join_all;
+use serde::de::DeserializeOwned;
 use serde_json::{json, Value};
 use sqlx::{PgPool, Postgres, Transaction, Executor, types::Json};
 use tokio::try_join;
@@ -13,8 +14,8 @@ use crate::elastic_search_client::{ElasticSearchClient, ElasticSearchIndex};
 use crate::routes::product::models::{ESAutoCompleteProviderItemModel, ESHyperlocalServicabilityModel, ESProviderLocationModel, ESProviderModel};
 use crate::routes::product::schemas::{AutoCompleteItem, FulfillmentType, PaymentType, ProductSearchType, ProviderListResponse};
 use crate::schemas::{CurrencyType, RequestMetaData};
-use super::models::{ESCountryServicabilityModel, ESGeoJsonServicabilityModel, ESInterCityServicabilityModel, ESLocationModel, ESNetworkParticipantModel, ESProviderItemModel, ESProviderItemVariantModel, ProductVariantAttributeModel, SearchProviderCredentialModel, WSItemReplacementTermModel, WSItemReturnTermModel, WSPriceSlabModel, WSProductCategoryModel, WSSearchItemAttributeModel, WSSearchProviderContactModel, WSSearchProviderTermsModel};
-use super::schemas::{AutoCompleteItemResponseData, BulkCountryServicabilityCache, BulkGeoServicabilityCache, BulkHyperlocalServicabilityCache, BulkInterCityServicabilityCache, BulkItemCache, BulkItemLocationCache, BulkItemVariantCache, BulkProviderCache, BulkProviderLocationCache, CategoryDomain, DBItemCacheData, NetworkParticipantListReq, NetworkParticipantListResponse, AutoCompleteItemRequest, ProductCacheSearchRequest, ProductFulFillmentLocation, ProductSearchRequest, ProviderFetchReq, ServicabilityIds, WSSearchBPP, WSSearchData, WSSearchProvider};
+use super::models::{ESCountryServicabilityModel, ESGeoJsonServicabilityModel, ESInterCityServicabilityModel, ESLocationModel, ESNetworkParticipantModel, ESProviderItemModel, ESProviderItemVariantModel, ProductVariantAttributeModel, SearchProviderCredentialModel, WSItemCancellationModel, WSItemReplacementTermModel, WSItemReturnTermModel, WSItemValidityModel, WSPriceSlabModel, WSProductCategoryModel, WSProductCreatorModel, WSSearchItemAttributeModel, WSSearchItemQuantityModel, WSSearchProviderContactModel, WSSearchProviderTermsModel};
+use super::schemas::{AutoCompleteItemRequest, AutoCompleteItemResponseData, BulkCountryServicabilityCache, BulkGeoServicabilityCache, BulkHyperlocalServicabilityCache, BulkInterCityServicabilityCache, BulkItemCache, BulkItemLocationCache, BulkItemVariantCache, BulkProviderCache, BulkProviderLocationCache, CategoryDomain, DBItemCacheData, ItemCacheResponseData, NetworkParticipantListReq, NetworkParticipantListResponse, ProductCacheSearchRequest, ProductFulFillmentLocation, ProductSearchRequest, ProviderFetchReq, ServicabilityIds, WSItemValidity, WSPriceSlab, WSSearchBPP, WSSearchData, WSSearchItem, WSSearchItemPrice, WSSearchProvider};
 use chrono::{DateTime, Utc};
 use crate::user_client::{BusinessAccount, UserAccount};
 use crate::schemas::CountryCode;
@@ -905,7 +906,7 @@ async fn save_variant_cache(
     if !data.ids.is_empty() {
         let query = sqlx::query!(
             r#"
-            INSERT INTO item_variant_cache (
+            INSERT INTO provider_item_variant_cache (
                 id,
                 provider_cache_id,
                 variant_id,
@@ -1006,7 +1007,7 @@ fn create_bulk_items<'a>(providers: &'a Vec<WSSearchProvider>, country_code: &'a
                 domain_codes.push(&item.domain_category);
                 // category_codes.push(item.categories.first().map_or("NA", |f|&f.code));
                 item_ids.push(item.id.as_str());
-                item_codes.push(item.id.as_str());
+                item_codes.push(item.code.as_deref());
                 item_names.push(item.name.as_str());
                 short_descs.push(item.short_desc.as_str());
                 long_descs.push(item.long_desc.as_str());
@@ -1017,7 +1018,7 @@ fn create_bulk_items<'a>(providers: &'a Vec<WSSearchProvider>, country_code: &'a
                 tax_rates.push(&item.tax_rate);
                 price_with_taxes.push(&item.price.price_with_tax);
                 price_without_taxes.push(&item.price.price_without_tax);
-                offered_prices.push(&item.price.offered_value);
+                offered_prices.push(&item.price.offered_price);
                 maximum_prices.push(&item.price.maximum_price);
                 if let Some(parent_item_id) = &item.parent_item_id {
                     let key = format!("{}_{}", provider_id, parent_item_id);
@@ -1029,7 +1030,7 @@ fn create_bulk_items<'a>(providers: &'a Vec<WSSearchProvider>, country_code: &'a
                 
                 time_to_ships.push(item.time_to_ship.as_ref());
                 payment_options.push(json!(item.payment_options));
-                fulfillment_options.push(json!(item.fullfillment_options));
+                fulfillment_options.push(json!(item.fulfillment_options));
                 images.push(json!(item.images));
                 videos.push(json!(item.videos));
                 attributes.push(json!(attribute_models));
@@ -1182,7 +1183,7 @@ async fn save_item_cache(transaction: &mut Transaction<'_, Postgres>, country_co
     if !data.ids.is_empty() {
         let query = sqlx::query!(
             r#"
-                INSERT INTO item_cache (
+                INSERT INTO provider_item_cache (
                 id,
                 country_code,
                 provider_cache_id,
@@ -1293,7 +1294,7 @@ async fn save_item_cache(transaction: &mut Transaction<'_, Postgres>, country_co
             &data.country_codes[..] as &[&CountryCode], 
             &data.provider_ids[..] as &[&Uuid], 
             &data.domain_codes[..] as &[&CategoryDomain],
-            &data.item_codes[..] as &[&str], 
+            &data.item_codes[..] as &[Option<&str>], 
             &data.item_ids[..] as &[&str], 
             &data.item_names[..] as &[&str], 
             &data.currencies[..] as &[&CurrencyType],
@@ -1790,7 +1791,7 @@ async fn get_provider_item_variant_cache_data_from_db(
         provider_cache_id, variant_id,
         variant_name, attributes, 
         created_on, updated_on
-        FROM item_variant_cache
+        FROM provider_item_variant_cache
         WHERE id = ANY($1)
         "#,
         &id_list[..]
@@ -1885,10 +1886,10 @@ async fn get_provider_item_cache_data_from_db(
             ic.return_terms,
             ic.cancellation_terms,
             ic.created_on,
-            pc.network_participant_cache_id,  -- Added network_participant_cache_id
+            pc.network_participant_cache_id,  
             COALESCE(array_agg(DISTINCT ilcr.location_cache_id) 
                 FILTER (WHERE ilcr.location_cache_id IS NOT NULL), '{}') AS location_ids
-        FROM item_cache ic
+        FROM provider_item_cache ic
         LEFT JOIN item_location_cache_relationship ilcr 
             ON ic.id = ilcr.item_cache_id
         LEFT JOIN provider_cache pc 
@@ -1944,7 +1945,7 @@ async fn save_provider_item_to_elastic_search(pool: &PgPool, es_client: &Elastic
 }
 
 
-async fn get_servicable_uq_ids(es_client: &ElasticSearchClient, distinct_key: &str, domain_category_code: Option<&CategoryDomain>, country_code: Option<&CountryCode>,category_code: Option<&String>, fulfillment_location: Option<&ProductFulFillmentLocation>)-> Result<Vec<Uuid>, anyhow::Error>{
+async fn get_servicable_uq_ids_from_es(es_client: &ElasticSearchClient, distinct_key: &str, domain_category_code: Option<&CategoryDomain>, country_code: Option<&CountryCode>,category_code: Option<&String>, fulfillment_location: Option<&ProductFulFillmentLocation>)-> Result<Vec<Uuid>, anyhow::Error>{
     let mut tasks =vec![];
     let mut base_query = json!({
         "size": 0, 
@@ -2073,7 +2074,7 @@ pub async fn get_network_participant_from_es(es_client: &ElasticSearchClient, bo
             .push(multi_match_query);
     }
     if body.domain_category_code.is_some() || body.country_code.is_some() || body.category_code.is_some() || body.fulfillment_location.is_some(){
-        let network_participant_ids = get_servicable_uq_ids(es_client, "network_participant_cache_id", body.domain_category_code.as_ref(), body.country_code.as_ref(), body.category_code.as_ref(), body.fulfillment_location.as_ref()).await?;
+        let network_participant_ids = get_servicable_uq_ids_from_es(es_client, "network_participant_cache_id", body.domain_category_code.as_ref(), body.country_code.as_ref(), body.category_code.as_ref(), body.fulfillment_location.as_ref()).await?;
         if network_participant_ids.is_empty(){
             return  Ok(None)
         }
@@ -2112,7 +2113,7 @@ pub async fn get_network_participant_from_es(es_client: &ElasticSearchClient, bo
             .iter()
             .filter_map(|hit| serde_json::from_value(hit["_source"].clone()).ok())
             .collect();
-        let network_participants = results.into_iter().map(|a| a.get_ws_bpp()).collect();
+        let network_participants = results.into_iter().map(|a| a.get_schema()).collect();
         let search_after: Vec<String> = hits.last().map_or(Vec::new(), |hit| {
             hit["sort"].as_array()
                 .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
@@ -2151,7 +2152,7 @@ pub async fn get_provider_from_es(es_client: &ElasticSearchClient, body: Provide
             .push(multi_match_query);
     }
     if body.domain_category_code.is_some() || body.country_code.is_some() || body.category_code.is_some() || body.fulfillment_location.is_some(){
-        let provider_ids = get_servicable_uq_ids(es_client,"provider_cache_id", body.domain_category_code.as_ref(), body.country_code.as_ref(),body.category_code.as_ref(), body.fulfillment_location.as_ref()).await?;
+        let provider_ids = get_servicable_uq_ids_from_es(es_client,"provider_cache_id", body.domain_category_code.as_ref(), body.country_code.as_ref(),body.category_code.as_ref(), body.fulfillment_location.as_ref()).await?;
         if provider_ids.is_empty(){
             return  Ok(None)
         }
@@ -2181,7 +2182,6 @@ pub async fn get_provider_from_es(es_client: &ElasticSearchClient, body: Provide
             anyhow!(e)
         })?;
     if let Some(hits) = data["hits"]["hits"].as_array() {
-        println!("{:?}", hits);
         let results: Vec<ESProviderModel> = hits
             .iter()
             .filter_map(|hit| serde_json::from_value(hit["_source"].clone()).ok())
@@ -2195,106 +2195,12 @@ pub async fn get_provider_from_es(es_client: &ElasticSearchClient, body: Provide
         return Ok(Some(ProviderListResponse{providers, search_after}))
         //  Ok(Some(results))
     }
-    return Err(anyhow!("Something found while fetching data from elastic search"))
+    Err(anyhow!("Something found while fetching data from elastic search"))
 
 }
 
 
-// fetch minial bpp_data
-// fetch minial provider_data
-// fetch minimal item_data
-pub async fn get_item_from_es(es_client: &ElasticSearchClient, body: &ProductCacheSearchRequest, location_cache_ids: Vec<Uuid>) ->Result<Option<()>, anyhow::Error>{
-     let mut base_query: Value = json!({
-        "size": body.limit,
-        "query": {
-            "bool": {
-                "must": []
-            }
-        },
-        "sort": [{"id": "asc"}]
-    });   
-    if !body.query.trim().is_empty() {
-        let multi_match_query = json!({
-            "multi_match": {
-                "query":&body.query,
-                "fields": ["item_id", "item_code", "item_name", "short_desc", "long_desc"]
-            }
-        });
 
-        base_query["query"]["bool"]["must"]
-            .as_array_mut()
-            .unwrap()
-            .push(multi_match_query);
-    }
-
-    if let Some(search_after) = &body.offset {
-        base_query["search_after"] = json!(search_after);
-    }
-
-    if location_cache_ids.is_empty(){
-        return Ok(None)
-    }
-    let terms_filter = json!({
-        "terms": {
-            "location_cache_id": location_cache_ids
-        }
-    });
-    base_query["query"]["bool"]
-        .as_object_mut()
-        .unwrap()
-        .entry("filter")
-        .or_insert_with(|| json!([]))
-        .as_array_mut()
-        .unwrap()
-        .push(terms_filter);
-
-    let data = es_client
-        .fetch(base_query, ElasticSearchIndex::ProviderItem)
-        .await
-        .map_err(|e| {
-            anyhow!(e)
-        })?;
-    if let Some(_hits) = data["hits"]["hits"].as_array() {
-        // println!("{:?}", hits);
-        // let results: Vec<ESProviderItemModel> = hits
-        //     .iter()
-        //     .filter_map(|hit| serde_json::from_value(hit["_source"].clone()).ok())
-        //     .collect();
-        // let providers = results.into_iter().map(|a| a.get_ws_provider()).collect();
-        // let search_after: Vec<String> = hits.last().map_or(Vec::new(), |hit| {
-        //     hit["sort"].as_array()
-        //         .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
-        //         .unwrap_or_default()
-        // });
-        // Ok(Some(ProviderListResponse{providers, search_after}))
-        //  Ok(Some(results))
-        return Ok(None)
-    } 
-     return Ok(None)
-
-    
-}
-
-pub async fn get_full_item_data_from_es(es_client: &ElasticSearchClient, body: ProductCacheSearchRequest) ->Result<Option<()>, anyhow::Error>{
-    let domain_category_code = Some(&body.domain_category_code);
-    let country_code = Some(&body.country_code);
-    let category_code = Some(&body.category_code);
-    let fulfillment_location = Some(&body.fulfillment_location);
-    let location_cache_ids = get_servicable_uq_ids(
-        es_client,
-        "location_cache_id",
-        domain_category_code,
-        country_code,
-        category_code,
-        fulfillment_location,
-    ).await?;
-    let _ = get_item_from_es(es_client, &body, location_cache_ids).await?;
-
-
-
-    Ok(None)
-
-}
 
 
 
@@ -2362,6 +2268,313 @@ pub async fn get_minimal_item_from_es(es_client: &ElasticSearchClient, body: &Au
 
 
 pub async fn get_auto_complete_product_data(es_client: &ElasticSearchClient, body: &AutoCompleteItemRequest) -> Result<AutoCompleteItemResponseData, anyhow::Error>{
-    let data = get_minimal_item_from_es(&es_client, &body).await;
-    data
+    get_minimal_item_from_es(es_client, body).await
+}
+
+
+
+
+pub async fn get_item_from_es(es_client: &ElasticSearchClient, body: &ProductCacheSearchRequest, location_cache_ids: &Vec<Uuid>) ->Result<Option<(Vec<String>, Vec<ESProviderItemModel>)>, anyhow::Error>{
+     let mut base_query: Value = json!({
+        "size": body.limit,
+        "query": {
+            "bool": {
+                "must": []
+            }
+        },
+        "sort": [{"id": "asc"}]
+    });   
+    if !body.query.trim().is_empty() {
+        let multi_match_query = json!({
+            "multi_match": {
+                "query":&body.query,
+                "fields": ["item_id", "item_code", "item_name", "short_desc", "long_desc"]
+            }
+        });
+
+        base_query["query"]["bool"]["must"]
+            .as_array_mut()
+            .unwrap()
+            .push(multi_match_query);
+    }
+
+    if let Some(search_after) = &body.offset {
+        base_query["search_after"] = json!(search_after);
+    }
+
+    if location_cache_ids.is_empty(){
+        return Ok(None)
+    }
+    let terms_filter = json!({
+        "terms": {
+            "location_ids": location_cache_ids
+        }
+    });
+    base_query["query"]["bool"]
+        .as_object_mut()
+        .unwrap()
+        .entry("filter")
+        .or_insert_with(|| json!([]))
+        .as_array_mut()
+        .unwrap()
+        .push(terms_filter);
+    tracing::info!("{}", base_query);
+    let data = es_client
+        .fetch(base_query, ElasticSearchIndex::ProviderItem)
+        .await
+        .map_err(|e| {
+            anyhow!(e)
+        })?;
+    if let Some(hits) = data["hits"]["hits"].as_array() {
+       
+        let items: Vec<ESProviderItemModel> = hits
+            .iter()
+            .filter_map(|hit| serde_json::from_value(hit["_source"].clone()).ok())
+            .collect();
+        let search_after: Vec<String> = hits.last().map_or(Vec::new(), |hit| {
+            hit["sort"].as_array()
+                .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+                .unwrap_or_default()
+        });
+        return Ok(Some((search_after, items)))
+    } 
+    Err(anyhow!("Something found while fetching data from elastic search"))
+    
+}
+
+
+async fn get_item_support_data(es_client: &ElasticSearchClient, ids: &HashSet<Uuid>, index_type: ElasticSearchIndex) -> Result<Value, anyhow::Error>{
+
+    let data = es_client
+    .fetch(json!({
+        "size": ids.len(),
+        "query": {
+            "terms": {
+                "id": ids 
+            }
+        }
+    }), index_type).await?;
+
+    Ok(data)
+}
+
+fn extract_es_model_map<T: DeserializeOwned>(
+    response: &Value,
+    first_key: &str,
+    second_key: &str,
+) -> HashMap<Uuid, HashMap<Uuid, T>> {
+    let mut map: HashMap<Uuid, HashMap<Uuid, T>> = HashMap::new();
+
+    if let Some(hits) = response["hits"]["hits"].as_array() {
+        for hit in hits {
+            if let Some(source) = hit["_source"].as_object() {
+                if let Some(first_id_str) = source.get(first_key).and_then(|id| id.as_str()) {
+                    if let Some(second_id_str) = source.get(second_key).and_then(|id| id.as_str()) {
+                        if let (Ok(first_id), Ok(second_id)) =
+                            (first_id_str.parse::<Uuid>(), second_id_str.parse::<Uuid>())
+                        {
+                            if let Ok(model) =
+                                serde_json::from_value::<T>(Value::Object(source.clone()))
+                            {
+                                map.entry(first_id)
+                                    .or_default()
+                                    .insert(second_id, model);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    map
+}
+fn get_ws_item_from_es_model(item_model: ESProviderItemModel, provider_location_map: &Option<HashMap<Uuid, ESProviderLocationModel>>, provider_variant_map: &Option<HashMap<Uuid, ESProviderItemVariantModel>>) -> Result<Option<WSSearchItem>, anyhow::Error>{
+    let videos: Vec<String> = serde_json::from_value(item_model.videos)?;
+    let images : Vec<String> = serde_json::from_value(item_model.images)?;
+    let fulfillment_options: Vec<FulfillmentType> = serde_json::from_value(item_model.fulfillment_options)?;
+    let payment_options: Vec<PaymentType> = serde_json::from_value(item_model.payment_options)?; 
+    let creator : WSProductCreatorModel = serde_json::from_value(item_model.creator)?; 
+    let replacement_term_models: Vec<WSItemReplacementTermModel> = serde_json::from_value(item_model.replacement_terms)?; 
+    let cancellation_term_model:  WSItemCancellationModel = serde_json::from_value(item_model.cancellation_terms)?; 
+    let return_term_model: Vec<WSItemReturnTermModel> = serde_json::from_value(item_model.return_terms)?;
+    let quantity_model : WSSearchItemQuantityModel = serde_json::from_value(item_model.qty)?;
+    let categories_models: Vec<WSProductCategoryModel>= serde_json::from_value(item_model.categories)?;
+    let price_slabs: Option<Vec<WSPriceSlab>> = item_model
+        .price_slabs
+        .map(serde_json::from_value)
+        .transpose()?;
+    let attribute_models: Vec<WSSearchItemAttributeModel>= serde_json::from_value(item_model.attributes)?;
+    let validity: Option<WSItemValidity> = item_model
+        .validity
+        .map(|a: serde_json::Value| serde_json::from_value::<WSItemValidityModel>(a))
+        .transpose()?
+        .map(|v| v.get_schema());
+    let parent_item_id = provider_variant_map
+    .as_ref()
+    .and_then(|map| item_model.variant_cache_id.and_then(|id| map.get(&id)))
+    .map(|variant_model| variant_model.variant_id.clone());
+    let location_ids: Vec<String> = item_model.location_ids.as_ref().map(|ids| {
+        ids.iter()
+            .filter_map(|id| provider_location_map.as_ref()?.get(id).map(|loc| loc.location_id.to_owned()))
+            .collect()
+    }).unwrap_or_default();
+    if location_ids.is_empty(){
+        return Ok(None);
+    }
+    Ok(Some(WSSearchItem{ 
+        id: item_model.item_id,
+        name: item_model.item_name,
+        long_desc: item_model.long_desc,
+        short_desc: item_model.short_desc,
+        code: item_model.item_code,
+        domain_category: item_model.domain_code,
+        matched: item_model.matched,
+        country_of_origin: item_model.country_of_origin,
+        videos,
+        images,
+        price: WSSearchItemPrice{ 
+            currency: item_model.currency,
+            price_with_tax: item_model.price_with_tax,
+            price_without_tax: item_model.price_without_tax,
+            offered_price:item_model.offered_price,
+            maximum_price: item_model.maximum_price,
+        },
+        recommended: item_model.recommended,
+        fulfillment_options,
+        tax_rate: item_model.tax_rate,
+        time_to_ship: item_model.time_to_ship,
+        payment_options,
+        creator: creator.get_schema(),
+        replacement_terms: replacement_term_models.into_iter().map(|f|f.get_schema()).collect(),
+        cancellation_terms:  cancellation_term_model.get_schema(),
+        return_terms: return_term_model.into_iter().map(|f|f.get_schema()).collect(),
+        quantity: quantity_model.get_schema(),
+        categories: categories_models.into_iter().map(|f|f.get_schema()).collect(),
+        price_slabs,
+        attributes: attribute_models.into_iter().map(|f|f.get_schema()).collect(),
+        validity,
+        parent_item_id,
+        location_ids,
+
+    }))
+}
+
+pub async fn get_full_item_data_from_es(
+    es_client: &ElasticSearchClient,
+    body: &ProductCacheSearchRequest,
+) -> Result<Option<ItemCacheResponseData>, anyhow::Error> {
+    let location_cache_ids = get_servicable_uq_ids_from_es(
+        es_client,
+        "location_cache_id",
+        Some(&body.domain_category_code),
+        Some(&body.country_code),
+        body.category_code.as_ref(),
+        Some(&body.fulfillment_location),
+    )
+    .await?;
+
+    if let Some((search_after, item_models)) = get_item_from_es(es_client, body, &location_cache_ids).await? {
+        let mut provider_ids = HashSet::new();
+        let mut network_participant_ids = HashSet::new();
+        let mut location_ids = HashSet::new();
+        let mut variant_ids = HashSet::new();
+
+        for item_model in &item_models {
+            provider_ids.insert(item_model.provider_cache_id);
+            network_participant_ids.insert(item_model.network_participant_cache_id);
+            if let Some(variant_id) = item_model.variant_cache_id {
+                variant_ids.insert(variant_id);
+            }
+            if let Some(item_location_ids) = &item_model.location_ids {
+                for &location_id in item_location_ids {
+                    if location_cache_ids.contains(&location_id) {
+                        location_ids.insert(location_id);
+                    }
+                }
+            }
+        }
+
+        // Efficient way to group items by provider
+        let mut item_map: HashMap<Uuid, Vec<ESProviderItemModel>> = HashMap::new();
+        for item in item_models {
+            item_map.entry(item.provider_cache_id).or_default().push(item);
+        }
+
+        let (network_participant_res, provider_res, location_res, variant_res ) = try_join!(
+            get_item_support_data(es_client, &network_participant_ids, ElasticSearchIndex::NetworkParticipant),
+            get_item_support_data(es_client, &provider_ids, ElasticSearchIndex::Provider),
+            get_item_support_data(es_client, &location_ids, ElasticSearchIndex::ProviderLocation),
+            get_item_support_data(es_client, &variant_ids, ElasticSearchIndex::ProviderItemVariant)
+        )?;
+
+        let mut provider_model_map: HashMap<Uuid, HashMap<Uuid, ESProviderModel>> =
+            extract_es_model_map(&provider_res, "network_participant_cache_id", "id");
+        let mut location_model_map: HashMap<Uuid, HashMap<Uuid, ESProviderLocationModel>> =
+            extract_es_model_map(&location_res, "provider_cache_id", "id");
+        let mut variant_model_map: HashMap<Uuid, HashMap<Uuid, ESProviderItemVariantModel>> =
+            extract_es_model_map(&variant_res, "provider_cache_id", "id");
+
+        let mut final_data = Vec::new();
+        tracing::info!("{:?}", network_participant_res);
+        if let Some(hits) = network_participant_res["hits"]["hits"].as_array() {
+            let network_participants: Vec<ESNetworkParticipantModel> =
+                hits.iter()
+                    .filter_map(|hit| serde_json::from_value(hit["_source"].clone()).ok())
+                    .collect();
+
+            for network_participant in network_participants {
+                let mut provider_data = Vec::new();
+
+                if let Some(providers) = provider_model_map.remove(&network_participant.id) {
+                    for (_, provider) in providers {
+                        let provider_variant_models = variant_model_map
+                            .remove(&provider.id);
+                        let provider_location_models =location_model_map
+                            .remove(&provider.id);
+
+                        let item_models = item_map.remove(&provider.id).unwrap_or_default();
+                        // let mut item_final_data= vec![];
+                        let item_final_data: Vec<WSSearchItem> = item_models
+                            .into_iter()
+                            .filter_map(|item_model| get_ws_item_from_es_model(item_model, &provider_location_models, &provider_variant_models).ok().flatten())
+                            .collect();
+    
+                        let final_variant = provider_variant_models.map(|variants| {
+                                variants.into_values().map(|v| (v.variant_id.to_owned(), v.get_schema())).collect()
+                            }).
+                            unwrap_or_default();
+
+                        let final_location = 
+                            provider_location_models.map(|locations| {
+                                locations.into_values().map(|l| (l.location_id.to_owned(), l.get_schema())).collect()
+                            }).
+                            unwrap_or_default();
+
+       
+
+                        provider_data.push(WSSearchProvider {
+                            description: provider.get_ws_provider(),
+                            servicability: HashMap::new(),
+                            variants: Some(final_variant),
+                            locations: final_location,
+                            items: item_final_data,
+                        });
+                    }
+                }
+
+                final_data.push(WSSearchData {
+                    bpp: network_participant.get_schema(),
+                    providers: provider_data,
+                });
+            }
+        }
+
+        return Ok(Some(ItemCacheResponseData {
+            network_participants: final_data,
+            search_after,
+        }));
+    }
+
+    Ok(None)
 }

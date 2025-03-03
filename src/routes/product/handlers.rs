@@ -3,13 +3,13 @@ use actix_web::{web, HttpResponse};
 use utoipa::TupleUnit;
 // use anyhow::Context;
 use super::schemas::{
-    AutoCompleteItemRequest, AutoCompleteItemResponseData, NetworkParticipantListReq,
-    NetworkParticipantListResponse, ProductCacheSearchRequest, ProductSearchRequest,
-    ProviderFetchReq, ProviderListResponse, WSSearchData,
+    AutoCompleteItemRequest, AutoCompleteItemResponseData, ItemCacheResponseData,
+    NetworkParticipantListReq, NetworkParticipantListResponse, ProductCacheSearchRequest,
+    ProductSearchRequest, ProviderFetchReq, ProviderListResponse,
 };
 use super::utils::{
-    get_auto_complete_product_data, get_network_participant_from_es, get_provider_from_es,
-    save_search_request,
+    get_auto_complete_product_data, get_full_item_data_from_es, get_network_participant_from_es,
+    get_provider_from_es, save_search_request,
 };
 use crate::configuration::ONDCConfig;
 use crate::elastic_search_client::ElasticSearchClient;
@@ -159,34 +159,6 @@ pub async fn cached_provider_list(
 
 #[utoipa::path(
     post,
-    path = "/product/search/cache/read",
-    tag = "Product",
-    description="This API searches product in cache.",
-    summary= "Cached Product Search Request",
-    request_body(content = ProductCacheSearchRequest, description = "Request Body"),
-    responses(
-        (status=200, description= "Realtime Product Search", body= GenericResponse<Vec<WSSearchData>>),
-        (status=400, description= "Invalid Request body", body= GenericResponse<TupleUnit>),
-        (status=401, description= "Invalid Token", body= GenericResponse<TupleUnit>),
-	    (status=403, description= "Insufficient Previlege", body= GenericResponse<TupleUnit>),
-	    (status=410, description= "Data not found", body= GenericResponse<TupleUnit>),
-        (status=500, description= "Internal Server Error", body= GenericResponse<TupleUnit>),
-	    (status=501, description= "Not Implemented", body= GenericResponse<TupleUnit>)
-    )
-)]
-#[tracing::instrument(name = "Cached Product Search", skip(), fields())]
-pub async fn cached_product_read(
-    body: ProductCacheSearchRequest,
-) -> Result<web::Json<GenericResponse<()>>, GenericError> {
-    Ok(web::Json(GenericResponse::success(
-        "Successfully Fetched Product Detail",
-        StatusCode::OK,
-        Some(()),
-    )))
-}
-
-#[utoipa::path(
-    post,
     path = "/product/autocomplete",
     tag = "Product",
     description="This API is used for listing products with minimal data.",
@@ -205,8 +177,6 @@ pub async fn cached_product_read(
 pub async fn product_autocomplete(
     body: AutoCompleteItemRequest,
     es_client: web::Data<ElasticSearchClient>,
-    user_account: UserAccount,
-    business_account: BusinessAccount,
 ) -> Result<web::Json<GenericResponse<AutoCompleteItemResponseData>>, GenericError> {
     let data = get_auto_complete_product_data(&es_client, &body)
         .await
@@ -216,5 +186,37 @@ pub async fn product_autocomplete(
         "Successfully Fetched autocomplete data",
         StatusCode::OK,
         Some(data),
+    )))
+}
+
+#[utoipa::path(
+    post,
+    path = "/product/search/cache",
+    tag = "Product",
+    description="This API searches product in cache.",
+    summary= "Cached Product Search Request",
+    request_body(content = ProductCacheSearchRequest, description = "Request Body"),
+    responses(
+        (status=200, description= "Realtime Product Search", body= GenericResponse<ItemCacheResponseData>),
+        (status=400, description= "Invalid Request body", body= GenericResponse<TupleUnit>),
+        (status=401, description= "Invalid Token", body= GenericResponse<TupleUnit>),
+	    (status=403, description= "Insufficient Previlege", body= GenericResponse<TupleUnit>),
+	    (status=410, description= "Data not found", body= GenericResponse<TupleUnit>),
+        (status=500, description= "Internal Server Error", body= GenericResponse<TupleUnit>),
+	    (status=501, description= "Not Implemented", body= GenericResponse<TupleUnit>)
+    )
+)]
+#[tracing::instrument(name = "Cached Product Search", skip(), fields())]
+pub async fn cached_product_req(
+    body: ProductCacheSearchRequest,
+    es_client: web::Data<ElasticSearchClient>,
+) -> Result<web::Json<GenericResponse<ItemCacheResponseData>>, GenericError> {
+    let data = get_full_item_data_from_es(&es_client, &body)
+        .await
+        .map_err(GenericError::UnexpectedError)?;
+    Ok(web::Json(GenericResponse::success(
+        "Successfully Fetched Product Detail",
+        StatusCode::OK,
+        data,
     )))
 }

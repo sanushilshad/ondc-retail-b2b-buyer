@@ -10,9 +10,13 @@ use serde_with::skip_serializing_none;
 use uuid::Uuid;
 
 use super::schemas::{
-    AutoCompleteItem, CategoryDomain, CredentialType, PaymentType, WSSearchBPP,
-    WSSearchProviderContact, WSSearchProviderCredential, WSSearchProviderDescription,
-    WSSearchProviderID, WSSearchProviderTerms,
+    AutoCompleteItem, CategoryDomain, CredentialType, PaymentType, WSCreatorContactData,
+    WSItemCancellation, WSItemCancellationFee, WSItemCancellationTerm, WSItemReplacementTerm,
+    WSItemReturnLocation, WSItemReturnTerm, WSItemReturnTime, WSItemValidity, WSProductCategory,
+    WSProductCreator, WSSearchBPP, WSSearchCity, WSSearchCountry, WSSearchItemAttribute,
+    WSSearchItemQty, WSSearchItemQtyMeasure, WSSearchItemQuantity, WSSearchProviderContact,
+    WSSearchProviderCredential, WSSearchProviderDescription, WSSearchProviderID,
+    WSSearchProviderLocation, WSSearchProviderTerms, WSSearchState, WSSearchVariant,
 };
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -79,26 +83,50 @@ pub struct ProviderPaymentOptionModel {
     pub collected_by: ONDCNetworkType,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct WSItemReplacementTermModel {
     pub replace_within: String,
 }
 
-#[derive(Debug, Serialize)]
+impl WSItemReplacementTermModel {
+    pub fn get_schema(self) -> WSItemReplacementTerm {
+        WSItemReplacementTerm {
+            replace_within: self.replace_within,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct WSItemReturnTimeModel {
     pub duration: String,
 }
+impl WSItemReturnTimeModel {
+    pub fn get_schema(self) -> WSItemReturnTime {
+        WSItemReturnTime {
+            duration: self.duration,
+        }
+    }
+}
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct WSItemReturnLocationModel {
     pub address: String,
     pub gps: String,
 }
 
-#[derive(Debug, Serialize)]
+impl WSItemReturnLocationModel {
+    pub fn get_schema(self) -> WSItemReturnLocation {
+        WSItemReturnLocation {
+            gps: self.gps,
+            address: self.address,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct WSItemReturnTermModel {
     pub fulfillment_state: FulfillmentStatusType,
@@ -108,6 +136,18 @@ pub struct WSItemReturnTermModel {
     pub fulfillment_managed_by: String,
 }
 
+impl WSItemReturnTermModel {
+    pub fn get_schema(self) -> WSItemReturnTerm {
+        WSItemReturnTerm {
+            fulfillment_state: self.fulfillment_state,
+            return_eligible: self.return_eligible,
+            return_time: self.return_time.get_schema(),
+            return_location: self.return_location.get_schema(),
+            fulfillment_managed_by: self.fulfillment_managed_by,
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged, rename_all = "snake_case")]
 pub enum WSItemCancellationFeeModel {
@@ -115,7 +155,20 @@ pub enum WSItemCancellationFeeModel {
     Amount { amount: f64 },
 }
 
-#[derive(Debug, Serialize)]
+impl WSItemCancellationFeeModel {
+    pub fn get_schema(self) -> WSItemCancellationFee {
+        match self {
+            WSItemCancellationFeeModel::Percent { percentage } => {
+                WSItemCancellationFee::Percent { percentage }
+            }
+            WSItemCancellationFeeModel::Amount { amount } => {
+                WSItemCancellationFee::Amount { amount }
+            }
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct WSItemCancellationTermModel {
     pub fulfillment_state: FulfillmentStatusType,
@@ -123,19 +176,47 @@ pub struct WSItemCancellationTermModel {
     pub fee: WSItemCancellationFeeModel,
 }
 
-#[derive(Debug, Serialize)]
+impl WSItemCancellationTermModel {
+    pub fn get_schema(self) -> WSItemCancellationTerm {
+        WSItemCancellationTerm {
+            reason_required: self.reason_required,
+            fee: self.fee.get_schema(),
+            fulfillment_state: self.fulfillment_state,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct WSItemCancellationModel {
     pub is_cancellable: bool,
     pub terms: Vec<WSItemCancellationTermModel>,
 }
 
-#[derive(Debug, Serialize)]
+impl WSItemCancellationModel {
+    pub fn get_schema(self) -> WSItemCancellation {
+        WSItemCancellation {
+            is_cancellable: self.is_cancellable,
+            terms: self.terms.into_iter().map(|a| a.get_schema()).collect(),
+        }
+    }
+}
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct WSSearchItemAttributeModel {
     pub label: String,
     pub key: String,
     pub value: String,
+}
+
+impl WSSearchItemAttributeModel {
+    pub fn get_schema(self) -> WSSearchItemAttribute {
+        WSSearchItemAttribute {
+            label: self.label,
+            key: self.key,
+            value: self.value,
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -148,7 +229,7 @@ pub struct WSPriceSlabModel {
     pub price_without_tax: BigDecimal,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct WSCreatorContactDataModel {
     pub name: String,
@@ -156,49 +237,113 @@ pub struct WSCreatorContactDataModel {
     pub phone: String,
     pub email: String,
 }
+impl WSCreatorContactDataModel {
+    pub fn get_schema(self) -> WSCreatorContactData {
+        WSCreatorContactData {
+            name: self.name,
+            address: self.address,
+            phone: self.phone,
+            email: self.email,
+        }
+    }
+}
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct WSProductCreatorModel {
     pub name: String,
     pub contact: WSCreatorContactDataModel,
 }
 
-#[derive(Debug, Serialize)]
+impl WSProductCreatorModel {
+    pub fn get_schema(self) -> WSProductCreator {
+        WSProductCreator {
+            name: self.name,
+            contact: self.contact.get_schema(),
+        }
+    }
+}
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct WSProductCategoryModel {
     pub code: String,
     pub name: String,
 }
 
-#[derive(Debug, Serialize)]
+impl WSProductCategoryModel {
+    pub fn get_schema(self) -> WSProductCategory {
+        WSProductCategory {
+            code: self.code,
+            name: self.name,
+        }
+    }
+}
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct WSItemValidityModel {
     pub start: DateTime<Utc>,
     pub end: DateTime<Utc>,
 }
 
-#[derive(Debug, Serialize)]
+impl WSItemValidityModel {
+    pub fn get_schema(self) -> WSItemValidity {
+        WSItemValidity {
+            start: self.start,
+            end: self.end,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct WSSearchItemQtyModel {
     pub measure: WSSearchItemQtyMeasureModel,
     pub count: u32,
 }
 
-#[derive(Debug, Serialize)]
+impl WSSearchItemQtyModel {
+    pub fn get_schema(self) -> WSSearchItemQty {
+        WSSearchItemQty {
+            measure: self.measure.get_schema(),
+            count: self.count,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct WSSearchItemQtyMeasureModel {
     pub unit: ONDCItemUOM,
     pub value: BigDecimal,
 }
 
-#[derive(Debug, Serialize)]
+impl WSSearchItemQtyMeasureModel {
+    pub fn get_schema(self) -> WSSearchItemQtyMeasure {
+        WSSearchItemQtyMeasure {
+            unit: self.unit,
+            value: self.value,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct WSSearchItemQuantityModel {
     pub unitized: WSSearchItemQtyMeasureModel,
     pub available: WSSearchItemQtyModel,
     pub maximum: WSSearchItemQtyModel,
     pub minimum: Option<WSSearchItemQtyModel>,
+}
+
+impl WSSearchItemQuantityModel {
+    pub fn get_schema(self) -> WSSearchItemQuantity {
+        WSSearchItemQuantity {
+            unitized: self.unitized.get_schema(),
+            available: self.available.get_schema(),
+            maximum: self.maximum.get_schema(),
+            minimum: self.minimum.map(|a| a.get_schema()),
+        }
+    }
 }
 
 #[derive(Deserialize, Debug, Serialize)]
@@ -273,7 +418,7 @@ pub struct ESNetworkParticipantModel {
     pub created_on: DateTime<Utc>,
 }
 impl ESNetworkParticipantModel {
-    pub fn get_ws_bpp(self) -> WSSearchBPP {
+    pub fn get_schema(self) -> WSSearchBPP {
         WSSearchBPP {
             name: self.name,
             code: None,
@@ -303,6 +448,29 @@ pub struct ESProviderLocationModel {
     pub area_code: String,
     pub created_on: DateTime<Utc>,
     pub updated_on: Option<DateTime<Utc>>,
+}
+
+impl ESProviderLocationModel {
+    pub fn get_schema(self) -> WSSearchProviderLocation {
+        WSSearchProviderLocation {
+            id: self.location_id,
+            gps: format!("{},{}", self.latitude, self.longitude),
+            address: self.address,
+            city: WSSearchCity {
+                code: self.city_code,
+                name: self.city_name,
+            },
+            country: WSSearchCountry {
+                code: self.country_code,
+                name: self.country_name,
+            },
+            state: WSSearchState {
+                code: self.state_code,
+                name: self.state_name,
+            },
+            area_code: self.area_code,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -367,6 +535,16 @@ pub struct ESProviderItemVariantModel {
     pub updated_on: Option<DateTime<Utc>>,
 }
 
+impl ESProviderItemVariantModel {
+    pub fn get_schema(self) -> WSSearchVariant {
+        WSSearchVariant {
+            id: self.variant_id,
+            name: self.variant_name,
+            attributes: serde_json::from_value(self.attributes).unwrap(),
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct ESProviderItemModel {
@@ -378,7 +556,7 @@ pub struct ESProviderItemModel {
     pub long_desc: String,
     pub short_desc: String,
     pub item_id: String,
-    pub item_code: String,
+    pub item_code: Option<String>,
     pub item_name: String,
     pub currency: CurrencyType,
     pub price_with_tax: BigDecimal,
@@ -400,7 +578,7 @@ pub struct ESProviderItemModel {
     pub creator: Value,
     pub time_to_ship: String,
     pub country_of_origin: Option<String>,
-    pub validity: Value,
+    pub validity: Option<Value>,
     pub replacement_terms: Value,
     pub return_terms: Value,
     pub cancellation_terms: Value,

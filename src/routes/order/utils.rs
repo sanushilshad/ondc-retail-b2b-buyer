@@ -334,14 +334,8 @@ pub async fn save_order_select_items(
         if let Some(seller_item_obj) = product_map.get(&key) {
             item_code_list.push(seller_item_obj.item_code.as_deref());
             item_name_list.push(seller_item_obj.item_name.as_str());
-            item_image_list.push(
-                seller_item_obj
-                    .images
-                    .as_array()
-                    .and_then(|images| images.first())
-                    .and_then(|image| image.as_str())
-                    .unwrap_or(""),
-            );
+            let images: Vec<String> = serde_json::from_value(seller_item_obj.images.to_owned())?;
+            item_image_list.push(images.first().map_or("".to_owned(), |f| f.to_owned()));
             mrp_list.push(seller_item_obj.mrp.clone());
             unit_price_list.push(
                 seller_item_obj
@@ -352,7 +346,7 @@ pub async fn save_order_select_items(
         } else {
             item_code_list.push(None);
             item_name_list.push("");
-            item_image_list.push("");
+            item_image_list.push("".to_owned());
             mrp_list.push(BigDecimal::from(0));
             unit_price_list.push(BigDecimal::from(0));
             tax_rate_list.push(BigDecimal::from(0));
@@ -382,7 +376,7 @@ pub async fn save_order_select_items(
         &item_id_list[..] as &[&str],
         &item_name_list[..] as &[&str],
         &item_code_list[..] as &[Option<&str>], //change
-        &item_image_list[..] as &[&str],        //change
+        &item_image_list[..] as &[String],      //change
         &qty_list[..] as &[BigDecimal],
         &location_id_list as &[Value],
         &fulfillment_id_list as &[Value],
