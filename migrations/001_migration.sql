@@ -762,7 +762,7 @@ CREATE TABLE IF NOT EXISTS provider_servicability_geo_json_cache(
 ALTER TABLE provider_servicability_geo_json_cache ADD CONSTRAINT provider_servicability_geo_json_cache_cache_constraint UNIQUE NULLS NOT DISTINCT (provider_location_cache_id, domain_code, category_code, geom);
 ALTER TABLE provider_servicability_geo_json_cache ADD CONSTRAINT provider_servicability_geo_json_cache_fk FOREIGN KEY ("provider_location_cache_id") REFERENCES provider_location_cache("id") ON DELETE CASCADE;
 ALTER TABLE provider_servicability_geo_json_cache ADD CONSTRAINT enforce_srid CHECK (ST_SRID(geom) = 4326);
-CREATE INDEX provider_servicability_geo_json_cache ON provider_servicability_geo_json_cache USING GIST (geom);
+CREATE INDEX servicability_geo_json_cache ON provider_servicability_geo_json_cache USING GIST (geom);
 
 
 CREATE TABLE IF NOT EXISTS provider_servicability_hyperlocal_cache (
@@ -837,8 +837,8 @@ CREATE TABLE IF NOT EXISTS provider_item_variant_cache(
     created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_on TIMESTAMPTZ
 );
-ALTER TABLE item_variant_cache ADD CONSTRAINT item_variant_cache_constraint UNIQUE NULLS NOT DISTINCT (provider_cache_id, variant_id);
-ALTER TABLE item_variant_cache ADD CONSTRAINT item_variant_cache_cache_fk FOREIGN KEY ("provider_cache_id") REFERENCES provider_cache("id") ON DELETE CASCADE;
+ALTER TABLE provider_item_variant_cache ADD CONSTRAINT item_variant_cache_constraint UNIQUE NULLS NOT DISTINCT (provider_cache_id, variant_id);
+ALTER TABLE provider_item_variant_cache ADD CONSTRAINT item_variant_cache_cache_fk FOREIGN KEY ("provider_cache_id") REFERENCES provider_cache("id") ON DELETE CASCADE;
 
 
 
@@ -883,9 +883,9 @@ CREATE TABLE IF NOT EXISTS provider_item_cache (
       updated_on TIMESTAMPTZ
 );
 
-ALTER TABLE item_cache ADD CONSTRAINT item_cache_constraint UNIQUE (provider_cache_id, country_code, domain_code, item_id);
-ALTER TABLE item_cache ADD CONSTRAINT item_cache_variant_fk FOREIGN KEY ("variant_cache_id") REFERENCES item_variant_cache("id") ON DELETE CASCADE;
-ALTER TABLE item_cache ADD CONSTRAINT item_cache_constraint_fk FOREIGN KEY ("provider_cache_id") REFERENCES provider_cache("id") ON DELETE CASCADE;
+ALTER TABLE provider_item_cache ADD CONSTRAINT item_cache_constraint UNIQUE (provider_cache_id, country_code, domain_code, item_id);
+ALTER TABLE provider_item_cache ADD CONSTRAINT item_cache_variant_fk FOREIGN KEY ("variant_cache_id") REFERENCES provider_item_variant_cache("id") ON DELETE CASCADE;
+ALTER TABLE provider_item_cache ADD CONSTRAINT item_cache_constraint_fk FOREIGN KEY ("provider_cache_id") REFERENCES provider_cache("id") ON DELETE CASCADE;
 
 
 
@@ -897,7 +897,7 @@ CREATE TABLE IF NOT EXISTS item_location_cache_relationship(
 );
 
 ALTER TABLE item_location_cache_relationship ADD CONSTRAINT product_location_cache_relationship_constraint UNIQUE (item_cache_id, location_cache_id);
-ALTER TABLE item_location_cache_relationship ADD CONSTRAINT product_fk FOREIGN KEY ("item_cache_id") REFERENCES item_cache("id") ON DELETE CASCADE;
+ALTER TABLE item_location_cache_relationship ADD CONSTRAINT product_fk FOREIGN KEY ("item_cache_id") REFERENCES provider_item_cache("id") ON DELETE CASCADE;
 ALTER TABLE item_location_cache_relationship ADD CONSTRAINT location_fk FOREIGN KEY ("location_cache_id") REFERENCES provider_location_cache("id") ON DELETE CASCADE;
 
 
