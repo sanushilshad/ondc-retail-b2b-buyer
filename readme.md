@@ -71,6 +71,7 @@ OR
 ```
 
 ### COMMAND FOR ELASTIC SEARCH INDICES:
+```
 
 cargo run --bin ondc-retail-b2b-buyer -- generate_elastic_search_indices
 ```
@@ -83,7 +84,7 @@ OR
 
 
 ### COMMAND FOR GENERATING CACHE:
-
+```
 cargo run --bin ondc-retail-b2b-buyer -- generate_item_cache
 ```
 OR 
@@ -93,7 +94,7 @@ OR
 ```
 
 ### COMMAND FOR REGENERATING CACHE FROM DATABASE:
-
+```
 cargo run --bin ondc-retail-b2b-buyer -- regenerate_item_cache
 ```
 OR 
