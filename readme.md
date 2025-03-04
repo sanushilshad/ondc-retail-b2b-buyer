@@ -101,6 +101,7 @@ OR
 
 ```
   ./target/release/ondc-retail-b2b-buyer regenerate_item_cache
+```
 
 ## SQLX OFFLINE MODE:
 
