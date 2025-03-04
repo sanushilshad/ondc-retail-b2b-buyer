@@ -84,11 +84,11 @@ pub async fn on_select(
     let ws_obj = WSSelect {
         transaction_id: body.context.transaction_id,
         message_id: body.context.message_id,
-        action_type: WebSocketActionType::OrderSelect,
+        // action_type: WebSocketActionType::OrderSelect,
         error: body
             .error
             .as_ref()
-            .map_or_else(|| None, |s| Some(s.message.as_str())),
+            .map_or_else(|| None, |s| Some(s.message.to_owned())),
     };
     let ondc_select_model = fetch_ondc_order_request(
         &pool,
@@ -281,22 +281,22 @@ pub async fn on_init(
     // .await
     // .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?
     // .ok_or(ONDCBuyerError::BuyerResponseSequenceError { path: None })?;
-    let payment_links: Vec<&str> = body
+    let payment_links: Vec<String> = body
         .message
         .order
         .payments
         .iter()
-        .filter_map(|payment| payment.uri.as_deref())
+        .filter_map(|payment| payment.uri.to_owned())
         .collect();
     let ws_init_data = (!payment_links.is_empty()).then_some(WSInitData { payment_links });
     let ws_obj = WSInit {
         transaction_id: body.context.transaction_id,
         message_id: body.context.message_id,
-        action_type: WebSocketActionType::OrderInit,
+        // action_type: WebSocketActionType::OrderInit,
         error: body
             .error
             .as_ref()
-            .map_or_else(|| None, |s| Some(s.message.as_str())),
+            .map_or_else(|| None, |s| Some(s.message.to_owned())),
         data: ws_init_data,
     };
     let ws_json = serde_json::to_value(ws_obj).unwrap();
@@ -353,12 +353,12 @@ pub async fn on_confirm(
         .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?
         .ok_or(ONDCBuyerError::BuyerResponseSequenceError { path: None })?;
 
-    let payment_links: Vec<&str> = body
+    let payment_links: Vec<String> = body
         .message
         .order
         .payments
         .iter()
-        .filter_map(|payment| payment.uri.as_deref())
+        .filter_map(|payment| payment.uri.to_owned())
         .collect();
     let ws_confirm_data = (!payment_links.is_empty()).then_some(WSConfirmData { payment_links });
     let ws_obj = WSConfirm {
@@ -367,7 +367,7 @@ pub async fn on_confirm(
         error: body
             .error
             .as_ref()
-            .map_or_else(|| None, |s| Some(s.message.as_str())),
+            .map_or_else(|| None, |s| Some(s.message.to_owned())),
         data: ws_confirm_data,
     };
     let ws_json = serde_json::to_value(ws_obj).unwrap();

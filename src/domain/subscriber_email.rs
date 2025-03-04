@@ -43,7 +43,7 @@ where
 {
     struct SubscriberEmailVisitor;
 
-    impl<'de> Visitor<'de> for SubscriberEmailVisitor {
+    impl Visitor<'_> for SubscriberEmailVisitor {
         type Value = EmailObject;
 
         fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {

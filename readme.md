@@ -70,6 +70,37 @@ OR
   ./target/release/ondc-retail-b2b-buyer generate_service_token
 ```
 
+### COMMAND FOR ELASTIC SEARCH INDICES:
+
+cargo run --bin ondc-retail-b2b-buyer -- generate_elastic_search_indices
+```
+OR 
+
+```
+  ./target/release/ondc-retail-b2b-buyer generate_elastic_search_indices
+```
+
+
+
+### COMMAND FOR GENERATING CACHE:
+
+cargo run --bin ondc-retail-b2b-buyer -- generate_item_cache
+```
+OR 
+
+```
+  ./target/release/ondc-retail-b2b-buyer generate_item_cache
+```
+
+### COMMAND FOR REGENERATING CACHE FROM DATABASE:
+
+cargo run --bin ondc-retail-b2b-buyer -- regenerate_item_cache
+```
+OR 
+
+```
+  ./target/release/ondc-retail-b2b-buyer regenerate_item_cache
+
 ## SQLX OFFLINE MODE:
 
 ```
@@ -137,11 +168,12 @@ export WEBSOCKET__TOKEN=""
 export WEBSOCKET__BASE_URL="http://0.0.0.0:8229"
 export WEBSOCKET__TIMEOUT_MILLISECONDS=600000
 
-##USER VARIABLE
+## USER VARIABLE
 export USER_OBJ__TOKEN=""
 export USER_OBJ__BASE_URL="http://0.0.0.0:8230"
 export USER_OBJ__TIMEOUT_MILLISECONDS=600000
-
+export USER_OBJ__DEFAULT_USER_ID="ebce1f35-0fff-4b61-840d-fef8d43fd32b"
+export USER_OBJ__DEFAULT_BUSINESS_ID="478b4366-f401-49fa-b6fc-8f9e23c15a1f"
 
 ## CHAT VARIABLE
 export CHAT__TOKEN=""
@@ -155,7 +187,9 @@ export KAFKA__SEARCH_TOPIC_NAME="test_ondc_search"
 
 ## ELASTICSEARCH SEARCH 
 export ELASTIC_SEARCH__URL="https://0.0.0.0:9200"
-
+export ELASTIC_SEARCH__ENV="test_preprod"
+export ELASTIC_SEARCH__USERNAME="elastic"
+export ELASTIC_SEARCH__PASSWORD="134"
 
 ## PAYMENT SERVICE
 export PAYMENT__TOKEN=""

@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     fmt::{Display, Formatter},
+    str::FromStr,
     time::Duration,
 };
 
@@ -17,7 +18,6 @@ use serde_json::Value;
 use tokio::time::sleep;
 use utoipa::ToSchema;
 use uuid::Uuid;
-
 #[derive(Serialize, Debug, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct GenericResponse<D> {
@@ -28,11 +28,11 @@ pub struct GenericResponse<D> {
 }
 
 impl<D> GenericResponse<D> {
-    pub fn success(message: &str, data: Option<D>) -> Self {
+    pub fn success(message: &str, code: StatusCode, data: Option<D>) -> Self {
         Self {
             status: true,
             customer_message: String::from(message),
-            code: StatusCode::OK.as_str().to_owned(),
+            code: code.as_str().to_owned(),
             data,
         }
     }
@@ -70,255 +70,411 @@ pub enum CommunicationType {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, ToSchema, sqlx::Type, PartialEq)]
-#[sqlx(rename_all = "UPPERCASE", type_name = "country_code")]
+#[sqlx(rename_all = "UPPERCASE", type_name = "country_code_type")]
 #[serde(rename_all = "UPPERCASE")]
 pub enum CountryCode {
-    AFG, // Afghanistan
-    ALA, // Åland Islands
-    ALB, // Albania
-    DZA, // Algeria
-    ASM, // American Samoa
-    AND, // Andorra
-    AGO, // Angola
-    AIA, // Anguilla
-    ATA, // Antarctica
-    ATG, // Antigua and Barbuda
-    ARG, // Argentina
-    ARM, // Armenia
-    ABW, // Aruba
-    AUS, // Australia
-    AUT, // Austria
-    AZE, // Azerbaijan
-    BHS, // Bahamas
-    BHR, // Bahrain
-    BGD, // Bangladesh
-    BRB, // Barbados
-    BLR, // Belarus
-    BEL, // Belgium
-    BLZ, // Belize
-    BEN, // Benin
-    BMU, // Bermuda
-    BTN, // Bhutan
-    BOL, // Bolivia (Plurinational State of)
-    BES, // Bonaire, Sint Eustatius and Saba
-    BIH, // Bosnia and Herzegovina
-    BWA, // Botswana
-    BVT, // Bouvet Island
-    BRA, // Brazil
-    IOT, // British Indian Ocean Territory
-    BRN, // Brunei Darussalam
-    BGR, // Bulgaria
-    BFA, // Burkina Faso
-    BDI, // Burundi
-    CPV, // Cabo Verde
-    KHM, // Cambodia
-    CMR, // Cameroon
-    CAN, // Canada
-    CYM, // Cayman Islands
-    CAF, // Central African Republic
-    TCD, // Chad
-    CHL, // Chile
-    CHN, // China
-    CXR, // Christmas Island
-    CCK, // Cocos (Keeling) Islands
-    COL, // Colombia
-    COM, // Comoros
-    COG, // Congo
-    COD, // Congo (Democratic Republic of the)
-    COK, // Cook Islands
-    CRI, // Costa Rica
-    CIV, // Côte d'Ivoire
-    HRV, // Croatia
-    CUB, // Cuba
-    CUW, // Curaçao
-    CYP, // Cyprus
-    CZE, // Czechia
-    DNK, // Denmark
-    DJI, // Djibouti
-    DMA, // Dominica
-    DOM, // Dominican Republic
-    ECU, // Ecuador
-    EGY, // Egypt
-    SLV, // El Salvador
-    GNQ, // Equatorial Guinea
-    ERI, // Eritrea
-    EST, // Estonia
-    SWZ, // Eswatini
-    ETH, // Ethiopia
-    FLK, // Falkland Islands (Malvinas)
-    FRO, // Faroe Islands
-    FJI, // Fiji
-    FIN, // Finland
-    FRA, // France
-    GUF, // French Guiana
-    PYF, // French Polynesia
-    ATF, // French Southern Territories
-    GAB, // Gabon
-    GMB, // Gambia
-    GEO, // Georgia
-    DEU, // Germany
-    GHA, // Ghana
-    GIB, // Gibraltar
-    GRC, // Greece
-    GRL, // Greenland
-    GRD, // Grenada
-    GLP, // Guadeloupe
-    GUM, // Guam
-    GTM, // Guatemala
-    GGY, // Guernsey
-    GIN, // Guinea
-    GNB, // Guinea-Bissau
-    GUY, // Guyana
-    HTI, // Haiti
-    HMD, // Heard Island and McDonald Islands
-    VAT, // Holy See
-    HND, // Honduras
-    HKG, // Hong Kong
-    HUN, // Hungary
-    ISL, // Iceland
-    IND, // India
-    IDN, // Indonesia
-    IRN, // Iran (Islamic Republic of)
-    IRQ, // Iraq
-    IRL, // Ireland
-    IMN, // Isle of Man
-    ISR, // Israel
-    ITA, // Italy
-    JAM, // Jamaica
-    JPN, // Japan
-    JEY, // Jersey
-    JOR, // Jordan
-    KAZ, // Kazakhstan
-    KEN, // Kenya
-    KIR, // Kiribati
-    PRK, // Korea (Democratic People's Republic of)
-    KOR, // Korea (Republic of)
-    KWT, // Kuwait
-    KGZ, // Kyrgyzstan
-    LAO, // Lao People's Democratic Republic
-    LVA, // Latvia
-    LBN, // Lebanon
-    LSO, // Lesotho
-    LBR, // Liberia
-    LBY, // Libya
-    LIE, // Liechtenstein
-    LTU, // Lithuania
-    LUX, // Luxembourg
-    MAC, // Macao
-    MDG, // Madagascar
-    MWI, // Malawi
-    MYS, // Malaysia
-    MDV, // Maldives
-    MLI, // Mali
-    MLT, // Malta
-    MHL, // Marshall Islands
-    MTQ, // Martinique
-    MRT, // Mauritania
-    MUS, // Mauritius
-    MYT, // Mayotte
-    MEX, // Mexico
-    FSM, // Micronesia (Federated States of)
-    MDA, // Moldova (Republic of)
-    MCO, // Monaco
-    MNG, // Mongolia
-    MNE, // Montenegro
-    MSR, // Montserrat
-    MAR, // Morocco
-    MOZ, // Mozambique
-    MMR, // Myanmar
-    NAM, // Namibia
-    NRU, // Nauru
-    NPL, // Nepal
-    NLD, // Netherlands
-    NCL, // New Caledonia
-    NZL, // New Zealand
-    NIC, // Nicaragua
-    NER, // Niger
-    NGA, // Nigeria
-    NIU, // Niue
-    NFK, // Norfolk Island
-    MKD, // North Macedonia
-    MNP, // Northern Mariana Islands
-    NOR, // Norway
-    OMN, // Oman
-    PAK, // Pakistan
-    PLW, // Palau
-    PSE, // Palestine, State of
-    PAN, // Panama
-    PNG, // Papua New Guinea
-    PRY, // Paraguay
-    PER, // Peru
-    PHL, // Philippines
-    PCN, // Pitcairn
-    POL, // Poland
-    PRT, // Portugal
-    PRI, // Puerto Rico
-    QAT, // Qatar
-    ROU, // Romania
-    RUS, // Russian Federation
-    RWA, // Rwanda
-    REU, // Réunion
-    BLM, // Saint Barthélemy
-    SHN, // Saint Helena, Ascension and Tristan da Cunha
-    KNA, // Saint Kitts and Nevis
-    LCA, // Saint Lucia
-    MAF, // Saint Martin (French part)
-    SPM, // Saint Pierre and Miquelon
-    VCT, // Saint Vincent and the Grenadines
-    WSM, // Samoa
-    SMR, // San Marino
-    STP, // Sao Tome and Principe
-    SAU, // Saudi Arabia
-    SEN, // Senegal
-    SRB, // Serbia
-    SYC, // Seychelles
-    SLE, // Sierra Leone
-    SGP, // Singapore
-    SXM, // Sint Maarten (Dutch part)
-    SVK, // Slovakia
-    SVN, // Slovenia
-    SLB, // Solomon Islands
-    SOM, // Somalia
-    ZAF, // South Africa
-    SGS, // South Georgia and the South Sandwich Islands
-    SSD, // South Sudan
-    ESP, // Spain
-    LKA, // Sri Lanka
-    SDN, // Sudan
-    SUR, // Suriname
-    SJM, // Svalbard and Jan Mayen
-    SWE, // Sweden
-    CHE, // Switzerland
-    SYR, // Syrian Arab Republic
-    TWN, // Taiwan, Province of China
-    TJK, // Tajikistan
-    TZA, // Tanzania, United Republic of
-    THA, // Thailand
-    TLS, // Timor-Leste
-    TGO, // Togo
-    TKL, // Tokelau
-    TON, // Tonga
-    TTO, // Trinidad and Tobago
-    TUN, // Tunisia
-    TUR, // Turkey
-    TKM, // Turkmenistan
-    TCA, // Turks and Caicos Islands
-    TUV, // Tuvalu
-    UGA, // Uganda
-    UKR, // Ukraine
-    ARE, // United Arab Emirates
-    GBR, // United Kingdom of Great Britain and Northern Ireland
-    USA, // United States of America
-    URY, // Uruguay
-    UZB, // Uzbekistan
-    VUT, // Vanuatu
-    VEN, // Venezuela (Bolivarian Republic of)
-    VNM, // Viet Nam
-    WLF, // Wallis and Futuna
-    ESH, // Western Sahara
-    YEM, // Yemen
-    ZMB, // Zambia
-    ZWE, // Zimbabwe
+    AFG,
+    ALA,
+    ALB,
+    DZA,
+    ASM,
+    AND,
+    AGO,
+    AIA,
+    ATA,
+    ATG,
+    ARG,
+    ARM,
+    ABW,
+    AUS,
+    AUT,
+    AZE,
+    BHS,
+    BHR,
+    BGD,
+    BRB,
+    BLR,
+    BEL,
+    BLZ,
+    BEN,
+    BMU,
+    BTN,
+    BOL,
+    BES,
+    BIH,
+    BWA,
+    BVT,
+    BRA,
+    IOT,
+    BRN,
+    BGR,
+    BFA,
+    BDI,
+    CPV,
+    KHM,
+    CMR,
+    CAN,
+    CYM,
+    CAF,
+    TCD,
+    CHL,
+    CHN,
+    CXR,
+    CCK,
+    COL,
+    COM,
+    COG,
+    COD,
+    COK,
+    CRI,
+    CIV,
+    HRV,
+    CUB,
+    CUW,
+    CYP,
+    CZE,
+    DNK,
+    DJI,
+    DMA,
+    DOM,
+    ECU,
+    EGY,
+    SLV,
+    GNQ,
+    ERI,
+    EST,
+    SWZ,
+    ETH,
+    FLK,
+    FRO,
+    FJI,
+    FIN,
+    FRA,
+    GUF,
+    PYF,
+    ATF,
+    GAB,
+    GMB,
+    GEO,
+    DEU,
+    GHA,
+    GIB,
+    GRC,
+    GRL,
+    GRD,
+    GLP,
+    GUM,
+    GTM,
+    GGY,
+    GIN,
+    GNB,
+    GUY,
+    HTI,
+    HMD,
+    VAT,
+    HND,
+    HKG,
+    HUN,
+    ISL,
+    IND,
+    IDN,
+    IRN,
+    IRQ,
+    IRL,
+    IMN,
+    ISR,
+    ITA,
+    JAM,
+    JPN,
+    JEY,
+    JOR,
+    KAZ,
+    KEN,
+    KIR,
+    PRK,
+    KOR,
+    KWT,
+    KGZ,
+    LAO,
+    LVA,
+    LBN,
+    LSO,
+    LBR,
+    LBY,
+    LIE,
+    LTU,
+    LUX,
+    MAC,
+    MDG,
+    MWI,
+    MYS,
+    MDV,
+    MLI,
+    MLT,
+    MHL,
+    MTQ,
+    MRT,
+    MUS,
+    MYT,
+    MEX,
+    FSM,
+    MDA,
+    MCO,
+    MNG,
+    MNE,
+    MSR,
+    MAR,
+    MOZ,
+    MMR,
+    NAM,
+    NRU,
+    NPL,
+    NLD,
+    NCL,
+    NZL,
+    NIC,
+    NER,
+    NGA,
+    NIU,
+    NFK,
+    MKD,
+    MNP,
+    NOR,
+    OMN,
+    PAK,
+    PLW,
+    PSE,
+    PAN,
+    PNG,
+    PRY,
+    PER,
+    PHL,
+    PCN,
+    POL,
+    PRT,
+    PRI,
+    QAT,
+    ROU,
+    RUS,
+    RWA,
+    REU,
+    BLM,
+    SHN,
+    KNA,
+    LCA,
+    MAF,
+    SPM,
+    VCT,
+    WSM,
+    SMR,
+    STP,
+    SAU,
+    SEN,
+    SRB,
+    SYC,
+    SLE,
+    SGP,
+    SXM,
+    SVK,
+    SVN,
+    SLB,
+    SOM,
+    ZAF,
+    SGS,
+    SSD,
+    ESP,
+    LKA,
+    SDN,
+    SUR,
+    SJM,
+    SWE,
+    CHE,
+    SYR,
+    TWN,
+    TJK,
+    TZA,
+    THA,
+    TLS,
+    TGO,
+    TKL,
+    TON,
+    TTO,
+    TUN,
+    TUR,
+    TKM,
+    TCA,
+    TUV,
+    UGA,
+    UKR,
+    ARE,
+    GBR,
+    USA,
+    URY,
+    UZB,
+    VUT,
+    VEN,
+    VNM,
+    WLF,
+    ESH,
+    YEM,
+    ZMB,
+    ZWE,
+}
+
+impl FromStr for CountryCode {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "AFG" => Ok(CountryCode::AFG),
+            "ALA" => Ok(CountryCode::ALA),
+            "ALB" => Ok(CountryCode::ALB),
+            "DZA" => Ok(CountryCode::DZA),
+            "ASM" => Ok(CountryCode::ASM),
+            "AND" => Ok(CountryCode::AND),
+            "AGO" => Ok(CountryCode::AGO),
+            "AIA" => Ok(CountryCode::AIA),
+            "ATA" => Ok(CountryCode::ATA),
+            "ATG" => Ok(CountryCode::ATG),
+            "ARG" => Ok(CountryCode::ARG),
+            "ARM" => Ok(CountryCode::ARM),
+            "ABW" => Ok(CountryCode::ABW),
+            "AUS" => Ok(CountryCode::AUS),
+            "AUT" => Ok(CountryCode::AUT),
+            "AZE" => Ok(CountryCode::AZE),
+            "BHS" => Ok(CountryCode::BHS),
+            "BHR" => Ok(CountryCode::BHR),
+            "BGD" => Ok(CountryCode::BGD),
+            "BRB" => Ok(CountryCode::BRB),
+            "BLR" => Ok(CountryCode::BLR),
+            "BEL" => Ok(CountryCode::BEL),
+            "BLZ" => Ok(CountryCode::BLZ),
+            "BEN" => Ok(CountryCode::BEN),
+            "BMU" => Ok(CountryCode::BMU),
+            "BTN" => Ok(CountryCode::BTN),
+            "BOL" => Ok(CountryCode::BOL),
+            "BES" => Ok(CountryCode::BES),
+            "BIH" => Ok(CountryCode::BIH),
+            "BWA" => Ok(CountryCode::BWA),
+            "BVT" => Ok(CountryCode::BVT),
+            "BRA" => Ok(CountryCode::BRA),
+            "IOT" => Ok(CountryCode::IOT),
+            "BRN" => Ok(CountryCode::BRN),
+            "BGR" => Ok(CountryCode::BGR),
+            "BFA" => Ok(CountryCode::BFA),
+            "BDI" => Ok(CountryCode::BDI),
+            "CPV" => Ok(CountryCode::CPV),
+            "KHM" => Ok(CountryCode::KHM),
+            "CMR" => Ok(CountryCode::CMR),
+            "CAN" => Ok(CountryCode::CAN),
+            "CYM" => Ok(CountryCode::CYM),
+            "CAF" => Ok(CountryCode::CAF),
+            "TCD" => Ok(CountryCode::TCD),
+            "CHL" => Ok(CountryCode::CHL),
+            "CHN" => Ok(CountryCode::CHN),
+            "CXR" => Ok(CountryCode::CXR),
+            "CCK" => Ok(CountryCode::CCK),
+            "COL" => Ok(CountryCode::COL),
+            "COM" => Ok(CountryCode::COM),
+            "COG" => Ok(CountryCode::COG),
+            "COD" => Ok(CountryCode::COD),
+            "COK" => Ok(CountryCode::COK),
+            "CRI" => Ok(CountryCode::CRI),
+            "CIV" => Ok(CountryCode::CIV),
+            "HRV" => Ok(CountryCode::HRV),
+            "CUB" => Ok(CountryCode::CUB),
+            "CUW" => Ok(CountryCode::CUW),
+            "CYP" => Ok(CountryCode::CYP),
+            "CZE" => Ok(CountryCode::CZE),
+            "DNK" => Ok(CountryCode::DNK),
+            "DJI" => Ok(CountryCode::DJI),
+            "DMA" => Ok(CountryCode::DMA),
+            "DOM" => Ok(CountryCode::DOM),
+            "ECU" => Ok(CountryCode::ECU),
+            "EGY" => Ok(CountryCode::EGY),
+            "SLV" => Ok(CountryCode::SLV),
+            "GNQ" => Ok(CountryCode::GNQ),
+            "ERI" => Ok(CountryCode::ERI),
+            "EST" => Ok(CountryCode::EST),
+            "SWZ" => Ok(CountryCode::SWZ),
+            "ETH" => Ok(CountryCode::ETH),
+            "FLK" => Ok(CountryCode::FLK),
+            "FRO" => Ok(CountryCode::FRO),
+            "FJI" => Ok(CountryCode::FJI),
+            "FIN" => Ok(CountryCode::FIN),
+            "FRA" => Ok(CountryCode::FRA),
+            "GUF" => Ok(CountryCode::GUF),
+            "PYF" => Ok(CountryCode::PYF),
+            "ATF" => Ok(CountryCode::ATF),
+            "GAB" => Ok(CountryCode::GAB),
+            "GMB" => Ok(CountryCode::GMB),
+            "GEO" => Ok(CountryCode::GEO),
+            "DEU" => Ok(CountryCode::DEU),
+            "GHA" => Ok(CountryCode::GHA),
+            "GIB" => Ok(CountryCode::GIB),
+            "GRC" => Ok(CountryCode::GRC),
+            "GRL" => Ok(CountryCode::GRL),
+            "GRD" => Ok(CountryCode::GRD),
+            "GLP" => Ok(CountryCode::GLP),
+            "GUM" => Ok(CountryCode::GUM),
+            "GTM" => Ok(CountryCode::GTM),
+            "GGY" => Ok(CountryCode::GGY),
+            "GIN" => Ok(CountryCode::GIN),
+            "GNB" => Ok(CountryCode::GNB),
+            "GUY" => Ok(CountryCode::GUY),
+            "HTI" => Ok(CountryCode::HTI),
+            "HMD" => Ok(CountryCode::HMD),
+            "VAT" => Ok(CountryCode::VAT),
+            "HND" => Ok(CountryCode::HND),
+            "HKG" => Ok(CountryCode::HKG),
+            "HUN" => Ok(CountryCode::HUN),
+            "ISL" => Ok(CountryCode::ISL),
+            "IND" => Ok(CountryCode::IND),
+            "IDN" => Ok(CountryCode::IDN),
+            "IRN" => Ok(CountryCode::IRN),
+            "IRQ" => Ok(CountryCode::IRQ),
+            "IRL" => Ok(CountryCode::IRL),
+            "IMN" => Ok(CountryCode::IMN),
+            "ISR" => Ok(CountryCode::ISR),
+            "ITA" => Ok(CountryCode::ITA),
+            "JAM" => Ok(CountryCode::JAM),
+            "JPN" => Ok(CountryCode::JPN),
+            "JEY" => Ok(CountryCode::JEY),
+            "JOR" => Ok(CountryCode::JOR),
+            "KAZ" => Ok(CountryCode::KAZ),
+            "KEN" => Ok(CountryCode::KEN),
+            "KIR" => Ok(CountryCode::KIR),
+            "PRK" => Ok(CountryCode::PRK),
+            "KOR" => Ok(CountryCode::KOR),
+            "KWT" => Ok(CountryCode::KWT),
+            "KGZ" => Ok(CountryCode::KGZ),
+            "LAO" => Ok(CountryCode::LAO),
+            "LVA" => Ok(CountryCode::LVA),
+            "LBN" => Ok(CountryCode::LBN),
+            "LSO" => Ok(CountryCode::LSO),
+            "LBR" => Ok(CountryCode::LBR),
+            "LBY" => Ok(CountryCode::LBY),
+            "LIE" => Ok(CountryCode::LIE),
+            "LTU" => Ok(CountryCode::LTU),
+            "LUX" => Ok(CountryCode::LUX),
+            "MAC" => Ok(CountryCode::MAC),
+            "MDG" => Ok(CountryCode::MDG),
+            "MWI" => Ok(CountryCode::MWI),
+            "MYS" => Ok(CountryCode::MYS),
+            "MDV" => Ok(CountryCode::MDV),
+            "MLI" => Ok(CountryCode::MLI),
+            "MLT" => Ok(CountryCode::MLT),
+            "MHL" => Ok(CountryCode::MHL),
+            "MTQ" => Ok(CountryCode::MTQ),
+            "MRT" => Ok(CountryCode::MRT),
+            "MUS" => Ok(CountryCode::MUS),
+            "MYT" => Ok(CountryCode::MYT),
+            "MEX" => Ok(CountryCode::MEX),
+            "FSM" => Ok(CountryCode::FSM),
+            "MDA" => Ok(CountryCode::MDA),
+            _ => Err("Invalid Country".to_owned()),
+        }
+    }
 }
 
 // impl std::fmt::Display for CountryCode {
@@ -546,7 +702,7 @@ pub struct RegisteredNetworkParticipant {
     pub name: String,
     pub logo: String,
     pub signing_key: SecretString,
-    pub id: Uuid,
+    pub id: i32,
     pub subscriber_id: String,
     pub subscriber_uri: String,
     pub long_description: String,
@@ -578,7 +734,7 @@ pub struct WebSocketParam {
     pub device_id: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, sqlx::Type, Clone, ToSchema, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, sqlx::Type, Clone, PartialEq, ToSchema)]
 #[serde(rename_all = "UPPERCASE")]
 #[sqlx(type_name = "ondc_network_participant_type", rename_all = "UPPERCASE")]
 pub enum ONDCNetworkType {
@@ -613,7 +769,7 @@ impl Display for CurrencyType {
 }
 
 #[derive(Serialize, Deserialize, Debug, sqlx::Type, PartialEq, ToSchema)]
-#[sqlx(type_name = "data_source", rename_all = "snake_case")]
+#[sqlx(type_name = "data_source_type", rename_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
 pub enum DataSource {
     PlaceOrder,

@@ -122,9 +122,9 @@ impl PaymentClient {
         }
     }
 
-    pub async fn create_order<'a>(
+    pub async fn create_order(
         &self,
-        request_body: PaymentOrderCreateRequest<'a>,
+        request_body: PaymentOrderCreateRequest<'_>,
     ) -> Result<PaymentServiceOrderData, anyhow::Error> {
         let url = format!("{}/order/create", self.base_url);
 

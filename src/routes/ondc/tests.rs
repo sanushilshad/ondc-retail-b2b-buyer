@@ -7,7 +7,7 @@ mod tests {
         get_ondc_search_message_obj, get_ondc_search_payment_obj, get_search_fulfillment_obj,
     };
     use crate::routes::product::schemas::{
-        CategoryDomain, FulfillmentType, PaymentType, ProductFulFillmentLocations,
+        CategoryDomain, FulfillmentType, PaymentType, ProductFulFillmentLocation,
         ProductSearchRequest, ProductSearchType,
     };
     use crate::schemas::{CountryCode, RegisteredNetworkParticipant};
@@ -35,7 +35,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_fulfillment_type() {
-        let location_obj = ProductFulFillmentLocations {
+        let location_obj = ProductFulFillmentLocation {
             latitude: 1.2323,
             longitude: 1.2323,
             area_code: "673642".to_string(),

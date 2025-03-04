@@ -14,6 +14,7 @@ use sqlx::PgPool;
 
 use crate::{
     configuration::get_configuration,
+    elastic_search_client::ElasticSearchClient,
     routes::ondc::{utils::process_on_search, KafkaSearchData},
     utils::pascal_to_snake_case,
     websocket_client::WebSocketClient,
@@ -96,6 +97,7 @@ impl KafkaClient {
         &self,
         websocket_client: Data<WebSocketClient>,
         pool: Data<PgPool>,
+        elastic_search_client: Data<ElasticSearchClient>,
     ) -> Result<(), KafkaError> {
         let consumer: StreamConsumer = ClientConfig::new()
             .set("bootstrap.servers", &self.servers)
@@ -122,6 +124,7 @@ impl KafkaClient {
                                     message_data.ondc_on_search,
                                     message_data.search_obj,
                                     &websocket_client,
+                                    &elastic_search_client,
                                 )
                                 .await
                                 {

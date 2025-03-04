@@ -1,4 +1,3 @@
-use crate::configuration::DatabaseConfig;
 // use crate::email_client::{GenericEmailService, SmtpEmailClient};
 // use crate::kafka_client::TopicType;
 use crate::middleware::SaveRequestResponse;
@@ -12,8 +11,9 @@ use actix_web::dev::Server;
 // use actix_web::middleware::Logger;
 use crate::configuration::Config;
 
+use crate::database::get_connection_pool;
 use actix_web::{web, App, HttpServer};
-use sqlx::postgres::{PgPool, PgPoolOptions};
+use sqlx::postgres::PgPool;
 use std::net::TcpListener;
 use tracing_actix_web::TracingLogger;
 pub struct Application {
@@ -46,16 +46,6 @@ impl Application {
     }
 }
 
-pub fn get_connection_pool(configuration: &DatabaseConfig) -> PgPool {
-    PgPoolOptions::new()
-        .acquire_timeout(std::time::Duration::from_secs(
-            configuration.acquire_timeout,
-        ))
-        .max_connections(configuration.max_connections)
-        .min_connections(configuration.min_connections)
-        .connect_lazy_with(configuration.with_db())
-}
-
 async fn run(
     listener: TcpListener,
     db_pool: PgPool,
@@ -78,7 +68,7 @@ async fn run(
     let application_obj = web::Data::new(configuration.application);
     let secret_obj = web::Data::new(configuration.secret);
     let _ = kafka_client
-        .kafka_client_search_consumer(ws_client.clone(), db_pool.clone())
+        .kafka_client_search_consumer(ws_client.clone(), db_pool.clone(), es_client.clone())
         .await;
     let kafka_client = web::Data::new(kafka_client);
     let server = HttpServer::new(move || {

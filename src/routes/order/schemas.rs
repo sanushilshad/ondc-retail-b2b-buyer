@@ -351,7 +351,6 @@ pub struct PaymentSettlementDetail {
 #[derive(Debug, Serialize, Deserialize, sqlx::Type, Clone, ToSchema)]
 #[serde(rename_all = "snake_case")]
 #[sqlx(type_name = "settlement_basis_type", rename_all = "snake_case")]
-
 pub enum SettlementBasis {
     ReturnWindowExpiry,
     Shipment,
@@ -409,6 +408,7 @@ impl CommercePayment {
 #[derive(Deserialize, Debug, ToSchema, sqlx::Type, Serialize, Clone)]
 #[sqlx(type_name = "commerce_fulfillment_status_type")]
 #[sqlx(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
 pub enum FulfillmentStatusType {
     AgentAssigned,
     Packed,

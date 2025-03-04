@@ -1,6 +1,5 @@
 use secrecy::SecretString;
 use sqlx::{types::BigDecimal, FromRow};
-use uuid::Uuid;
 
 use crate::{
     routes::order::schemas::{PaymentSettlementPhase, PaymentSettlementType},
@@ -9,7 +8,7 @@ use crate::{
 
 #[derive(Debug, FromRow)]
 pub struct RegisteredNetworkParticipantModel {
-    pub id: Uuid,
+    pub id: i32,
     pub code: String,
     pub name: String,
     pub logo: String,

@@ -4,9 +4,9 @@ pub mod tests {
 
     use crate::configuration::get_configuration;
     use crate::constants::DUMMY_DOMAIN;
+    use crate::database::get_connection_pool;
     use crate::routes::order::schemas::{PaymentSettlementPhase, PaymentSettlementType};
     use crate::schemas::{FeeType, KycStatus, RegisteredNetworkParticipant, Status};
-    use crate::startup::get_connection_pool;
     use crate::user_client::{BusinessAccount, MaskingType, UserAccount, UserVector, VectorType};
     use crate::utils::validate_business_account_active;
     use bigdecimal::BigDecimal;
@@ -68,7 +68,7 @@ pub mod tests {
             name: "SANU".to_owned(),
             logo: "google.com".to_owned(),
             signing_key: "google.com".to_owned().into(),
-            id: Uuid::new_v4(),
+            id: 1,
             subscriber_id: DUMMY_DOMAIN.to_string(),
             subscriber_uri: format!("{}/v1/ondc/seller", DUMMY_DOMAIN),
             long_description: "SANU".to_owned(),

@@ -10,7 +10,7 @@ use crate::{
     chat_client::ChatData,
     routes::{
         order::schemas::OrderType,
-        product::schemas::{CategoryDomain, SearchRequestModel},
+        product::schemas::{CategoryDomain, CredentialType, SearchRequestModel},
     },
     schemas::{CountryCode, ONDCNetworkType},
     utils::pascal_to_snake_case,
@@ -949,7 +949,7 @@ pub struct ONDCOnSearchFullFillment {
     pub r#type: ONDCFulfillmentType,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "PascalCase")]
 pub enum ONDCCredentialType {
     License,
@@ -959,6 +959,12 @@ impl ONDCCredentialType {
     pub fn get_description(&self, value: &str) -> String {
         match self {
             ONDCCredentialType::License => format!("Import License No. {}", value),
+        }
+    }
+
+    pub fn get_credential_type(&self) -> CredentialType {
+        match self {
+            ONDCCredentialType::License => CredentialType::License,
         }
     }
 }
@@ -1000,19 +1006,19 @@ pub struct ONDCOnSearchCity {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct ONDCMedia {
-    mimetype: OnSearchContentType,
-    url: String,
+pub struct ONDCMedia {
+    pub mimetype: OnSearchContentType,
+    pub url: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ONDCOnSearchItemDescriptor {
     pub name: String,
     pub code: Option<String>,
-    short_desc: String,
-    long_desc: String,
+    pub short_desc: String,
+    pub long_desc: String,
     pub images: Vec<ONDCImage>,
-    media: Option<Vec<ONDCMedia>>,
+    pub media: Option<Vec<ONDCMedia>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -1090,8 +1096,8 @@ struct ONDCOnSearchItemAddOns {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct ONDCItemReplacementTerm {
-    replace_within: String,
+pub struct ONDCItemReplacementTerm {
+    pub replace_within: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -1105,23 +1111,23 @@ pub struct ONDCFulfillmentState {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct ONDCItemReturnTime {
-    duration: String,
+pub struct ONDCItemReturnTime {
+    pub duration: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct ONDCItemReturnLocation {
-    address: String,
-    gps: String,
+pub struct ONDCItemReturnLocation {
+    pub address: String,
+    pub gps: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct ONDCReturnTerm {
-    fulfillment_state: ONDCFulfillmentState,
-    return_eligible: bool,
-    return_time: ONDCItemReturnTime,
-    return_location: ONDCItemReturnLocation,
-    fulfillment_managed_by: String,
+pub struct ONDCReturnTerm {
+    pub fulfillment_state: ONDCFulfillmentState,
+    pub return_eligible: bool,
+    pub return_time: ONDCItemReturnTime,
+    pub return_location: ONDCItemReturnLocation,
+    pub fulfillment_managed_by: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -1132,23 +1138,23 @@ pub struct ONDCAmount {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
-enum ONDCItemCancellationFee {
+pub enum ONDCItemCancellationFee {
     Percentage { percentage: String },
     Amount { amount: ONDCAmount },
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct ONDCItemCancellationTerm {
-    fulfillment_state: ONDCFulfillmentState,
-    reason_required: bool,
-    cancellation_fee: ONDCItemCancellationFee,
+pub struct ONDCItemCancellationTerm {
+    pub fulfillment_state: ONDCFulfillmentState,
+    pub reason_required: bool,
+    pub cancellation_fee: ONDCItemCancellationFee,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ONDCOnSearchItem {
     pub id: String,
     pub parent_item_id: Option<String>,
-    matched: bool,
+    pub matched: bool,
     pub recommended: bool,
     pub descriptor: ONDCOnSearchItemDescriptor,
     pub creator: ONDCOnSearchItemCreator,
@@ -1159,10 +1165,10 @@ pub struct ONDCOnSearchItem {
     pub price: ONDCOnSearchItemPrice,
     pub quantity: ONDCOnSearchItemQuantity,
     add_ons: Option<Vec<ONDCOnSearchItemAddOns>>,
-    time: Option<ONDCTime>,
-    replacement_terms: Vec<ONDCItemReplacementTerm>,
-    return_terms: Vec<ONDCReturnTerm>,
-    cancellation_terms: Vec<ONDCItemCancellationTerm>,
+    pub time: Option<ONDCTime>,
+    pub replacement_terms: Vec<ONDCItemReplacementTerm>,
+    pub return_terms: Vec<ONDCReturnTerm>,
+    pub cancellation_terms: Vec<ONDCItemCancellationTerm>,
     pub tags: Vec<ONDCOnSearchItemTag>,
 }
 
@@ -1185,8 +1191,8 @@ pub struct ONDCContact {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct ONDCOnSearchFulfillmentContact {
-    contact: ONDCContact,
+pub struct ONDCOnSearchFulfillmentContact {
+    pub contact: ONDCContact,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -1219,9 +1225,9 @@ pub struct ONDCRange {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct ONDCTime {
+pub struct ONDCTime {
     label: String,
-    range: ONDCRange,
+    pub range: ONDCRange,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -1235,15 +1241,15 @@ struct ONDCOnSearchOffer {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct ONDCOnSearchCategoryDescriptor {
-    name: Option<String>,
+pub struct ONDCOnSearchCategoryDescriptor {
+    pub name: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct ONDCOnSearchCategory {
-    id: String,
-    descriptor: ONDCOnSearchCategoryDescriptor,
-    tags: Vec<ONDCTag>,
+pub struct ONDCOnSearchCategory {
+    pub id: String,
+    pub descriptor: ONDCOnSearchCategoryDescriptor,
+    pub tags: Vec<ONDCTag>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -1252,13 +1258,13 @@ pub struct ONDCOnSearchProvider {
     pub descriptor: ONDCOnSearchProviderDescriptor,
     pub payments: Option<Vec<ONDCOnSearchPayment>>,
     pub rating: Option<String>,
-    ttl: String,
-    creds: Option<Vec<ONDCCredential>>,
+    pub ttl: String,
+    pub creds: Option<Vec<ONDCCredential>>,
     pub locations: Vec<ONDCOnSearchProviderLocation>,
-    tags: Vec<ONDCTag>,
-    fulfillments: Vec<ONDCOnSearchFulfillmentContact>,
+    pub tags: Vec<ONDCTag>,
+    pub fulfillments: Vec<ONDCOnSearchFulfillmentContact>,
     offers: Option<Vec<ONDCOnSearchOffer>>,
-    categories: Option<Vec<ONDCOnSearchCategory>>,
+    pub categories: Option<Vec<ONDCOnSearchCategory>>,
     pub items: Vec<ONDCOnSearchItem>,
 }
 
@@ -1280,7 +1286,6 @@ pub struct ONDCOnSearchMessage {
 pub struct ONDCOnSearchRequest {
     pub context: ONDCContext,
     pub message: ONDCOnSearchMessage,
-    #[allow(dead_code)]
     pub error: Option<ONDCResponseErrorBody<ONDCSellerErrorCode>>,
 }
 
@@ -1678,16 +1683,15 @@ pub struct WSError {
 
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct WSSelect<'a> {
+pub struct WSSelect {
     #[schema(value_type = String)]
     pub transaction_id: Uuid,
     #[schema(value_type = String)]
     pub message_id: Uuid,
-    pub action_type: WebSocketActionType,
-    pub error: Option<&'a str>,
+    // pub action_type: WebSocketActionType,
+    pub error: Option<String>,
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct ONDCOrderParams {
     pub transaction_id: Uuid,
@@ -1698,6 +1702,7 @@ pub struct ONDCOrderParams {
 }
 
 pub struct BulkSellerProductInfo<'a> {
+    pub ids: Vec<Uuid>,
     pub seller_subscriber_ids: Vec<&'a str>,
     pub provider_ids: Vec<&'a str>,
     pub item_codes: Vec<Option<&'a str>>,
@@ -1711,6 +1716,7 @@ pub struct BulkSellerProductInfo<'a> {
     pub currency_codes: Vec<&'a CurrencyType>,
     pub country_codes: Vec<&'a CountryCode>,
     pub price_slabs: Vec<Option<Value>>,
+    pub updated_ons: Vec<DateTime<Utc>>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -1900,7 +1906,7 @@ pub struct ProviderLocation {
     id: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, sqlx::Type, Clone, ToSchema, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, sqlx::Type, Clone, PartialEq)]
 pub enum ONDCPaymentCollectedBy {
     #[serde(rename = "BAP")]
     Bap,
@@ -2000,20 +2006,20 @@ pub struct ONDCInitRequest {
 
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct WSInitData<'a> {
-    pub payment_links: Vec<&'a str>,
+pub struct WSInitData {
+    pub payment_links: Vec<String>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct WSInit<'a> {
+pub struct WSInit {
     #[schema(value_type = String)]
     pub transaction_id: Uuid,
     #[schema(value_type = String)]
     pub message_id: Uuid,
-    pub action_type: WebSocketActionType,
-    pub error: Option<&'a str>,
-    pub data: Option<WSInitData<'a>>,
+    // pub action_type: WebSocketActionType,
+    pub error: Option<String>,
+    pub data: Option<WSInitData>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -2359,19 +2365,19 @@ impl FromRequest for ONDCOnConfirmRequest {
 
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct WSConfirmData<'a> {
-    pub payment_links: Vec<&'a str>,
+pub struct WSConfirmData {
+    pub payment_links: Vec<String>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct WSConfirm<'a> {
+pub struct WSConfirm {
     #[schema(value_type = String)]
     pub transaction_id: Uuid,
     #[schema(value_type = String)]
     pub message_id: Uuid,
-    pub error: Option<&'a str>,
-    pub data: Option<WSConfirmData<'a>>,
+    pub error: Option<String>,
+    pub data: Option<WSConfirmData>,
 }
 
 pub struct BulkSellerLocationInfo<'a> {
@@ -2388,16 +2394,17 @@ pub struct BulkSellerLocationInfo<'a> {
     pub country_codes: Vec<&'a CountryCode>,
     pub country_names: Vec<Option<&'a str>>,
     pub area_codes: Vec<&'a str>,
+    pub updated_ons: Vec<DateTime<Utc>>,
+    pub ids: Vec<Uuid>,
 }
 
-#[derive(Debug, Deserialize, ToSchema)]
+#[derive(Debug, Deserialize)]
 pub struct ONDCSellerLocationInfo {
     pub location_id: String,
     pub seller_subscriber_id: String,
     pub provider_id: String,
-    #[schema(value_type = f64)]
+
     pub latitude: BigDecimal,
-    #[schema(value_type = f64)]
     pub longitude: BigDecimal,
     pub address: String,
     pub city_code: String,
@@ -2413,10 +2420,11 @@ pub struct BulkSellerInfo<'a> {
     pub seller_subscriber_ids: Vec<&'a str>,
     pub provider_ids: Vec<&'a str>,
     pub provider_names: Vec<&'a str>,
+    pub updated_ons: Vec<DateTime<Utc>>,
+    pub ids: Vec<Uuid>,
 }
 
-#[derive(Debug, Deserialize, ToSchema)]
-#[allow(dead_code)]
+#[derive(Debug, Deserialize)]
 pub struct ONDCSellerInfo {
     pub seller_subscriber_id: String,
     pub provider_id: String,
@@ -2689,4 +2697,10 @@ pub struct WSUpdate {
 pub struct KafkaSearchData {
     pub ondc_on_search: ONDCOnSearchRequest,
     pub search_obj: SearchRequestModel,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ONDCServicabilityCoordinate {
+    pub lat: f64,
+    pub lng: f64,
 }

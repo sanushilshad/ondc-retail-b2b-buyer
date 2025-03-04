@@ -37,7 +37,6 @@ pub struct CommerceBppTermsModel {
     pub court_jurisdiction: String,
     pub delay_interest: String,
 }
-#[allow(dead_code)]
 #[derive(Deserialize, Debug, FromRow)]
 pub struct CommerceDataModel {
     pub id: Uuid,
@@ -73,7 +72,6 @@ pub struct CommerceDataModel {
     pub buyer_chat_link: Option<String>,
 }
 
-#[allow(dead_code)]
 #[derive(Deserialize, Debug, FromRow)]
 pub struct CommerceItemModel {
     pub id: Uuid,
@@ -113,7 +111,7 @@ pub struct SellerPaymentDetailModel {
     pub dsa: Option<String>,
     pub signature: Option<String>,
 }
-#[allow(dead_code)]
+
 #[derive(Deserialize, Debug)]
 pub struct CommercePaymentModel {
     pub id: Uuid,
@@ -131,8 +129,6 @@ pub struct CommercePaymentModel {
     pub payment_order_id: Option<String>,
     pub payment_id: Option<String>,
 }
-
-#[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 pub struct CommerceFulfillmentModel {
     pub id: String,

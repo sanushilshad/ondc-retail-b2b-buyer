@@ -1,3 +1,4 @@
+use actix_http::StatusCode;
 use actix_web::web;
 
 use crate::user_client::UserAccount;
@@ -58,6 +59,7 @@ pub async fn send_email_otp(
 
     Ok(web::Json(GenericResponse::success(
         "Successfully Send OTP",
+        StatusCode::OK,
         Some(()),
     )))
 }

@@ -2,20 +2,25 @@ use super::{
     BreakupTitleType, LookupData, LookupRequest, ONDCActionType, ONDCBreakUp, ONDCCancelMessage,
     ONDCCancelRequest, ONDCConfirmMessage, ONDCConfirmOrder, ONDCConfirmProvider, ONDCContext,
     ONDCContextCity, ONDCContextCountry, ONDCContextLocation, ONDCCredential, ONDCCredentialType,
-    ONDCDomain, ONDCFeeType, ONDCSearchStop, ONDCSellePriceSlab, ONDCStatusMessage,
-    ONDCStatusRequest, ONDCTag, ONDCUpdateItem, ONDCUpdateMessage, ONDCUpdateOrder,
-    ONDCUpdateProvider, ONDCUpdateRequest, ONDCVersion, OndcUrl,
+    ONDCDomain, ONDCFeeType, ONDCItemCancellationFee, ONDCOnSearchCategory,
+    ONDCOnSearchFulfillmentContact, ONDCOnSearchItem, ONDCSearchStop, ONDCSellePriceSlab,
+    ONDCServicabilityCoordinate, ONDCStatusMessage, ONDCStatusRequest, ONDCTag, ONDCUpdateItem,
+    ONDCUpdateMessage, ONDCUpdateOrder, ONDCUpdateProvider, ONDCUpdateRequest, ONDCVersion,
+    OndcUrl,
 };
 
 use crate::chat_client::ChatData;
+use crate::elastic_search_client::ElasticSearchClient;
+use crate::routes::product::utils::{save_cache_to_db, save_cache_to_elastic_search};
 use crate::user_client::{get_vector_val_from_list, BusinessAccount, UserAccount, VectorType};
 use crate::websocket_client::{NotificationProcessType, WebSocketActionType, WebSocketClient};
 use crate::{constants::ONDC_TTL, routes::product::ProductSearchError};
-use anyhow::anyhow;
+use anyhow::{anyhow, Context};
 use chrono::{DateTime, Utc};
+use geojson::{GeoJson, Geometry};
 use reqwest::Client;
 use serde::Serializer;
-use sqlx::PgPool;
+use sqlx::{Executor, PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
 use std::collections::{HashMap, HashSet};
@@ -32,15 +37,15 @@ use super::schemas::{
     ONDCLocationId, ONDCOnConfirmPayment, ONDCOnSearchItemPrice, ONDCOnSearchItemQuantity,
     ONDCOnSearchItemTag, ONDCOnSearchPayment, ONDCOnSearchProviderDescriptor,
     ONDCOnSearchProviderLocation, ONDCOnSearchRequest, ONDCOrderCancellationFee,
-    ONDCOrderCancellationTerm, ONDCOrderFulfillmentEnd, ONDCOrderItemQuantity, ONDCOrderParams,
-    ONDCOrderStatus, ONDCPaymentParams, ONDCPaymentSettlementCounterparty,
-    ONDCPaymentSettlementDetail, ONDCPaymentStatus, ONDCQuantityCountInt, ONDCQuantitySelect,
-    ONDCQuote, ONDCRequestModel, ONDCSearchCategory, ONDCSearchDescriptor, ONDCSearchFulfillment,
-    ONDCSearchIntent, ONDCSearchItem, ONDCSearchLocation, ONDCSearchMessage, ONDCSearchPayment,
-    ONDCSearchRequest, ONDCSelectFulfillmentLocation, ONDCSelectMessage, ONDCSelectOrder,
-    ONDCSelectPayment, ONDCSelectProvider, ONDCSelectRequest, ONDCSelectedItem,
-    ONDCSellerLocationInfo, ONDCSellerProductInfo, ONDCState, ONDCTagItemCode, ONDCTagType,
-    ONDConfirmRequest, OnSearchContentType, TagTrait,
+    ONDCOrderCancellationTerm, ONDCOrderFulfillmentEnd, ONDCOrderItemQuantity, ONDCOrderStatus,
+    ONDCPaymentParams, ONDCPaymentSettlementCounterparty, ONDCPaymentSettlementDetail,
+    ONDCPaymentStatus, ONDCQuantityCountInt, ONDCQuantitySelect, ONDCQuote, ONDCRequestModel,
+    ONDCSearchCategory, ONDCSearchDescriptor, ONDCSearchFulfillment, ONDCSearchIntent,
+    ONDCSearchItem, ONDCSearchLocation, ONDCSearchMessage, ONDCSearchPayment, ONDCSearchRequest,
+    ONDCSelectFulfillmentLocation, ONDCSelectMessage, ONDCSelectOrder, ONDCSelectPayment,
+    ONDCSelectProvider, ONDCSelectRequest, ONDCSelectedItem, ONDCSellerLocationInfo,
+    ONDCSellerProductInfo, ONDCState, ONDCTagItemCode, ONDCTagType, ONDConfirmRequest,
+    OnSearchContentType, TagTrait,
 };
 use crate::domain::EmailObject;
 use crate::routes::ondc::schemas::{ONDCCity, ONDCPerson, ONDCSellerInfo};
@@ -58,12 +63,16 @@ use crate::routes::order::schemas::{
     TradeType, UpdateOrderPaymentRequest,
 };
 use crate::routes::product::schemas::{
-    CategoryDomain, FulfillmentType, PaymentType, ProductFulFillmentLocations,
-    ProductSearchRequest, ProductSearchType, SearchRequestModel, UnitizedProductQty,
-    WSCreatorContactData, WSItemPayment, WSPriceSlab, WSProductCategory, WSProductCreator,
-    WSSearch, WSSearchBPP, WSSearchCity, WSSearchCountry, WSSearchData, WSSearchItem,
-    WSSearchItemPrice, WSSearchItemQty, WSSearchItemQtyMeasure, WSSearchItemQuantity,
-    WSSearchProductProvider, WSSearchProvider, WSSearchProviderLocation, WSSearchState,
+    CategoryDomain, CredentialType, FulfillmentType, PaymentType, ProductFulFillmentLocation,
+    ProductSearchRequest, ProductSearchType, SearchRequestModel, WSCreatorContactData,
+    WSItemCancellation, WSItemCancellationFee, WSItemCancellationTerm, WSItemReplacementTerm,
+    WSItemReturnLocation, WSItemReturnTerm, WSItemReturnTime, WSItemValidity, WSPaymentTypes,
+    WSPriceSlab, WSProductCategory, WSProductCreator, WSSearch, WSSearchBPP, WSSearchCity,
+    WSSearchCountry, WSSearchData, WSSearchItem, WSSearchItemAttribute, WSSearchItemPrice,
+    WSSearchItemQty, WSSearchItemQtyMeasure, WSSearchItemQuantity, WSSearchProvider,
+    WSSearchProviderContact, WSSearchProviderCredential, WSSearchProviderDescription,
+    WSSearchProviderID, WSSearchProviderLocation, WSSearchProviderTerms, WSSearchServicability,
+    WSSearchState, WSSearchVariant, WSSearchVariantAttribute, WSServicabilityData,
 };
 use serde_json::Value;
 use sqlx::types::Json;
@@ -142,13 +151,12 @@ pub async fn get_lookup_data_from_db(
 
 #[tracing::instrument(name = "Save lookup data to db", skip(pool))]
 pub async fn save_lookup_data_to_db(pool: &PgPool, data: &LookupData) -> Result<(), anyhow::Error> {
-    let uuid = Uuid::new_v4();
+    // let uuid = Uuid::new_v4();
     sqlx::query!(
         r#"
-        INSERT INTO network_participant (id, subscriber_id, br_id, subscriber_url, signing_public_key, domain, encr_public_key, type, uk_id, created_on)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) ON CONFLICT (subscriber_id, type) DO NOTHING;
+        INSERT INTO network_participant (subscriber_id, br_id, subscriber_url, signing_public_key, domain, encr_public_key, type, uk_id, created_on)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT (subscriber_id, type) DO NOTHING;
         "#,
-        &uuid,
         &data.subscriber_id,
         &data.br_id,
         &data.subscriber_url,
@@ -280,7 +288,7 @@ fn get_search_tags(
 
 #[tracing::instrument(name = "get search fulfillment stops", skip())]
 pub fn get_search_fulfillment_stops(
-    fulfillment_locations: Option<&Vec<ProductFulFillmentLocations>>,
+    fulfillment_locations: Option<&Vec<ProductFulFillmentLocation>>,
 ) -> Option<Vec<ONDCSearchStop>> {
     let mut ondc_fulfillment_stops = Vec::new();
     match fulfillment_locations {
@@ -335,7 +343,7 @@ pub fn get_ondc_search_payment_obj(payment_obj: &Option<PaymentType>) -> Option<
 #[tracing::instrument(name = "get search fulfillment obj", skip())]
 pub fn get_search_fulfillment_obj(
     fulfillment_type: &Option<FulfillmentType>,
-    locations: Option<&Vec<ProductFulFillmentLocations>>,
+    locations: Option<&Vec<ProductFulFillmentLocation>>,
 ) -> Option<ONDCSearchFulfillment> {
     if let Some(fulfillment_type) = fulfillment_type {
         return Some(ONDCSearchFulfillment {
@@ -435,10 +443,7 @@ pub async fn send_ondc_payload(
                 Ok(response_obj)
             }
         }
-        Err(err) => {
-            println!("{}", err);
-            Err(anyhow::Error::from(err))
-        }
+        Err(err) => Err(anyhow::Error::from(err)),
     }
 }
 
@@ -465,29 +470,6 @@ pub async fn get_product_search_params(
         "#,
         transaction_id,
         message_id
-    )
-    .fetch_optional(pool)
-    .await?;
-
-    Ok(row)
-}
-
-#[tracing::instrument(name = "Fetch ONDC Order Params", skip(pool))]
-pub async fn get_ondc_order_params(
-    pool: &PgPool,
-    transaction_id: Uuid,
-    message_id: Uuid,
-    action_type: ONDCActionType,
-) -> Result<Option<ONDCOrderParams>, anyhow::Error> {
-    let row = sqlx::query_as!(
-        ONDCOrderParams,
-        r#"SELECT message_id, transaction_id, user_id, business_id, device_id
-        FROM ondc_buyer_order_req
-        WHERE transaction_id = $1 AND message_id = $2 AND action_type = $3 AND user_id is not NULL AND business_id is not NULL ORDER BY created_on DESC
-        "#,
-        &transaction_id,
-        &message_id,
-        &action_type.to_string()
     )
     .fetch_optional(pool)
     .await?;
@@ -528,11 +510,11 @@ pub fn get_price_obj_from_ondc_price_obj(
         currency: price.currency.to_owned(),
         price_with_tax: BigDecimal::from_str(&price.value).unwrap_or(BigDecimal::from(0)),
         price_without_tax: price.get_price_without_tax(tax),
-        offered_value: price
+        offered_price: price
             .offered_value
             .as_ref()
             .map(|v| BigDecimal::from_str(v).unwrap_or_else(|_| BigDecimal::from(0))),
-        maximum_value: BigDecimal::from_str(&price.maximum_value).unwrap(),
+        maximum_price: BigDecimal::from_str(&price.maximum_value).unwrap(),
     });
 }
 
@@ -565,32 +547,94 @@ pub fn ws_search_provider_from_ondc_provider(
     id: &str,
     rating: &Option<String>,
     descriptor: &ONDCOnSearchProviderDescriptor,
-) -> WSSearchProductProvider {
+    ttl: &str,
+    fulfillments: &Vec<ONDCOnSearchFulfillmentContact>,
+    tags: &Vec<ONDCTag>,
+    ondc_credentials: &Option<Vec<ONDCCredential>>,
+) -> WSSearchProviderDescription {
     let images: Vec<String> = descriptor
         .images
         .iter()
         .map(|image| image.get_value().to_owned())
         .collect();
-    let videos: Vec<String> = descriptor
-        .additional_desc
+    let contact = fulfillments.first();
+    let gst_credit_invoice = get_tag_value_from_list(
+        tags,
+        ONDCTagType::SellerTerms,
+        &ONDCTagItemCode::GstCreditInvoice.to_string(),
+    )
+    .unwrap_or("N")
+    .to_uppercase()
+        == "Y";
+    let seller_id_code = get_tag_value_from_list(
+        tags,
+        ONDCTagType::SellerId,
+        &ONDCTagItemCode::SellerIdCode.to_string(),
+    )
+    .unwrap_or("NA");
+    let seller_id_value = get_tag_value_from_list(
+        tags,
+        ONDCTagType::SellerId,
+        &ONDCTagItemCode::SellerIdNo.to_string(),
+    )
+    .unwrap_or("NA");
+    // let fssai_numbers = ;
+    // .collect();
+
+    let rating: Option<f32> = rating.as_ref().and_then(|f| f.parse().ok());
+    let mut credentials = vec![];
+    if let Some(ondc_credentials) = ondc_credentials {
+        for cred in ondc_credentials.iter() {
+            credentials.push(WSSearchProviderCredential {
+                id: cred.id.to_owned(),
+                r#type: cred.r#type.get_credential_type(),
+                desc: cred.desc.to_owned(),
+                url: Some(cred.url.to_owned()),
+            })
+        }
+    }
+    if let Some(fssai_num) = tags
         .iter()
-        .filter_map(|desc| {
-            if desc.content_type == OnSearchContentType::Mp4 {
-                Some(desc.url.to_owned())
-            } else {
-                None
+        .find(|tag| tag.descriptor.code == ONDCTagType::FssaiLicenseNo)
+    {
+        for data in fssai_num.list.iter() {
+            if !data.value.is_empty() {
+                let desc = format!(
+                    "{} {}",
+                    "FSSAI_LICENSE_NO",
+                    data.descriptor.code.to_string().to_uppercase()
+                );
+                credentials.push(WSSearchProviderCredential {
+                    id: data.value.to_owned(),
+                    r#type: CredentialType::FssaiLicenseNo,
+                    desc,
+                    url: None,
+                })
             }
-        })
-        .collect();
-    WSSearchProductProvider {
+        }
+    }
+
+    WSSearchProviderDescription {
         id: id.to_string(),
-        rating: rating.clone(),
+        rating,
         name: descriptor.name.clone(),
         code: descriptor.code.clone(),
         short_desc: descriptor.short_desc.clone(),
         long_desc: descriptor.long_desc.clone(),
         images,
-        videos,
+        ttl: ttl.to_owned(),
+        contact: WSSearchProviderContact {
+            mobile_no: contact
+                .as_ref()
+                .map_or("NA".to_string(), |f| f.contact.phone.to_owned()),
+            email: contact.as_ref().and_then(|f| f.contact.email.to_owned()),
+        },
+        terms: WSSearchProviderTerms { gst_credit_invoice },
+        identifications: vec![WSSearchProviderID {
+            r#type: seller_id_code.to_owned(),
+            value: seller_id_value.to_owned(),
+        }],
+        credentials,
     }
 }
 
@@ -599,8 +643,10 @@ fn get_ws_quantity_from_ondc_quantity(
     ondc_quantity: &ONDCOnSearchItemQuantity,
 ) -> WSSearchItemQuantity {
     WSSearchItemQuantity {
-        unitized: UnitizedProductQty {
+        unitized: WSSearchItemQtyMeasure {
             unit: ondc_quantity.unitized.measure.unit.clone(),
+            value: BigDecimal::from_str(&ondc_quantity.unitized.measure.value)
+                .unwrap_or_else(|_| BigDecimal::from(0)),
         },
         available: WSSearchItemQty {
             measure: WSSearchItemQtyMeasure {
@@ -677,6 +723,24 @@ fn get_ws_price_slab_from_ondc_slab(
     }
 }
 
+fn get_ws_attributes_from_ondc(ondc_tags: &[ONDCOnSearchItemTag]) -> Vec<WSSearchItemAttribute> {
+    let mut data: Vec<WSSearchItemAttribute> = vec![];
+    let attribute_tag = ondc_tags
+        .iter()
+        .find(|t| matches!(t.descriptor.code, ONDCTagType::Attribute));
+    if let Some(attribute_tag) = attribute_tag {
+        for attribute in attribute_tag.list.iter() {
+            data.push(WSSearchItemAttribute {
+                label: "".to_owned(),
+                key: attribute.descriptor.code.to_owned(),
+                value: attribute.value.to_owned(),
+            })
+        }
+    }
+
+    data
+}
+
 fn map_ws_item_categories(category_ids: &[String]) -> Vec<WSProductCategory> {
     category_ids
         .iter()
@@ -687,22 +751,28 @@ fn map_ws_item_categories(category_ids: &[String]) -> Vec<WSProductCategory> {
         .collect()
 }
 
-fn map_item_images(images: &[ONDCImage]) -> Vec<String> {
+fn map_item_images(images: &[ONDCImage], tags: &[ONDCOnSearchItemTag]) -> Vec<String> {
     images
         .iter()
         .map(|image| image.get_value().to_owned())
+        .chain(
+            get_search_tag_item_value(tags, &ONDCTagType::Image, &ONDCTagItemCode::Url.to_string())
+                .into_iter()
+                .map(|s| s.to_owned()),
+        )
         .collect()
 }
 
-fn get_payment_mapping(
-    payment_objs: &[ONDCOnSearchPayment],
-) -> HashMap<&str, &ONDCOnSearchPayment> {
-    payment_objs.iter().map(|f| (f.id.as_str(), f)).collect()
+fn get_payment_mapping(payment_objs: &[ONDCOnSearchPayment]) -> HashMap<String, WSPaymentTypes> {
+    payment_objs
+        .iter()
+        .map(|f| (f.id.to_owned(), get_ws_search_item_payment_objs(f)))
+        .collect()
 }
 
 // #[tracing::instrument(name = "get ws search item payment objs", skip())]
-fn get_ws_search_item_payment_objs(ondc_payment_obj: &ONDCOnSearchPayment) -> WSItemPayment {
-    WSItemPayment {
+fn get_ws_search_item_payment_objs(ondc_payment_obj: &ONDCOnSearchPayment) -> WSPaymentTypes {
+    WSPaymentTypes {
         r#type: ondc_payment_obj.r#type.get_payment(),
         collected_by: ondc_payment_obj
             .collected_by
@@ -711,12 +781,297 @@ fn get_ws_search_item_payment_objs(ondc_payment_obj: &ONDCOnSearchPayment) -> WS
     }
 }
 
+fn handle_geojson_servicability_in_ondc_search(
+    servicability_val: &str,
+    category_code: &Option<String>,
+) -> Result<Vec<WSServicabilityData<Value>>, anyhow::Error> {
+    let mut geo_json_duplicate = vec![];
+    let mut final_data = vec![];
+    match servicability_val.parse::<GeoJson>() {
+        Ok(GeoJson::FeatureCollection(ref ctn)) => {
+            for feature in &ctn.features {
+                if let Some(ref geom) = feature.geometry {
+                    if geo_json_duplicate.contains(geom) {
+                        continue;
+                    }
+                    geo_json_duplicate.push(geom.clone());
+                    let json_value: Value = serde_json::to_value(geom)?;
+
+                    let data = WSServicabilityData {
+                        category_code: category_code.clone(),
+                        value: json_value,
+                    };
+                    final_data.push(data)
+                }
+            }
+        }
+        Ok(_) => (),
+        Err(e) => return Err(anyhow!(e)),
+    }
+    Ok(final_data)
+}
+
+fn handle_coordinates_servicability_in_ondc_search(
+    servicability_val: &str,
+    category_code: &Option<String>,
+) -> Result<WSServicabilityData<Value>, anyhow::Error> {
+    let coordinates: Vec<ONDCServicabilityCoordinate> = serde_json::from_str(servicability_val)?;
+    let polygon_coordinates: Vec<Vec<f64>> = coordinates
+        .into_iter()
+        .map(|coord| vec![coord.lng, coord.lat])
+        .collect();
+    let geometry = Geometry::new(geojson::Value::Polygon(vec![polygon_coordinates]));
+    let json_value: Value = serde_json::to_value(geometry)?;
+    Ok(WSServicabilityData {
+        category_code: category_code.clone(),
+        value: json_value,
+    })
+}
+
+fn handle_hyperlocal_servicability_in_ondc_search(
+    servicability_val: &str,
+    category_code: &Option<String>,
+) -> WSServicabilityData<f64> {
+    let num: f64 = servicability_val.parse().unwrap_or(0.001);
+    WSServicabilityData {
+        category_code: category_code.clone(),
+        value: num * 1000.0,
+    }
+}
+
+fn handle_country_servicability_in_ondc_search(
+    servicability_val: &str,
+    category_code: &Option<String>,
+) -> Result<WSServicabilityData<CountryCode>, anyhow::Error> {
+    let country_code = CountryCode::from_str(servicability_val).map_err(|e| {
+        tracing::error!(e);
+        anyhow!(e)
+    })?;
+    Ok(WSServicabilityData {
+        category_code: category_code.clone(),
+        value: country_code,
+    })
+}
+
+fn expand_pincodes(pincode_str: &str) -> HashSet<String> {
+    let mut pincodes = HashSet::new(); // HashSet to store unique pincodes
+
+    for part in pincode_str.split(',').map(|p| p.trim()) {
+        if let Some((start, end)) = part.split_once('-') {
+            if let (Ok(start), Ok(end)) = (start.parse::<u32>(), end.parse::<u32>()) {
+                for code in start..=end {
+                    pincodes.insert(code.to_string());
+                }
+            }
+        } else {
+            pincodes.insert(part.to_string()); // Insert single pincode
+        }
+    }
+
+    pincodes
+}
+
+fn handle_intercity_servicability_in_ondc_search(
+    servicability_val: &str,
+    category_code: &Option<String>,
+) -> Result<WSServicabilityData<HashSet<String>>, anyhow::Error> {
+    Ok(WSServicabilityData {
+        category_code: category_code.clone(),
+        value: expand_pincodes(servicability_val),
+    })
+}
+
+#[tracing::instrument(name = "get product from on search request", skip())]
+pub fn get_servicability_from_on_search_request(
+    tags: &Vec<ONDCTag>,
+) -> Result<HashMap<String, WSSearchServicability>, anyhow::Error> {
+    let mut location_mapping: HashMap<String, WSSearchServicability> = HashMap::new();
+    for tag in tags
+        .iter()
+        .filter(|t| matches!(t.descriptor.code, ONDCTagType::Serviceability))
+    {
+        if let (
+            Some(location_id),
+            Some(category_id),
+            Some(servicability_type),
+            Some(servicability_val),
+        ) = (
+            tag.get_tag_value(&ONDCTagItemCode::Location.to_string()),
+            tag.get_tag_value(&ONDCTagItemCode::Category.to_string()),
+            tag.get_tag_value(&ONDCTagItemCode::Type.to_string()),
+            tag.get_tag_value(&ONDCTagItemCode::Val.to_string()),
+        ) {
+            let category_code = if category_id.ends_with("-*") {
+                None
+            } else {
+                Some(category_id.to_string())
+            };
+
+            if servicability_type == "13" {
+                let data =
+                    handle_geojson_servicability_in_ondc_search(servicability_val, &category_code)?;
+                location_mapping
+                    .entry(location_id.to_string())
+                    .or_insert(WSSearchServicability {
+                        geo_json: vec![],
+                        hyperlocal: vec![],
+                        country: vec![],
+                        intercity: vec![],
+                    })
+                    .geo_json
+                    .extend(data);
+            } else if servicability_type == "14" {
+                let data = handle_coordinates_servicability_in_ondc_search(
+                    servicability_val,
+                    &category_code,
+                )?;
+                location_mapping
+                    .entry(location_id.to_string())
+                    .or_insert(WSSearchServicability {
+                        geo_json: vec![],
+                        hyperlocal: vec![],
+                        country: vec![],
+                        intercity: vec![],
+                    })
+                    .geo_json
+                    .push(data);
+            } else if servicability_type == "10" {
+                let data = handle_hyperlocal_servicability_in_ondc_search(
+                    servicability_val,
+                    &category_code,
+                );
+                location_mapping
+                    .entry(location_id.to_string())
+                    .or_insert(WSSearchServicability {
+                        geo_json: vec![],
+                        hyperlocal: vec![],
+                        country: vec![],
+                        intercity: vec![],
+                    })
+                    .hyperlocal
+                    .push(data);
+            } else if servicability_type == "12" {
+                if let Ok(data) =
+                    handle_country_servicability_in_ondc_search(servicability_val, &category_code)
+                {
+                    location_mapping
+                        .entry(location_id.to_string())
+                        .or_insert(WSSearchServicability {
+                            geo_json: vec![],
+                            hyperlocal: vec![],
+                            country: vec![],
+                            intercity: vec![],
+                        })
+                        .country
+                        .push(data);
+                }
+            } else if servicability_type == "11" {
+                if let Ok(data) =
+                    handle_intercity_servicability_in_ondc_search(servicability_val, &category_code)
+                {
+                    location_mapping
+                        .entry(location_id.to_string())
+                        .or_insert(WSSearchServicability {
+                            geo_json: vec![],
+                            hyperlocal: vec![],
+                            country: vec![],
+                            intercity: vec![],
+                        })
+                        .intercity
+                        .push(data);
+                }
+            }
+        }
+    }
+
+    Ok(location_mapping)
+}
+
+fn get_variant_mapping(variants: &Vec<ONDCOnSearchCategory>) -> HashMap<String, WSSearchVariant> {
+    let mut map = HashMap::new();
+    for variant in variants {
+        let mut attributes = vec![];
+        for tag in variant
+            .tags
+            .iter()
+            .filter(|t| matches!(t.descriptor.code, ONDCTagType::Attr))
+        {
+            if let (Some(name), Some(sequence)) = (
+                tag.get_tag_value(&ONDCTagItemCode::Name.to_string()),
+                tag.get_tag_value(&ONDCTagItemCode::Seq.to_string()),
+            ) {
+                let new_name = if name.contains("attribute") {
+                    name.replace("tags.", "")
+                } else {
+                    name.to_owned()
+                };
+
+                attributes.push(WSSearchVariantAttribute {
+                    attribute_code: new_name,
+                    sequence: sequence.to_owned(),
+                })
+            }
+        }
+        if !attributes.is_empty() {
+            map.insert(
+                variant.id.clone(),
+                WSSearchVariant {
+                    id: variant.id.clone(),
+                    name: variant.descriptor.name.clone(),
+                    attributes,
+                },
+            );
+        }
+    }
+    map
+}
+fn get_cancelletion_terms(item: &ONDCOnSearchItem) -> WSItemCancellation {
+    let mut terms = vec![];
+    let is_cancellable = get_search_tag_item_value(
+        &item.tags,
+        &ONDCTagType::G2,
+        &ONDCTagItemCode::Cancellable.to_string(),
+    )
+    .unwrap_or("false")
+        == "true";
+
+    for term in item.cancellation_terms.iter() {
+        let fee = match &term.cancellation_fee {
+            ONDCItemCancellationFee::Percentage { percentage } => {
+                let percentage_value = percentage.parse::<f64>().unwrap_or(0.0);
+                WSItemCancellationFee::Percent {
+                    percentage: percentage_value,
+                }
+            }
+            ONDCItemCancellationFee::Amount { amount } => {
+                let amount_value = amount.value.parse::<f64>().unwrap_or(0.0);
+                WSItemCancellationFee::Amount {
+                    amount: amount_value,
+                }
+            }
+        };
+        terms.push(WSItemCancellationTerm {
+            fulfillment_state: term
+                .fulfillment_state
+                .descriptor
+                .code
+                .get_fulfillment_state(),
+            reason_required: term.reason_required,
+            fee,
+        })
+    }
+    WSItemCancellation {
+        is_cancellable,
+        terms,
+    }
+}
+
 #[tracing::instrument(name = "get product from on search request", skip())]
 pub fn get_product_from_on_search_request(
     on_search_obj: &ONDCOnSearchRequest,
 ) -> Result<Option<WSSearchData>, anyhow::Error> {
     let subscriber_id = on_search_obj.context.bpp_id.as_deref().unwrap_or("");
-    let subscriber_uri = on_search_obj.context.bpp_uri.as_deref().unwrap_or("");
+    // let subscriber_uri = on_search_obj.context.bpp_uri.as_deref().unwrap_or("");
     if let Some(catalog) = &on_search_obj.message.catalog {
         let mut payment_mapping = get_payment_mapping(&catalog.payments);
         let mut provider_list: Vec<WSSearchProvider> = vec![];
@@ -743,19 +1098,24 @@ pub fn get_product_from_on_search_request(
             for item in &provider_obj.items {
                 let tax_rate = get_search_tag_item_value(
                     &item.tags,
-                    &ONDCTagType::G2,
-                    &ONDCTagItemCode::TaxRate.to_string(),
+                    &ONDCTagType::Origin,
+                    &ONDCTagItemCode::Country.to_string(),
                 )
                 .unwrap_or("0.00");
-                let payment_obj = item
-                    .payment_ids
-                    .iter()
-                    .filter_map(|key| {
-                        payment_mapping
-                            .get(key.as_str())
-                            .map(|f| get_ws_search_item_payment_objs(f))
-                    })
-                    .collect();
+                let tax = BigDecimal::from_str(tax_rate).unwrap_or_else(|_| BigDecimal::from(0));
+                let country_of_origin = get_search_tag_item_value(
+                    &item.tags,
+                    &ONDCTagType::Origin,
+                    &ONDCTagItemCode::Country.to_string(),
+                )
+                .map(|e| e.to_owned());
+                let time_to_ship = get_search_tag_item_value(
+                    &item.tags,
+                    &ONDCTagType::G2,
+                    &ONDCTagItemCode::TimeToShip.to_string(),
+                )
+                .unwrap_or("NA");
+
                 let fulfillment_type_list: Vec<FulfillmentType> = item
                     .fulfillment_ids
                     .iter()
@@ -765,15 +1125,65 @@ pub fn get_product_from_on_search_request(
                             .map(|f| f.get_fulfillment_from_ondc())
                     })
                     .collect();
-                let images = map_item_images(&item.descriptor.images);
-                let tax = BigDecimal::from_str(tax_rate).unwrap_or_else(|_| BigDecimal::from(0));
+                let images = map_item_images(&item.descriptor.images, &item.tags);
+
                 let price_slabs = get_ws_price_slab_from_ondc_slab(&item.tags, &tax);
                 let categories: Vec<WSProductCategory> = map_ws_item_categories(&item.category_ids);
-                // let ondc_price_slab =
-                //     search_tag_item_list_from_tag(&item.tags, &ONDCTagType::PriceSlab);
+                let videos: Vec<String> = item.descriptor.media.as_ref().map_or(vec![], |media| {
+                    media
+                        .iter()
+                        .filter_map(|desc| {
+                            if desc.mimetype == OnSearchContentType::Mp4 {
+                                Some(desc.url.to_owned())
+                            } else {
+                                None
+                            }
+                        })
+                        .collect()
+                });
+                let validity = item.time.as_ref().map(|e| WSItemValidity {
+                    start: e.range.start,
+                    end: e.range.end,
+                });
+                let replacement_terms = item
+                    .replacement_terms
+                    .iter()
+                    .map(|a| WSItemReplacementTerm {
+                        replace_within: a.replace_within.to_owned(),
+                    })
+                    .collect();
+                let return_terms = item
+                    .return_terms
+                    .iter()
+                    .map(|f| WSItemReturnTerm {
+                        fulfillment_state: f
+                            .fulfillment_state
+                            .descriptor
+                            .code
+                            .get_fulfillment_state(),
+                        return_eligible: f.return_eligible,
+                        return_time: WSItemReturnTime {
+                            duration: f.return_time.duration.to_owned(),
+                        },
+                        return_location: WSItemReturnLocation {
+                            address: f.return_location.address.to_owned(),
+                            gps: f.return_location.gps.to_owned(),
+                        },
+                        fulfillment_managed_by: f.fulfillment_managed_by.to_owned(),
+                    })
+                    .collect();
+                let cancellation_terms = get_cancelletion_terms(item);
+                let attributes = get_ws_attributes_from_ondc(&item.tags);
+                let payment_options = item
+                    .payment_ids
+                    .iter()
+                    .filter_map(|a| payment_mapping.get(a).map(|a| a.r#type.clone()))
+                    .collect();
                 let prod_obj = WSSearchItem {
                     id: item.id.clone(),
                     name: item.descriptor.name.clone(),
+                    long_desc: item.descriptor.long_desc.clone(),
+                    short_desc: item.descriptor.short_desc.clone(),
                     code: item.descriptor.code.clone(),
                     domain_category: on_search_obj.context.domain.get_category_domain(),
                     price: get_price_obj_from_ondc_price_obj(&item.price, &tax)?,
@@ -788,26 +1198,43 @@ pub fn get_product_from_on_search_request(
                             email: item.creator.descriptor.contact.email.clone(),
                         },
                     },
-                    fullfillment_type: fulfillment_type_list,
+                    fulfillment_options: fulfillment_type_list,
                     images,
-                    location_ids: item.location_ids.iter().map(|s| s.to_owned()).collect(),
+                    videos,
+                    location_ids: item.location_ids.to_owned(),
+                    payment_options,
                     categories,
                     tax_rate: tax,
-
                     quantity: get_ws_quantity_from_ondc_quantity(&item.quantity),
-                    payment_types: payment_obj, // payment_types: todo!(),
                     price_slabs,
+                    attributes,
+                    matched: item.matched,
+                    country_of_origin,
+                    time_to_ship: time_to_ship.to_owned(),
+                    validity,
+                    replacement_terms,
+                    return_terms,
+                    cancellation_terms,
                 };
                 product_list.push(prod_obj)
             }
+            let servicability = get_servicability_from_on_search_request(&provider_obj.tags)?;
+
             let provider = WSSearchProvider {
                 items: product_list,
                 locations: location_obj,
-                provider_detail: ws_search_provider_from_ondc_provider(
+                description: ws_search_provider_from_ondc_provider(
                     &provider_obj.id,
                     &provider_obj.rating,
                     &provider_obj.descriptor,
+                    &provider_obj.ttl,
+                    &provider_obj.fulfillments,
+                    &provider_obj.tags,
+                    &provider_obj.creds,
                 ),
+                servicability,
+                // payments: payment_mapping.clone(),
+                variants: provider_obj.categories.as_ref().map(get_variant_mapping),
             };
             provider_list.push(provider)
         }
@@ -816,7 +1243,6 @@ pub fn get_product_from_on_search_request(
             bpp: WSSearchBPP {
                 name: catalog.descriptor.name.clone(),
                 subscriber_id: subscriber_id.to_owned(),
-                subscriber_uri: subscriber_uri.to_owned(),
                 code: catalog.descriptor.code.clone(),
                 short_desc: catalog.descriptor.short_desc.clone(),
                 long_desc: catalog.descriptor.long_desc.clone(),
@@ -1150,6 +1576,7 @@ fn get_ondc_seller_slab_from_ws_slab(ws_slabs: &Vec<WSPriceSlab>) -> Vec<ONDCSel
 pub fn create_bulk_seller_product_info_objs<'a>(
     body: &'a WSSearchData,
     code: &'a CountryCode,
+    updated_on: DateTime<Utc>,
 ) -> BulkSellerProductInfo<'a> {
     let mut seller_subscriber_ids: Vec<&str> = vec![];
     let mut provider_ids: Vec<&str> = vec![];
@@ -1164,18 +1591,22 @@ pub fn create_bulk_seller_product_info_objs<'a>(
     let mut currency_codes = vec![];
     let mut price_slabs = vec![];
     let mut country_codes = vec![];
+    let mut updated_ons = vec![];
+    let mut ids = vec![];
     for provider in &body.providers {
         for item in &provider.items {
             seller_subscriber_ids.push(&body.bpp.subscriber_id);
-            provider_ids.push(&provider.provider_detail.id);
+            provider_ids.push(&provider.description.id);
             item_ids.push(&item.id);
             item_codes.push(item.code.as_deref());
             item_names.push(&item.name);
             tax_rates.push(item.tax_rate.clone());
-            mrps.push(item.price.maximum_value.clone());
+            mrps.push(item.price.maximum_price.clone());
             unit_price_with_taxes.push(item.price.price_with_tax.clone());
             unit_price_without_taxes.push(item.price.price_without_tax.clone());
             country_codes.push(code);
+            updated_ons.push(updated_on);
+            ids.push(Uuid::new_v4());
             // for image_url in item.images.iter() {
             image_objs.push(serde_json::to_value(&item.images).unwrap());
             currency_codes.push(&item.price.currency);
@@ -1192,6 +1623,7 @@ pub fn create_bulk_seller_product_info_objs<'a>(
     }
 
     return BulkSellerProductInfo {
+        ids,
         seller_subscriber_ids,
         provider_ids,
         item_codes,
@@ -1205,19 +1637,21 @@ pub fn create_bulk_seller_product_info_objs<'a>(
         currency_codes,
         price_slabs,
         country_codes,
+        updated_ons,
     };
 }
 
-#[tracing::instrument(name = "save ondc seller product info", skip(pool, data))]
+#[tracing::instrument(name = "save ondc seller product info", skip(transaction, data))]
 pub async fn save_ondc_seller_product_info<'a>(
-    pool: &PgPool,
+    transaction: &mut Transaction<'_, Postgres>,
     data: &WSSearchData,
     code: &CountryCode,
+    updated_on: DateTime<Utc>,
 ) -> Result<(), anyhow::Error> {
-    let product_data = create_bulk_seller_product_info_objs(data, code);
-    sqlx::query!(
+    let product_data = create_bulk_seller_product_info_objs(data, code, updated_on);
+    let query = sqlx::query!(
         r#"
-        INSERT INTO ondc_seller_product_info (
+        INSERT INTO ondc_provider_product_info (
             seller_subscriber_id,
             provider_id,
             item_id,
@@ -1230,7 +1664,10 @@ pub async fn save_ondc_seller_product_info<'a>(
             mrp,
             currency_code,
             price_slab,
-            country_code
+            country_code,
+            created_on,
+            updated_on,
+            id
         )
         SELECT *
         FROM UNNEST(
@@ -1246,7 +1683,10 @@ pub async fn save_ondc_seller_product_info<'a>(
             $10::decimal[],
             $11::currency_code_type[],
             $12::jsonb[],
-            $13::country_code[]
+            $13::country_code_type[],
+            $14::timestamptz[],
+            $15::timestamptz[],
+            $16::uuid[]
         )
         ON CONFLICT (seller_subscriber_id, country_code, provider_id, item_id) 
         DO UPDATE SET 
@@ -1256,7 +1696,9 @@ pub async fn save_ondc_seller_product_info<'a>(
             unit_price_with_tax = EXCLUDED.unit_price_with_tax,
             unit_price_without_tax = EXCLUDED.unit_price_with_tax,
             mrp =  EXCLUDED.mrp,
-            price_slab = EXCLUDED.price_slab;
+            price_slab = EXCLUDED.price_slab,
+            updated_on = EXCLUDED.updated_on;
+            
         "#,
         &product_data.seller_subscriber_ids[..] as &[&str],
         &product_data.provider_ids[..] as &[&str],
@@ -1271,10 +1713,11 @@ pub async fn save_ondc_seller_product_info<'a>(
         &product_data.currency_codes[..] as &[&CurrencyType],
         &product_data.price_slabs[..] as &[Option<Value>],
         &product_data.country_codes[..] as &[&CountryCode],
-    )
-    .execute(pool)
-    .await
-    .map_err(|e| {
+        &product_data.updated_ons[..] as &[DateTime<Utc>],
+        &product_data.updated_ons[..] as &[DateTime<Utc>],
+        &product_data.ids[..] as &[Uuid],
+    );
+    transaction.execute(query).await.map_err(|e| {
         tracing::error!("Failed to execute query: {:?}", e);
         anyhow::Error::new(e)
             .context("A database failure occurred while saving ONDC seller product info")
@@ -1294,7 +1737,7 @@ pub async fn fetch_ondc_seller_product_info(
         ONDCSellerProductInfo,
         r#"SELECT item_name, currency_code  as "currency_code: CurrencyType", item_id, item_code, seller_subscriber_id,
         price_slab as "price_slab?: Json<Vec<ONDCSellePriceSlab>>", provider_id, tax_rate, 
-        unit_price_with_tax,unit_price_without_tax, mrp, images from ondc_seller_product_info where 
+        unit_price_with_tax,unit_price_without_tax, mrp, images from ondc_provider_product_info where 
         provider_id  = $1 AND seller_subscriber_id=$2 AND item_id::text = ANY($3) AND country_code =$4"#,
         provider_id,
         bpp_id,
@@ -1958,10 +2401,11 @@ pub fn get_ondc_confirm_payload(
 #[tracing::instrument(name = "save ondc seller location info", skip())]
 pub fn create_bulk_seller_location_info_objs<'a>(
     body: &'a WSSearchData,
+    updated_on: DateTime<Utc>,
 ) -> BulkSellerLocationInfo<'a> {
     let mut seller_subscriber_ids: Vec<&str> = vec![];
     let mut provider_ids = vec![];
-    let mut location_ids = vec![];
+    let mut location_ids: Vec<&str> = vec![];
     let mut latitudes = vec![];
     let mut longitudes = vec![];
     let mut addresses = vec![];
@@ -1972,6 +2416,8 @@ pub fn create_bulk_seller_location_info_objs<'a>(
     let mut country_names = vec![];
     let mut country_codes = vec![];
     let mut area_codes = vec![];
+    let mut updated_ons = vec![];
+    let mut ids = vec![];
     for provider in &body.providers {
         for (key, location) in &provider.locations {
             let gps_data = location
@@ -1981,7 +2427,7 @@ pub fn create_bulk_seller_location_info_objs<'a>(
                 .collect::<Vec<_>>();
 
             seller_subscriber_ids.push(&body.bpp.subscriber_id);
-            provider_ids.push(provider.provider_detail.id.as_str());
+            provider_ids.push(provider.description.id.as_str());
             location_ids.push(key.as_str());
             latitudes.push(gps_data.first().cloned().unwrap_or(BigDecimal::from(0)));
             longitudes.push(gps_data.get(1).cloned().unwrap_or(BigDecimal::from(0)));
@@ -1993,6 +2439,8 @@ pub fn create_bulk_seller_location_info_objs<'a>(
             country_names.push(location.country.name.as_deref());
             country_codes.push(&location.country.code);
             area_codes.push(location.area_code.as_str());
+            updated_ons.push(updated_on);
+            ids.push(Uuid::new_v4());
         }
     }
 
@@ -2010,18 +2458,21 @@ pub fn create_bulk_seller_location_info_objs<'a>(
         country_names,
         country_codes,
         area_codes,
+        updated_ons,
+        ids,
     };
 }
 
-#[tracing::instrument(name = "save ondc seller location info", skip(pool, data))]
+#[tracing::instrument(name = "save ondc seller location info", skip(transaction, data))]
 pub async fn save_ondc_seller_location_info<'a>(
-    pool: &PgPool,
+    transaction: &mut Transaction<'_, Postgres>,
     data: &'a WSSearchData,
+    updated_on: DateTime<Utc>,
 ) -> Result<(), anyhow::Error> {
-    let seller_data = create_bulk_seller_location_info_objs(data);
-    sqlx::query!(
+    let seller_data = create_bulk_seller_location_info_objs(data, updated_on);
+    let query = sqlx::query!(
         r#"
-        INSERT INTO ondc_seller_location_info (
+        INSERT INTO ondc_provider_location_info (
             seller_subscriber_id,
             provider_id,
             location_id,
@@ -2034,7 +2485,10 @@ pub async fn save_ondc_seller_location_info<'a>(
             state_name,
             country_code,
             country_name,
-            area_code 
+            area_code,
+            created_on,
+            updated_on,
+            id
         )
         SELECT *
         FROM UNNEST(
@@ -2048,9 +2502,12 @@ pub async fn save_ondc_seller_location_info<'a>(
             $8::text[],
             $9::text[],
             $10::text[],
-            $11::country_code[],
+            $11::country_code_type[],
             $12::text[],
-            $13::text[]
+            $13::text[],
+            $14::timestamptz[],
+            $15::timestamptz[],
+            $16::uuid[]
         )
         ON CONFLICT (seller_subscriber_id, provider_id, location_id) 
         DO UPDATE SET 
@@ -2063,6 +2520,7 @@ pub async fn save_ondc_seller_location_info<'a>(
             state_name =  EXCLUDED.state_name,
             country_code =  EXCLUDED.country_code,
             country_name =  EXCLUDED.country_name,
+            updated_on = EXCLUDED.updated_on,
             area_code = EXCLUDED.area_code
         "#,
         &seller_data.seller_subscriber_ids[..] as &[&str],
@@ -2078,10 +2536,11 @@ pub async fn save_ondc_seller_location_info<'a>(
         &seller_data.country_codes[..] as &[&CountryCode],
         &seller_data.country_names[..] as &[Option<&str>],
         &seller_data.area_codes[..] as &[&str],
-    )
-    .execute(pool)
-    .await
-    .map_err(|e| {
+        &seller_data.updated_ons[..] as &[DateTime<Utc>],
+        &seller_data.updated_ons[..] as &[DateTime<Utc>],
+        &seller_data.ids[..] as &[Uuid],
+    );
+    transaction.execute(query).await.map_err(|e| {
         tracing::error!("Failed to execute query: {:?}", e);
         anyhow::Error::new(e)
             .context("A database failure occurred while saving ONDC seller location info")
@@ -2109,7 +2568,7 @@ pub async fn fetch_ondc_seller_location_info(
         ONDCSellerLocationInfo,
         r#"SELECT location_id, seller_subscriber_id, provider_id, latitude, longitude,
         address, city_code, city_name, state_code, state_name, country_code  as "country_code:CountryCode", area_code,
-        country_name from ondc_seller_location_info where 
+        country_name from ondc_provider_location_info where 
         provider_id  = $1 AND seller_subscriber_id=$2 AND location_id::text = ANY($3)"#,
         provider_id,
         bpp_id,
@@ -2149,54 +2608,72 @@ pub async fn get_ondc_seller_location_info_mapping(
 }
 
 #[tracing::instrument(name = "save ondc seller info", skip())]
-pub fn create_bulk_seller_info_objs<'a>(body: &'a WSSearchData) -> BulkSellerInfo<'a> {
+pub fn create_bulk_seller_info_objs<'a>(
+    body: &'a WSSearchData,
+    updated_on: DateTime<Utc>,
+) -> BulkSellerInfo<'a> {
     let mut seller_subscriber_ids: Vec<&str> = vec![];
     let mut provider_ids = vec![];
     let mut provider_names = vec![];
-
+    let mut updated_ons = vec![];
+    let mut ids = vec![];
     for provider in &body.providers {
         seller_subscriber_ids.push(&body.bpp.subscriber_id);
-        provider_ids.push(provider.provider_detail.id.as_str());
-        provider_names.push(provider.provider_detail.name.as_str());
+        provider_ids.push(provider.description.id.as_str());
+        provider_names.push(provider.description.name.as_str());
+        updated_ons.push(updated_on);
+        ids.push(Uuid::new_v4());
     }
 
     return BulkSellerInfo {
         seller_subscriber_ids,
         provider_ids,
         provider_names,
+        updated_ons,
+        ids,
     };
 }
 
-#[tracing::instrument(name = "save ondc seller info", skip(pool, data))]
+#[tracing::instrument(name = "save ondc seller info", skip(transaction, data))]
 pub async fn save_ondc_seller_info<'a>(
-    pool: &PgPool,
+    transaction: &mut Transaction<'_, Postgres>,
     data: &'a WSSearchData,
+    updated_on: DateTime<Utc>,
 ) -> Result<(), anyhow::Error> {
-    let seller_data = create_bulk_seller_info_objs(data);
-    sqlx::query!(
+    let seller_data = create_bulk_seller_info_objs(data, updated_on);
+    let query = sqlx::query!(
         r#"
-        INSERT INTO ondc_seller_info (
+        INSERT INTO ondc_provider_info (
             seller_subscriber_id,
             provider_id,
-            provider_name
+            provider_name,
+            updated_on,
+            created_on,
+            id
         )
         SELECT *
         FROM UNNEST(
             $1::text[], 
             $2::text[], 
-            $3::text[]
+            $3::text[],
+            $4::timestamptz[],
+            $5::timestamptz[],
+            $6::uuid[]
         )
         ON CONFLICT (seller_subscriber_id, provider_id) 
         DO UPDATE SET 
-            provider_name = EXCLUDED.provider_name
+            provider_name = EXCLUDED.provider_name,
+            updated_on = EXCLUDED.updated_on
         "#,
         &seller_data.seller_subscriber_ids[..] as &[&str],
         &seller_data.provider_ids[..] as &[&str],
-        &seller_data.provider_names[..] as &[&str]
-    )
-    .execute(pool)
-    .await
-    .map_err(|e| {
+        &seller_data.provider_names[..] as &[&str],
+        &seller_data.updated_ons[..] as &[DateTime<Utc>],
+        &seller_data.updated_ons[..] as &[DateTime<Utc>],
+        &seller_data.ids[..] as &[Uuid],
+    );
+
+    transaction.execute(query).await.map_err(|e| {
         tracing::error!("Failed to execute query: {:?}", e);
         anyhow::Error::new(e).context("A database failure occurred while saving ONDC seller info")
     })?;
@@ -2211,7 +2688,7 @@ pub async fn fetch_ondc_seller_info(
 ) -> Result<ONDCSellerInfo, anyhow::Error> {
     let row: ONDCSellerInfo = sqlx::query_as!(
         ONDCSellerInfo,
-        r#"SELECT  seller_subscriber_id, provider_id, provider_name from ondc_seller_info where 
+        r#"SELECT  seller_subscriber_id, provider_id, provider_name from ondc_provider_info where 
         provider_id  = $1 AND seller_subscriber_id=$2"#,
         provider_id,
         bpp_id,
@@ -2332,30 +2809,44 @@ pub async fn process_on_search(
     body: ONDCOnSearchRequest,
     extracted_search_obj: SearchRequestModel,
     websocket_srv: &WebSocketClient,
+    elastic_search_client: &ElasticSearchClient,
 ) -> Result<(), anyhow::Error> {
-    let product_objs: Option<WSSearchData> =
+    let final_objs: Option<WSSearchData> =
         get_product_from_on_search_request(&body).map_err(|op| anyhow!("error:{}", op))?;
 
-    if let Some(product_objs) = product_objs {
-        if !product_objs.providers.is_empty() {
-            let _ = save_ondc_seller_info(pool, &product_objs)
+    if let Some(final_objs) = final_objs {
+        if !final_objs.providers.is_empty() {
+            let mut transaction = pool
+                .begin()
+                .await
+                .context("Failed to acquire a Postgres connection from the pool")?;
+
+            let _ = save_ondc_seller_info(&mut transaction, &final_objs, body.context.timestamp)
                 .await
                 .map_err(|e| anyhow!(e));
-            let task1 = save_ondc_seller_product_info(
-                pool,
-                &product_objs,
+            let _ = save_ondc_seller_product_info(
+                &mut transaction,
+                &final_objs,
                 &body.context.location.country.code,
-            );
+                body.context.timestamp,
+            )
+            .await
+            .map_err(|e| anyhow!(e));
 
-            let task2 = save_ondc_seller_location_info(pool, &product_objs);
+            let _ = save_ondc_seller_location_info(
+                &mut transaction,
+                &final_objs,
+                body.context.timestamp,
+            )
+            .await
+            .map_err(|e| anyhow!(e));
 
-            tokio::try_join!(task1, task2)?;
             if !extracted_search_obj.update_cache {
                 let ws_params = get_websocket_params_from_search_req(extracted_search_obj);
                 let ws_body = get_search_ws_body(
                     body.context.message_id,
                     body.context.transaction_id,
-                    product_objs,
+                    final_objs,
                 );
                 let ws_json = serde_json::to_value(ws_body).unwrap();
                 let _ = websocket_srv
@@ -2366,8 +2857,24 @@ pub async fn process_on_search(
                         Some(NotificationProcessType::Immediate),
                     )
                     .await;
+                transaction
+                    .commit()
+                    .await
+                    .context("Failed to commit SQL transaction to store save products")?;
             } else {
-                todo!()
+                let data = save_cache_to_db(
+                    &mut transaction,
+                    &body.context.location.country.code,
+                    &body.context.domain.get_category_domain(),
+                    &final_objs,
+                    body.context.timestamp,
+                )
+                .await?;
+                transaction
+                    .commit()
+                    .await
+                    .context("Failed to commit SQL transaction to store save products")?;
+                save_cache_to_elastic_search(pool, elastic_search_client, data).await?;
             }
         }
     }
