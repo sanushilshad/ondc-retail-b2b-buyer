@@ -11,6 +11,7 @@ use elasticsearch::http::transport::TransportBuilder;
 use elasticsearch::indices::IndicesCreateParts;
 use elasticsearch::indices::IndicesExistsParts;
 use elasticsearch::BulkParts;
+use elasticsearch::DeleteByQueryParts;
 use elasticsearch::Elasticsearch;
 use elasticsearch::SearchParts;
 use lazy_static::lazy_static;
@@ -22,6 +23,7 @@ use serde::Deserialize;
 use serde::Serialize;
 use serde_json::json;
 use serde_json::Value;
+use uuid::Uuid;
 
 #[derive(Debug, Deserialize, Serialize, Hash, PartialEq, Eq)]
 pub enum ElasticSearchIndex {
@@ -506,25 +508,37 @@ impl ElasticSearchClient {
     pub fn get_index(&self, index: &str) -> String {
         format!("{}_{}", self.env, index)
     }
-    pub async fn add(
+    pub async fn add<T: Serialize>(
         &self,
         index: ElasticSearchIndex,
-        data: Vec<JsonBody<Value>>,
+        records: Vec<T>,
+        get_id: impl Fn(&T) -> Uuid,
     ) -> Result<(), anyhow::Error> {
-        let response = self
-            .client
-            .bulk(BulkParts::Index(&self.get_index(&index.to_string())))
-            .body(data)
-            .send()
-            .await?;
-        if response.status_code() != 200 {
-            let response_body = response.json::<serde_json::Value>().await?;
-            tracing::info!("{:?}", response_body);
-            return Err(anyhow!(response_body));
-        } else {
-            tracing::info!("{:?}", response);
+        if !records.is_empty() {
+            let json_values: Vec<JsonBody<_>> = records
+            .into_iter()
+            .flat_map(|record| {
+                let id = get_id(&record).to_string(); // Extract ID
+                vec![
+                    json!({"index": { "_index": self.get_index(&index.to_string()), "_id": id }}).into(),
+                    json!(record).into(),
+                ]
+            })
+            .collect();
+            let response = self
+                .client
+                .bulk(BulkParts::Index(&self.get_index(&index.to_string())))
+                .body(json_values)
+                .send()
+                .await?;
+            if response.status_code() != 200 {
+                let response_body = response.json::<serde_json::Value>().await?;
+                tracing::info!("{:?}", response_body);
+                return Err(anyhow!(response_body));
+            } else {
+                tracing::info!("{:?}", response);
+            }
         }
-
         Ok(())
     }
     pub async fn fetch(
@@ -581,8 +595,42 @@ impl ElasticSearchClient {
         }
         Ok(())
     }
-}
+    pub async fn delete_all_indices(&self) -> Result<(), anyhow::Error> {
+        let indices = [
+            ElasticSearchIndex::ProviderServicabilityHyperLocal,
+            ElasticSearchIndex::ProviderServicabilityCountry,
+            ElasticSearchIndex::ProviderServicabilityInterCity,
+            ElasticSearchIndex::ProviderServicabilityGeoJson,
+            ElasticSearchIndex::NetworkParticipant,
+            ElasticSearchIndex::ProviderLocation,
+            ElasticSearchIndex::Provider,
+            ElasticSearchIndex::ProviderItemVariant,
+            ElasticSearchIndex::ProviderItem,
+        ];
 
+        for index in &indices {
+            let index_name = self.get_index(&index.to_string());
+            let delete_query = serde_json::json!({
+                "query": { "match_all": {} } // Deletes all documents from the index
+            });
+
+            let response = self
+                .client
+                .delete_by_query(DeleteByQueryParts::Index(&[&index_name]))
+                .body(delete_query)
+                .send()
+                .await?;
+
+            let status_code = response.status_code();
+
+            if status_code != 200 {
+                return Err(anyhow::anyhow!("Failed to delete index {}", index_name));
+            }
+        }
+
+        Ok(())
+    }
+}
 pub async fn generate_indices() {
     let configuration = get_configuration().expect("Failed to read configuration.");
     let es_client = configuration.elastic_search.client();

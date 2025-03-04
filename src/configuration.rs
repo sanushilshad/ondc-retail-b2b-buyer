@@ -20,6 +20,8 @@ pub struct UserConfig {
     token: SecretString,
     base_url: String,
     timeout_milliseconds: u64,
+    default_user_id: Uuid,
+    default_business_id: Uuid,
 }
 
 impl UserConfig {
@@ -29,6 +31,14 @@ impl UserConfig {
     }
     fn timeout(&self) -> std::time::Duration {
         std::time::Duration::from_millis(self.timeout_milliseconds)
+    }
+
+    pub fn get_default_user(&self) -> Uuid {
+        self.default_user_id
+    }
+
+    pub fn get_default_business(&self) -> Uuid {
+        self.default_business_id
     }
 }
 

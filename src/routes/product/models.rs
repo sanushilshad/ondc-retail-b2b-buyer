@@ -1,14 +1,3 @@
-use crate::{
-    routes::{ondc::ONDCItemUOM, order::schemas::FulfillmentStatusType},
-    schemas::{CountryCode, CurrencyType, ONDCNetworkType},
-};
-use bigdecimal::BigDecimal;
-use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use serde_with::skip_serializing_none;
-use uuid::Uuid;
-
 use super::schemas::{
     AutoCompleteItem, CategoryDomain, CredentialType, PaymentType, WSCreatorContactData,
     WSItemCancellation, WSItemCancellationFee, WSItemCancellationTerm, WSItemReplacementTerm,
@@ -18,6 +7,17 @@ use super::schemas::{
     WSSearchProviderCredential, WSSearchProviderDescription, WSSearchProviderID,
     WSSearchProviderLocation, WSSearchProviderTerms, WSSearchState, WSSearchVariant,
 };
+use crate::{
+    routes::{ondc::ONDCItemUOM, order::schemas::FulfillmentStatusType},
+    schemas::{CountryCode, CurrencyType, ONDCNetworkType},
+};
+use bigdecimal::BigDecimal;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use serde_with::skip_serializing_none;
+use sqlx::FromRow;
+use uuid::Uuid;
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct WSSearchProviderContactModel {
@@ -346,14 +346,14 @@ impl WSSearchItemQuantityModel {
     }
 }
 
-#[derive(Deserialize, Debug, Serialize)]
+#[derive(Deserialize, Debug, Serialize, FromRow)]
 #[serde(rename_all = "snake_case")]
 pub struct ESLocationModel {
     pub lat: f64,
     pub lon: f64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, FromRow)]
 #[serde(rename_all = "snake_case")]
 pub struct ESHyperlocalServicabilityModel {
     pub id: Uuid,
@@ -367,7 +367,7 @@ pub struct ESHyperlocalServicabilityModel {
     pub network_participant_cache_id: Uuid,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, FromRow)]
 #[serde(rename_all = "snake_case")]
 pub struct ESCountryServicabilityModel {
     pub id: Uuid,
@@ -380,7 +380,7 @@ pub struct ESCountryServicabilityModel {
     pub network_participant_cache_id: Uuid,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, FromRow)]
 #[serde(rename_all = "snake_case")]
 pub struct ESInterCityServicabilityModel {
     pub id: Uuid,
@@ -393,7 +393,7 @@ pub struct ESInterCityServicabilityModel {
     pub network_participant_cache_id: Uuid,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, FromRow)]
 #[serde(rename_all = "snake_case")]
 pub struct ESGeoJsonServicabilityModel {
     pub id: Uuid,
@@ -430,7 +430,7 @@ impl ESNetworkParticipantModel {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, FromRow)]
 #[serde(rename_all = "snake_case")]
 pub struct ESProviderLocationModel {
     pub id: Uuid,
@@ -523,7 +523,7 @@ impl ESProviderModel {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, FromRow)]
 #[serde(rename_all = "snake_case")]
 pub struct ESProviderItemVariantModel {
     pub id: Uuid,
@@ -605,4 +605,11 @@ impl ESAutoCompleteProviderItemModel {
             item_code: self.item_code,
         }
     }
+}
+
+#[derive(Debug, Serialize, FromRow)]
+pub struct SearchLocationModel {
+    pub country_code: CountryCode,
+    pub city_code: String,
+    pub domain_category_code: CategoryDomain,
 }

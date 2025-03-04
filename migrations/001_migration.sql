@@ -901,14 +901,17 @@ ALTER TABLE item_location_cache_relationship ADD CONSTRAINT product_fk FOREIGN K
 ALTER TABLE item_location_cache_relationship ADD CONSTRAINT location_fk FOREIGN KEY ("location_cache_id") REFERENCES provider_location_cache("id") ON DELETE CASCADE;
 
 
+CREATE TABLE IF NOT EXISTS subscribed_search_location (
+    id SERIAL NOT NULL PRIMARY KEY,
+    city_code TEXT NOT NULL,
+    country_code country_code_type NOT NULL,
+    created_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    domain_category_code domain_category_type NOT NULL
+);
 
--- CREATE TABLE IF NOT EXISTS communication (
---   id uuid PRIMARY KEY,
---   message TEXT NOT NULL,
---   created_on TIMESTAMPTZ NOT NULL,
---   created_by TEXT NOT NULL,
---   media_list TEXT[]
--- );
+ALTER TABLE subscribed_search_location ADD CONSTRAINT sub_city_code_uq UNIQUE (country_code, city_code, domain_category_code);
+
+
 
 -- CREATE TABLE IF NOT EXISTS  buyer_order_status_history(
 --   id uuid PRIMARY KEY,

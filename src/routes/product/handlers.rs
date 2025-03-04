@@ -9,7 +9,7 @@ use super::schemas::{
 };
 use super::utils::{
     get_auto_complete_product_data, get_full_item_data_from_es, get_network_participant_from_es,
-    get_provider_from_es, save_search_request,
+    get_provider_from_es, insert_subscribed_search_location, save_search_request,
 };
 use crate::configuration::ONDCConfig;
 use crate::elastic_search_client::ElasticSearchClient;
@@ -73,15 +73,21 @@ pub async fn realtime_product_search(
     let ondc_search_payload_str = serde_json::to_string(&ondc_search_payload).map_err(|e| {
         GenericError::SerializationError(format!("Failed to serialize ONDC search payload: {}", e))
     })?;
-    let task1 = save_search_request(&pool, &user_account, &business_account, &meta_data, &body);
+    let task_1 = save_search_request(&pool, &user_account, &business_account, &meta_data, &body);
     let header = create_authorization_header(&ondc_search_payload_str, &np_detail, None, None)?;
-    let task2 = send_ondc_payload(
+    let task_2 = send_ondc_payload(
         &ondc_obj.gateway_uri,
         &ondc_search_payload_str,
         &header,
         ONDCActionType::Search,
     );
-    futures::future::join(task1, task2).await.1?;
+    let task_3 = insert_subscribed_search_location(
+        &pool,
+        &body.city_code,
+        &body.country_code,
+        &body.domain_category_code,
+    );
+    futures::future::join3(task_1, task_2, task_3).await.1?;
     Ok(HttpResponse::Accepted().json(GenericResponse::success(
         "Successfully Sent Product Search Request",
         StatusCode::ACCEPTED,

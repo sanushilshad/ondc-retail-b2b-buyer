@@ -27,9 +27,7 @@ pub fn main_route(cfg: &mut web::ServiceConfig) {
                 .wrap(HeaderValidation),
         )
         .service(
-            web::scope("/v1/ondc/buyer")
-                .configure(ondc_route)
-                .wrap(SellerHeaderVerification),
+            web::scope("/v1/ondc/buyer").configure(ondc_route), // .wrap(SellerHeaderVerification),
         )
         .service(SwaggerUi::new("/docs/{_:.*}").url("/api-docs/openapi.json", openapi.clone()));
 }

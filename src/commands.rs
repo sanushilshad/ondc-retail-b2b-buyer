@@ -1,3 +1,4 @@
+use crate::routes::product;
 use crate::utils::generate_user_token;
 use crate::{elastic_search_client, kafka_client, migration};
 #[tracing::instrument(name = "Run custom command")]
@@ -25,6 +26,12 @@ pub async fn run_custom_commands(args: Vec<String>) -> Result<(), anyhow::Error>
         }
         "generate_elastic_search_indices" => {
             elastic_search_client::generate_indices().await;
+        }
+        "generate_item_cache" => {
+            product::utils::generate_cache().await?;
+        }
+        "regenerate_item_cache" => {
+            product::utils::regenerate_cache_to_es().await?;
         }
         _ => {
             eprintln!("Unknown command: {}. Please use a valid command.", command);

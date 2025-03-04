@@ -2,22 +2,25 @@ use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 
 use bigdecimal::{BigDecimal, ToPrimitive};
-use elasticsearch::http::request::JsonBody;
 use futures::future::join_all;
 use serde::de::DeserializeOwned;
 use serde_json::{json, Value};
-use sqlx::{PgPool, Postgres, Transaction, Executor, types::Json};
+use sqlx::{PgPool, Postgres, Transaction, Executor, types::Json, Row, QueryBuilder};
 use tokio::try_join;
 
 use uuid::Uuid;
+use crate::configuration::get_configuration;
 use crate::elastic_search_client::{ElasticSearchClient, ElasticSearchIndex};
+use crate::routes::ondc::utils::{get_ondc_search_payload, send_ondc_payload};
+use crate::routes::ondc::ONDCActionType;
 use crate::routes::product::models::{ESAutoCompleteProviderItemModel, ESHyperlocalServicabilityModel, ESProviderLocationModel, ESProviderModel};
 use crate::routes::product::schemas::{AutoCompleteItem, FulfillmentType, PaymentType, ProductSearchType, ProviderListResponse};
-use crate::schemas::{CurrencyType, RequestMetaData};
-use super::models::{ESCountryServicabilityModel, ESGeoJsonServicabilityModel, ESInterCityServicabilityModel, ESLocationModel, ESNetworkParticipantModel, ESProviderItemModel, ESProviderItemVariantModel, ProductVariantAttributeModel, SearchProviderCredentialModel, WSItemCancellationModel, WSItemReplacementTermModel, WSItemReturnTermModel, WSItemValidityModel, WSPriceSlabModel, WSProductCategoryModel, WSProductCreatorModel, WSSearchItemAttributeModel, WSSearchItemQuantityModel, WSSearchProviderContactModel, WSSearchProviderTermsModel};
+use crate::schemas::{CurrencyType, ONDCNetworkType, RequestMetaData};
+use crate::utils::{create_authorization_header, get_np_detail};
+use super::models::{ESCountryServicabilityModel, ESGeoJsonServicabilityModel, ESInterCityServicabilityModel, ESLocationModel, ESNetworkParticipantModel, ESProviderItemModel, ESProviderItemVariantModel, ProductVariantAttributeModel, SearchLocationModel, SearchProviderCredentialModel, WSItemCancellationModel, WSItemReplacementTermModel, WSItemReturnTermModel, WSItemValidityModel, WSPriceSlabModel, WSProductCategoryModel, WSProductCreatorModel, WSSearchItemAttributeModel, WSSearchItemQuantityModel, WSSearchProviderContactModel, WSSearchProviderTermsModel};
 use super::schemas::{AutoCompleteItemRequest, AutoCompleteItemResponseData, BulkCountryServicabilityCache, BulkGeoServicabilityCache, BulkHyperlocalServicabilityCache, BulkInterCityServicabilityCache, BulkItemCache, BulkItemLocationCache, BulkItemVariantCache, BulkProviderCache, BulkProviderLocationCache, CategoryDomain, DBItemCacheData, ItemCacheResponseData, NetworkParticipantListReq, NetworkParticipantListResponse, ProductCacheSearchRequest, ProductFulFillmentLocation, ProductSearchRequest, ProviderFetchReq, ServicabilityIds, WSItemValidity, WSPriceSlab, WSSearchBPP, WSSearchData, WSSearchItem, WSSearchItemPrice, WSSearchProvider};
 use chrono::{DateTime, Utc};
-use crate::user_client::{BusinessAccount, UserAccount};
+use crate::user_client::{BusinessAccount, CustomerType, UserAccount};
 use crate::schemas::CountryCode;
 use anyhow::anyhow;
 #[tracing::instrument(name = "Save Product Search Request", skip(pool))]
@@ -1384,249 +1387,245 @@ pub async fn save_cache_to_db(transaction: &mut Transaction<'_, Postgres>, count
 
 async fn get_hyperlocal_cache_data_from_db(
     pool: &PgPool,
-    id_list: Vec<Uuid>,
+    id_list: Option<Vec<Uuid>>,
+    provider_list: Option<&Vec<Uuid>>,
 ) -> Result<Vec<ESHyperlocalServicabilityModel>, anyhow::Error> {
-    let query = sqlx::query!(
+    let mut query = QueryBuilder::new(
         r#"
         SELECT 
-            shc.id as id,
-            shc.provider_location_cache_id as location_cache_id,
-            shc.domain_code as "domain_code:CategoryDomain",
-            shc.category_code as category_code,
-            shc.radius as radius,
-            shc.created_on as created_on,
+            shc.id,
+            shc.provider_location_cache_id,
+            shc.domain_code,
+            shc.category_code,
+            shc.radius,
+            shc.created_on,
             pc.id AS provider_cache_id,
-            pc.network_participant_cache_id as network_participant_cache_id,
-            plc.latitude as latitude,
-            plc.longitude as longitude
+            pc.network_participant_cache_id,
+            plc.latitude,
+            plc.longitude
         FROM provider_servicability_hyperlocal_cache AS shc
-        JOIN provider_location_cache AS plc
-        ON shc.provider_location_cache_id = plc.id
-        JOIN provider_cache AS pc
-        ON plc.provider_cache_id = pc.id
-        WHERE shc.id = ANY($1)
-        "#,
-        &id_list[..]
+        JOIN provider_location_cache AS plc ON shc.provider_location_cache_id = plc.id
+        JOIN provider_cache AS pc ON plc.provider_cache_id = pc.id
+        WHERE 1=1
+    "#,
     );
 
-    let data = query.fetch_all(pool).await.map_err(|e| {
-        tracing::error!("Failed to execute query: {:?}", e);
-        anyhow::Error::new(e).context("A database failure occurred while fetching hyperlocal")
-    })?;
+    if let Some(ids) = &id_list {
+        query.push(" AND shc.id = ANY(").push_bind(ids).push(")");
+    }
 
-    let result = data
-        .into_iter()
-        .map(|record| ESHyperlocalServicabilityModel {
-            id: record.id,
-            location_cache_id: record.location_cache_id,
-            domain_code: record.domain_code,
-            category_code: record.category_code,
-            radius: record.radius,
-            created_on: record.created_on,
-            provider_cache_id: record.provider_cache_id,
-            network_participant_cache_id: record.network_participant_cache_id,
+    if let Some(providers) = provider_list {
+        query.push(" AND pc.id = ANY(").push_bind(providers).push(")");
+    }
+
+    let rows = query
+        .build()
+        .fetch_all(pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to execute query: {:?}", e);
+            anyhow::Error::new(e).context("A database failure occurred while fetching hyperlocal servicability data")
+        })?;
+
+let result = rows
+    .into_iter()
+    .map(|row| {
+        let lat: bigdecimal::BigDecimal = row.get("latitude");
+        let lon: bigdecimal::BigDecimal = row.get("longitude");
+
+        ESHyperlocalServicabilityModel {
+            id: row.get("id"),
+            location_cache_id: row.get("provider_location_cache_id"),
+            domain_code: row.get("domain_code"),
+            category_code: row.try_get("category_code").ok(), // Handle NULL values
+            radius: row.get("radius"),
+            created_on: row.get("created_on"),
+            provider_cache_id: row.get("provider_cache_id"),
+            network_participant_cache_id: row.get("network_participant_cache_id"),
             location: ESLocationModel {
-                lat: record.latitude.to_f64().unwrap(),
-                lon: record.longitude.to_f64().unwrap(),
+                lat: lat.to_f64().unwrap_or(0.0),
+                lon: lon.to_f64().unwrap_or(0.0),
             },
-        })
-        .collect();
+        }
+    })
+    .collect::<Vec<_>>();
 
     Ok(result)
 }
 
-async fn save_provider_hyperlocal_servicability_cache_to_elastic_search(pool: &PgPool, es_client: &ElasticSearchClient, id_list: Vec<Uuid>)-> Result<(), anyhow::Error>{
-    if !id_list.is_empty() {
-        let data = get_hyperlocal_cache_data_from_db(pool, id_list).await?;
-        let json_values: Vec<JsonBody<_>> = data
-        .into_iter()
-        .flat_map(|record| {
-            let id = record.id.to_string(); 
-            vec![
-                json!({"index": { "_index": es_client.get_index(&ElasticSearchIndex::ProviderServicabilityHyperLocal.to_string()), "_id": id }}).into(),
-                json!(record).into(),
-            ]
-        })
-        .collect();
-        es_client.add(ElasticSearchIndex::ProviderServicabilityHyperLocal, json_values).await?;
-    }
-
-    Ok(())
-}
-
-
-
 async fn get_country_cache_data_from_db(
     pool: &PgPool,
-    id_list: Vec<Uuid>,
+    id_list: Option<Vec<Uuid>>,
+    provider_list: Option<&Vec<Uuid>>,
 ) -> Result<Vec<ESCountryServicabilityModel>, anyhow::Error> {
-    let query = sqlx::query_as!(
-        ESCountryServicabilityModel,
+    let mut query = QueryBuilder::new(
         r#"
         SELECT 
-            shc.id as id,
+            shc.id,
             shc.provider_location_cache_id as location_cache_id,
-            shc.domain_code as "domain_code:CategoryDomain",
-            shc.category_code as category_code,
-            shc.country_code as "country_code:CountryCode",
-            shc.created_on as created_on,
+            shc.domain_code,
+            shc.category_code,
+            shc.country_code,
+            shc.created_on,
             pc.id AS provider_cache_id,
             pc.network_participant_cache_id as network_participant_cache_id
         FROM provider_servicability_country_cache AS shc
-        JOIN provider_location_cache AS plc
-        ON shc.provider_location_cache_id = plc.id
-        JOIN provider_cache AS pc
-        ON plc.provider_cache_id = pc.id
-        WHERE shc.id = ANY($1)
-        "#,
-        &id_list[..]
+        JOIN provider_location_cache AS plc ON shc.provider_location_cache_id = plc.id
+        JOIN provider_cache AS pc ON plc.provider_cache_id = pc.id
+        WHERE 1=1
+    "#,
     );
 
-    let data = query.fetch_all(pool).await.map_err(|e| {
-        tracing::error!("Failed to execute query: {:?}", e);
-        anyhow::Error::new(e).context("A database failure occurred while fetching country servicability data")
-    })?;
-
-
-    Ok(data)
-}
-
-async fn save_provider_country_servicability_cache_to_elastic_search(pool: &PgPool, es_client: &ElasticSearchClient, id_list: Vec<Uuid>)-> Result<(), anyhow::Error>{
-    if !id_list.is_empty() {
-        let data = get_country_cache_data_from_db(pool, id_list).await?;
-        let json_values: Vec<JsonBody<_>> = data
-        .into_iter()
-        .flat_map(|record| {
-            let id = record.id.to_string(); 
-            vec![
-                json!({"index": { "_index": es_client.get_index(&ElasticSearchIndex::ProviderServicabilityCountry.to_string()), "_id": id }}).into(),
-                json!(record).into(),
-            ]
-        })
-        .collect();
-        es_client.add(ElasticSearchIndex::ProviderServicabilityCountry, json_values).await?;
+    if let Some(ids) = &id_list {
+        query.push(" AND shc.id = ANY(").push_bind(ids).push(")");
     }
 
-    Ok(())
-}
+    if let Some(providers) = provider_list {
+        query.push(" AND pc.id = ANY(").push_bind(providers).push(")");
+    }
 
+    let result = query
+        .build_query_as::<ESCountryServicabilityModel>() // Directly map to struct
+        .fetch_all(pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to execute query: {:?}", e);
+            anyhow::Error::new(e).context("A database failure occurred while fetching country servicability data")
+        })?;
+
+    Ok(result)
+}
 
 async fn get_intercity_cache_data_from_db(
     pool: &PgPool,
-    id_list: Vec<Uuid>,
+    id_list: Option<Vec<Uuid>>,
+    provider_list: Option<&Vec<Uuid>>,
 ) -> Result<Vec<ESInterCityServicabilityModel>, anyhow::Error> {
-    let query = sqlx::query_as!(
-        ESInterCityServicabilityModel,
+    let mut query = QueryBuilder::<Postgres>::new(
         r#"
         SELECT 
-            shc.id as id,
+            shc.id,
             shc.provider_location_cache_id as location_cache_id,
-            shc.domain_code as "domain_code:CategoryDomain",
-            shc.category_code as category_code,
+            shc.domain_code,
+            shc.category_code,
             shc.pincode,
-            shc.created_on as created_on,
+            shc.created_on,
             pc.id AS provider_cache_id,
             pc.network_participant_cache_id as network_participant_cache_id
         FROM provider_servicability_intercity_cache AS shc
-        JOIN provider_location_cache AS plc
-        ON shc.provider_location_cache_id = plc.id
-        JOIN provider_cache AS pc
-        ON plc.provider_cache_id = pc.id
-        WHERE shc.id = ANY($1)
-        "#,
-        &id_list[..]
+        JOIN provider_location_cache AS plc ON shc.provider_location_cache_id = plc.id
+        JOIN provider_cache AS pc ON plc.provider_cache_id = pc.id
+        WHERE 1=1
+    "#,
     );
+
+    if let Some(ids) = &id_list {
+        if !ids.is_empty() {
+            query.push(" AND shc.id IN (");
+            let mut separated = query.separated(", ");
+            for id in ids {
+                separated.push_bind(id);
+            }
+            query.push(")");
+        }
+    }
+
+    if let Some(providers) = provider_list {
+        if !providers.is_empty() {
+            query.push(" AND pc.id IN (");
+            let mut separated = query.separated(", ");
+            for provider in providers {
+                separated.push_bind(provider);
+            }
+            query.push(")");
+        }
+    }
+
+    let query = query.build_query_as::<ESInterCityServicabilityModel>();
 
     let data = query.fetch_all(pool).await.map_err(|e| {
         tracing::error!("Failed to execute query: {:?}", e);
-        anyhow::Error::new(e).context("A database failure occurred while fetching intecity servicability data")
+        anyhow::Error::new(e).context("A database failure occurred while fetching intercity servicability data")
     })?;
 
-
     Ok(data)
-}
-
-async fn save_provider_intercity_servicability_cache_to_elastic_search(pool: &PgPool, es_client: &ElasticSearchClient, id_list: Vec<Uuid>)-> Result<(), anyhow::Error>{
-    if !id_list.is_empty() {
-        let data = get_intercity_cache_data_from_db(pool, id_list).await?;
-        let json_values: Vec<JsonBody<_>> = data
-        .into_iter()
-        .flat_map(|record| {
-            let id = record.id.to_string(); 
-            vec![
-                json!({"index": { "_index": es_client.get_index(&ElasticSearchIndex::ProviderServicabilityInterCity.to_string()), "_id": id }}).into(),
-                json!(record).into(),
-            ]
-        })
-        .collect();
-        es_client.add(ElasticSearchIndex::ProviderServicabilityInterCity, json_values).await?;
-    }
-
-    Ok(())
 }
 
 
 async fn get_geo_json_cache_data_from_db(
     pool: &PgPool,
-    id_list: Vec<Uuid>,
+    id_list: Option<Vec<Uuid>>,
+    provider_list: Option<&Vec<Uuid>>,
 ) -> Result<Vec<ESGeoJsonServicabilityModel>, anyhow::Error> {
-    let query = sqlx::query_as!(
-        ESGeoJsonServicabilityModel,
+    let mut query = QueryBuilder::<Postgres>::new(
         r#"
         SELECT 
-            shc.id as id,
-            shc.provider_location_cache_id as location_cache_id,
-            shc.domain_code as "domain_code:CategoryDomain",
-            shc.category_code as category_code,
+            shc.id,
+            shc.provider_location_cache_id AS location_cache_id,
+            shc.domain_code,
+            shc.category_code,
             shc.coordinates,
-            shc.created_on as created_on,
+            shc.created_on,
             pc.id AS provider_cache_id,
-            pc.network_participant_cache_id as network_participant_cache_id
+            pc.network_participant_cache_id
         FROM provider_servicability_geo_json_cache AS shc
-        JOIN provider_location_cache AS plc
-        ON shc.provider_location_cache_id = plc.id
-        JOIN provider_cache AS pc
-        ON plc.provider_cache_id = pc.id
-        WHERE shc.id = ANY($1)
-        "#,
-        &id_list[..]
+        JOIN provider_location_cache AS plc ON shc.provider_location_cache_id = plc.id
+        JOIN provider_cache AS pc ON plc.provider_cache_id = pc.id
+        WHERE 1=1
+    "#,
     );
+
+    if let Some(ids) = &id_list {
+        if !ids.is_empty() {
+            query.push(" AND shc.id IN (");
+            let mut separated = query.separated(", ");
+            for id in ids {
+                separated.push_bind(id);
+            }
+            query.push(")");
+        }
+    }
+
+    if let Some(providers) = provider_list {
+        if !providers.is_empty() {
+            query.push(" AND pc.id IN (");
+            let mut separated = query.separated(", ");
+            for provider in providers {
+                separated.push_bind(provider);
+            }
+            query.push(")");
+        }
+    }
+
+    let query = query.build_query_as::<ESGeoJsonServicabilityModel>();
 
     let data = query.fetch_all(pool).await.map_err(|e| {
         tracing::error!("Failed to execute query: {:?}", e);
         anyhow::Error::new(e).context("A database failure occurred while fetching geo_json servicability data")
     })?;
 
-
     Ok(data)
 }
 
 
-async fn save_provider_geo_json_servicability_cache_to_elastic_search(pool: &PgPool, es_client: &ElasticSearchClient, id_list: Vec<Uuid>)-> Result<(), anyhow::Error>{
-    if !id_list.is_empty() {
-        let data = get_geo_json_cache_data_from_db(pool, id_list).await?;
-        let json_values: Vec<JsonBody<_>> = data
-        .into_iter()
-        .flat_map(|record| {
-            let id = record.id.to_string(); 
-            vec![
-                json!({"index": { "_index": es_client.get_index(&ElasticSearchIndex::ProviderServicabilityGeoJson.to_string()), "_id": id }}).into(),
-                json!(record).into(),
-            ]
-        })
-        .collect();
-        es_client.add(ElasticSearchIndex::ProviderServicabilityGeoJson, json_values).await?;
-    }
-
-    Ok(())
-}
-
-
 async fn save_provider_servicability_to_elastic_search(pool: &PgPool, es_client: &ElasticSearchClient, data: ServicabilityIds)-> Result<(), anyhow::Error>{
-    save_provider_hyperlocal_servicability_cache_to_elastic_search(pool, es_client, data.hyperlocal).await?;
-    save_provider_country_servicability_cache_to_elastic_search(pool, es_client, data.country).await?;
-    save_provider_intercity_servicability_cache_to_elastic_search(pool, es_client, data.inter_city).await?;
-    save_provider_geo_json_servicability_cache_to_elastic_search(pool, es_client, data.geo_json).await?;
+    let task_1 = get_hyperlocal_cache_data_from_db(pool, Some(data.hyperlocal), None);
+    let task_2 = get_country_cache_data_from_db(pool, Some(data.country), None);
+    let task_3 = get_intercity_cache_data_from_db(pool, Some(data.inter_city), None);
+    let task_4 = get_geo_json_cache_data_from_db(pool, Some(data.geo_json), None);
+    let (hyperlocal, country, intercity, geo_json) = try_join!(task_1, task_2, task_3, task_4)?;
+
+    try_join!(
+        es_client.add(ElasticSearchIndex::ProviderServicabilityHyperLocal, hyperlocal, |record| record.id), 
+        es_client.add(ElasticSearchIndex::ProviderServicabilityCountry, country, |record| record.id), 
+        es_client.add(ElasticSearchIndex::ProviderServicabilityInterCity, intercity, |record| record.id), 
+        es_client.add(ElasticSearchIndex::ProviderServicabilityGeoJson, geo_json, |record| record.id), 
+
+    ).map_err(|e| {
+        tracing::error!("Failed to execute query: {:?}", e);
+        anyhow!(e)
+    })?;
+
     Ok(())
 }
 
@@ -1654,31 +1653,15 @@ async fn get_network_participant_cache_data_from_db(
 }
 
 
-async fn save_network_participant_to_elastic_search(pool: &PgPool, es_client: &ElasticSearchClient, id_list: Vec<Uuid>)-> Result<(), anyhow::Error>{
-    if !id_list.is_empty() {
-        let data = get_network_participant_cache_data_from_db(pool, id_list).await?;
-        let json_values: Vec<JsonBody<_>> = data
-        .into_iter()
-        .flat_map(|record| {
-            let id = record.id.to_string(); 
-            vec![
-                json!({"index": { "_index": es_client.get_index(&ElasticSearchIndex::NetworkParticipant.to_string()), "_id": id }}).into(),
-                json!(record).into(),
-            ]
-        })
-        .collect();
-        es_client.add(ElasticSearchIndex::NetworkParticipant, json_values).await?;
-    }
-    Ok(())
-}
 
 
-async fn get_provider_location_cache_data_from_db(
+
+pub async fn get_provider_location_cache_data_from_db(
     pool: &PgPool,
-    id_list: Vec<Uuid>,
+    id_list: Option<&Vec<Uuid>>,
+    provider_cache_list: Option<&Vec<Uuid>>,
 ) -> Result<Vec<ESProviderLocationModel>, anyhow::Error> {
-    let query = sqlx::query_as!(
-        ESProviderLocationModel,
+    let mut query_builder = QueryBuilder::new(
         r#"
         SELECT 
             id,
@@ -1691,51 +1674,44 @@ async fn get_provider_location_cache_data_from_db(
             city_name,
             state_code,
             state_name,
-            country_code as "country_code:CountryCode",
+            country_code,
             country_name,
             area_code,
             created_on,
             updated_on
         FROM provider_location_cache
-        WHERE id = ANY($1)
+        WHERE 1=1
         "#,
-        &id_list[..]
     );
+
+    if let Some(ref ids) = id_list {
+        query_builder.push(" AND id = ANY(");
+        query_builder.push_bind(ids);
+        query_builder.push(")");
+    }
+
+    if let Some(ref provider_ids) = provider_cache_list {
+        query_builder.push(" AND provider_cache_id = ANY(");
+        query_builder.push_bind(provider_ids);
+        query_builder.push(")");
+    }
+
+    let query = query_builder.build_query_as::<ESProviderLocationModel>();
 
     let data = query.fetch_all(pool).await.map_err(|e| {
         tracing::error!("Failed to execute query: {:?}", e);
         anyhow::Error::new(e).context("A database failure occurred while fetching provider location data")
     })?;
 
-
     Ok(data)
 }
 
 
 
-async fn save_location_to_elastic_search(pool: &PgPool, es_client: &ElasticSearchClient, id_list: Vec<Uuid>)-> Result<(), anyhow::Error>{
-    if !id_list.is_empty() {
-        let data = get_provider_location_cache_data_from_db(pool, id_list).await?;
-        let json_values: Vec<JsonBody<_>> = data
-        .into_iter()
-        .flat_map(|record| {
-            let id = record.id.to_string(); 
-            vec![
-                json!({"index": { "_index": es_client.get_index(&ElasticSearchIndex::ProviderLocation.to_string()), "_id": id }}).into(),
-                json!(record).into(),
-            ]
-        })
-        .collect();
-        es_client.add(ElasticSearchIndex::ProviderLocation, json_values).await?;
-    }
-    Ok(())
-}
-
-
 
 async fn get_provider_cache_data_from_db(
     pool: &PgPool,
-    id_list: Vec<Uuid>,
+    id_list: &[Uuid],
 ) -> Result<Vec<ESProviderModel>, anyhow::Error> {
     let query = sqlx::query_as!(
         ESProviderModel,
@@ -1760,87 +1736,66 @@ async fn get_provider_cache_data_from_db(
     Ok(data)
 }
 
+async fn delete_cache_from_db(pool: &PgPool) -> Result<(), anyhow::Error> {
+    let query = "DELETE FROM network_participant_cache";
 
-async fn save_provider_to_elastic_search(pool: &PgPool, es_client: &ElasticSearchClient, id_list: Vec<Uuid>)-> Result<(), anyhow::Error>{
-    if !id_list.is_empty() {
-        let data = get_provider_cache_data_from_db(pool, id_list).await?;
-        let json_values: Vec<JsonBody<_>> = data
-        .into_iter()
-        .flat_map(|record| {
-            let id = record.id.to_string(); 
-            vec![
-                json!({"index": { "_index": es_client.get_index(&ElasticSearchIndex::Provider.to_string()), "_id": id }}).into(),
-                json!(record).into(),
-            ]
-        })
-        .collect();
-        es_client.add(ElasticSearchIndex::Provider, json_values).await?;
-    }
+    sqlx::query(query)
+        .execute(pool)
+        .await
+        .map_err(|e| anyhow!(e))?; 
+    Ok(())
+}
+pub async fn clear_network_participant_cache(pool: &PgPool, es_client: &ElasticSearchClient) -> Result<(), anyhow::Error> {
+    let task_1 = delete_cache_from_db(pool);
+    let task_2 = es_client.delete_all_indices();
+    try_join!(task_1, task_2)?;
     Ok(())
 }
 
-async fn get_provider_item_variant_cache_data_from_db(
+
+
+pub async fn get_provider_item_variant_cache_data_from_db(
     pool: &PgPool,
-    id_list: Vec<Uuid>,
+    id_list: Option<Vec<Uuid>>,
+    provider_list: Option<&Vec<Uuid>>,
 ) -> Result<Vec<ESProviderItemVariantModel>, anyhow::Error> {
-    let query = sqlx::query_as!(
-        ESProviderItemVariantModel,
+    let mut query_builder = QueryBuilder::new(
         r#"
         SELECT 
-        id,
-        provider_cache_id, variant_id,
-        variant_name, attributes, 
-        created_on, updated_on
+            id,
+            provider_cache_id,
+            variant_id,
+            variant_name,
+            attributes, 
+            created_on,
+            updated_on
         FROM provider_item_variant_cache
-        WHERE id = ANY($1)
+        WHERE 1=1
         "#,
-        &id_list[..]
     );
+
+    if let Some(ref ids) = id_list {
+        query_builder.push(" AND id = ANY(");
+        query_builder.push_bind(ids);
+        query_builder.push(")");
+    }
+
+    if let Some(ref provider_ids) = provider_list {
+        query_builder.push(" AND provider_cache_id = ANY(");
+        query_builder.push_bind(provider_ids);
+        query_builder.push(")");
+    }
+
+    let query = query_builder.build_query_as::<ESProviderItemVariantModel>();
 
     let data = query.fetch_all(pool).await.map_err(|e| {
         tracing::error!("Failed to execute query: {:?}", e);
         anyhow::Error::new(e).context("A database failure occurred while fetching provider item variant location data")
     })?;
-
-
     Ok(data)
 }
 
 
-
-
-async fn save_provider_item_variant_to_elastic_search(pool: &PgPool, es_client: &ElasticSearchClient, id_list: Vec<Uuid>)-> Result<(), anyhow::Error>{
-    if !id_list.is_empty() {
-        let data = get_provider_item_variant_cache_data_from_db(pool, id_list).await?;
-        let json_values: Vec<JsonBody<_>> = data
-        .into_iter()
-        .flat_map(|record| {
-            let id = record.id.to_string(); 
-            vec![
-                json!({"index": { "_index": es_client.get_index(&ElasticSearchIndex::ProviderItemVariant.to_string()), "_id": id }}).into(),
-                json!(record).into(),
-            ]
-        })
-        .collect();
-        es_client.add(ElasticSearchIndex::ProviderItemVariant, json_values).await?;
-    }
-    Ok(())
-}
-
-
-
-
-
-
-
-// async fn get_provider_item_cache_data_from_db(
-//     transaction: &mut Transaction<'_, Postgres>,
-//     id_list: Vec<Uuid>,
-// ) -> Result<Vec<ESProviderItemModel>, anyhow::Error> {
-//     let item_data = get_provider_item_cache_data_from_db(transaction, id_list).await?;
-//     let location_item_mapping = get_provider_item_location_mapping_cache_data_from_db(transaction, id_list).await?;
-//     Ok(data)
-// }
 
 
 
@@ -1911,36 +1866,25 @@ async fn get_provider_item_cache_data_from_db(
 
 
 
-async fn save_provider_item_to_elastic_search(pool: &PgPool, es_client: &ElasticSearchClient, id_list: Vec<Uuid>)-> Result<(), anyhow::Error>{
-    if !id_list.is_empty() {
-        let data = get_provider_item_cache_data_from_db(pool, id_list).await?;
-        let json_values: Vec<JsonBody<_>> = data
-        .into_iter()
-        .flat_map(|record| {
-            let id = record.id.to_string(); 
-            vec![
-                json!({"index": { "_index": es_client.get_index(&ElasticSearchIndex::ProviderItem.to_string()), "_id": id }}).into(),
-                json!(record).into(),
-            ]
-        })
-        .collect();
-        es_client.add(ElasticSearchIndex::ProviderItem, json_values).await?;
-    }
-    Ok(())
-}
-
 
 
  pub async fn save_cache_to_elastic_search(pool: &PgPool, es_client: &ElasticSearchClient, data: DBItemCacheData)-> Result<(), anyhow::Error>{
-    try_join!(
-        save_network_participant_to_elastic_search(pool, es_client, data.network_participant_ids),
-        save_provider_to_elastic_search(pool, es_client, data.provider_ids),
-        save_location_to_elastic_search(pool, es_client, data.location_ids),
-        save_provider_servicability_to_elastic_search(pool, es_client, data.servicability_ids),
-        save_provider_item_to_elastic_search(pool, es_client, data.item_ids),
-        save_provider_item_variant_to_elastic_search(pool, es_client, data.variant_ids),
-    )?;
+    let (network_participant_models, provider_models, location_models, item_models,variant_models) =  try_join!(
+        get_network_participant_cache_data_from_db(pool, data.network_participant_ids),
+        get_provider_cache_data_from_db(pool, &data.provider_ids),
+        get_provider_location_cache_data_from_db(pool, Some(&data.location_ids), None),
+        get_provider_item_cache_data_from_db(pool, data.item_ids),
+        get_provider_item_variant_cache_data_from_db(pool, Some(data.variant_ids), None),
 
+    )?;
+    try_join!(
+        es_client.add(ElasticSearchIndex::NetworkParticipant, network_participant_models,|record| record.id),
+        es_client.add(ElasticSearchIndex::Provider, provider_models, |record| record.id),
+        es_client.add(ElasticSearchIndex::ProviderLocation, location_models, |record| record.id),
+        es_client.add(ElasticSearchIndex::ProviderItem, item_models, |record| record.id),
+        es_client.add(ElasticSearchIndex::ProviderItemVariant, variant_models, |record| record.id),
+        save_provider_servicability_to_elastic_search(pool, es_client, data.servicability_ids),
+    )?;
     Ok(())
 }
 
@@ -2539,7 +2483,9 @@ pub async fn get_full_item_data_from_es(
                             .into_iter()
                             .filter_map(|item_model| get_ws_item_from_es_model(item_model, &provider_location_models, &provider_variant_models).ok().flatten())
                             .collect();
-    
+                        if item_final_data.is_empty(){
+                            continue
+                        }
                         let final_variant = provider_variant_models.map(|variants| {
                                 variants.into_values().map(|v| (v.variant_id.to_owned(), v.get_schema())).collect()
                             }).
@@ -2577,4 +2523,178 @@ pub async fn get_full_item_data_from_es(
     }
 
     Ok(None)
+}
+
+
+
+
+
+
+
+pub async fn generate_cache() -> Result<(), anyhow::Error>{
+    let configuration = get_configuration().expect("Failed to read configuration.");
+    let connection_pool = PgPool::connect_with(configuration.database.with_db())
+        .await
+        .expect("Failed to connect to Postgres.");
+    let user_id = configuration.user_obj.get_default_user();
+    let business_id = configuration.user_obj.get_default_business();
+    let user_client = configuration.user_obj.client();
+
+    let user_account = user_client.get_user_account(None, Some(user_id)).await?;
+    if let Some(business_account) = user_client.get_business_account(user_id, business_id, vec![CustomerType::RetailB2bBuyer]).await?{
+        let subscribed_locations = fetch_search_locations(&connection_pool).await?;
+        if let Some(np_detail) =  get_np_detail(&connection_pool, &business_account.subscriber_id,
+                &ONDCNetworkType::Bap).await?{
+            let es_client = configuration.elastic_search.client();
+            clear_network_participant_cache(&connection_pool, &es_client).await?;
+            for subscribed_location in subscribed_locations{
+                let req_body = ProductSearchRequest{
+                    query: "".to_owned(),
+                    transaction_id:Uuid::new_v4(),
+                    message_id: Uuid::new_v4(),
+                    domain_category_code: subscribed_location.domain_category_code,
+                    country_code:  subscribed_location.country_code,
+                    payment_type: None,
+                    fulfillment_type: None,
+                    search_type: ProductSearchType::City,
+                    fulfillment_locations: None,
+                    city_code: subscribed_location.city_code,
+                    update_cache: true 
+                };
+                let ondc_search_payload =
+                    get_ondc_search_payload(&user_account, &business_account, &req_body, &np_detail)?;
+                let ondc_search_payload_str = serde_json::to_string(&ondc_search_payload)?;
+                let header = create_authorization_header(&ondc_search_payload_str, &np_detail, None, None)?;
+                let meta_data = RequestMetaData{ device_id: "backend".to_string(), request_id: "backend".to_string() };
+                let task_1 = save_search_request(&connection_pool, &user_account, &business_account, &meta_data, &req_body);
+                let task_2 =send_ondc_payload(
+                    &configuration.ondc.gateway_uri,
+                    &ondc_search_payload_str,
+                    &header,
+                    ONDCActionType::Search,
+                );
+                try_join!(task_1, task_2)?;
+            }
+        }
+
+    }
+    Ok(())
+}
+
+
+
+pub async fn fetch_search_locations(pool: &PgPool) -> Result<Vec<SearchLocationModel>, sqlx::Error> {
+    let query = r#"
+        SELECT country_code, city_code, domain_category_code
+        FROM subscribed_search_location
+    "#;
+
+    let results = sqlx::query_as::<_, SearchLocationModel>(query)
+        .fetch_all(pool)
+        .await?;
+
+    Ok(results)
+}
+
+pub async fn insert_subscribed_search_location(
+    pool: &PgPool,
+    city_code: &str,
+    country_code: &CountryCode,
+    domain_category_code: &CategoryDomain,
+) -> Result<(), anyhow::Error> {
+    sqlx::query!(
+        r#"
+        INSERT INTO subscribed_search_location (city_code, country_code, domain_category_code)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (country_code, city_code, domain_category_code) DO NOTHING
+        "#,
+        city_code,
+        country_code as &CountryCode,
+        domain_category_code as &CategoryDomain,
+    )
+    .execute(pool)
+    .await.map_err(|e| anyhow!(e))?; 
+
+    Ok(())
+}
+
+
+pub async fn fetch_provider_item_ids(
+    pool: &PgPool,
+    limit: i64,
+    offset: i64,
+) -> Result<Vec<uuid::Uuid>, anyhow::Error> {
+    let rows = sqlx::query!(
+        r#"
+        SELECT id FROM provider_item_cache
+        ORDER BY created_on
+        LIMIT $1 OFFSET $2
+        "#,
+        limit,
+        offset
+    )
+    .fetch_all(pool)
+    .await?;
+
+    let ids = rows.into_iter().map(|row| row.id).collect();
+    Ok(ids)
+}
+
+
+pub async fn regenerate_cache_to_es() -> Result<(), anyhow::Error> {
+    let configuration = get_configuration().expect("Failed to read configuration.");
+    let pool = PgPool::connect_with(configuration.database.with_db())
+        .await
+        .expect("Failed to connect to Postgres.");
+    let es_client = configuration.elastic_search.client();
+
+    let batch_size = 1000;
+    let mut offset = 0;
+    es_client.delete_all_indices().await?;
+    loop {
+        let item_ids = fetch_provider_item_ids(&pool, batch_size, offset).await?;
+        if item_ids.is_empty() {
+            break;
+        }
+        let item_models = get_provider_item_cache_data_from_db(&pool, item_ids).await?;
+        let mut provider_ids = HashSet::new();
+        let mut network_participant_ids =  HashSet::new();
+        for item_model in item_models.iter(){
+            provider_ids.insert(item_model.provider_cache_id);
+            network_participant_ids.insert(item_model.network_participant_cache_id);
+        }
+         let provider_ids: Vec<Uuid> =  provider_ids.into_iter().collect();
+        let (provider_models, network_participant_models, 
+            location_models, variant_models, hyperlocal_models,country_models, inter_city_models, geo_json_models) = try_join!(
+            get_provider_cache_data_from_db(&pool, &provider_ids),
+            get_network_participant_cache_data_from_db(&pool, network_participant_ids.into_iter().collect()),
+            get_provider_location_cache_data_from_db(&pool,  None, Some(&provider_ids)),
+            get_provider_item_variant_cache_data_from_db(&pool,None, Some(&provider_ids)),
+            get_hyperlocal_cache_data_from_db(&pool, None, Some(&provider_ids)),
+            get_country_cache_data_from_db(&pool, None, Some(&provider_ids)),
+            get_intercity_cache_data_from_db(&pool, None, Some(&provider_ids)),
+            get_geo_json_cache_data_from_db(&pool, None, Some(&provider_ids)),
+        )?;
+
+   
+
+      
+        try_join!(
+        es_client.add(ElasticSearchIndex::NetworkParticipant, network_participant_models,|record| record.id),
+        es_client.add(ElasticSearchIndex::Provider, provider_models, |record| record.id),
+        es_client.add(ElasticSearchIndex::ProviderItem, item_models, |record| record.id),
+        es_client.add(ElasticSearchIndex::ProviderLocation, location_models, |record| record.id),
+        es_client.add(ElasticSearchIndex::ProviderItemVariant, variant_models, |record| record.id),
+        es_client.add(ElasticSearchIndex::ProviderServicabilityHyperLocal, hyperlocal_models, |record| record.id),
+        es_client.add(ElasticSearchIndex::ProviderServicabilityGeoJson, geo_json_models, |record| record.id),
+        es_client.add(ElasticSearchIndex::ProviderServicabilityInterCity, inter_city_models, |record| record.id),
+        es_client.add(ElasticSearchIndex::ProviderServicabilityCountry, country_models, |record| record.id),
+
+    )?;
+
+
+        offset += batch_size; 
+    }
+
+    Ok(())
 }
