@@ -362,7 +362,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [x] Develop Order Meta Data Fetch API
 * [x] Develop Order Detail Fetch API.
 * [x] Integrate BAP Payment Gateway.
-* [ ] Develop Product Caching.
+* [x] Develop Product Caching.
 * [ ] Develop and Integrate Observability Module.
 
 ### MILESTONE 4:
