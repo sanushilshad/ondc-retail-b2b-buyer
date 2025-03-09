@@ -308,7 +308,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 ```
 
 
-## MILESTONES (50/62)
+## MILESTONES (51/60)
 ### MILESTONE 1 (Jan 18, 2023 - Jul 22, 2024):
 * [x] Set up basic actix web server
 * [x] Add environment config fetch
@@ -368,18 +368,16 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [ ] Develop and Integrate Observability Module.
 
 ### MILESTONE 4:
+* [ ] Add basic validation for search/ select/ init/ confirm/ status/ cancel/ update APIs.
+* [ ] Add basic validation ONDC for on_search/ on_select/ on_init/ on_confirm/ on_status/ on_cancel/ on_update APIs.
+* [ ] Add test cases for milestone 2 (Only unit tests)(If I feel like it).
 * [ ] Develop common Microservice to fetch city codes, etc.
 * [ ] Develop common Microservice for retail functionality.
-* [ ] Add basic validation for search/ select/ init/ confirm/ status/ cancel/ update APIs
-* [ ] Add basic validation ONDC for on_search/ on_select/ on_init/ on_confirm/ on_status/ on_cancel/ on_update APIs
-* [ ] Add test cases for milestone 2 (Only unit tests)(If I feel like it) 
-
-### MILESTONE 5:
 * [ ] Develop IGM Service and integrate.
-* [ ] Integrate with notification microservice to enable WhatsApp, Email and SMS functionality
 
-### MILESTONE 6 (OPTIONAL):
-* [ ] Develop info API
-* [ ] Develop ONDC info API
-* [ ] Intergrate etcd for TSP flow (when I have nothing better to do: probably never)
+
+### MILESTONE 5 (OPTIONAL - when I have nothing better to do):
+* [ ] Intergrate etcd for TSP flow.
+* [ ] Integrate with notification microservice to enable WhatsApp, Email and SMS functionality.
+
 ### THE MILESTONES ARE SUSCEPTIBLE TO CHANGES ╰(*°▽°*)╯
