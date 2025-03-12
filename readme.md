@@ -150,7 +150,11 @@ export REDIS_PASSWORD=""
 ## ONDC GATEWAY VARIABLE
 export ONDC__GATEWAY_URI="https://preprod.gateway.ondc.org"
 export ONDC__REGISTRY_BASE_URL="https://preprod.registry.ondc.org/ondc"
-
+export ONDC__OBSERVABILITY__TOKEN="123"
+export ONDC__OBSERVABILITY__URL="3243"
+export ONDC__OBSERVABILITY__ENABLE=True
+export ONDC__OBSERVABILITY__MAX_RETRIES=20
+export ONDC__OBSERVABILITY__BACKOFF_VALUE=1
 
 ## APPLICATION DATA
 export APPLICATION__NAME="ondc-retail-b2b-buyer"
@@ -370,14 +374,12 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 ### MILESTONE 4:
 * [ ] Add basic validation for search/ select/ init/ confirm/ status/ cancel/ update APIs.
 * [ ] Add basic validation ONDC for on_search/ on_select/ on_init/ on_confirm/ on_status/ on_cancel/ on_update APIs.
-* [ ] Add test cases for milestone 2 (Only unit tests)(If I feel like it).
+* [ ] Add test cases for milestone 2 (Only unit tests) (If I feel like it).
 * [ ] Develop common Microservice to fetch city codes, etc.
 * [ ] Develop common Microservice for retail functionality.
-* [ ] Develop IGM Service and integrate.
 
 
 ### MILESTONE 5 (OPTIONAL - when I have nothing better to do):
-* [ ] Intergrate etcd for TSP flow.
 * [ ] Integrate with notification microservice to enable WhatsApp, Email and SMS functionality.
 
 ### THE MILESTONES ARE SUSCEPTIBLE TO CHANGES ╰(*°▽°*)╯
