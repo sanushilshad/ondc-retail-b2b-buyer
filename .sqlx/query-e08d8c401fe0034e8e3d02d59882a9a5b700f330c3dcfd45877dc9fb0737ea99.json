@@ -111,8 +111,7 @@
               "Enum": [
                 "paid",
                 "not_paid",
-                "pending",
-                "refunded"
+                "pending"
               ]
             }
           }
@@ -137,7 +136,7 @@
     "nullable": [
       false,
       true,
-      true,
+      false,
       false,
       true,
       true,
@@ -146,7 +145,7 @@
       true,
       true,
       true,
-      true,
+      false,
       true,
       true
     ]

@@ -50,8 +50,7 @@
               "Enum": [
                 "paid",
                 "not_paid",
-                "pending",
-                "refunded"
+                "pending"
               ]
             }
           }
@@ -83,8 +82,8 @@
     "nullable": [
       false,
       true,
-      true,
-      true,
+      false,
+      false,
       true
     ]
   },

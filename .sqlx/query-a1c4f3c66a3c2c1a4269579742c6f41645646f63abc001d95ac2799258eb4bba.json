@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO ondc_seller_product_info (\n            seller_subscriber_id,\n            provider_id,\n            item_id,\n            item_code,\n            item_name,\n            tax_rate,\n            images,\n            unit_price_with_tax,\n            unit_price_without_tax,\n            mrp,\n            currency_code,\n            price_slab,\n            country_code\n        )\n        SELECT *\n        FROM UNNEST(\n            $1::text[], \n            $2::text[], \n            $3::text[], \n            $4::text[], \n            $5::text[], \n            $6::decimal[],\n            $7::jsonb[],\n            $8::decimal[],\n            $9::decimal[],\n            $10::decimal[],\n            $11::currency_code_type[],\n            $12::jsonb[],\n            $13::country_code[]\n        )\n        ON CONFLICT (seller_subscriber_id, country_code, provider_id, item_id) \n        DO UPDATE SET \n            item_name = EXCLUDED.item_name,\n            tax_rate = EXCLUDED.tax_rate,\n            images = EXCLUDED.images,\n            unit_price_with_tax = EXCLUDED.unit_price_with_tax,\n            unit_price_without_tax = EXCLUDED.unit_price_with_tax,\n            mrp =  EXCLUDED.mrp,\n            price_slab = EXCLUDED.price_slab;\n        ",
+  "query": "\n        INSERT INTO ondc_provider_product_info (\n            seller_subscriber_id,\n            provider_id,\n            item_id,\n            item_code,\n            item_name,\n            tax_rate,\n            images,\n            unit_price_with_tax,\n            unit_price_without_tax,\n            mrp,\n            currency_code,\n            price_slab,\n            country_code,\n            created_on,\n            updated_on,\n            id\n        )\n        SELECT *\n        FROM UNNEST(\n            $1::text[], \n            $2::text[], \n            $3::text[], \n            $4::text[], \n            $5::text[], \n            $6::decimal[],\n            $7::jsonb[],\n            $8::decimal[],\n            $9::decimal[],\n            $10::decimal[],\n            $11::currency_code_type[],\n            $12::jsonb[],\n            $13::country_code_type[],\n            $14::timestamptz[],\n            $15::timestamptz[],\n            $16::uuid[]\n        )\n        ON CONFLICT (seller_subscriber_id, country_code, provider_id, item_id) \n        DO UPDATE SET \n            item_name = EXCLUDED.item_name,\n            tax_rate = EXCLUDED.tax_rate,\n            images = EXCLUDED.images,\n            unit_price_with_tax = EXCLUDED.unit_price_with_tax,\n            unit_price_without_tax = EXCLUDED.unit_price_with_tax,\n            mrp =  EXCLUDED.mrp,\n            price_slab = EXCLUDED.price_slab,\n            updated_on = EXCLUDED.updated_on;\n            \n        ",
   "describe": {
     "columns": [],
     "parameters": {
@@ -38,11 +38,11 @@
         "JsonbArray",
         {
           "Custom": {
-            "name": "country_code[]",
+            "name": "country_code_type[]",
             "kind": {
               "Array": {
                 "Custom": {
-                  "name": "country_code",
+                  "name": "country_code_type",
                   "kind": {
                     "Enum": [
                       "AFG",
@@ -297,10 +297,13 @@
               }
             }
           }
-        }
+        },
+        "TimestamptzArray",
+        "TimestamptzArray",
+        "UuidArray"
       ]
     },
     "nullable": []
   },
-  "hash": "bb3d794a1624182fdaa9d6987f7478af97e00cc3f0d0cfb4616c6e34be1e83b0"
+  "hash": "a1c4f3c66a3c2c1a4269579742c6f41645646f63abc001d95ac2799258eb4bba"
 }

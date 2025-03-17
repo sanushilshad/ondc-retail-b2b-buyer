@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        WITH updated_order AS (\n            UPDATE commerce_data\n            SET updated_on = $1, updated_by = $2\n            WHERE external_urn = $3\n            RETURNING id\n        )\n        UPDATE commerce_payment_data\n        SET payment_id = $4, payment_status = $5\n        FROM updated_order\n        WHERE commerce_payment_data.payment_order_id = $6\n        AND commerce_payment_data.commerce_data_id = updated_order.id;\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Text",
+        "Uuid",
+        "Text",
+        {
+          "Custom": {
+            "name": "payment_status",
+            "kind": {
+              "Enum": [
+                "paid",
+                "not_paid",
+                "pending"
+              ]
+            }
+          }
+        },
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "496660c6235fba1b4c7e2ab82548832de8fbaad3dc9780949a4dba3a0488f90c"
+}

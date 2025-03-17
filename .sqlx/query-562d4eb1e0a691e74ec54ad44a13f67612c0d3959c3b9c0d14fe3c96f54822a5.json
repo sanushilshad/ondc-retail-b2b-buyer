@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO provider_item_variant_cache (\n                id,\n                provider_cache_id,\n                variant_id,\n                variant_name,\n                attributes,\n                created_on,\n                updated_on\n            )\n            SELECT \n                unnest($1::uuid[]), \n                unnest($2::uuid[]), \n                unnest($3::text[]), \n                unnest($4::text[]), \n                unnest($5::jsonb[]), \n                unnest($6::timestamptz[]),\n                unnest($7::timestamptz[])\n            ON CONFLICT (provider_cache_id, variant_id) \n            DO UPDATE SET \n            updated_on = EXCLUDED.updated_on,\n            attributes  = EXCLUDED.attributes\n            RETURNING id, provider_cache_id, variant_id\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "provider_cache_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "variant_id",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "UuidArray",
+        "TextArray",
+        "TextArray",
+        "JsonbArray",
+        "TimestamptzArray",
+        "TimestamptzArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "562d4eb1e0a691e74ec54ad44a13f67612c0d3959c3b9c0d14fe3c96f54822a5"
+}

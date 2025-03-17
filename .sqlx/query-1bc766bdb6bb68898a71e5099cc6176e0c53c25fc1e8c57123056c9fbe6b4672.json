@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT  seller_subscriber_id, provider_id, provider_name from ondc_seller_info where \n        provider_id  = $1 AND seller_subscriber_id=$2",
+  "query": "SELECT  seller_subscriber_id, provider_id, provider_name from ondc_provider_info where \n        provider_id  = $1 AND seller_subscriber_id=$2",
   "describe": {
     "columns": [
       {
@@ -31,5 +31,5 @@
       true
     ]
   },
-  "hash": "8c2d24083ec021b5722f43e5b38d5474961688985f362eb498416c6ac6ecbb29"
+  "hash": "1bc766bdb6bb68898a71e5099cc6176e0c53c25fc1e8c57123056c9fbe6b4672"
 }

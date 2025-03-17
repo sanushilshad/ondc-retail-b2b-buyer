@@ -54,10 +54,9 @@
                 "initialized",
                 "created",
                 "accepted",
-                "in_progess",
+                "in_progress",
                 "completed",
-                "cancelled",
-                "in_progress"
+                "cancelled"
               ]
             }
           }

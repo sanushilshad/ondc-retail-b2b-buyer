@@ -1,0 +1,43 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO provider_cache  (provider_id, network_participant_cache_id, name, code, short_desc, long_desc, images, rating,\n        ttl, credentials, contact, terms, identifications, created_on, updated_on, id)\n        SELECT *\n        FROM UNNEST(\n            $1::text[], \n            $2::uuid[], \n            $3::text[], \n            $4::text[], \n            $5::text[], \n            $6::text[], \n            $7::jsonb[],\n            $8::real[],\n            $9::text[],\n            $10::jsonb[],\n            $11::jsonb[],\n            $12::jsonb[],\n            $13::jsonb[],\n            $14::timestamptz[],\n            $15::timestamptz[],\n            $16::uuid[]\n        )\n        ON CONFLICT (network_participant_cache_id, provider_id) \n        DO UPDATE SET \n        updated_on = EXCLUDED.updated_on,\n        credentials = COALESCE((\n            SELECT jsonb_agg(DISTINCT c) \n            FROM (\n                SELECT DISTINCT ON (c->>'id') c\n                FROM jsonb_array_elements(provider_cache.credentials || EXCLUDED.credentials) AS c\n                ORDER BY c->>'id'\n            ) AS unique_credentials\n        ), '[]'::jsonb)\n        RETURNING id, provider_id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "provider_id",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "TextArray",
+        "UuidArray",
+        "TextArray",
+        "TextArray",
+        "TextArray",
+        "TextArray",
+        "JsonbArray",
+        "Float4Array",
+        "TextArray",
+        "JsonbArray",
+        "JsonbArray",
+        "JsonbArray",
+        "JsonbArray",
+        "TimestamptzArray",
+        "TimestamptzArray",
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "c4f3665b370ef49d6fbfdd66dc012b001685760e0c865caa24d02762a3a136d8"
+}

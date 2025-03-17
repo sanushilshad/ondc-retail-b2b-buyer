@@ -1,89 +1,14 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT item_name, currency_code  as \"currency_code: CurrencyType\", item_id, item_code, seller_subscriber_id,\n        price_slab as \"price_slab?: Json<Vec<ONDCSellePriceSlab>>\", provider_id, tax_rate, \n        unit_price_with_tax,unit_price_without_tax, mrp, images from ondc_seller_product_info where \n        provider_id  = $1 AND seller_subscriber_id=$2 AND item_id::text = ANY($3) AND country_code =$4",
+  "query": "\n        INSERT INTO subscribed_search_location (city_code, country_code, domain_category_code)\n        VALUES ($1, $2, $3)\n        ON CONFLICT (country_code, city_code, domain_category_code) DO NOTHING\n        ",
   "describe": {
-    "columns": [
-      {
-        "ordinal": 0,
-        "name": "item_name",
-        "type_info": "Text"
-      },
-      {
-        "ordinal": 1,
-        "name": "currency_code: CurrencyType",
-        "type_info": {
-          "Custom": {
-            "name": "currency_code_type",
-            "kind": {
-              "Enum": [
-                "INR",
-                "SGD",
-                "AED",
-                "GHS"
-              ]
-            }
-          }
-        }
-      },
-      {
-        "ordinal": 2,
-        "name": "item_id",
-        "type_info": "Text"
-      },
-      {
-        "ordinal": 3,
-        "name": "item_code",
-        "type_info": "Text"
-      },
-      {
-        "ordinal": 4,
-        "name": "seller_subscriber_id",
-        "type_info": "Text"
-      },
-      {
-        "ordinal": 5,
-        "name": "price_slab?: Json<Vec<ONDCSellePriceSlab>>",
-        "type_info": "Jsonb"
-      },
-      {
-        "ordinal": 6,
-        "name": "provider_id",
-        "type_info": "Text"
-      },
-      {
-        "ordinal": 7,
-        "name": "tax_rate",
-        "type_info": "Numeric"
-      },
-      {
-        "ordinal": 8,
-        "name": "unit_price_with_tax",
-        "type_info": "Numeric"
-      },
-      {
-        "ordinal": 9,
-        "name": "unit_price_without_tax",
-        "type_info": "Numeric"
-      },
-      {
-        "ordinal": 10,
-        "name": "mrp",
-        "type_info": "Numeric"
-      },
-      {
-        "ordinal": 11,
-        "name": "images",
-        "type_info": "Jsonb"
-      }
-    ],
+    "columns": [],
     "parameters": {
       "Left": [
         "Text",
-        "Text",
-        "TextArray",
         {
           "Custom": {
-            "name": "country_code",
+            "name": "country_code_type",
             "kind": {
               "Enum": [
                 "AFG",
@@ -335,23 +260,28 @@
               ]
             }
           }
+        },
+        {
+          "Custom": {
+            "name": "domain_category_type",
+            "kind": {
+              "Enum": [
+                "RET10",
+                "RET12",
+                "RET13",
+                "RET14",
+                "RET15",
+                "RET16",
+                "RET1A",
+                "RET1B",
+                "RET1C"
+              ]
+            }
+          }
         }
       ]
     },
-    "nullable": [
-      false,
-      false,
-      false,
-      false,
-      false,
-      true,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false
-    ]
+    "nullable": []
   },
-  "hash": "79eac54bfe7deaf055acad181a3afb00ff9b9fef5971413f78b4941729dc3ce0"
+  "hash": "010d1494278e6c0e84ff5fd44e2094eac1f64dd733a12642dc871ce3308c9664"
 }

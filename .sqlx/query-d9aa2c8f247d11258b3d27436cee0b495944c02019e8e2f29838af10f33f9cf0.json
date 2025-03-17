@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        WITH ins AS(INSERT INTO network_participant_cache (id, subscriber_id, name, short_desc, long_desc, images, created_on)\n        VALUES ($1, $2, $3, $4, $5, $6, $7)\n        ON CONFLICT (subscriber_id) \n        DO NOTHING\n        RETURNING id)\n        SELECT id FROM ins\n        UNION ALL\n        SELECT id FROM network_participant_cache WHERE subscriber_id = $2\n        LIMIT 1;\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Jsonb",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "d9aa2c8f247d11258b3d27436cee0b495944c02019e8e2f29838af10f33f9cf0"
+}

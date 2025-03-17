@@ -1,0 +1,51 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO provider_servicability_geo_json_cache (\n                id,\n                provider_location_cache_id,\n                domain_code,\n                geom,\n                category_code,\n                coordinates,\n                created_on\n            )\n            SELECT \n                unnest($1::uuid[]), \n                unnest($2::uuid[]), \n                unnest($3::domain_category_type[]), \n                ST_SetSRID(ST_GeomFromGeoJSON(unnest($5::jsonb[])), 4326),\n                unnest($4::text[]), \n                unnest($5::jsonb[]), \n                unnest($6::timestamptz[])\n            ON CONFLICT (provider_location_cache_id, domain_code, category_code, geom) \n            DO NOTHING\n            RETURNING id\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "UuidArray",
+        {
+          "Custom": {
+            "name": "domain_category_type[]",
+            "kind": {
+              "Array": {
+                "Custom": {
+                  "name": "domain_category_type",
+                  "kind": {
+                    "Enum": [
+                      "RET10",
+                      "RET12",
+                      "RET13",
+                      "RET14",
+                      "RET15",
+                      "RET16",
+                      "RET1A",
+                      "RET1B",
+                      "RET1C"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "TextArray",
+        "JsonbArray",
+        "TimestamptzArray"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "a6a5e9769c068e5927bcf3ad80bddaa1d88995b72d6cea3f51500bf315884673"
+}

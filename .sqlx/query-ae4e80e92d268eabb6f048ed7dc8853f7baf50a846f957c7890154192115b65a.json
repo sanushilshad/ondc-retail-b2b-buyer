@@ -30,17 +30,16 @@
                 "initialized",
                 "created",
                 "accepted",
-                "in_progess",
+                "in_progress",
                 "completed",
-                "cancelled",
-                "in_progress"
+                "cancelled"
               ]
             }
           }
         },
         {
           "Custom": {
-            "name": "domain_category",
+            "name": "domain_category_type",
             "kind": {
               "Enum": [
                 "RET10",
@@ -62,7 +61,7 @@
         "Text",
         {
           "Custom": {
-            "name": "data_source",
+            "name": "data_source_type",
             "kind": {
               "Enum": [
                 "place_order",
@@ -82,7 +81,7 @@
         "Text",
         {
           "Custom": {
-            "name": "country_code",
+            "name": "country_code_type",
             "kind": {
               "Enum": [
                 "AFG",

@@ -1,12 +1,12 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, code, name, logo, unique_key_id, fee_type as \"fee_type: FeeType\",\n        fee_value, signing_key, subscriber_id, subscriber_uri, long_description,\n        settlement_phase as \"settlement_phase: PaymentSettlementPhase\", settlement_type as \"settlement_type: PaymentSettlementType\",\n        bank_account_no, bank_ifsc_code, bank_beneficiary_name, bank_name, short_description \n        FROM registered_network_participant WHERE subscriber_id = $1 AND network_participant_type = $2",
+  "query": "SELECT id, code, name, logo, unique_key_id, fee_type as \"fee_type: FeeType\",\n        fee_value, signing_key, subscriber_id, subscriber_uri, long_description,\n        settlement_phase as \"settlement_phase: PaymentSettlementPhase\", settlement_type as \"settlement_type: PaymentSettlementType\",\n        bank_account_no, bank_ifsc_code, bank_beneficiary_name, bank_name, short_description, observability_token\n        FROM registered_network_participant WHERE subscriber_id = $1 AND network_participant_type = $2",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
         "name": "id",
-        "type_info": "Uuid"
+        "type_info": "Int4"
       },
       {
         "ordinal": 1,
@@ -120,6 +120,11 @@
         "ordinal": 17,
         "name": "short_description",
         "type_info": "Text"
+      },
+      {
+        "ordinal": 18,
+        "name": "observability_token",
+        "type_info": "Text"
       }
     ],
     "parameters": {
@@ -156,8 +161,9 @@
       false,
       false,
       false,
-      false
+      false,
+      true
     ]
   },
-  "hash": "88321b0c497d0303ad0c1af4ec3c70fcb66f0526d1d405427b500322120284c2"
+  "hash": "c9c5583189cd56e65ca106116395fe20653280e412a508a00d500813179a2f43"
 }

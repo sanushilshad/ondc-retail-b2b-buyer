@@ -37,8 +37,7 @@
                     "Enum": [
                       "paid",
                       "not_paid",
-                      "pending",
-                      "refunded"
+                      "pending"
                     ]
                   }
                 }

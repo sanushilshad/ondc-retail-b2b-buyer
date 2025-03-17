@@ -1,64 +1,89 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT location_id, seller_subscriber_id, provider_id, latitude, longitude,\n        address, city_code, city_name, state_code, state_name, country_code  as \"country_code:CountryCode\", area_code,\n        country_name from ondc_seller_location_info where \n        provider_id  = $1 AND seller_subscriber_id=$2 AND location_id::text = ANY($3)",
+  "query": "SELECT item_name, currency_code  as \"currency_code: CurrencyType\", item_id, item_code, seller_subscriber_id,\n        price_slab as \"price_slab?: Json<Vec<ONDCSellePriceSlab>>\", provider_id, tax_rate, \n        unit_price_with_tax,unit_price_without_tax, mrp, images from ondc_provider_product_info where \n        provider_id  = $1 AND seller_subscriber_id=$2 AND item_id::text = ANY($3) AND country_code =$4",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
-        "name": "location_id",
+        "name": "item_name",
         "type_info": "Text"
       },
       {
         "ordinal": 1,
-        "name": "seller_subscriber_id",
-        "type_info": "Text"
+        "name": "currency_code: CurrencyType",
+        "type_info": {
+          "Custom": {
+            "name": "currency_code_type",
+            "kind": {
+              "Enum": [
+                "INR",
+                "SGD",
+                "AED",
+                "GHS"
+              ]
+            }
+          }
+        }
       },
       {
         "ordinal": 2,
-        "name": "provider_id",
+        "name": "item_id",
         "type_info": "Text"
       },
       {
         "ordinal": 3,
-        "name": "latitude",
-        "type_info": "Numeric"
-      },
-      {
-        "ordinal": 4,
-        "name": "longitude",
-        "type_info": "Numeric"
-      },
-      {
-        "ordinal": 5,
-        "name": "address",
+        "name": "item_code",
         "type_info": "Text"
       },
       {
+        "ordinal": 4,
+        "name": "seller_subscriber_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "price_slab?: Json<Vec<ONDCSellePriceSlab>>",
+        "type_info": "Jsonb"
+      },
+      {
         "ordinal": 6,
-        "name": "city_code",
+        "name": "provider_id",
         "type_info": "Text"
       },
       {
         "ordinal": 7,
-        "name": "city_name",
-        "type_info": "Text"
+        "name": "tax_rate",
+        "type_info": "Numeric"
       },
       {
         "ordinal": 8,
-        "name": "state_code",
-        "type_info": "Text"
+        "name": "unit_price_with_tax",
+        "type_info": "Numeric"
       },
       {
         "ordinal": 9,
-        "name": "state_name",
-        "type_info": "Text"
+        "name": "unit_price_without_tax",
+        "type_info": "Numeric"
       },
       {
         "ordinal": 10,
-        "name": "country_code:CountryCode",
-        "type_info": {
+        "name": "mrp",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 11,
+        "name": "images",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "TextArray",
+        {
           "Custom": {
-            "name": "country_code",
+            "name": "country_code_type",
             "kind": {
               "Enum": [
                 "AFG",
@@ -311,23 +336,6 @@
             }
           }
         }
-      },
-      {
-        "ordinal": 11,
-        "name": "area_code",
-        "type_info": "Text"
-      },
-      {
-        "ordinal": 12,
-        "name": "country_name",
-        "type_info": "Text"
-      }
-    ],
-    "parameters": {
-      "Left": [
-        "Text",
-        "Text",
-        "TextArray"
       ]
     },
     "nullable": [
@@ -336,15 +344,14 @@
       false,
       false,
       false,
-      false,
-      false,
-      false,
-      false,
       true,
       false,
       false,
-      true
+      false,
+      false,
+      false,
+      false
     ]
   },
-  "hash": "86bfd63cff9299a8f3515176d631838137272ef36f8f9f78c45d305ae3e1011a"
+  "hash": "4829238ee1ebcb19d4ac49cc670f105f33859771e9b1e7bbfa457b0610d7565d"
 }

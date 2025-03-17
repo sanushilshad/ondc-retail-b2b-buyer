@@ -1,11 +1,10 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO network_participant (id, subscriber_id, br_id, subscriber_url, signing_public_key, domain, encr_public_key, type, uk_id, created_on)\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) ON CONFLICT (subscriber_id, type) DO NOTHING;\n        ",
+  "query": "\n        INSERT INTO network_participant (subscriber_id, br_id, subscriber_url, signing_public_key, domain, encr_public_key, type, uk_id, created_on)\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT (subscriber_id, type) DO NOTHING;\n        ",
   "describe": {
     "columns": [],
     "parameters": {
       "Left": [
-        "Uuid",
         "Text",
         "Text",
         "Text",
@@ -29,5 +28,5 @@
     },
     "nullable": []
   },
-  "hash": "29f4a067d1b0ee5deef661c2415fb374d8ee7a2e522270350e4b544628428237"
+  "hash": "1bbe125e7563e7fab26d1f793d5a4a98fbdf8218b198de93d6728eb181ff54d0"
 }
