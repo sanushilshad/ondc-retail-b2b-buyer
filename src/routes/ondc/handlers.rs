@@ -20,7 +20,7 @@ use super::{
 };
 use crate::chat_client::ChatClient;
 use crate::constants::ONDC_TTL;
-use crate::kafka_client::{KafkaClient, KafkaGroupName};
+use crate::kafka_client::{KafkaClient, KafkaGroupName, KafkaTopicName};
 use crate::routes::ondc::{ONDCActionType, ONDCBuyerErrorCode, ONDCResponse};
 use crate::routes::order::utils::{
     fetch_order_by_id, initialize_order_on_cancel, initialize_order_on_confirm,
@@ -59,7 +59,7 @@ pub async fn on_search(
     match kafka_client
         .producer
         .send(
-            FutureRecord::to(&kafka_client.search_topic_name)
+            FutureRecord::to(&kafka_client.get_topic_name(KafkaTopicName::RetailB2BBuyerSearch))
                 .key(&KafkaGroupName::Search.to_string())
                 .payload(&data),
             Timeout::After(std::time::Duration::from_secs(5)),
@@ -171,13 +171,14 @@ pub async fn on_select(
 
         let user = match user_res {
             Ok(user) => user,
-            Err(_) => {
+            Err(e) => {
+                tracing::error!("Failed to retrieve user account in on_select: {:?}", e);
                 return Err(ONDCBuyerError::BuyerInternalServerError { path: None });
             }
         };
         let business_account = business_res
             .map_err(|e| {
-                tracing::error!("Failed to retrieve business: {:?}", e);
+                tracing::error!("Failed to retrieve business in on_select: {:?}", e);
                 ONDCBuyerError::BuyerInternalServerError { path: None }
             })?
             .ok_or(ONDCBuyerError::BuyerInternalServerError { path: None })?;
@@ -220,7 +221,10 @@ pub async fn on_select(
             &setting,
         )
         .await
-        .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
+        .map_err(|e| {
+            tracing::error!("Failed to saving order in on_select: {:?}", e);
+            ONDCBuyerError::BuyerInternalServerError { path: None }
+        })?;
         if is_rfq {
             send_rfq_accept_chat(&chat_client, &body, &product_map)
                 .await

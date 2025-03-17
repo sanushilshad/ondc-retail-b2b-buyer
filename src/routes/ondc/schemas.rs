@@ -312,7 +312,7 @@ pub struct ONDCResponseErrorBody<D> {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ONDCResponse<D> {
-    // pub context: Option<ONDCContext>,
+    pub context: Option<ONDCContext>,
     pub message: ONDCResponseMessage,
     pub error: Option<ONDCResponseErrorBody<D>>,
 }
@@ -325,7 +325,7 @@ impl<D> ONDCResponse<D> {
                     status: ONDCResponseStatusType::Ack,
                 },
             },
-            // context: context,
+            context: None,
             error: None,
         }
     }
@@ -337,10 +337,14 @@ impl<D> ONDCResponse<D> {
                     status: ONDCResponseStatusType::Nack,
                 },
             },
-            // context: context,
+            context: None,
             error: Some(error),
         }
     }
+    // pub fn with_context(mut self, context: ONDCContext) -> Self {
+    //     self.context = Some(context);
+    //     self
+    // }
 }
 
 #[derive(Debug, Serialize)]
@@ -2703,4 +2707,26 @@ pub struct KafkaSearchData {
 pub struct ONDCServicabilityCoordinate {
     pub lat: f64,
     pub lng: f64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ObservabilityData<T: Serialize> {
+    r#type: String,
+    data: T,
+}
+
+impl<T: Serialize> ObservabilityData<T> {
+    pub fn request(action: &ONDCActionType, data: T) -> Self {
+        Self {
+            r#type: action.to_string(),
+            data,
+        }
+    }
+
+    pub fn response(action: &ONDCActionType, data: T) -> Self {
+        Self {
+            r#type: format!("{}_response", action),
+            data,
+        }
+    }
 }

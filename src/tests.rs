@@ -82,6 +82,7 @@ pub mod tests {
             bank_ifsc_code: "HDFC0000102".to_owned(),
             bank_beneficiary_name: "SANU SHILSHAD".to_owned(),
             bank_name: "SANU BANK".to_owned(),
+            observability_token: None,
         }
     }
 

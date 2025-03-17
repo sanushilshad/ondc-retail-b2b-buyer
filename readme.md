@@ -152,7 +152,7 @@ export ONDC__GATEWAY_URI="https://preprod.gateway.ondc.org"
 export ONDC__REGISTRY_BASE_URL="https://preprod.registry.ondc.org/ondc"
 export ONDC__OBSERVABILITY__TOKEN="123"
 export ONDC__OBSERVABILITY__URL="3243"
-export ONDC__OBSERVABILITY__ENABLE=True
+export ONDC__OBSERVABILITY__IS_ENABLED=True
 export ONDC__OBSERVABILITY__MAX_RETRIES=20
 export ONDC__OBSERVABILITY__BACKOFF_VALUE=1
 
@@ -188,8 +188,7 @@ export CHAT__TIMEOUT_MILLISECONDS=600000
 
 ## KAFKA SERVICE
 export KAFKA__SERVERS="kafka12:9091"
-export KAFKA__SEARCH_TOPIC_NAME="test_ondc_search"
-
+export KAFKA__ENVIRONMENT="test"
 
 ## ELASTICSEARCH SEARCH 
 export ELASTIC_SEARCH__URL="https://0.0.0.0:9200"
@@ -312,7 +311,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 ```
 
 
-## MILESTONES (51/60)
+## MILESTONES (51/56)
 ### MILESTONE 1 (Jan 18, 2023 - Jul 22, 2024):
 * [x] Set up basic actix web server
 * [x] Add environment config fetch
@@ -352,7 +351,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [x] Develop update API
 * [x] Develop ONDC on update API
 
-### MILESTONE 3: (Nov 14, 2024 - Pending)
+### MILESTONE 3: (Nov 14, 2024 - March 16 2025)
 * [x] Update websocket implementation to enable Background Sync.
 * [x] Remove device wise notification push for order flow.
 * [x] Add Import flow to order.
@@ -369,14 +368,13 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [x] Develop Order Detail Fetch API.
 * [x] Integrate BAP Payment Gateway.
 * [x] Develop Product Caching.
-* [ ] Develop and Integrate Observability Module.
+* [x] Develop Observability Module.
 
 ### MILESTONE 4:
 * [ ] Add basic validation for search/ select/ init/ confirm/ status/ cancel/ update APIs.
 * [ ] Add basic validation ONDC for on_search/ on_select/ on_init/ on_confirm/ on_status/ on_cancel/ on_update APIs.
 * [ ] Add test cases for milestone 2 (Only unit tests) (If I feel like it).
-* [ ] Develop common Microservice to fetch city codes, etc.
-* [ ] Develop common Microservice for retail functionality.
+* [ ] Develop common Microservice to fetch (cities + country + states + category + category_attribute).
 
 
 ### MILESTONE 5 (OPTIONAL - when I have nothing better to do):

@@ -1,6 +1,6 @@
 // use crate::email_client::{GenericEmailService, SmtpEmailClient};
 // use crate::kafka_client::TopicType;
-use crate::middleware::SaveRequestResponse;
+use crate::{middleware::SaveRequestResponse, schemas::StartUpMap};
 // use crate::middleware::tracing_middleware;
 
 use crate::routes::main_route;
@@ -8,6 +8,7 @@ use crate::routes::main_route;
 // use actix_session::SessionMiddleware;
 // use actix_web::cookie::Key;
 use actix_web::dev::Server;
+use tokio::try_join;
 // use actix_web::middleware::Logger;
 use crate::configuration::Config;
 
@@ -67,9 +68,20 @@ async fn run(
     let workers = configuration.application.workers;
     let application_obj = web::Data::new(configuration.application);
     let secret_obj = web::Data::new(configuration.secret);
-    let _ = kafka_client
-        .kafka_client_search_consumer(ws_client.clone(), db_pool.clone(), es_client.clone())
-        .await;
+    let start_up_map = web::Data::new(StartUpMap::default());
+    try_join!(
+        kafka_client.kafka_client_search_consumer(
+            ws_client.clone(),
+            db_pool.clone(),
+            es_client.clone(),
+        ),
+        kafka_client.kafka_observability_consumer(
+            db_pool.clone(),
+            start_up_map.clone(),
+            ondc_obj.clone()
+        )
+    )?;
+
     let kafka_client = web::Data::new(kafka_client);
     let server = HttpServer::new(move || {
         App::new()
@@ -88,6 +100,7 @@ async fn run(
             .app_data(payment_client.clone())
             .app_data(secret_obj.clone())
             .app_data(application_obj.clone())
+            .app_data(start_up_map.clone())
             .configure(main_route)
     })
     .workers(workers)

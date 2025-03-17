@@ -62,7 +62,8 @@ CREATE TABLE IF NOT EXISTS registered_network_participant (
   bank_account_no TEXT NOT NULL,
   bank_ifsc_code TEXT NOT NULL,
   bank_beneficiary_name TEXT NOT NULL,
-  bank_name TEXT NOT NULL
+  bank_name TEXT NOT NULL,
+  observability_token TEXT,
 
 );
 

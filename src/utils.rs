@@ -6,7 +6,7 @@ use crate::models::{RegisteredNetworkParticipantModel, SeriesNoModel};
 use crate::routes::order::schemas::{PaymentSettlementPhase, PaymentSettlementType};
 use crate::schemas::{
     CommunicationType, FeeType, JWTClaims, ONDCNetworkType, RegisteredNetworkParticipant,
-    SeriesNoType, Status,
+    SeriesNoType, StartUpMap, Status,
 };
 
 use crate::errors::CustomJWTTokenError;
@@ -21,7 +21,6 @@ use anyhow::anyhow;
 use base64::engine::general_purpose;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
-use bigdecimal::BigDecimal;
 use blake2::{Blake2b512, Digest};
 use chrono::{Duration, Utc};
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
@@ -33,7 +32,6 @@ use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::{PgPool, Postgres, Transaction};
 use std::collections::HashMap;
-use std::str::FromStr;
 use std::{fmt, sync::Arc};
 use uuid::Uuid;
 pub fn get_ondc_params_from_header(header: &str) -> Result<ONDCAuthParams, anyhow::Error> {
@@ -235,7 +233,7 @@ pub async fn get_network_participant_detail_model(
         r#"SELECT id, code, name, logo, unique_key_id, fee_type as "fee_type: FeeType",
         fee_value, signing_key, subscriber_id, subscriber_uri, long_description,
         settlement_phase as "settlement_phase: PaymentSettlementPhase", settlement_type as "settlement_type: PaymentSettlementType",
-        bank_account_no, bank_ifsc_code, bank_beneficiary_name, bank_name, short_description 
+        bank_account_no, bank_ifsc_code, bank_beneficiary_name, bank_name, short_description, observability_token
         FROM registered_network_participant WHERE subscriber_id = $1 AND network_participant_type = $2"#,
         subscriber_id,
         &network_participant_type as &ONDCNetworkType,
@@ -248,43 +246,58 @@ pub async fn get_network_participant_detail_model(
     Ok(row)
 }
 
-pub fn get_network_participant_detail_from_model(
-    network_model: RegisteredNetworkParticipantModel,
-) -> RegisteredNetworkParticipant {
-    RegisteredNetworkParticipant {
-        id: network_model.id,
-        name: network_model.name,
-        code: network_model.code,
-        logo: network_model.logo,
-        signing_key: network_model.signing_key,
-        subscriber_id: network_model.subscriber_id,
-        subscriber_uri: network_model.subscriber_uri,
-        long_description: network_model.long_description,
-        short_description: network_model.short_description,
-        fee_type: network_model.fee_type,
-        fee_value: BigDecimal::from_str(&network_model.fee_value.to_string()).unwrap(),
-        unique_key_id: network_model.unique_key_id,
-        settlement_phase: network_model.settlement_phase,
-        settlement_type: network_model.settlement_type,
-        bank_account_no: network_model.bank_account_no,
-        bank_ifsc_code: network_model.bank_ifsc_code,
-        bank_beneficiary_name: network_model.bank_beneficiary_name,
-        bank_name: network_model.bank_name,
-    }
-}
+// pub fn get_network_participant_detail_from_model(
+//     network_model: RegisteredNetworkParticipantModel,
+// ) -> RegisteredNetworkParticipant {
+//     RegisteredNetworkParticipant {
+//         id: network_model.id,
+//         name: network_model.name,
+//         code: network_model.code,
+//         logo: network_model.logo,
+//         signing_key: network_model.signing_key,
+//         subscriber_id: network_model.subscriber_id,
+//         subscriber_uri: network_model.subscriber_uri,
+//         long_description: network_model.long_description,
+//         short_description: network_model.short_description,
+//         fee_type: network_model.fee_type,
+//         fee_value: BigDecimal::from_str(&network_model.fee_value.to_string()).unwrap(),
+//         unique_key_id: network_model.unique_key_id,
+//         settlement_phase: network_model.settlement_phase,
+//         settlement_type: network_model.settlement_type,
+//         bank_account_no: network_model.bank_account_no,
+//         bank_ifsc_code: network_model.bank_ifsc_code,
+//         bank_beneficiary_name: network_model.bank_beneficiary_name,
+//         bank_name: network_model.bank_name,
+//     }
+// }
 
 #[tracing::instrument(name = "Get network participany detail", skip(pool))]
 pub async fn get_np_detail(
     pool: &PgPool,
+    map: &StartUpMap,
     subscriber_id: &str,
     participant_type: &ONDCNetworkType,
 ) -> Result<Option<RegisteredNetworkParticipant>, anyhow::Error> {
+    {
+        let cache = map.network_participant.read().await;
+        if let Some(data) = cache.get(subscriber_id) {
+            return Ok(Some(data.clone()));
+        }
+    }
+
     let network_model =
         get_network_participant_detail_model(pool, subscriber_id, participant_type).await?;
-    return match network_model {
-        Some(model) => Ok(Some(get_network_participant_detail_from_model(model))),
+
+    match network_model {
+        Some(model) => {
+            let data = model.into_schema();
+            let mut cache = map.network_participant.write().await;
+            cache.insert(subscriber_id.to_string(), data.clone());
+
+            Ok(Some(data))
+        }
         None => Ok(None),
-    };
+    }
 }
 
 pub fn create_signing_string(

@@ -43,9 +43,18 @@ impl UserConfig {
 }
 
 #[derive(Debug, Deserialize, Clone)]
+pub struct ONDCObservability {
+    pub url: String,
+    pub token: String,
+    pub is_enabled: bool,
+    pub max_retries: usize,
+    pub backoff_value: f64,
+}
+#[derive(Debug, Deserialize, Clone)]
 pub struct ONDCConfig {
     pub gateway_uri: String,
     pub registry_base_url: String,
+    pub observability: ONDCObservability,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -348,12 +357,17 @@ pub fn get_configuration() -> Result<Config, ConfigError> {
 #[derive(Debug, Deserialize, Clone)]
 pub struct KafkaConfig {
     pub servers: String,
-    pub search_topic_name: String,
+    pub environment: String, // pub search_topic_name: String,
+                             // pub observability_topic_name: String,
 }
 
 impl KafkaConfig {
     pub fn client(self) -> KafkaClient {
-        KafkaClient::new(self.servers, self.search_topic_name)
+        KafkaClient::new(
+            self.servers,
+            self.environment, // self.search_topic_name,
+                              // self.observability_topic_name,
+        )
     }
 }
 

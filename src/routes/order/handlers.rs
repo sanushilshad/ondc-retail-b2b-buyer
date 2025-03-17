@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use crate::chat_client::ChatClient;
+use crate::kafka_client::KafkaClient;
 use actix_http::StatusCode;
 use actix_web::{web, HttpResponse};
 use utoipa::TupleUnit;
@@ -20,7 +21,7 @@ use crate::user_client::{AllowedPermission, BusinessAccount, PermissionType, Use
 use crate::user_client::{SettingKey, UserClient};
 use crate::utils::{create_authorization_header, get_np_detail};
 
-use crate::schemas::{GenericResponse, ONDCNetworkType, RequestMetaData};
+use crate::schemas::{GenericResponse, ONDCNetworkType, RequestMetaData, StartUpMap};
 use sqlx::PgPool;
 
 use super::schemas::{
@@ -51,7 +52,7 @@ use super::utils::{
     )
 )]
 #[allow(clippy::too_many_arguments)]
-#[tracing::instrument(name = "order select", skip(pool), fields(transaction_id=body.transaction_id.to_string()))]
+#[tracing::instrument(name = "order select", skip(pool, kafka_client), fields(transaction_id=body.transaction_id.to_string()))]
 pub async fn order_select(
     body: OrderSelectRequest,
     pool: web::Data<PgPool>,
@@ -61,9 +62,12 @@ pub async fn order_select(
     meta_data: RequestMetaData,
     chat_client: web::Data<ChatClient>,
     user_client: web::Data<UserClient>,
+    maps: web::Data<StartUpMap>,
+    kafka_client: web::Data<KafkaClient>,
 ) -> Result<HttpResponse, GenericError> {
     let task1 = get_np_detail(
         &pool,
+        &maps,
         &business_account.subscriber_id,
         &ONDCNetworkType::Bap,
     );
@@ -184,7 +188,11 @@ pub async fn order_select(
         &bpp_detail.subscriber_url,
         &ondc_select_payload_str,
         &header,
-        ONDCActionType::Select,
+        &ONDCActionType::Select,
+        &kafka_client,
+        &bap_detail.subscriber_id,
+        body.transaction_id,
+        ondc_obj.observability.is_enabled,
     );
     // futures::future::join(task_4, task_5).await.1?;
     match tokio::try_join!(task_5, task_6) {
@@ -264,19 +272,23 @@ pub async fn order_select(
 	    (status=501, description= "Not Implemented", body= GenericResponse<TupleUnit>),
     )
 )]
-#[tracing::instrument(name = "order init", skip(pool), fields(transaction_id=body.transaction_id.to_string()))]
+#[allow(clippy::too_many_arguments)]
+#[tracing::instrument(name = "order init", skip(pool, kafka_client), fields(transaction_id=body.transaction_id.to_string()))]
 pub async fn order_init(
     body: OrderInitRequest,
     pool: web::Data<PgPool>,
-    ondc_obj: web::Data<ONDCConfig>,
     user_account: UserAccount,
     business_account: BusinessAccount,
     meta_data: RequestMetaData,
     allowed_permission: AllowedPermission,
+    maps: web::Data<StartUpMap>,
+    ondc_obj: web::Data<ONDCConfig>,
+    kafka_client: web::Data<KafkaClient>,
 ) -> Result<HttpResponse, GenericError> {
     let task1 = fetch_order_by_id(&pool, body.transaction_id);
     let task2 = get_np_detail(
         &pool,
+        &maps,
         &business_account.subscriber_id,
         &ONDCNetworkType::Bap,
     );
@@ -338,7 +350,11 @@ pub async fn order_init(
         &order.bpp.uri,
         &ondc_init_payload_str,
         &header,
-        ONDCActionType::Init,
+        &ONDCActionType::Init,
+        &kafka_client,
+        &bap_detail.subscriber_id,
+        body.transaction_id,
+        ondc_obj.observability.is_enabled,
     );
 
     futures::future::join(task_3, task_4).await.1?;
@@ -367,19 +383,23 @@ pub async fn order_init(
 	    (status=501, description= "Not Implemented", body= GenericResponse<TupleUnit>),
     )
 )]
-#[tracing::instrument(name = "order confirm", skip(pool), fields(transaction_id=body.transaction_id.to_string()))]
+#[allow(clippy::too_many_arguments)]
+#[tracing::instrument(name = "order confirm", skip(pool, kafka_client), fields(transaction_id=body.transaction_id.to_string()))]
 pub async fn order_confirm(
     body: OrderConfirmRequest,
     pool: web::Data<PgPool>,
-    ondc_obj: web::Data<ONDCConfig>,
     user_account: UserAccount,
     business_account: BusinessAccount,
     meta_data: RequestMetaData,
     allowed_permission: AllowedPermission,
+    maps: web::Data<StartUpMap>,
+    ondc_obj: web::Data<ONDCConfig>,
+    kafka_client: web::Data<KafkaClient>,
 ) -> Result<HttpResponse, GenericError> {
     let task1 = fetch_order_by_id(&pool, body.transaction_id);
     let task2 = get_np_detail(
         &pool,
+        &maps,
         &business_account.subscriber_id,
         &ONDCNetworkType::Bap,
     );
@@ -443,7 +463,11 @@ pub async fn order_confirm(
         &order.bpp.uri,
         &ondc_confirm_payload_str,
         &header,
-        ONDCActionType::Confirm,
+        &ONDCActionType::Confirm,
+        &kafka_client,
+        &bap_detail.subscriber_id,
+        body.transaction_id,
+        ondc_obj.observability.is_enabled,
     );
     futures::future::join(task_3, task_4).await.1?;
     Ok(HttpResponse::Accepted().json(GenericResponse::success(
@@ -470,7 +494,8 @@ pub async fn order_confirm(
 	    (status=501, description= "Not Implemented", body= GenericResponse<TupleUnit>),
     )
 )]
-#[tracing::instrument(name = "order status", skip(pool), fields(transaction_id=body.transaction_id.to_string()))]
+#[allow(clippy::too_many_arguments)]
+#[tracing::instrument(name = "order status", skip(pool, kafka_client), fields(transaction_id=body.transaction_id.to_string()))]
 pub async fn order_status(
     body: OrderStatusRequest,
     pool: web::Data<PgPool>,
@@ -478,10 +503,13 @@ pub async fn order_status(
     user_account: UserAccount,
     business_account: BusinessAccount,
     meta_data: RequestMetaData,
+    maps: web::Data<StartUpMap>,
+    kafka_client: web::Data<KafkaClient>,
 ) -> Result<HttpResponse, GenericError> {
     let task1 = fetch_order_by_id(&pool, body.transaction_id);
     let task2 = get_np_detail(
         &pool,
+        &maps,
         &business_account.subscriber_id,
         &ONDCNetworkType::Bap,
     );
@@ -533,7 +561,11 @@ pub async fn order_status(
         &order.bpp.uri,
         &ondc_status_payload_str,
         &header,
-        ONDCActionType::Status,
+        &ONDCActionType::Status,
+        &kafka_client,
+        &bap_detail.subscriber_id,
+        body.transaction_id,
+        ondc_obj.observability.is_enabled,
     );
     futures::future::join(task_3, task_4).await.1?;
 
@@ -561,19 +593,23 @@ pub async fn order_status(
 	    (status=501, description= "Not Implemented", body= GenericResponse<TupleUnit>),
     )
 )]
-#[tracing::instrument(name = "order cancel", skip(pool), fields(transaction_id=body.transaction_id.to_string()))]
+#[allow(clippy::too_many_arguments)]
+#[tracing::instrument(name = "order cancel", skip(pool, kafka_client), fields(transaction_id=body.transaction_id.to_string()))]
 pub async fn order_cancel(
     body: OrderCancelRequest,
     pool: web::Data<PgPool>,
-    ondc_obj: web::Data<ONDCConfig>,
     user_account: UserAccount,
     business_account: BusinessAccount,
     meta_data: RequestMetaData,
     allowed_permission: AllowedPermission,
+    maps: web::Data<StartUpMap>,
+    ondc_obj: web::Data<ONDCConfig>,
+    kafka_client: web::Data<KafkaClient>,
 ) -> Result<HttpResponse, GenericError> {
     let task1 = fetch_order_by_id(&pool, body.transaction_id);
     let task2 = get_np_detail(
         &pool,
+        &maps,
         &business_account.subscriber_id,
         &ONDCNetworkType::Bap,
     );
@@ -634,7 +670,11 @@ pub async fn order_cancel(
         &order.bpp.uri,
         &ondc_cancel_payload_str,
         &header,
-        ONDCActionType::Cancel,
+        &ONDCActionType::Cancel,
+        &kafka_client,
+        &bap_detail.subscriber_id,
+        body.transaction_id,
+        ondc_obj.observability.is_enabled,
     );
     futures::future::join(task_3, task_4).await.1?;
 
@@ -662,19 +702,23 @@ pub async fn order_cancel(
 	    (status=501, description= "Not Implemented", body= GenericResponse<TupleUnit>),
     )
 )]
-#[tracing::instrument(name = "order update", skip(pool), fields(transaction_id = %body.transaction_id()))]
+#[allow(clippy::too_many_arguments)]
+#[tracing::instrument(name = "order update", skip(pool, kafka_client), fields(transaction_id = %body.transaction_id()))]
 pub async fn order_update(
     body: OrderUpdateRequest,
     pool: web::Data<PgPool>,
-    ondc_obj: web::Data<ONDCConfig>,
     user_account: UserAccount,
     business_account: BusinessAccount,
     meta_data: RequestMetaData,
     allowed_permission: AllowedPermission,
+    maps: web::Data<StartUpMap>,
+    ondc_obj: web::Data<ONDCConfig>,
+    kafka_client: web::Data<KafkaClient>,
 ) -> Result<HttpResponse, GenericError> {
     let task1 = fetch_order_by_id(&pool, body.transaction_id());
     let task2 = get_np_detail(
         &pool,
+        &maps,
         &business_account.subscriber_id,
         &ONDCNetworkType::Bap,
     );
@@ -736,7 +780,11 @@ pub async fn order_update(
         &order.bpp.uri,
         &ondc_update_payload_str,
         &header,
-        ONDCActionType::Update,
+        &ONDCActionType::Update,
+        &kafka_client,
+        &bap_detail.subscriber_id,
+        body.transaction_id(),
+        ondc_obj.observability.is_enabled,
     );
     futures::future::join(task_3, task_4).await.1?;
 

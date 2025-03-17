@@ -15,7 +15,7 @@ use reqwest::{header, Client};
 use secrecy::SecretString;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tokio::time::sleep;
+use tokio::{sync::RwLock, time::sleep};
 use utoipa::ToSchema;
 use uuid::Uuid;
 #[derive(Serialize, Debug, Deserialize, ToSchema)]
@@ -696,7 +696,7 @@ impl std::fmt::Display for FeeType {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RegisteredNetworkParticipant {
     pub code: String,
     pub name: String,
@@ -716,6 +716,7 @@ pub struct RegisteredNetworkParticipant {
     pub bank_ifsc_code: String,
     pub bank_beneficiary_name: String,
     pub bank_name: String,
+    pub observability_token: Option<SecretString>,
 }
 
 #[derive(Debug, Serialize, sqlx::Type)]
@@ -800,4 +801,24 @@ pub enum TimeZones {
 pub struct JWTClaims {
     pub sub: Uuid,
     pub exp: usize,
+}
+
+#[derive(Debug)]
+pub struct StartUpMap {
+    pub network_participant: RwLock<HashMap<String, RegisteredNetworkParticipant>>,
+}
+
+// impl StartUpMap {
+//     pub fn new() -> Self {
+// Self {
+//     network_participant: RwLock::new(HashMap::new()),
+// }
+//     }
+// }
+impl Default for StartUpMap {
+    fn default() -> Self {
+        Self {
+            network_participant: RwLock::new(HashMap::new()),
+        }
+    }
 }

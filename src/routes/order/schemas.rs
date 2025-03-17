@@ -663,7 +663,7 @@ impl PaymentSettlementCounterparty {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, sqlx::Type, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, sqlx::Type, ToSchema, Clone)]
 #[serde(rename_all = "snake_case")]
 #[sqlx(type_name = "payment_settlement_type", rename_all = "snake_case")]
 pub enum PaymentSettlementPhase {
@@ -678,7 +678,7 @@ impl PaymentSettlementPhase {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, sqlx::Type, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, sqlx::Type, ToSchema, Clone)]
 #[serde(rename_all = "snake_case")]
 #[sqlx(type_name = "payment_settlement_phase", rename_all = "snake_case")]
 pub enum PaymentSettlementType {

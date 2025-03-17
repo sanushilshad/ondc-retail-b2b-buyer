@@ -14,12 +14,13 @@ use super::utils::{
 use crate::configuration::ONDCConfig;
 use crate::elastic_search_client::ElasticSearchClient;
 use crate::errors::GenericError;
+use crate::kafka_client::KafkaClient;
 use crate::routes::ondc::utils::{get_ondc_search_payload, send_ondc_payload};
 use crate::routes::ondc::ONDCActionType;
 use crate::user_client::{BusinessAccount, UserAccount};
 use crate::utils::{create_authorization_header, get_np_detail};
 
-use crate::schemas::{GenericResponse, ONDCNetworkType, RequestMetaData};
+use crate::schemas::{GenericResponse, ONDCNetworkType, RequestMetaData, StartUpMap};
 use sqlx::PgPool;
 #[utoipa::path(
     post,
@@ -38,7 +39,8 @@ use sqlx::PgPool;
 	    (status=501, description= "Not Implemented", body= GenericResponse<TupleUnit>)
     )
 )]
-#[tracing::instrument(name = "Product Search", skip(pool), fields(transaction_id=body.transaction_id.to_string()))]
+#[allow(clippy::too_many_arguments)]
+#[tracing::instrument(name = "Product Search", skip(pool, kafka_client), fields(transaction_id=body.transaction_id.to_string()))]
 pub async fn realtime_product_search(
     body: ProductSearchRequest,
     pool: web::Data<PgPool>,
@@ -46,9 +48,12 @@ pub async fn realtime_product_search(
     user_account: UserAccount,
     business_account: BusinessAccount,
     meta_data: RequestMetaData,
+    maps: web::Data<StartUpMap>,
+    kafka_client: web::Data<KafkaClient>,
 ) -> Result<HttpResponse, GenericError> {
     let np_detail = match get_np_detail(
         &pool,
+        &maps,
         &business_account.subscriber_id,
         &ONDCNetworkType::Bap,
     )
@@ -79,7 +84,11 @@ pub async fn realtime_product_search(
         &ondc_obj.gateway_uri,
         &ondc_search_payload_str,
         &header,
-        ONDCActionType::Search,
+        &ONDCActionType::Search,
+        &kafka_client,
+        &np_detail.subscriber_id,
+        body.transaction_id,
+        ondc_obj.observability.is_enabled,
     );
     let task_3 = insert_subscribed_search_location(
         &pool,

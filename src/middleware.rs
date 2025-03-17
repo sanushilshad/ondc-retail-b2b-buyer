@@ -1,5 +1,6 @@
 use crate::configuration::{ApplicationConfig, SecretConfig};
 use crate::errors::GenericError;
+
 use crate::schemas::{RequestMetaData, Status};
 use crate::user_client::{AllowedPermission, BusinessAccount, CustomerType, UserAccount};
 use crate::user_client::{PermissionType, UserClient};

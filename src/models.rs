@@ -1,10 +1,9 @@
-use secrecy::SecretString;
-use sqlx::{types::BigDecimal, FromRow};
-
 use crate::{
     routes::order::schemas::{PaymentSettlementPhase, PaymentSettlementType},
-    schemas::FeeType,
+    schemas::{FeeType, RegisteredNetworkParticipant},
 };
+use secrecy::SecretString;
+use sqlx::{types::BigDecimal, FromRow};
 
 #[derive(Debug, FromRow)]
 pub struct RegisteredNetworkParticipantModel {
@@ -26,6 +25,33 @@ pub struct RegisteredNetworkParticipantModel {
     pub bank_ifsc_code: String,
     pub bank_beneficiary_name: String,
     pub bank_name: String,
+    pub observability_token: Option<String>,
+}
+
+impl RegisteredNetworkParticipantModel {
+    pub fn into_schema(self) -> RegisteredNetworkParticipant {
+        RegisteredNetworkParticipant {
+            code: self.code,
+            name: self.name,
+            logo: self.logo,
+            signing_key: self.signing_key.to_owned(),
+            id: self.id,
+            subscriber_id: self.subscriber_id,
+            subscriber_uri: self.subscriber_uri,
+            long_description: self.long_description,
+            short_description: self.short_description,
+            fee_type: self.fee_type,
+            fee_value: self.fee_value,
+            unique_key_id: self.unique_key_id,
+            settlement_phase: self.settlement_phase,
+            settlement_type: self.settlement_type,
+            bank_account_no: self.bank_account_no,
+            bank_ifsc_code: self.bank_ifsc_code,
+            bank_beneficiary_name: self.bank_beneficiary_name,
+            bank_name: self.bank_name,
+            observability_token: self.observability_token.map(SecretString::from),
+        }
+    }
 }
 
 #[derive(Debug)]

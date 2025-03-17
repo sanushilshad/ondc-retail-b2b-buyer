@@ -6,28 +6,35 @@ use super::{
     ONDCOnSearchFulfillmentContact, ONDCOnSearchItem, ONDCSearchStop, ONDCSellePriceSlab,
     ONDCServicabilityCoordinate, ONDCStatusMessage, ONDCStatusRequest, ONDCTag, ONDCUpdateItem,
     ONDCUpdateMessage, ONDCUpdateOrder, ONDCUpdateProvider, ONDCUpdateRequest, ONDCVersion,
-    OndcUrl,
+    ObservabilityData, OndcUrl,
 };
 
 use crate::chat_client::ChatData;
+use crate::configuration::ONDCConfig;
 use crate::elastic_search_client::ElasticSearchClient;
+use crate::kafka_client::{KafkaClient, KafkaGroupName, KafkaTopicName, ObservabilityProducerData};
 use crate::routes::product::utils::{save_cache_to_db, save_cache_to_elastic_search};
 use crate::user_client::{get_vector_val_from_list, BusinessAccount, UserAccount, VectorType};
 use crate::websocket_client::{NotificationProcessType, WebSocketActionType, WebSocketClient};
 use crate::{constants::ONDC_TTL, routes::product::ProductSearchError};
 use anyhow::{anyhow, Context};
 use chrono::{DateTime, Utc};
+
 use geojson::{GeoJson, Geometry};
+use rdkafka::producer::FutureRecord;
+use rdkafka::util::Timeout;
 use reqwest::Client;
+use secrecy::{ExposeSecret, SecretString};
 use serde::Serializer;
 use sqlx::{Executor, PgPool, Postgres, Transaction};
+use tokio::time::sleep;
 use uuid::Uuid;
 
+use bigdecimal::{BigDecimal, ToPrimitive};
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
+use std::time::Duration as StdDuration;
 use std::vec;
-
-use bigdecimal::{BigDecimal, ToPrimitive};
 
 use super::schemas::{
     BulkSellerInfo, BulkSellerLocationInfo, BulkSellerProductInfo, ONDCAmount, ONDCBilling,
@@ -413,16 +420,22 @@ pub fn get_ondc_search_payload(
     })
 }
 
-#[tracing::instrument(name = "Send ONDC Payload")]
+#[allow(clippy::too_many_arguments)]
+#[tracing::instrument(name = "Send ONDC Payload", skip(kafka_client))]
 pub async fn send_ondc_payload(
     url: &str,
     payload: &str,
     header: &str,
-    action: ONDCActionType,
+    action_type: &ONDCActionType,
+    kafka_client: &KafkaClient,
+    bap_id: &str,
+    transaction_id: Uuid,
+    enable_observability: bool,
 ) -> Result<ONDCResponse<ONDCErrorCode>, anyhow::Error> {
-    let final_url = format!("{}/{}", url, action);
+    let final_url = format!("{}/{}", url, action_type);
     let client = Client::new();
     let mut header_map = HashMap::new();
+
     header_map.insert("Authorization", header);
     let network_call = NetworkCall { client };
     let result = network_call
@@ -430,8 +443,26 @@ pub async fn send_ondc_payload(
         .await;
 
     match result {
-        Ok(response) => {
+        Ok(mut response) => {
             // println!("{:?}", &response);
+            if !(action_type == &ONDCActionType::Search || action_type == &ONDCActionType::OnSearch)
+                && enable_observability
+            {
+                let payload_obj = serde_json::from_str::<serde_json::Value>(payload).unwrap();
+                if let Some(context) = payload_obj.get("context").cloned() {
+                    response["context"] = context;
+                }
+                let payload_obj = serde_json::to_value(payload).unwrap();
+                push_observability_data_to_producer(
+                    kafka_client,
+                    action_type,
+                    bap_id,
+                    transaction_id,
+                    &payload_obj,
+                    &response,
+                )
+                .await?;
+            }
             let response_obj: ONDCResponse<ONDCErrorCode> = serde_json::from_value(response)?;
             if let Some(error) = response_obj.error {
                 Err(anyhow!(
@@ -2879,4 +2910,78 @@ pub async fn process_on_search(
         }
     }
     Ok(())
+}
+
+pub async fn send_observability(
+    ondc_obj: &ONDCConfig,
+    token: &SecretString,
+    data: Value,
+    client: &Client, // Pass the reqwest client from outside
+) -> Result<(), anyhow::Error> {
+    let max_retries = ondc_obj.observability.max_retries;
+    let multiplier = ondc_obj.observability.backoff_value;
+    let endpoint = &ondc_obj.observability.url;
+
+    let mut current_backoff = multiplier;
+
+    for _ in 0..max_retries {
+        match client
+            .post(endpoint)
+            .json(&data)
+            .header("Authorization", format!("Bearer {}", token.expose_secret()))
+            .send()
+            .await
+        {
+            Ok(resp) if resp.status().is_success() => return Ok(()), // Return if status is 2xx
+            Err(e) if e.is_timeout() => sleep(StdDuration::from_secs_f64(current_backoff)).await,
+            _ => break, // Exit loop on non-timeout errors
+        }
+        current_backoff *= multiplier;
+    }
+
+    Err(anyhow::anyhow!(
+        "Observability request failed after {} retries",
+        max_retries
+    ))
+}
+
+pub async fn push_observability_data_to_producer(
+    kafka_client: &KafkaClient,
+    action_type: &ONDCActionType,
+    bap_id: &str,
+    transaction_id: Uuid,
+    request: &serde_json::Value,
+    response: &serde_json::Value,
+) -> Result<(), anyhow::Error> {
+    let kafka_data = serde_json::to_string(&ObservabilityProducerData {
+        subscriber_id: bap_id.to_string(),
+        data: vec![
+            serde_json::to_value(ObservabilityData::request(action_type, request)).unwrap(),
+            serde_json::to_value(ObservabilityData::response(action_type, response)).unwrap(),
+        ],
+    })
+    .map_err(|err| anyhow!("Failed to serialize Kafka data: {:?}", err))?;
+
+    match kafka_client
+        .producer
+        .send(
+            FutureRecord::to(
+                &kafka_client.get_topic_name(KafkaTopicName::RetailB2BBuyerObservability),
+            )
+            .key(&KafkaGroupName::Search.to_string())
+            .payload(&kafka_data),
+            Timeout::After(std::time::Duration::from_secs(5)),
+        )
+        .await
+    {
+        Ok(delivery) => {
+            tracing::info!("Message delivered: {:?}", delivery);
+            Ok(())
+        }
+        Err(err) => Err(anyhow!(
+            "Error while pushing data to producer for transaction_id: {}: {:?}",
+            transaction_id,
+            err
+        )),
+    }
 }

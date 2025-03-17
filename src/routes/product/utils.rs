@@ -15,7 +15,7 @@ use crate::routes::ondc::utils::{get_ondc_search_payload, send_ondc_payload};
 use crate::routes::ondc::ONDCActionType;
 use crate::routes::product::models::{ESAutoCompleteProviderItemModel, ESHyperlocalServicabilityModel, ESProviderLocationModel, ESProviderModel};
 use crate::routes::product::schemas::{AutoCompleteItem, FulfillmentType, PaymentType, ProductSearchType, ProviderListResponse};
-use crate::schemas::{CurrencyType, ONDCNetworkType, RequestMetaData};
+use crate::schemas::{CurrencyType, ONDCNetworkType, RequestMetaData, StartUpMap};
 use crate::utils::{create_authorization_header, get_np_detail};
 use super::models::{ESCountryServicabilityModel, ESGeoJsonServicabilityModel, ESInterCityServicabilityModel, ESLocationModel, ESNetworkParticipantModel, ESProviderItemModel, ESProviderItemVariantModel, ProductVariantAttributeModel, SearchLocationModel, SearchProviderCredentialModel, WSItemCancellationModel, WSItemReplacementTermModel, WSItemReturnTermModel, WSItemValidityModel, WSPriceSlabModel, WSProductCategoryModel, WSProductCreatorModel, WSSearchItemAttributeModel, WSSearchItemQuantityModel, WSSearchProviderContactModel, WSSearchProviderTermsModel};
 use super::schemas::{AutoCompleteItemRequest, AutoCompleteItemResponseData, BulkCountryServicabilityCache, BulkGeoServicabilityCache, BulkHyperlocalServicabilityCache, BulkInterCityServicabilityCache, BulkItemCache, BulkItemLocationCache, BulkItemVariantCache, BulkProviderCache, BulkProviderLocationCache, CategoryDomain, DBItemCacheData, ItemCacheResponseData, NetworkParticipantListReq, NetworkParticipantListResponse, ProductCacheSearchRequest, ProductFulFillmentLocation, ProductSearchRequest, ProviderFetchReq, ServicabilityIds, WSItemValidity, WSPriceSlab, WSSearchBPP, WSSearchData, WSSearchItem, WSSearchItemPrice, WSSearchProvider};
@@ -2262,7 +2262,6 @@ pub async fn get_item_from_es(es_client: &ElasticSearchClient, body: &ProductCac
         .as_array_mut()
         .unwrap()
         .push(terms_filter);
-    tracing::info!("{}", base_query);
     let data = es_client
         .fetch(base_query, ElasticSearchIndex::ProviderItem)
         .await
@@ -2539,11 +2538,11 @@ pub async fn generate_cache() -> Result<(), anyhow::Error>{
     let user_id = configuration.user_obj.get_default_user();
     let business_id = configuration.user_obj.get_default_business();
     let user_client = configuration.user_obj.client();
-
     let user_account = user_client.get_user_account(None, Some(user_id)).await?;
+    let kafka_client = configuration.kafka.client();
     if let Some(business_account) = user_client.get_business_account(user_id, business_id, vec![CustomerType::RetailB2bBuyer]).await?{
         let subscribed_locations = fetch_search_locations(&connection_pool).await?;
-        if let Some(np_detail) =  get_np_detail(&connection_pool, &business_account.subscriber_id,
+        if let Some(np_detail) =  get_np_detail(&connection_pool, &StartUpMap::default(), &business_account.subscriber_id,
                 &ONDCNetworkType::Bap).await?{
             let es_client = configuration.elastic_search.client();
             clear_network_participant_cache(&connection_pool, &es_client).await?;
@@ -2571,7 +2570,11 @@ pub async fn generate_cache() -> Result<(), anyhow::Error>{
                     &configuration.ondc.gateway_uri,
                     &ondc_search_payload_str,
                     &header,
-                    ONDCActionType::Search,
+                    &ONDCActionType::Search,
+                        &kafka_client,
+                    &np_detail.subscriber_id,
+                    ondc_search_payload.context.transaction_id,
+                    configuration.ondc.observability.is_enabled,
                 );
                 try_join!(task_1, task_2)?;
             }
