@@ -39,6 +39,8 @@ impl From<SelectOrderError> for GenericError {
 pub enum InitOrderError {
     #[error(transparent)]
     UnexpectedError(#[from] anyhow::Error),
+    #[error("{0}")]
+    ValidationError(String),
 }
 
 impl std::fmt::Debug for InitOrderError {
@@ -51,6 +53,7 @@ impl From<InitOrderError> for GenericError {
     fn from(err: InitOrderError) -> GenericError {
         match err {
             InitOrderError::UnexpectedError(error) => GenericError::UnexpectedError(error),
+            InitOrderError::ValidationError(message) => GenericError::ValidationError(message),
         }
     }
 }

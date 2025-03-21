@@ -311,7 +311,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 ```
 
 
-## MILESTONES (52/56)
+## MILESTONES (53/56)
 ### MILESTONE 1 (Jan 18, 2023 - Jul 22, 2024):
 * [x] Set up basic actix web server
 * [x] Add environment config fetch
@@ -371,7 +371,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 * [x] Develop Observability Module.
 
 ### MILESTONE 4:
-* [ ] Add basic validation for search/ select/ init/ confirm/ status/ cancel/ update APIs.
+* [x] Add basic validation for search/ select/ init/ confirm/ status/ cancel/ update APIs (Basic Validation).
 * [ ] Add basic validation ONDC for on_search/ on_select/ on_init/ on_confirm/ on_status/ on_cancel/ on_update APIs.
 * [ ] Add test cases for milestone 2 (Only unit tests) (If I feel like it).
 * [ ] Develop common Microservice to fetch (cities + country + states + category + category_attribute).

@@ -1673,7 +1673,7 @@ pub fn create_bulk_seller_product_info_objs<'a>(
 }
 
 #[tracing::instrument(name = "save ondc seller product info", skip(transaction, data))]
-pub async fn save_ondc_seller_product_info<'a>(
+pub async fn save_ondc_provider_item_info<'a>(
     transaction: &mut Transaction<'_, Postgres>,
     data: &WSSearchData,
     code: &CountryCode,
@@ -2855,7 +2855,7 @@ pub async fn process_on_search(
             let _ = save_ondc_seller_info(&mut transaction, &final_objs, body.context.timestamp)
                 .await
                 .map_err(|e| anyhow!(e));
-            let _ = save_ondc_seller_product_info(
+            let _ = save_ondc_provider_item_info(
                 &mut transaction,
                 &final_objs,
                 &body.context.location.country.code,

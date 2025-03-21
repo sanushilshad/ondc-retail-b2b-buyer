@@ -31,7 +31,9 @@ use super::schemas::{
 };
 use super::utils::{
     fetch_order_by_id, get_chat_links, get_order_list, initialize_order_select,
-    save_ondc_order_request, send_rfq_request_chat, validate_select_request,
+    save_ondc_order_request, send_rfq_request_chat, validate_cancel_request,
+    validate_confirm_request, validate_init_request, validate_select_request,
+    validate_status_request, validate_update_request,
 };
 
 #[utoipa::path(
@@ -94,25 +96,34 @@ pub async fn order_select(
         business_account.id,
         vec![SettingKey::OrderNoPrefix],
     );
-    let (bap_detail, bpp_detail, seller_location_info_mapping, seller_info, setting_data) =
-        match tokio::try_join!(task1, task2, task3, task4, task5) {
-            Ok((
-                bap_detail_res,
-                bpp_detail_res,
-                seller_location_info_mapping_res,
-                seller_info_map_res,
-                setting_res,
-            )) => (
-                bap_detail_res,
-                bpp_detail_res,
-                seller_location_info_mapping_res,
-                seller_info_map_res,
-                setting_res,
-            ),
-            Err(e) => {
-                return Err(GenericError::DatabaseError(e.to_string(), e));
-            }
-        };
+    let task6 = fetch_order_by_id(&pool, body.transaction_id);
+    let (
+        bap_detail,
+        bpp_detail,
+        seller_location_info_mapping,
+        seller_info,
+        setting_data,
+        order_data,
+    ) = match tokio::try_join!(task1, task2, task3, task4, task5, task6) {
+        Ok((
+            bap_detail_res,
+            bpp_detail_res,
+            seller_location_info_mapping_res,
+            seller_info_map_res,
+            setting_res,
+            order_res,
+        )) => (
+            bap_detail_res,
+            bpp_detail_res,
+            seller_location_info_mapping_res,
+            seller_info_map_res,
+            setting_res,
+            order_res,
+        ),
+        Err(e) => {
+            return Err(GenericError::DatabaseError(e.to_string(), e));
+        }
+    };
 
     let bap_detail = match bap_detail {
         Some(bap_detail) => bap_detail,
@@ -142,8 +153,12 @@ pub async fn order_select(
         }
     };
 
-    validate_select_request(&body, &business_account, &seller_location_info_mapping)
-        .map_err(|e| GenericError::ValidationError(e.to_string()))?;
+    validate_select_request(
+        &body,
+        &business_account,
+        &seller_location_info_mapping,
+        &order_data,
+    )?;
 
     let chat_data = if body.order_type == OrderType::PurchaseOrder {
         Some(
@@ -309,6 +324,7 @@ pub async fn order_init(
             )))
         }
     };
+
     if !allowed_permission.validate_commerce_self(
         order.created_by,
         order.buyer_id,
@@ -318,7 +334,7 @@ pub async fn order_init(
             "You do not have sufficent preveliege to update the order".to_owned(),
         ));
     }
-
+    validate_init_request(&order)?;
     let bap_detail = match bap_detail {
         Some(bap_detail) => bap_detail,
         None => {
@@ -430,7 +446,7 @@ pub async fn order_confirm(
             "You do not have sufficent preveliege to update the order".to_owned(),
         ));
     }
-
+    validate_confirm_request(&order)?;
     let bap_detail = match bap_detail {
         Some(bap_detail) => bap_detail,
         None => {
@@ -530,7 +546,7 @@ pub async fn order_status(
             )))
         }
     };
-
+    validate_status_request(&order)?;
     let bap_detail = match bap_detail {
         Some(bap_detail) => bap_detail,
         None => {
@@ -639,7 +655,7 @@ pub async fn order_cancel(
             "You do not have sufficent preveliege to cancel the order".to_owned(),
         ));
     }
-
+    validate_cancel_request(&order)?;
     let bap_detail = match bap_detail {
         Some(bap_detail) => bap_detail,
         None => {
@@ -749,7 +765,7 @@ pub async fn order_update(
             "You do not have sufficent preveliege to update the order".to_owned(),
         ));
     }
-
+    validate_update_request(&order)?;
     let bap_detail = match bap_detail {
         Some(bap_detail) => bap_detail,
         None => {

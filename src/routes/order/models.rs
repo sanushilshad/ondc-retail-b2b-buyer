@@ -125,7 +125,7 @@ pub struct CommercePaymentModel {
     pub withholding_amount: Option<BigDecimal>,
     pub settlement_details: Option<sqlx::types::Json<Vec<PaymentSettlementDetailModel>>>,
     pub seller_payment_detail: Option<sqlx::types::Json<SellerPaymentDetailModel>>,
-    pub payment_status: Option<PaymentStatus>,
+    pub payment_status: PaymentStatus,
     pub payment_order_id: Option<String>,
     pub payment_id: Option<String>,
 }
