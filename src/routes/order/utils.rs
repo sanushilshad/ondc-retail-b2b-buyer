@@ -2865,9 +2865,9 @@ pub fn validate_confirm_request(order_data: &Commerce) -> Result<(), ConfirmOrde
             .iter()
             .any(|f| f.is_bap_payment() && f.payment_status != PaymentStatus::Paid)
     {
-        return Err(ConfirmOrderError::ValidationError(format!(
-            "Payment is not completed"
-        )));
+        return Err(ConfirmOrderError::ValidationError(
+            "Payment is not completed".to_string(),
+        ));
     }
     Ok(())
 }

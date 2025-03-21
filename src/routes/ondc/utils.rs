@@ -3058,8 +3058,8 @@ pub fn validate_on_status(
         if let Some(fulfillment) = fulfillment_map.get(&commerce_fulfillment.id) {
             let incoming_state = fulfillment.state.descriptor.code.get_fulfillment_state();
             let current = &commerce_fulfillment.fulfillment_status;
-            if (current == &FulfillmentStatusType::OutForDelivery
-                && incoming_state == FulfillmentStatusType::OrderPickedUp)
+            if current == &FulfillmentStatusType::OutForDelivery
+                && incoming_state == FulfillmentStatusType::OrderPickedUp
             {
                 return Err(ONDCBuyerError::OrderValidationFailure {
                     message: format!(
