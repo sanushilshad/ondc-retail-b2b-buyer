@@ -1,12 +1,13 @@
+use super::errors::ONDCBuyerError;
 use super::{
     BreakupTitleType, LookupData, LookupRequest, ONDCActionType, ONDCBreakUp, ONDCCancelMessage,
     ONDCCancelRequest, ONDCConfirmMessage, ONDCConfirmOrder, ONDCConfirmProvider, ONDCContext,
     ONDCContextCity, ONDCContextCountry, ONDCContextLocation, ONDCCredential, ONDCCredentialType,
-    ONDCDomain, ONDCFeeType, ONDCItemCancellationFee, ONDCOnSearchCategory,
-    ONDCOnSearchFulfillmentContact, ONDCOnSearchItem, ONDCSearchStop, ONDCSellePriceSlab,
-    ONDCServicabilityCoordinate, ONDCStatusMessage, ONDCStatusRequest, ONDCTag, ONDCUpdateItem,
-    ONDCUpdateMessage, ONDCUpdateOrder, ONDCUpdateProvider, ONDCUpdateRequest, ONDCVersion,
-    ObservabilityData, OndcUrl,
+    ONDCDomain, ONDCFeeType, ONDCItemCancellationFee, ONDCOnConfirmFulfillment,
+    ONDCOnSearchCategory, ONDCOnSearchFulfillmentContact, ONDCOnSearchItem, ONDCSearchStop,
+    ONDCSellePriceSlab, ONDCServicabilityCoordinate, ONDCStatusMessage, ONDCStatusRequest, ONDCTag,
+    ONDCUpdateItem, ONDCUpdateMessage, ONDCUpdateOrder, ONDCUpdateProvider, ONDCUpdateRequest,
+    ONDCVersion, ObservabilityData, OndcUrl,
 };
 
 use crate::chat_client::ChatData;
@@ -63,8 +64,9 @@ use crate::routes::order::errors::{
 };
 use crate::routes::order::schemas::{
     BuyerTerms, CancellationFeeType, Commerce, CommerceBilling, CommerceCancellationFee,
-    CommerceCancellationTerm, CommerceFulfillment, CommerceItem, CommercePayment, DropOffData,
-    OrderCancelRequest, OrderConfirmRequest, OrderDeliveyTerm, OrderInitBilling, OrderInitRequest,
+    CommerceCancellationTerm, CommerceFulfillment, CommerceItem, CommercePayment,
+    CommerceStatusType, DropOffData, FulfillmentStatusType, OrderCancelRequest,
+    OrderConfirmRequest, OrderDeliveyTerm, OrderInitBilling, OrderInitRequest,
     OrderSelectFulfillment, OrderSelectItem, OrderSelectRequest, OrderStatusRequest, OrderType,
     OrderUpdateRequest, PaymentCollectedBy, PickUpData, SelectFulfillmentLocation, SettlementBasis,
     TradeType, UpdateOrderPaymentRequest,
@@ -2984,4 +2986,150 @@ pub async fn push_observability_data_to_producer(
             err
         )),
     }
+}
+
+pub fn validate_on_select(order: &Option<Commerce>) -> Result<(), ONDCBuyerError> {
+    if let Some(order) = order {
+        if !matches!(
+            order.record_status,
+            CommerceStatusType::QuoteRequested
+                | CommerceStatusType::QuoteAccepted
+                | CommerceStatusType::QuoteRejected
+        ) {
+            return Err(ONDCBuyerError::OrderValidationFailure {
+                message: "Order is already accepted".to_owned(),
+                path: None,
+            });
+        }
+    }
+    Ok(())
+}
+
+pub fn validate_on_init(order: &Commerce) -> Result<(), ONDCBuyerError> {
+    if !matches!(
+        order.record_status,
+        CommerceStatusType::Initialized
+            | CommerceStatusType::QuoteRequested
+            | CommerceStatusType::QuoteAccepted
+    ) {
+        return Err(ONDCBuyerError::OrderValidationFailure {
+            message: "Order is already intialized".to_owned(),
+            path: None,
+        });
+    }
+
+    Ok(())
+}
+
+pub fn validate_on_confirm(order: &Commerce) -> Result<(), ONDCBuyerError> {
+    if !matches!(
+        order.record_status,
+        CommerceStatusType::Initialized
+            | CommerceStatusType::Created
+            | CommerceStatusType::Accepted
+    ) {
+        return Err(ONDCBuyerError::OrderValidationFailure {
+            message: "Order is already confirmed".to_owned(),
+            path: None,
+        });
+    }
+
+    Ok(())
+}
+
+pub fn validate_on_status(
+    order: &Commerce,
+    fulfillments: &Vec<ONDCOnConfirmFulfillment>,
+    incoming_order_state: CommerceStatusType,
+) -> Result<(), ONDCBuyerError> {
+    if order.record_status == CommerceStatusType::Completed
+        && incoming_order_state != CommerceStatusType::Completed
+    {
+        return Err(ONDCBuyerError::OrderValidationFailure {
+            message: "Order is already confirmed".to_owned(),
+            path: None,
+        });
+    }
+    let mut fulfillment_map: HashMap<String, &ONDCOnConfirmFulfillment> = HashMap::new();
+    for fulfillment in fulfillments {
+        fulfillment_map.insert(fulfillment.id.to_owned(), fulfillment);
+    }
+    for commerce_fulfillment in &order.fulfillments {
+        if let Some(fulfillment) = fulfillment_map.get(&commerce_fulfillment.id) {
+            let incoming_state = fulfillment.state.descriptor.code.get_fulfillment_state();
+            let current = &commerce_fulfillment.fulfillment_status;
+            if (current == &FulfillmentStatusType::OutForDelivery
+                && incoming_state == FulfillmentStatusType::OrderPickedUp)
+            {
+                return Err(ONDCBuyerError::OrderValidationFailure {
+                    message: format!(
+                        "Fulfillment {} is in transit, cannot move to picked-up",
+                        commerce_fulfillment.id
+                    ),
+                    path: None,
+                });
+            }
+
+            if current == &FulfillmentStatusType::OrderDelivered
+                && commerce_fulfillment.fulfillment_type == FulfillmentType::Delivery
+                && (incoming_state == FulfillmentStatusType::OutForDelivery
+                    || incoming_state == FulfillmentStatusType::OrderPickedUp)
+            {
+                return Err(ONDCBuyerError::OrderValidationFailure {
+                    message: format!(
+                        "Fulfillment {} is delivered, cannot revert to in-transit or picked-up",
+                        commerce_fulfillment.id
+                    ),
+                    path: None,
+                });
+            }
+            if current == &FulfillmentStatusType::OrderPickedUp
+                && incoming_state == FulfillmentStatusType::OrderDelivered
+            {
+                return Err(ONDCBuyerError::OrderValidationFailure {
+                    message: format!(
+                        "Fulfillment {} is already picked up, cannot directly mark as delivered",
+                        commerce_fulfillment.id
+                    ),
+                    path: None,
+                });
+            }
+        }
+    }
+
+    Ok(())
+}
+
+pub fn validate_on_update(order: &Commerce) -> Result<(), ONDCBuyerError> {
+    if !matches!(
+        order.record_status,
+        CommerceStatusType::Initialized
+            | CommerceStatusType::QuoteAccepted
+            | CommerceStatusType::QuoteRejected
+            | CommerceStatusType::QuoteRequested
+    ) {
+        return Err(ONDCBuyerError::OrderValidationFailure {
+            message: "Order is not confirmed".to_owned(),
+            path: None,
+        });
+    }
+
+    Ok(())
+}
+
+pub fn validate_on_cancel(order: &Commerce) -> Result<(), ONDCBuyerError> {
+    if !matches!(
+        order.record_status,
+        CommerceStatusType::Initialized
+            | CommerceStatusType::QuoteAccepted
+            | CommerceStatusType::QuoteRejected
+            | CommerceStatusType::QuoteRequested
+    ) {
+        return Err(ONDCBuyerError::OrderValidationFailure {
+            message: "Order is not confirmed".to_owned(),
+            path: None,
+        });
+    }
+
+    Ok(())
 }

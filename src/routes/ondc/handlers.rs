@@ -12,7 +12,9 @@ use super::schemas::{
 use super::utils::{
     fetch_ondc_order_request, fetch_ondc_seller_info, get_ondc_order_param_from_commerce,
     get_ondc_order_param_from_req, get_ondc_seller_location_info_mapping,
-    get_ondc_seller_product_info_mapping, get_product_search_params,
+    get_ondc_seller_product_info_mapping, get_product_search_params, validate_on_cancel,
+    validate_on_confirm, validate_on_init, validate_on_select, validate_on_status,
+    validate_on_update,
 };
 use super::{
     KafkaSearchData, ONDCOnCancelRequest, ONDCOnStatusRequest, ONDCOnUpdateRequest,
@@ -81,14 +83,21 @@ pub async fn on_select(
     user_client: web::Data<UserClient>,
     chat_client: web::Data<ChatClient>,
 ) -> Result<web::Json<ONDCResponse<ONDCBuyerErrorCode>>, ONDCBuyerError> {
+    let error = body
+        .error
+        .as_ref()
+        .map_or_else(|| None, |s| Some(s.message.to_owned()));
+    if error.is_none() {
+        let order = fetch_order_by_id(&pool, body.context.transaction_id)
+            .await
+            .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
+        validate_on_select(&order)?;
+    }
     let ws_obj = WSSelect {
         transaction_id: body.context.transaction_id,
         message_id: body.context.message_id,
         // action_type: WebSocketActionType::OrderSelect,
-        error: body
-            .error
-            .as_ref()
-            .map_or_else(|| None, |s| Some(s.message.to_owned())),
+        error,
     };
     let ondc_select_model = fetch_ondc_order_request(
         &pool,
@@ -282,9 +291,7 @@ pub async fn on_init(
         order_request_model_opt.ok_or(ONDCBuyerError::BuyerResponseSequenceError { path: None })?;
     let commerce_data =
         commerce_data_opt.ok_or(ONDCBuyerError::BuyerResponseSequenceError { path: None })?;
-    // .await
-    // .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?
-    // .ok_or(ONDCBuyerError::BuyerResponseSequenceError { path: None })?;
+    validate_on_init(&commerce_data)?;
     let payment_links: Vec<String> = body
         .message
         .order
@@ -356,7 +363,7 @@ pub async fn on_confirm(
     let order = res2
         .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?
         .ok_or(ONDCBuyerError::BuyerResponseSequenceError { path: None })?;
-
+    validate_on_confirm(&order)?;
     let payment_links: Vec<String> = body
         .message
         .order
@@ -433,14 +440,21 @@ pub async fn on_status(
     let order = res2
         .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?
         .ok_or(ONDCBuyerError::BuyerResponseSequenceError { path: None })?;
+    let proforma_present = body.message.order.documents.is_some();
+    validate_on_status(
+        &order,
+        &body.message.order.fulfillments,
+        body.message
+            .order
+            .state
+            .get_commerce_status(&order.record_type, Some(proforma_present)),
+    )?;
     let mut transaction = pool
         .begin()
         .await
         .context("Failed to acquire a Postgres connection from the pool")
         .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
-
     if order.record_type.is_purchase_order() {
-        let proforma_present = body.message.order.documents.is_some();
         send_rfq_status_chat(
             &chat_client,
             body.context.transaction_id,
@@ -512,6 +526,7 @@ pub async fn on_cancel(
     let order = res2
         .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?
         .ok_or(ONDCBuyerError::BuyerResponseSequenceError { path: None })?;
+    validate_on_cancel(&order)?;
     if order.record_type.is_purchase_order() {
         send_rfq_cancel_chat(&chat_client, body.context.transaction_id, &order)
             .await
@@ -579,6 +594,7 @@ pub async fn on_update(
     let order = res2
         .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?
         .ok_or(ONDCBuyerError::BuyerResponseSequenceError { path: None })?;
+    validate_on_update(&order)?;
     if order.record_type.is_purchase_order() {
         send_rfq_update_chat(&chat_client, body.context.transaction_id, &order)
             .await

@@ -236,6 +236,8 @@ pub enum ONDCBuyerErrorCode {
     StaleRequestCode,
     #[serde(rename = "20006")]
     InvalidResponseCode,
+    #[serde(rename = "23002")]
+    OrderValidationCode,
 }
 
 #[allow(clippy::enum_variant_names)]

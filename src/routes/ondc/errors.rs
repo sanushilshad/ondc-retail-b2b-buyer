@@ -45,6 +45,11 @@ pub enum ONDCBuyerError {
     },
     #[error("Invalid Signature")]
     InvalidSignatureError { path: Option<String> },
+    #[error("Order Validation Failure")]
+    OrderValidationFailure {
+        path: Option<String>,
+        message: String,
+    },
 }
 
 impl std::fmt::Debug for ONDCBuyerError {
@@ -61,6 +66,7 @@ impl ResponseError for ONDCBuyerError {
             ONDCBuyerError::BuyerResponseSequenceError { .. } => StatusCode::BAD_REQUEST,
             ONDCBuyerError::InvalidResponseError { .. } => StatusCode::BAD_REQUEST,
             ONDCBuyerError::InvalidSignatureError { .. } => StatusCode::BAD_REQUEST,
+            ONDCBuyerError::OrderValidationFailure { .. } => StatusCode::BAD_REQUEST,
         }
     }
 
@@ -97,6 +103,12 @@ impl ResponseError for ONDCBuyerError {
                 ONDCBuyerErrorCode::InvalidSignatureCode,
                 path,
                 ONDErrorType::JsonSchemaError,
+            ),
+            ONDCBuyerError::OrderValidationFailure { message, path } => (
+                message.as_str(),
+                ONDCBuyerErrorCode::OrderValidationCode,
+                path,
+                ONDErrorType::CoreError,
             ),
         };
 

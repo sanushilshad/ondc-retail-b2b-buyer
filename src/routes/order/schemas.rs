@@ -406,7 +406,7 @@ impl CommercePayment {
     }
 }
 
-#[derive(Deserialize, Debug, ToSchema, sqlx::Type, Serialize, Clone)]
+#[derive(Deserialize, Debug, ToSchema, sqlx::Type, Serialize, Clone, PartialEq)]
 #[sqlx(type_name = "commerce_fulfillment_status_type")]
 #[sqlx(rename_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
