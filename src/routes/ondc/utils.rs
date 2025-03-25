@@ -58,10 +58,7 @@ use super::schemas::{
 use crate::domain::EmailObject;
 use crate::routes::ondc::schemas::{ONDCCity, ONDCPerson, ONDCSellerInfo};
 use crate::routes::ondc::{ONDCErrorCode, ONDCResponse};
-use crate::routes::order::errors::{
-    ConfirmOrderError, InitOrderError, OrderCancelError, OrderStatusError, OrderUpdateError,
-    SelectOrderError,
-};
+use crate::routes::order::errors::OrderError;
 use crate::routes::order::schemas::{
     BuyerTerms, CancellationFeeType, Commerce, CommerceBilling, CommerceCancellationFee,
     CommerceCancellationTerm, CommerceFulfillment, CommerceItem, CommercePayment,
@@ -1541,7 +1538,7 @@ fn get_ondc_select_message(
     order_request: &OrderSelectRequest,
     seller_location_mapping: &HashMap<String, ONDCSellerLocationInfo>,
     chat_data: &Option<ChatData>,
-) -> Result<ONDCSelectMessage, SelectOrderError> {
+) -> Result<ONDCSelectMessage, OrderError> {
     let location_ids: HashSet<&str> = order_request
         .items
         .iter()
@@ -1553,7 +1550,7 @@ fn get_ondc_select_message(
         &order_request.ttl,
     );
     let select_tag = get_ondc_select_tags(business_account, chat_data)
-        .map_err(|e| SelectOrderError::InvalidDataError(e.to_string()))?;
+        .map_err(|e| OrderError::InvalidDataError(e.to_string()))?;
     Ok(ONDCSelectMessage {
         order: ONDCSelectOrder {
             provider,
@@ -1580,7 +1577,7 @@ pub fn get_ondc_select_payload(
     bpp_detail: &LookupData,
     seller_location_mapping: &HashMap<String, ONDCSellerLocationInfo>,
     chat_data: &Option<ChatData>,
-) -> Result<ONDCSelectRequest, SelectOrderError> {
+) -> Result<ONDCSelectRequest, OrderError> {
     let context = get_ondc_select_context(order_request, bap_detail, bpp_detail)?;
     let message = get_ondc_select_message(
         user_account,
@@ -2058,7 +2055,7 @@ fn get_ondc_init_message(
     business_account: &BusinessAccount,
     init_request: &OrderInitRequest,
     order: &Commerce,
-) -> Result<ONDCInitMessage, InitOrderError> {
+) -> Result<ONDCInitMessage, OrderError> {
     let location_ids = order.get_ondc_location_ids();
     Ok(ONDCInitMessage {
         order: ONDCInitOrder {
@@ -2086,7 +2083,7 @@ pub fn get_ondc_init_payload(
     business_account: &BusinessAccount,
     order: &Commerce,
     init_request: &OrderInitRequest,
-) -> Result<ONDCInitRequest, InitOrderError> {
+) -> Result<ONDCInitRequest, OrderError> {
     let context = get_ondc_context_from_order(
         init_request.transaction_id,
         init_request.message_id,
@@ -2358,11 +2355,12 @@ fn get_ondc_confirm_message(
     order: &Commerce,
     updated_on: &DateTime<Utc>,
     bap_detail: &RegisteredNetworkParticipant,
-) -> Result<ONDCConfirmMessage, ConfirmOrderError> {
+) -> Result<ONDCConfirmMessage, OrderError> {
     let location_ids = order.get_ondc_location_ids();
-    let billing = order.billing.as_ref().ok_or_else(|| {
-        ConfirmOrderError::ValidationError("Billing Address not found".to_string())
-    })?;
+    let billing = order
+        .billing
+        .as_ref()
+        .ok_or_else(|| OrderError::ValidationError("Billing Address not found".to_string()))?;
     Ok(ONDCConfirmMessage {
         order: ONDCConfirmOrder {
             id: order.urn.to_owned(),
@@ -2384,7 +2382,7 @@ fn get_ondc_confirm_message(
             created_at: order.created_on,
             updated_at: *updated_on,
             tags: get_ondc_confirm_request_tags(order, business_account)
-                .map_err(|e| ConfirmOrderError::InvalidDataError(e.to_string()))?,
+                .map_err(|e| OrderError::InvalidDataError(e.to_string()))?,
             quote: get_quote_from_order(order),
             payments: get_ondc_confirm_request_payment(order, bap_detail),
         },
@@ -2419,7 +2417,7 @@ pub fn get_ondc_confirm_payload(
     order: &Commerce,
     confirm_request: &OrderConfirmRequest,
     bap_detail: &RegisteredNetworkParticipant,
-) -> Result<ONDConfirmRequest, ConfirmOrderError> {
+) -> Result<ONDConfirmRequest, OrderError> {
     let context = get_ondc_context_from_order(
         confirm_request.transaction_id,
         confirm_request.message_id,
@@ -2740,7 +2738,7 @@ fn get_ondc_status_message(commerce_id: &str) -> ONDCStatusMessage {
 pub fn get_ondc_status_payload(
     order: &Commerce,
     status_request: &OrderStatusRequest,
-) -> Result<ONDCStatusRequest, OrderStatusError> {
+) -> Result<ONDCStatusRequest, OrderError> {
     let context = get_ondc_context_from_order(
         status_request.transaction_id,
         status_request.message_id,
@@ -2763,7 +2761,7 @@ fn get_ondc_cancel_message(commerce_id: &str, reason_id: &str) -> ONDCCancelMess
 pub fn get_ondc_cancel_payload(
     order: &Commerce,
     cancel_request: &OrderCancelRequest,
-) -> Result<ONDCCancelRequest, OrderCancelError> {
+) -> Result<ONDCCancelRequest, OrderError> {
     let context = get_ondc_context_from_order(
         cancel_request.transaction_id,
         cancel_request.message_id,
@@ -2814,7 +2812,7 @@ pub fn get_ondc_update_payload(
     order: &Commerce,
     update_request: &OrderUpdateRequest,
     bap_detail: &RegisteredNetworkParticipant,
-) -> Result<ONDCUpdateRequest, OrderUpdateError> {
+) -> Result<ONDCUpdateRequest, OrderError> {
     let context = get_ondc_context_from_order(
         update_request.transaction_id(),
         update_request.message_id(),
@@ -2826,10 +2824,10 @@ pub fn get_ondc_update_payload(
         OrderUpdateRequest::UpdatePayment(body) => {
             get_ondc_update_message_for_payment(order, body, bap_detail)
         }
-        OrderUpdateRequest::UpdateItem(_) => Err(OrderUpdateError::NotImplemented(
+        OrderUpdateRequest::UpdateItem(_) => Err(OrderError::NotImplemented(
             "Item Updation not implemented".to_string(),
         ))?,
-        OrderUpdateRequest::UpdateFulfillment(_) => Err(OrderUpdateError::NotImplemented(
+        OrderUpdateRequest::UpdateFulfillment(_) => Err(OrderError::NotImplemented(
             "Fulfillment Updation not implemented".to_string(),
         ))?,
     };

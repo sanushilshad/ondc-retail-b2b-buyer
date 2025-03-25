@@ -1,7 +1,4 @@
-use super::errors::{
-    ConfirmOrderError, InitOrderError, OrderCancelError, OrderStatusError, OrderUpdateError,
-    SelectOrderError,
-};
+use super::errors::OrderError;
 use super::models::{
     CommerceBppTermsModel, CommerceDataModel, CommerceDocumentModel, CommerceFulfillmentModel,
     CommerceItemModel, CommerceListModel, CommercePaymentModel, DropOffContactModel,
@@ -2800,7 +2797,7 @@ pub fn validate_select_request(
     business_account: &BusinessAccount,
     seller_location_map: &HashMap<String, ONDCSellerLocationInfo>,
     order_data: &Option<Commerce>,
-) -> Result<(), SelectOrderError> {
+) -> Result<(), OrderError> {
     if let Some(order_data) = order_data {
         if !matches!(
             order_data.record_status,
@@ -2808,7 +2805,7 @@ pub fn validate_select_request(
                 | CommerceStatusType::QuoteRejected
                 | CommerceStatusType::QuoteAccepted
         ) {
-            return Err(SelectOrderError::ValidationError(
+            return Err(OrderError::ValidationError(
                 format!("Order is already {} status", order_data.record_status).to_string(),
             ));
         }
@@ -2820,12 +2817,12 @@ pub fn validate_select_request(
         if seller_location_obj.1.country_code != fulfillment.location.country.code {
             if let Some(vector_val) = vector_val {
                 if !vector_val.verified {
-                    return Err(SelectOrderError::ValidationError(
+                    return Err(OrderError::ValidationError(
                         "Import License is not verified".to_string(),
                     ));
                 }
             } else {
-                return Err(SelectOrderError::ValidationError(
+                return Err(OrderError::ValidationError(
                     "Import License is not present".to_string(),
                 ));
             }
@@ -2835,12 +2832,12 @@ pub fn validate_select_request(
     Ok(())
 }
 
-pub fn validate_init_request(order_data: &Commerce) -> Result<(), InitOrderError> {
+pub fn validate_init_request(order_data: &Commerce) -> Result<(), OrderError> {
     if !matches!(
         order_data.record_status,
         CommerceStatusType::Initialized | CommerceStatusType::QuoteAccepted
     ) {
-        return Err(InitOrderError::ValidationError(
+        return Err(OrderError::ValidationError(
             format!("Order is already {} status", order_data.record_status).to_string(),
         ));
     }
@@ -2848,14 +2845,14 @@ pub fn validate_init_request(order_data: &Commerce) -> Result<(), InitOrderError
     Ok(())
 }
 
-pub fn validate_confirm_request(order_data: &Commerce) -> Result<(), ConfirmOrderError> {
+pub fn validate_confirm_request(order_data: &Commerce) -> Result<(), OrderError> {
     if !matches!(
         order_data.record_status,
         CommerceStatusType::Initialized
             | CommerceStatusType::Accepted
             | CommerceStatusType::Created
     ) {
-        return Err(ConfirmOrderError::ValidationError(
+        return Err(OrderError::ValidationError(
             format!("Order is already {} status", order_data.record_status).to_string(),
         ));
     }
@@ -2865,14 +2862,14 @@ pub fn validate_confirm_request(order_data: &Commerce) -> Result<(), ConfirmOrde
             .iter()
             .any(|f| f.is_bap_payment() && f.payment_status != PaymentStatus::Paid)
     {
-        return Err(ConfirmOrderError::ValidationError(
+        return Err(OrderError::ValidationError(
             "Payment is not completed".to_string(),
         ));
     }
     Ok(())
 }
 
-pub fn validate_status_request(order_data: &Commerce) -> Result<(), OrderStatusError> {
+pub fn validate_status_request(order_data: &Commerce) -> Result<(), OrderError> {
     if !matches!(
         order_data.record_status,
         CommerceStatusType::Initialized
@@ -2881,7 +2878,7 @@ pub fn validate_status_request(order_data: &Commerce) -> Result<(), OrderStatusE
             | CommerceStatusType::QuoteRejected
             | CommerceStatusType::Created
     ) {
-        return Err(OrderStatusError::ValidationError(
+        return Err(OrderError::ValidationError(
             format!("Order is already {} status", order_data.record_status).to_string(),
         ));
     }
@@ -2889,7 +2886,7 @@ pub fn validate_status_request(order_data: &Commerce) -> Result<(), OrderStatusE
     Ok(())
 }
 
-pub fn validate_update_request(order_data: &Commerce) -> Result<(), OrderUpdateError> {
+pub fn validate_update_request(order_data: &Commerce) -> Result<(), OrderError> {
     if !matches!(
         order_data.record_status,
         CommerceStatusType::Initialized
@@ -2898,7 +2895,7 @@ pub fn validate_update_request(order_data: &Commerce) -> Result<(), OrderUpdateE
             | CommerceStatusType::QuoteRejected
             | CommerceStatusType::Created
     ) {
-        return Err(OrderUpdateError::ValidationError(
+        return Err(OrderError::ValidationError(
             format!("Order is already {} status", order_data.record_status).to_string(),
         ));
     }
@@ -2906,7 +2903,7 @@ pub fn validate_update_request(order_data: &Commerce) -> Result<(), OrderUpdateE
     Ok(())
 }
 
-pub fn validate_cancel_request(order_data: &Commerce) -> Result<(), OrderCancelError> {
+pub fn validate_cancel_request(order_data: &Commerce) -> Result<(), OrderError> {
     if !matches!(
         order_data.record_status,
         CommerceStatusType::Initialized
@@ -2916,7 +2913,7 @@ pub fn validate_cancel_request(order_data: &Commerce) -> Result<(), OrderCancelE
             | CommerceStatusType::Created
             | CommerceStatusType::Completed
     ) {
-        return Err(OrderCancelError::ValidationError(
+        return Err(OrderError::ValidationError(
             format!(
                 "Cancelletion is not allowed at  {} status",
                 order_data.record_status
