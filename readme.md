@@ -380,5 +380,8 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 ### MILESTONE 5 (OPTIONAL - when I have nothing better to do):
 * [ ] Integrate with notification microservice to enable WhatsApp, Email and SMS functionality.
 * [ ] Break the codebase to protocol and application micro services.
+* [ ] Develop Deeplink V2
+* [ ] Develop IGM V2
+* [ ] Develop RSF
 
 ### THE MILESTONES ARE SUSCEPTIBLE TO CHANGES ╰(*°▽°*)╯
