@@ -373,7 +373,7 @@ The API Docmentation can be found at `https://{{domain}}/docs/` after running th
 ### MILESTONE 4:
 * [x] Add basic validation for search/ select/ init/ confirm/ status/ cancel/ update APIs (Basic Validation).
 * [x] Add basic validation ONDC for on_search/ on_select/ on_init/ on_confirm/ on_status/ on_cancel/ on_update APIs.
-* [ ] Add test cases for milestone 2 (Only unit tests) (If I feel like it).
+* [x] Add test cases for milestone 2 (Only basic unit tests for now).
 * [ ] Develop common Microservice to fetch (cities + country + states + category + category_attribute).
 
 

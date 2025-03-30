@@ -4,8 +4,11 @@ mod tests {
 
     use crate::routes::ondc::schemas::{ONDCFulfillmentType, ONDCPaymentType};
     use crate::routes::ondc::utils::{
-        get_ondc_search_message_obj, get_ondc_search_payment_obj, get_search_fulfillment_obj,
+        fetch_ondc_order_request, fetch_ondc_seller_product_info, get_ondc_search_message_obj,
+        get_ondc_search_payment_obj, get_ondc_seller_location_info_mapping,
+        get_product_search_params, get_search_fulfillment_obj,
     };
+    use crate::routes::ondc::ONDCActionType;
     use crate::routes::product::schemas::{
         CategoryDomain, FulfillmentType, PaymentType, ProductFulFillmentLocation,
         ProductSearchRequest, ProductSearchType,
@@ -13,6 +16,7 @@ mod tests {
     use crate::schemas::{CountryCode, RegisteredNetworkParticipant};
     use crate::tests::tests::{
         get_dummy_business_account, get_dummy_registed_np_detail, get_dummy_user_account,
+        get_test_pool,
     };
     use crate::user_client::BusinessAccount;
     #[tokio::test]
@@ -123,5 +127,53 @@ mod tests {
         assert!(message_obj.intent.item.is_none());
         assert!(message_obj.intent.fulfillment.is_none());
         assert!(message_obj.intent.payment.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_ondc_seller_product_fetch_sql() {
+        let pool = get_test_pool().await;
+        let data = fetch_ondc_seller_product_info(
+            &pool,
+            &"ondcpreprodb2b.rapidor.co",
+            &"SANU SHILSHAD",
+            &vec![&"Apple"],
+            &CountryCode::IND,
+        )
+        .await;
+        assert!(data.is_ok())
+    }
+
+    #[tokio::test]
+    async fn test_ondc_seller_location_fetch_sql() {
+        let pool = get_test_pool().await;
+        let data = get_ondc_seller_location_info_mapping(
+            &pool,
+            &"ondcpreprodb2b.rapidor.co",
+            &"SANU SHILSHAD",
+            &vec!["L2".to_string()],
+        )
+        .await;
+        assert!(data.is_ok())
+    }
+
+    #[tokio::test]
+    async fn test_product_search_history_sql() {
+        let pool = get_test_pool().await;
+        let data = get_product_search_params(&pool, Uuid::new_v4(), Uuid::new_v4()).await;
+        assert!(data.is_ok())
+    }
+
+    #[tokio::test]
+    async fn test_ondc_order_history_sql() {
+        let pool = get_test_pool().await;
+        // let order_obj = fetch_order_by_id(&pool, Uuid::new_v4()).await;
+        let data = fetch_ondc_order_request(
+            &pool,
+            Uuid::new_v4(),
+            Uuid::new_v4(),
+            &ONDCActionType::Select,
+        )
+        .await;
+        assert!(data.is_ok())
     }
 }

@@ -10,10 +10,13 @@ pub mod tests {
     use crate::user_client::{BusinessAccount, MaskingType, UserAccount, UserVector, VectorType};
     use crate::utils::validate_business_account_active;
     use bigdecimal::BigDecimal;
+    use dotenv::dotenv;
     use sqlx::PgPool;
     use uuid::Uuid;
     pub async fn get_test_pool() -> PgPool {
+        dotenv().ok();
         let mut configuration = get_configuration().expect("Failed to read configuration.");
+        configuration.database.name = configuration.database.test_name.to_string();
         // configuration.database.name = TEST_DB.to_string();
         configuration.application.port = 0;
         get_connection_pool(&configuration.database)

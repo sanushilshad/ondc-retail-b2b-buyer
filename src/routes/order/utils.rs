@@ -1194,7 +1194,7 @@ pub async fn save_order_on_select_items(
 }
 
 #[tracing::instrument(name = "fetch buyer commerce data", skip(pool))]
-async fn get_commerce_data(
+pub async fn get_commerce_data(
     pool: &PgPool,
     transaction_id: Uuid,
 ) -> Result<Option<CommerceDataModel>, anyhow::Error> {
@@ -1230,7 +1230,7 @@ async fn get_commerce_data(
 }
 
 #[tracing::instrument(name = "fetch buyer commerce data line", skip(pool))]
-async fn get_commerce_data_line(
+pub async fn get_commerce_data_line(
     pool: &PgPool,
     order_id: Uuid,
 ) -> Result<Vec<CommerceItemModel>, anyhow::Error> {
@@ -1272,7 +1272,7 @@ async fn get_commerce_data_line(
 }
 
 #[tracing::instrument(name = "fetch buyer commerce payments", skip(pool))]
-async fn get_commerce_payments(
+pub async fn get_commerce_payments(
     pool: &PgPool,
     order_id: Uuid,
 ) -> Result<Vec<CommercePaymentModel>, anyhow::Error> {
@@ -1315,7 +1315,7 @@ async fn get_commerce_payments(
 }
 
 #[tracing::instrument(name = "fetch buyer commerce fulfillments", skip(pool))]
-async fn get_commerce_fulfillments(
+pub async fn get_commerce_fulfillments(
     pool: &PgPool,
     order_id: Uuid,
 ) -> Result<Vec<CommerceFulfillmentModel>, anyhow::Error> {
