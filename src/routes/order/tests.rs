@@ -1,5 +1,6 @@
 #[cfg(test)]
 mod tests {
+    use chrono::Utc;
     use uuid::Uuid;
 
     use crate::{
@@ -16,6 +17,7 @@ mod tests {
     #[tokio::test]
     async fn test_order_list_sql() {
         let pool = get_test_pool().await;
+        // without date
         let order_obj = OrderListRequest {
             transaction_id: Some(vec![Uuid::new_v4()]),
             start_date: None,
@@ -25,7 +27,18 @@ mod tests {
         };
         let filter = OrderListFilter::new(order_obj, Some(Uuid::new_v4()), Uuid::new_v4());
         let order = get_order_list(&pool, filter).await;
-        assert!(order.is_ok())
+        assert!(order.is_ok());
+        // with date
+        let order_obj = OrderListRequest {
+            transaction_id: Some(vec![Uuid::new_v4()]),
+            start_date: Some(Utc::now()),
+            end_date: Some(Utc::now()),
+            offset: 0,
+            limit: 1,
+        };
+        let filter = OrderListFilter::new(order_obj, Some(Uuid::new_v4()), Uuid::new_v4());
+        let order = get_order_list(&pool, filter).await;
+        assert!(order.is_ok());
     }
 
     #[tokio::test]
