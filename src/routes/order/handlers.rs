@@ -765,7 +765,7 @@ pub async fn order_update(
             "You do not have sufficent preveliege to update the order".to_owned(),
         ));
     }
-    validate_update_request(&order)?;
+    validate_update_request(&order, body.is_payment_update())?;
     let bap_detail = match bap_detail {
         Some(bap_detail) => bap_detail,
         None => {

@@ -1692,7 +1692,7 @@ async fn delete_payment_in_commerce(
 #[tracing::instrument(name = "save payment on on_init", skip(transaction))]
 pub async fn initialize_payment_on_init(
     transaction: &mut Transaction<'_, Postgres>,
-    commerce_id: Uuid,
+    order: &Commerce,
     payments: &Vec<ONDCOnInitPayment>,
 ) -> Result<(), anyhow::Error> {
     let mut id_list = vec![];
@@ -1707,16 +1707,38 @@ pub async fn initialize_payment_on_init(
     let mut payment_status_list = vec![];
     let mut settlement_detail_list = vec![];
     let mut seller_payment_detail_list = vec![];
+    let mut payment_id_list = vec![];
+    let mut payment_order_id_list = vec![];
+    let payment_order_id = order
+        .payments
+        .iter()
+        .find(|a| a.payment_order_id.is_some())
+        .and_then(|f| f.payment_order_id.as_deref());
+
+    let payment_id = order
+        .payments
+        .iter()
+        .find(|a| a.payment_id.is_some())
+        .and_then(|f| f.payment_id.as_deref());
+    let payment_status = order
+        .payments
+        .iter()
+        .find(|f| f.payment_order_id.is_some())
+        .map(|f| &f.payment_status)
+        .unwrap_or(&PaymentStatus::NotPaid);
+    // .unwrap_or(PaymentStatus::NotPaid);
     for payment in payments {
         id_list.push(Uuid::new_v4());
-        commerce_data_id_list.push(commerce_id);
+        commerce_data_id_list.push(order.id);
         collected_by_list.push(payment.collected_by.get_type());
         payment_type_list.push(payment.r#type.get_payment());
         buyer_fee_type_list.push(&payment.buyer_app_finder_fee_type);
         buyer_fee_amount_list
             .push(BigDecimal::from_str(&payment.buyer_app_finder_fee_amount).unwrap());
         settlement_window_list.push(payment.settlement_window.as_deref());
-        payment_status_list.push(PaymentStatus::NotPaid);
+        payment_status_list.push(payment_status);
+        payment_id_list.push(payment_id);
+        payment_order_id_list.push(payment_order_id);
         withholding_amount_list.push(
             payment
                 .withholding_amount
@@ -1783,10 +1805,11 @@ pub async fn initialize_payment_on_init(
     let query = sqlx::query!(
         r#"
         INSERT INTO commerce_payment_data(id, commerce_data_id, collected_by, payment_type, buyer_fee_type,
-             buyer_fee_amount, settlement_window, withholding_amount, settlement_basis, settlement_details, seller_payment_detail, payment_status)
+            buyer_fee_amount, settlement_window, withholding_amount, settlement_basis, settlement_details, seller_payment_detail,
+            payment_status, payment_id, payment_order_id)
             SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::payment_collected_by_type[],
             $4::payment_type[], $5::ondc_np_fee_type[], $6::decimal[], $7::text[], $8::decimal[],
-            $9::settlement_basis_type[],$10::jsonb[], $11::jsonb[], $12::payment_status[])
+            $9::settlement_basis_type[],$10::jsonb[], $11::jsonb[], $12::payment_status[], $13::text[],  $14::text[])
         "#,
         &id_list[..] as &[Uuid],
         &commerce_data_id_list[..] as &[Uuid],
@@ -1799,7 +1822,9 @@ pub async fn initialize_payment_on_init(
         &settlement_basis_list[..] as &[Option<SettlementBasis>],
         &settlement_detail_list[..] as &[Option<Value>],
         &seller_payment_detail_list[..] as &[Option<Value>],
-        &payment_status_list[..] as &[PaymentStatus]
+        &payment_status_list[..] as &[&PaymentStatus],
+        &payment_id_list[..] as &[Option<&str>],
+        &payment_order_id_list[..] as &[Option<&str>]
     );
 
     transaction.execute(query).await.map_err(|e| {
@@ -1929,12 +1954,12 @@ pub async fn initialize_order_on_init(
     transaction: &mut Transaction<'_, Postgres>,
     on_init_request: &ONDCOnInitRequest,
     business_id: Uuid,
+    commerce_data: &Commerce,
 ) -> Result<(), anyhow::Error> {
-    let commerce_id =
-        delete_payment_in_commerce(transaction, on_init_request.context.transaction_id).await?;
+    let _ = delete_payment_in_commerce(transaction, on_init_request.context.transaction_id).await?;
     initialize_payment_on_init(
         transaction,
-        commerce_id,
+        commerce_data,
         &on_init_request.message.order.payments,
     )
     .await?;
@@ -2886,7 +2911,10 @@ pub fn validate_status_request(order_data: &Commerce) -> Result<(), OrderError> 
     Ok(())
 }
 
-pub fn validate_update_request(order_data: &Commerce) -> Result<(), OrderError> {
+pub fn validate_update_request(
+    order_data: &Commerce,
+    is_payment_update: bool,
+) -> Result<(), OrderError> {
     if !matches!(
         order_data.record_status,
         CommerceStatusType::Initialized
@@ -2897,6 +2925,16 @@ pub fn validate_update_request(order_data: &Commerce) -> Result<(), OrderError> 
     ) {
         return Err(OrderError::ValidationError(
             format!("Order is already {} status", order_data.record_status).to_string(),
+        ));
+    }
+    if is_payment_update
+        && order_data
+            .payments
+            .iter()
+            .any(|f| f.is_bap_payment() && f.payment_status != PaymentStatus::Paid)
+    {
+        return Err(OrderError::ValidationError(
+            "Payment is not completed".to_string(),
         ));
     }
 

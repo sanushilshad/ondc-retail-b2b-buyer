@@ -318,9 +318,14 @@ pub async fn on_init(
         .context("Failed to acquire a Postgres connection from the pool")
         .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
 
-    initialize_order_on_init(&mut transaction, &body, order_request_model.business_id)
-        .await
-        .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
+    initialize_order_on_init(
+        &mut transaction,
+        &body,
+        order_request_model.business_id,
+        &commerce_data,
+    )
+    .await
+    .map_err(|_| ONDCBuyerError::BuyerInternalServerError { path: None })?;
 
     if commerce_data.record_type.is_purchase_order() {
         send_rfq_init_chat(&chat_client, body.context.transaction_id, &commerce_data)

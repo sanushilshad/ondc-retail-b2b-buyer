@@ -404,6 +404,12 @@ impl CommercePayment {
         }
         false
     }
+    pub fn is_pre_paid(&self) -> bool {
+        if self.payment_type == PaymentType::PrePaid {
+            return true;
+        }
+        false
+    }
 }
 
 #[derive(Deserialize, Debug, ToSchema, sqlx::Type, Serialize, Clone, PartialEq)]
@@ -925,6 +931,12 @@ impl OrderUpdateRequest {
             OrderUpdateRequest::UpdatePayment(request) => request.message_id,
             OrderUpdateRequest::UpdateItem(request) => request.message_id,
             OrderUpdateRequest::UpdateFulfillment(request) => request.message_id,
+        }
+    }
+    pub fn is_payment_update(&self) -> bool {
+        match self {
+            OrderUpdateRequest::UpdatePayment(_) => true,
+            _ => false,
         }
     }
 }
