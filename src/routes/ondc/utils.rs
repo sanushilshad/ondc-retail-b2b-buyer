@@ -241,7 +241,7 @@ pub fn get_common_context(
             },
         },
         action,
-        version: ONDCVersion::V2point2,
+        version: Some(ONDCVersion::V2point2),
         transaction_id: transaction_id.to_owned(),
         message_id: message_id.to_owned(),
         bap_id: bap_id.to_string(),

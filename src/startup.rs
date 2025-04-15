@@ -11,8 +11,8 @@ use actix_web::dev::Server;
 use tokio::try_join;
 // use actix_web::middleware::Logger;
 use crate::configuration::Config;
-
 use crate::database::get_connection_pool;
+use actix_cors::Cors;
 use actix_web::{web, App, HttpServer};
 use sqlx::postgres::PgPool;
 use std::net::TcpListener;
@@ -87,6 +87,7 @@ async fn run(
         App::new()
             .app_data(web::PayloadConfig::new(1 << 25))
             .wrap(SaveRequestResponse)
+            .wrap(Cors::permissive())
             .wrap(TracingLogger::default())
             .app_data(db_pool.clone())
             .app_data(email_client.clone())

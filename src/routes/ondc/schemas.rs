@@ -193,7 +193,7 @@ pub struct ONDCContext {
     pub domain: ONDCDomain,
     pub location: ONDCContextLocation,
     pub action: ONDCActionType,
-    pub version: ONDCVersion,
+    pub version: Option<ONDCVersion>,
     pub transaction_id: Uuid,
     pub message_id: Uuid,
     #[serde(serialize_with = "serialize_timestamp_without_nanos")]
