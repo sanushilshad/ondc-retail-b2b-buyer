@@ -107,7 +107,7 @@ CREATE TABLE IF NOT EXISTS search_request (
   fulfillment_type fulfillment_type
 );
 CREATE INDEX idx_search_request_message_txn ON search_request(message_id, transaction_id);
-
+CREATE INDEX search_request_created_on_idx ON search_request (created_on);
 
 
 CREATE TYPE payment_collected_by_type AS ENUM(
@@ -473,6 +473,8 @@ CREATE TABLE IF NOT EXISTS commerce_data(
 );
 
 ALTER TABLE commerce_data ADD CONSTRAINT commerce_data_uq UNIQUE (external_urn);
+CREATE INDEX commerce_created_on_idx ON commerce_data (created_on);
+
 
 CREATE TABLE IF NOT EXISTS commerce_data_line(
   id uuid PRIMARY KEY,
